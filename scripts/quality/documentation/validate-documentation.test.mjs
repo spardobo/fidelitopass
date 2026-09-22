@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { validateMarkdownLinks, validateRequirementIds } from "./validate-documentation.mjs";
 
 function fixture() {
-    const root = mkdtempSync(join(tmpdir(), "deturistaando-quality-"));
+    const root = mkdtempSync(join(tmpdir(), "fidelitopass-quality-"));
     mkdirSync(join(root, "docs"));
     writeFileSync(
         join(root, "docs/requirements.md"),

@@ -8,7 +8,7 @@ After the first product specification exists, run the suite through the pinned b
 ./scripts/quality/browser/run-playwright.sh test:e2e
 ```
 
-Sail must be running because browser tests use the `deturistaando-network` Docker network and the application service name as their default base URL.
+Sail must be running because browser tests use the `fidelitopass-network` Docker network and the application service name as their default base URL.
 
 Verify the pinned browser runtime without inventing a product journey:
 
