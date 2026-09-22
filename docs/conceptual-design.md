@@ -96,9 +96,9 @@ Operational phase is derived from database time:
 
 | Phase | Rule |
 |---|---|
-| Scheduled | Published and database `CURRENT_TIMESTAMP < starts_at`. |
-| Active | Published and `starts_at <= CURRENT_TIMESTAMP < ends_at`. |
-| Ended | Published and `CURRENT_TIMESTAMP >= ends_at`. |
+| Scheduled | Published and an explicitly current PostgreSQL wall-clock instant is before `starts_at`. |
+| Active | Published and `starts_at <=` that current PostgreSQL wall-clock instant `< ends_at`. |
+| Ended | Published and that current PostgreSQL wall-clock instant is `>= ends_at`. |
 | Cancelled | Stored status is `cancelled`. |
 
 `ends_at` is exclusive. A challenge configured through the end of 31 October in the Business timezone stores an `ends_at` instant corresponding to local midnight at the start of 1 November.
@@ -144,7 +144,7 @@ validated_by_user_id
 idempotency_key
 ```
 
-`visited_at` is a PostgreSQL `timestamptz` generated from database time. FidelitoPass does not persist a duplicated local-date Visit column in MVP.
+`visited_at` is a PostgreSQL `timestamptz` set from the mutating operation's one post-lock database-derived instant. FidelitoPass does not persist a duplicated local-date Visit column in MVP.
 
 The Business-local date is derived when required:
 
@@ -155,7 +155,7 @@ The Business-local date is derived when required:
 MVP rules:
 
 - A Visit is created only after the authenticated Business confirms validation.
-- The database transaction uses database time as the authoritative "now".
+- After acquiring relevant row locks, a mutating transaction captures PostgreSQL `clock_timestamp()` exactly once as `operation_at` and reuses it for validity checks, Business-local point-rule evaluation, `visited_at`, and related audit/event timestamps.
 - Legitimate repeat Visits on the same Business-local day may each be accepted.
 - Technical retries of the same validation operation return the prior accepted result through idempotency.
 - Visits remain stored after Challenge completion, expiration, cancellation, or redemption.
@@ -224,7 +224,7 @@ MVP has one Reward per Challenge.
 4. The manual-code input is always immediately below the scanner.
 5. FidelitoPass identifies the Customer pass.
 6. The Business confirms **Register visit**.
-7. Inside one transaction, FidelitoPass locks the Customer pass, uses database time, resolves the point value that applies now, and creates the Visit with `points_awarded`.
+7. Inside one transaction, FidelitoPass acquires the relevant Customer pass and Challenge locks, then captures PostgreSQL `clock_timestamp()` exactly once as `operation_at`; it reuses that instant to check validity, resolve the Business-local point value, and create the Visit with `visited_at` and `points_awarded`.
 8. FidelitoPass sums awarded points for the active Challenge and derives the new progress.
 9. FidelitoPass creates the Reward entitlement if the target points have been reached.
 10. Wallet synchronization is requested after local state commits.
@@ -236,7 +236,7 @@ MVP has one Reward per Challenge.
 3. FidelitoPass detects the available Reward entitlement.
 4. The primary action becomes **Redeem reward**.
 5. The Business confirms.
-6. The entitlement records the final redemption timestamp and operator.
+6. After acquiring the relevant entitlement and Challenge locks, FidelitoPass captures PostgreSQL `clock_timestamp()` exactly once as `operation_at`, uses it for the redemption deadline check, and records it as the final redemption timestamp with the operator.
 7. Wallet is synchronized after commit.
 
 ### Finish a challenge
@@ -258,7 +258,8 @@ When the Challenge reaches `ends_at`:
 - A Business has at most one Active Challenge at any instant.
 - A Customer pass belongs to one Business.
 - A Visit belongs to one Customer pass and one Challenge from the same Business.
-- Field `visited_at` comes from PostgreSQL time, not the browser or application host clock.
+- Field `visited_at` comes from the mutation's single post-lock PostgreSQL `clock_timestamp()` value, not the browser or application host clock.
+- Lock-sensitive mutations reuse one `operation_at` for deadline checks, Business-local rule evaluation, domain timestamps, and related audit/event timestamps; read-only phase queries use an explicitly current PostgreSQL wall-clock instant.
 - Legitimate repeat Visits on the same Business-local day may each be accepted and award points.
 - Public acquisition identifiers never authorize Visit or Reward operations.
 - The Wallet validation token and manual lookup code have different authority.

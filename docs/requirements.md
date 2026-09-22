@@ -216,7 +216,7 @@ As a Business owner, I want Challenge dates to behave according to my local cale
 
 - **Given** a published Challenge.
 - **When** its phase is queried.
-- **Then** phase decisions use PostgreSQL `CURRENT_TIMESTAMP` against the stored UTC window.
+- **Then** phase decisions use an explicitly current PostgreSQL wall-clock instant against the stored UTC window, not transaction-start `CURRENT_TIMESTAMP`.
 
 **Verification:** PostgreSQL-backed timezone tests including a UTC/local-date boundary.
 
@@ -376,7 +376,7 @@ As a system operator, I want one authoritative clock for Visit facts so that cha
 
 - **Given** a valid Visit confirmation.
 - **When** the Visit is inserted.
-- **Then** `visited_at` comes from PostgreSQL current transaction time and no duplicated local-date Visit field is persisted.
+- **Then** relevant rows are locked before PostgreSQL `clock_timestamp()` is captured exactly once as `operation_at`; `visited_at` uses that instant, and no duplicated local-date Visit field is persisted.
 
 **Verification:** PostgreSQL-backed persistence test.
 
@@ -537,7 +537,7 @@ As a Business owner, I want Reward validity to match the published Challenge dea
 **Scenario: Redemption after expiry**
 
 - **Given** an unredeemed entitlement.
-- **When** PostgreSQL `CURRENT_TIMESTAMP >= challenge.ends_at`.
+- **When** the relevant rows are locked and the operation's single PostgreSQL `clock_timestamp()` value is `>= challenge.ends_at`.
 - **Then** redemption is rejected as expired.
 
 **Verification:** Database-time feature tests.

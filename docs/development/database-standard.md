@@ -58,15 +58,15 @@ PostgreSQL stores `timestamptz` instants internally in UTC. The Business/Challen
 
 Rule-relevant "now" comes from PostgreSQL.
 
-Use:
+For a mutating operation, acquire the relevant row locks first, then use:
 
 ```sql
-CURRENT_TIMESTAMP
+clock_timestamp()
 ```
 
-within the owning transaction.
+exactly once to capture `operation_at`. Reuse that one database-derived instant for every deadline check, Business-local point-rule evaluation, `visited_at`, `redeemed_at`, and related audit/event timestamps in the operation.
 
-`CURRENT_TIMESTAMP` is stable for the transaction, giving Visit/Reward decisions one consistent instant.
+Do not use transaction-start `CURRENT_TIMESTAMP` for lock-sensitive Challenge/Visit/Reward validity: a lock wait can make it stale. Do not take multiple `clock_timestamp()` readings within one operation. For read-only phase queries, use an explicitly current PostgreSQL wall-clock instant such as `clock_timestamp()`.
 
 Do not use:
 
@@ -119,7 +119,7 @@ The UI can derive/display local dates from the stored instants and Challenge tim
 Visits persist:
 
 ```text
-visited_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+visited_at timestamptz NOT NULL
 ```
 
 Do not persist:
@@ -137,10 +137,16 @@ When local date is required:
 (visited_at AT TIME ZONE challenges.timezone)::date
 ```
 
-When the database-local current Challenge date is required:
+When the database-local current Challenge date is required for a mutation, derive it from the operation's one captured instant:
 
 ```sql
-(CURRENT_TIMESTAMP AT TIME ZONE challenges.timezone)::date
+(operation_at AT TIME ZONE challenges.timezone)::date
+```
+
+For a read-only phase query, use an explicitly current PostgreSQL wall-clock instant:
+
+```sql
+(clock_timestamp() AT TIME ZONE challenges.timezone)::date
 ```
 
 ### Example
@@ -355,7 +361,7 @@ Constraints/indexes:
 
 There is intentionally no local-day uniqueness rule. Legitimate repeat Visits on the same Business-local day may each be accepted.
 
-`ValidateVisitAction` serializes operations with a row lock on the Customer pass and uses idempotency to prevent one technical validation request from creating duplicate Visit facts.
+`ValidateVisitAction` serializes operations with relevant row locks, then captures one PostgreSQL `clock_timestamp()` value as `operation_at`; idempotency prevents one technical validation request from creating duplicate Visit facts.
 
 ### reward_entitlements
 
@@ -378,7 +384,7 @@ Constraints:
 - FKs to pass/challenge/user.
 - Field `redeemed_by_user_id` is nullable until redemption.
 
-`unlocked_at` and `redeemed_at` are domain instants. Set them from PostgreSQL current time within their transactions.
+`unlocked_at` and `redeemed_at` are domain instants. Set them from the mutation's one post-lock PostgreSQL `clock_timestamp()` value, `operation_at`.
 
 No separate Redemption table is required in MVP because one entitlement has one optional final redemption.
 

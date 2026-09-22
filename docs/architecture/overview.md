@@ -103,7 +103,7 @@ There is no Challenge strategy hierarchy, dynamic rule engine, condition tree, o
 - Application timezone stays UTC.
 - PostgreSQL session/default timezone stays UTC.
 - Rule-relevant instants use `timestamptz`.
-- Field `visited_at` is generated from PostgreSQL `CURRENT_TIMESTAMP`.
+- Mutating operations set `visited_at`, `redeemed_at`, and related domain/audit-event timestamps from one post-lock PostgreSQL `clock_timestamp()` value named `operation_at`.
 - Field `starts_at` is inclusive.
 - Field `ends_at` is exclusive.
 
@@ -127,13 +127,13 @@ Use PostgreSQL conversion when Business-local calendar meaning matters, includin
 (visited_at AT TIME ZONE challenge_timezone)::date
 ```
 
-Use database current time for active/expired decisions:
+For read-only active/expired phase queries, use an explicitly current PostgreSQL wall-clock instant:
 
 ```sql
-CURRENT_TIMESTAMP
+clock_timestamp()
 ```
 
-`CURRENT_TIMESTAMP` is stable within the transaction, which is desirable for one consistent validation/redemption decision.
+For mutating decisions, acquire the relevant row locks first, capture `clock_timestamp()` exactly once as `operation_at`, and reuse it for every deadline check and Business-local calculation. Do not use transaction-start `CURRENT_TIMESTAMP` for lock-sensitive validity: a lock wait can make it stale.
 
 ## Visit validation transaction
 
@@ -144,12 +144,13 @@ Conceptual flow:
 ```text
 begin transaction
   resolve authenticated Business
-  lock Customer pass row
-  load active Challenge using CURRENT_TIMESTAMP
+  lock relevant Customer pass and Challenge rows
+  capture clock_timestamp() exactly once as operation_at
   validate pass belongs to Business
-  resolve the point value that applies at the current Business-local time
+  check Challenge validity using operation_at
+  resolve the point value using operation_at in the Challenge timezone
   enforce idempotency for the validation operation
-  insert Visit with database-generated visited_at and points_awarded
+  insert Visit with visited_at = operation_at and points_awarded
   sum awarded points for the active Challenge
   create Reward entitlement if target points are reached
 commit
@@ -165,10 +166,11 @@ Locking the Customer pass serializes concurrent state changes for that pass. Leg
 ```text
 begin transaction
   resolve authenticated Business
-  lock entitlement
-  validate Challenge active using CURRENT_TIMESTAMP
+  lock relevant entitlement and Challenge rows
+  capture clock_timestamp() exactly once as operation_at
+  validate Challenge active using operation_at
   validate not redeemed
-  set redeemed_at = CURRENT_TIMESTAMP
+  set redeemed_at = operation_at
   set redeemed_by_user_id
 commit
 dispatch Wallet synchronization after commit
