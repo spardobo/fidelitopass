@@ -1,250 +1,228 @@
-# **DeTuristaAndo** Quality Strategy
+# FidelitoPass Quality Strategy
 
-This document defines the evidence required to release the [MVP01 requirements](requirements.md). Quality work follows product risk and remains small enough for one developer to run continuously.
+This document defines proportionate verification for the MVP.
+
+Quality work follows product risk. It must protect the loyalty loop without turning every UI detail into a large test matrix.
 
 ## Quality priorities
 
-| Priority | Reason | Main evidence |
+| Priority | Main risk | Primary evidence |
 |---|---|---|
-| Domain correctness | Duplicate visits, benefits, or redemptions damage trust. | Domain, integration, and concurrency tests. |
-| Authorization | Three access models share one application. | Policy and abuse-case tests. |
-| Counter reliability | A failure during live service stops participation. | Browser, retry, and recovery tests. |
-| Visitor usability | Registration, slow pages, or unclear QR use causes abandonment. | Mobile E2E, accessibility, and performance evidence. |
-| Maintainability | AI-assisted changes can introduce plausible but incorrect code. | Static analysis, focused review, and architecture tests. |
+| Challenge correctness | Wrong awarded points or progress damages trust. | Domain/feature tests. |
+| Visit integrity | Retried/concurrent validation can duplicate points if idempotency fails. | PostgreSQL-backed transaction/concurrency tests. |
+| Reward finality | Double redemption creates direct Business loss. | Transaction/idempotency tests. |
+| Authorization | One Business could alter another Business's passes. | Policy/feature abuse tests. |
+| Time correctness | UTC/local-day boundaries can change progress or expiry. | PostgreSQL timezone boundary tests. |
+| Wallet boundary | Provider failure can leave customer presentation stale. | Integration/job failure tests. |
+| Counter usability | Slow/unclear validation disrupts real service. | Focused browser and responsive evidence. |
 
-## Test strategy
+## Test pyramid
 
-| Level | Scope | Target execution |
-|---|---|---|
-| Unit and domain | `K/N`, repeated visits, entitlement, capacity, expiry, and state transitions. | During development and CI. |
-| Feature | Laravel routes, Livewire actions, policies, validation, and audit behavior. | During development and CI. |
-| Architecture | Conventional Laravel responsibilities, Action boundaries, transaction ownership, and documented abstraction justifications. | Focused review and behavior tests during development and CI. |
-| Integration | PostgreSQL constraints, transactions, OAuth linking, queues, storage, and project-owned Integration behavior. | CI with real PostgreSQL, Laravel fakes, and focused Integration behavior tests. |
-| Contract | Project-owned Google Wallet Integration mapping and error classification. | Focused mapping/error tests; selected provider sandbox checks before release. |
-| Browser | Critical visitor, organizer, and business journeys. | Deferred; pre-push, CI, and staging with the first complete executable journey and its required runtime and fixtures. |
-| Operational | Backup restore, deployment, health, and rollback. | Before production release and after material infrastructure change. |
+Use the testing pyramid as a planning guide, not a percentage gate:
 
-Use the test pyramid as a planning guide:
-
-| Test share | Initial direction |
+| Layer | Direction |
 |---|---:|
-| Unit and domain | `60–70%` |
-| Feature, integration, architecture, and contract | `20–30%` |
-| Browser and operational | `5–10%` |
+| Unit/domain | 60–70% |
+| Feature/integration | 20–30% |
+| Browser | 5–10% |
 
-The percentages are not release gates. Prefer the cheapest test that proves the behavior. Add browser coverage only when a user journey can fail across layers.
+Prefer the cheapest test that proves the behaviour.
 
-## Test design rules
+Do not build a large browser suite for logic that can be proven deterministically in an evaluator or PostgreSQL-backed feature test.
 
-- Structure focused tests with Arrange, Act, and Assert.
-- Test observable behavior instead of private methods or framework implementation.
-- Use test-first development for visit, progress, entitlement, redemption, authorization, and concurrency rules.
-- Let the developer own the expected behavior. An AI coding agent can propose implementation and tests but cannot define acceptance.
-- In Playwright, prefer role, label, and visible text selectors. Use test IDs only when no semantic selector is stable.
-- Use Playwright auto-wait. Do not add fixed sleeps to hide timing failures.
-- Keep browser helpers or page objects only when a journey repeats stable actions across tests.
 
-## Critical automated scenarios
+## Strategic coverage model — 100/80/0
 
-- Publish only a ready experience with valid `K/N` rules.
-- Activate one business invitation once and reject reuse.
-- Deny access outside organizer ownership or business scope.
-- Create an anonymous participation with separate credentials.
-- Confirm the first and a repeated visit to the same participant.
-- Reach the goal once under concurrent confirmations.
-- Reserve limited benefit capacity without over-allocation.
-- Redeem once under repeated or concurrent requests.
-- Preserve accepted domain state when Wallet update fails.
-- Retry a timed-out validation without duplicate events.
-- Complete visitor and business flows by camera and manual code.
-- Recover business access after device revocation.
+Coverage is applied by risk tier instead of chasing one global percentage.
 
-Each core rule needs an accepted case, a relevant rejection case, and concurrency evidence when the rule changes shared state.
+| Tier | Scope | Target |
+|---|---|---:|
+| CORE | Point awarding, Challenge progress, Visit integrity, Reward unlock/redemption, authorization, time boundaries, idempotency/concurrency. | **100% of identified rules/functions directly covered** |
+| IMPORTANT | Application Actions, Livewire workflows, Wallet mapping/integration boundaries, reusable project-owned services. | **80%+ line/function coverage** |
+| INFRASTRUCTURE | Framework bootstrap, configuration, generated code, trivial migrations, vendor code. | **0% coverage target** |
 
-## Strategic coverage
+Rules:
 
-Coverage follows a `100/80/0` risk model adapted to the Laravel application.
+- CORE 100% means every identified business/security rule has direct automated evidence; it is not permission to write meaningless tests only to increase a number.
+- IMPORTANT code should maintain at least 80% line/function coverage where coverage instrumentation applies.
+- INFRASTRUCTURE has no percentage target because framework/configuration correctness is better proven by integration, build, migration, or deployment checks.
+- Do not use one global repository coverage percentage as the primary quality signal.
 
-| Tier | Scope | Initial target |
-|---|---|---|
-| Core | Visit, distinct progress, entitlement, capacity, redemption, credential scope, and authorization rules. | `100%` of identified rules have direct automated tests. |
-| Important | Owned application services, Livewire workflows, and provider Integrations. | `80%+` line coverage where measurement is stable and useful. |
-| Infrastructure | Framework bootstrap, generated files, configuration-only code, and vendor packages. | No coverage target. |
+## Quality metrics
 
-Do not use one global percentage to justify low-value tests. Review uncovered branches in changed core code. Keep the main branch at `100%` test success with zero accepted flaky tests.
+These are the deterministic quality targets for the MVP:
 
-A flaky test is fixed or removed from the required suite. It is never retried until green without investigation.
+| Metric | Target |
+|---|---:|
+| Required automated test success | **100%** |
+| Accepted flaky required tests | **0** |
+| CORE rule/function coverage | **100%** |
+| IMPORTANT line/function coverage | **>= 80%** |
+| INFRASTRUCTURE coverage target | **0%** |
+| Static-analysis errors in project-owned code | **0** |
+| Formatting drift after canonical formatter | **0** |
+| Unresolved critical/high dependency vulnerabilities | **0, or an explicit reviewed exception** |
+| Pre-commit feedback budget | **<= 90 seconds target** |
+| Pre-push feedback budget | **<= 3 minutes target** |
 
-## Refactoring and code quality
+The hook time values are feedback budgets, not correctness gates. If a local gate becomes consistently slower, move the expensive check later instead of encouraging bypass.
 
-- Refactor behavior without changing its external contract. Separate a risky refactor from unrelated feature work.
-- Add characterization tests before changing untested existing behavior.
-- Apply the Boy Scout rule only inside the active work-item boundary.
-- Treat cognitive complexity above `15` in an owned method as a review signal when the selected analyzer can measure it. Do not add a quality platform only for this number.
-- Reject duplicated business knowledge, dead code, pass-through services, generic repositories, and speculative abstractions during review.
-- Do not merge a new `TODO` or `FIXME` without an owner or linked work item.
+Accessibility targets for core flows:
 
-## Local feedback
+- WCAG AA contrast: at least 4.5:1 for normal text and 3:1 for large text.
+- Touch targets near or above 44x44px.
+- Keyboard-visible focus and semantic controls.
+- No status communicated by colour alone.
 
-All executable local quality checks run in containers. The host requires Docker, not local PHP, Composer, Node, PostgreSQL, scanners, or browser-test runtimes. Application checks and npm maintenance use Sail; repository wrappers run Gitleaks and Playwright in their pinned official images.
+## Test design
 
-| Gate | Budget | Checks |
-|---|---:|---|
-| Pre-commit | Target `≤ 90 s` | Fast deterministic feedback: configuration clear, Pint, Larastan, the PHPUnit Unit suite, scoped Vite+ checks, documentation-validator tests, documentation links, and requirement identifiers. Future tests in the Unit suite are included by the existing suite command. |
-| Pre-push | Target `≤ 3 min` | Pre-commit once, then the full PHP suite across `tests/` and colocated `resources/views/**/*.test.php`, complete Node tooling tests, dependency audit, Git-history secret scan, and frontend production build. |
+- Structure focused tests with Arrange, Act, Assert.
+- Test observable behaviour and domain outcomes, not private methods.
+- Use real PostgreSQL when behaviour depends on transactions, constraints, `timestamptz`, `AT TIME ZONE`, or row locks.
+- Fake Google Wallet at the provider boundary for deterministic automated tests.
+- Keep one real-device Wallet verification checklist for release confidence.
+- Fix or remove flaky required tests; do not normalize retry-until-green.
+- Keep fixtures small and explicit.
 
-If a gate exceeds its budget consistently, move expensive checks to CI instead of encouraging bypass.
+## Core direct-test coverage
 
-Husky versions both hooks in `.husky/`. The hooks are minimal adapters: they delegate to `scripts/quality/gates/pre-commit.sh` and `scripts/quality/gates/pre-push.sh`, which expose every stage command instead of hiding the flow behind a generic quality alias. Repository scripts are grouped by responsibility under `gates/`, `documentation/`, `security/`, and `browser/`. They execute application commands in Sail and scanners or browsers in pinned containers. They fail closed when a check fails and remain convenience gates rather than merge authority. Keep Sail running before committing or pushing. `--no-verify` is reserved for recovery from a broken or unavailable local mechanism, never for ignoring a failing check; pull-request CI remains the merge authority.
+Every identified core rule must have direct automated evidence.
 
-Command names follow `<operation>:<scope>:<variant>`. `format` changes files, `check:*` inspects without changing files, and `test:*` executes a named test suite. Composer and npm share this grammar but expose only capabilities that exist in their ecosystems; symmetry never justifies a placeholder command. Composer exposes `format`, `check:format`, `check:lint`, `test`, `test:unit`, and `test:feature`. Canonical `composer test` is full PHP completion evidence at pre-push and CI; focused `test:unit` and `test:feature` commands provide developer feedback only. PHPStan remains a static analyzer even though `check:lint` is its stable command name. npm exposes independent `check:format` and `check:lint` commands through Vite+ rather than hiding them behind an aggregate. `npm test` discovers every current Node test and runs at pre-push and CI, while focused commands such as `test:documentation-validator` remain available for diagnosis and pre-commit.
+Core rules:
 
-`npm run test:documentation-validator` proves that the repository-owned validator detects broken Markdown links and invalid or unknown `REQ-*` identifiers. The pre-commit gate runs this test before `npm run check:documentation` applies the validated tool to `README.md` and `docs/`. The application and its validation tool therefore provide separate evidence.
+- Challenge target/Reward configuration ranges.
+- Challenge active/scheduled/ended state from database time.
+- Non-overlapping publication.
+- Regular Visit point awarding.
+- Optional special weekday/time point awarding.
+- Legitimate repeat Visits on the same day.
+- Idempotent/concurrent validation of one operation.
+- Challenge progress from immutable awarded points.
+- One Reward entitlement.
+- One Redemption.
+- Challenge expiry/cancellation.
+- Cross-Business authorization.
+- Wallet provider failure after commit.
 
-Playwright `1.63.0` is fixed in the npm lockfile and its wrapper fixes the matching Noble browser image by digest. `check:playwright-runtime` proves that Chromium launches without pretending to cover a product journey; `tests/Browser/` intentionally contains no product specifications. Playwright joins pre-push and CI with the first complete executable browser journey and its required runtime and fixtures. Coverage joins those gates only when a driver, reporting, and criteria exist.
+This list defines the CORE tier for the 100/80/0 strategy. Each identified rule requires direct automated evidence.
 
-Run the security and browser tooling without installing it on the host:
+## Feature/integration coverage
 
-```bash
-./scripts/quality/security/audit-dependencies.sh
-./scripts/quality/security/scan-git-secrets.sh
-./scripts/quality/browser/run-playwright.sh check:playwright-runtime
-./scripts/quality/browser/run-playwright.sh test:e2e
-```
+Use Laravel feature tests for:
 
-Composer blocks every known advisory and abandoned locked package. npm reports all findings and blocks on `high` or `critical` severity. Gitleaks scans reachable Git history with redacted output. These checks do not replace review of exposed credentials: revoke a leaked credential before removing it from history.
+- Authentication boundary.
+- Business ownership.
+- Challenge forms/publication.
+- Public join flow.
+- Pass lookup.
+- Rate limiting.
+- Structured log context when custom logic exists.
+- Wallet job dispatch after commit.
 
-Recommended local tools:
+Use database constraints directly in tests when the invariant should survive application bypass.
 
-- Laravel Pint for PHP style.
-- Larastan for static analysis.
-- Pest or PHPUnit for PHP behavior.
-- Playwright for critical browser journeys and selected visual regression.
-- Lighthouse for reproducible public-page performance checks.
-- Axe with Playwright for automated accessibility checks.
-- A Markdown and relative-link check for documentation.
+## Browser coverage
 
-## Continuous integration
+Keep browser coverage representative.
 
-The current GitHub Actions baseline runs on pull requests targeting `main` and on pushes to `main`. One required `quality` job uses a disposable `ubuntu-latest` runner with PHP 8.4, Composer 2, Node.js 24, and an ephemeral PostgreSQL 16 Alpine service. It executes PHP, Composer, and Node directly on the runner rather than starting Sail, independently repeating the exhaustive baseline: lockfile installation, configuration reset, PHP and JavaScript format and lint checks, complete Node tooling tests, documentation validation, dependency audits, reachable-history secret scanning, frontend build, and canonical `composer test` across `tests/` and colocated `resources/views/**/*.test.php`.
+Required journeys:
 
-Sail is a local-development contract, not a CI runtime requirement. GitHub Actions uses containers selectively where they provide justified isolation: PostgreSQL supplies the ephemeral service database and Gitleaks supplies the pinned scanner. Playwright joins CI only with the first complete executable browser journey and its required runtime and fixtures.
+1. Public landing -> Business registration entry.
+2. Owner creates/publishes a Challenge.
+3. Customer join page -> Add to Google Wallet handoff (provider boundary may be stubbed).
+4. Business validation page with scanner path represented where practical.
+5. Manual-code fallback directly below scanner.
+6. Successful Visit -> progress result.
+7. Reward available -> Redemption.
+8. Responsive/theme smoke coverage.
 
-GitHub Actions are fixed by commit SHA and container images by digest. Checkout fetches complete history for Gitleaks. The npm cache stores package-manager downloads through `actions/setup-node`; the Composer cache stores only downloaded archives through `actions/cache`, with a key derived from `composer.lock`. Neither cache stores `node_modules/` or `vendor/`, and both dependency trees are recreated from their committed lockfiles on every run.
+Browser rules:
 
-The current automated gates are:
+- Prefer semantic role/label/text selectors.
+- Use test IDs only when a semantic selector is not stable.
+- Rely on Playwright auto-wait.
+- Never use fixed sleeps to hide timing problems.
+- Retain trace/screenshot evidence on failure according to existing project tooling.
 
-- Required quality job with PostgreSQL 16, the complete deterministic pre-push baseline, dependency audits, documentation validation, and Gitleaks.
-- Pull-request policy: branch naming, an approved closing or non-closing reference to at least one `status:approved` issue, and exactly one `type:*` label. Only the final pull request in a documented chain uses a closing keyword.
-- Weekly Dependabot checks for Composer, npm, and GitHub Actions.
+## Accessibility and usability checks
 
-The complete target gate remains:
+For core flows:
 
-1. Dependency installation from committed lock files.
-2. Laravel Pint and JavaScript formatting or lint checks.
-3. Larastan static analysis.
-4. Unit, feature, integration, and architecture tests with PostgreSQL 16.
-5. The npm frontend production build.
-6. Critical Playwright tests and selected stable visual snapshots in containers.
-7. Dependency and secret scans.
-8. Production-image build from the root `Dockerfile`, plus a vulnerability scan when deployment files change.
-9. Documentation link and identifier checks.
+- Semantic HTML.
+- Visible focus.
+- Associated form labels.
+- Contrast targeting WCAG AA.
+- Controls usable at touch sizes near 44×44px.
+- No meaning communicated by colour alone.
+- No horizontal scrolling at common narrow viewports.
+- Scanner error leaves manual fallback immediately accessible.
 
-Critical Playwright coverage and stable visual snapshots remain deferred until the first complete executable journey has its required runtime and fixtures; architecture tests, container scanning, and the GitHub Actions production-image build remain deferred until their dedicated items provide the required automation. The independent production `Dockerfile` is available for local build and smoke evidence, but it is not yet a repository gate. Do not present target gates as current evidence.
+Automated accessibility checks cover only part of the problem. Perform a short manual keyboard/contrast review of the core flows.
 
-Coverage measurement is deferred until a driver, reporting, and criteria exist. Its first implementation must exclude generated and infrastructure-only code, report the Core and Important tiers separately where tooling permits, and preserve the `100/80/0` risk interpretation rather than impose one repository-wide percentage; only then does coverage join pre-push and CI.
+## Static analysis and formatting
 
-Keep the current deterministic baseline in one required job so branch protection has one clear result and this small project avoids duplicated setup. Split independent jobs only if measured duration exceeds the feedback budget. A dedicated future delivery item must build and verify the independent production image without starting Sail. Build the deployable image once and promote the same artifact.
+Keep the existing project tools as canonical:
 
-## Review gate
+- Laravel Pint for PHP formatting.
+- Larastan/PHPStan for static analysis.
+- Frontend format/lint tooling already configured in the repository.
 
-Protect `main` and merge through a pull request, even for one developer. Required CI replaces unavailable second-person approval; it does not replace deliberate self-review.
+Do not add a new quality platform solely to obtain another score.
 
-Review focuses on:
+Project-owned code targets zero unresolved static-analysis errors at the configured project level.
 
-- Requirement and domain rule changed.
-- Authorization and data scope.
-- Transaction and idempotency behavior.
-- External failure path.
-- Tests that prove the outcome.
-- Documentation that owns the change.
-- Generated code that was accepted without verification.
-- Abstraction or pattern use without a current architectural reason.
+## Security checks
 
-## Security quality
+Keep lightweight security evidence in the delivery pipeline:
 
-Apply the minimum gate in the [security architecture](architecture/security.md): authorization and concurrency tests, dependency audit, secret scan, production configuration check, container scan, and focused manual review. The current pre-push gate implements the dependency and Git-history secret scans; production-image scanning remains deferred.
+- Dependency vulnerability audit.
+- Secret scanning.
+- Production build.
+- Authorization/rate-limit feature tests.
+- Production configuration checks such as debug disabled.
 
-Use OWASP guidance to review applicable risks before public release. Do not add a large security platform when Laravel configuration, tests, and lightweight scanners cover the current risk.
+Security tooling detects patterns; it does not replace review of Challenge/Visit/Reward business rules.
 
-Project policy excludes GitHub Copilot Code Review and the Copilot coding agent from repository gates. Human acceptance and deterministic CI remain authoritative.
+## Local and CI feedback
 
-## Accessibility evidence (continuous)
+Local feedback should remain fast enough to run habitually.
 
-Critical flows target WCAG 2.2 AA. Every UI-bearing slice supplies accessibility evidence when it ships; accessibility is not deferred to final hardening or Wave 7.
+Use:
 
-- Run automated accessibility checks on each affected representative public, private, organizer, or business screen.
-- Manually test keyboard, focus, zoom, touch, screen-reader labels, reduced motion, and error recovery for the affected flow.
-- Verify text contrast of at least `4.5:1` and large text contrast of at least `3:1`.
-- Verify that color, glow, motion, or position is never the only state signal.
-- Test affected mobile flows on a mid-range Android device or equivalent profile.
+- Fast formatting/static/focused checks before frequent local integration points.
+- The complete PHP/test/static/build/security suite before shared integration.
+- CI as independent required evidence.
 
-Automated accessibility tools find only part of the problem. Manual checks remain required.
+If a local gate becomes consistently too slow, move the expensive check later rather than encouraging bypass.
 
-## Visual-regression baseline evidence (Wave 7)
+## Logging verification
 
-Wave 7, the penultimate wave, establishes the final visual identity and its deliberate representative visual-regression baselines after the final palette, typography pairing, illustration system, decorative composition, controlled glow and depth, and expressive motion are in place. Keep snapshots for the representative public landing, private pass, validator review, and completion states. Update a baseline only after deliberate visual review.
+Structured logging is part of quality because it supports diagnosis.
 
-## Performance and reliability
+Verify:
 
-| Signal | Initial target |
-|---|---|
-| Public LCP | `≤ 2.5 s` at p75. |
-| Public INP | `≤ 200 ms` at p75. |
-| Public CLS | `≤ 0.1` at p75. |
-| Validation response | `≤ 2 s` at p95 under the documented baseline load. |
-| Direct interaction feedback | Visible response within `100 ms`. |
-| Pending operation feedback | Show progress and prevent duplicates after `300 ms`. |
-| Database recovery | RPO `24 h`; RTO `8 h`. |
+- Request IDs are present where expected.
+- JSON production formatter is valid.
+- Domain/security event names are stable.
+- No raw validation token or credential appears in representative log output.
 
-Use lab tests before traffic exists. Add field measurement when the sample is meaningful. Record the device, network, dataset, and concurrency baseline with every result.
+No external log-management service is required for MVP.
 
-Reliability evidence includes:
+## Release confidence checklist
 
-- idempotent retries;
-- queue retry and terminal failure behavior;
-- Wallet outage with working private web pass;
-- database backup and restore;
-- health check and rollback smoke test.
+Before a production release:
 
-Do not use optimistic UI for visit confirmation, entitlement, capacity, or redemption. Show a pending state until the server returns the authoritative result.
-
-## Observability
-
-Start with structured application logs, release context, health state, queue failures, audit events, and an error tracker such as Sentry if the deployment supports it. Correlation identifiers provide request flow context. Distributed tracing is not required for the initial monolith.
-
-Track:
-
-- unhandled error rate and affected flow;
-- validation latency and rejection rate;
-- Wallet synchronization failure and retry state;
-- time to recover from a production incident.
-
-When client-session monitoring is available, target at least `99.5%` crash-free sessions. Establish the production sample before using this value as a release gate.
-
-Set alert thresholds after a production baseline. Alert immediately on service loss, data integrity risk, or widespread validation failure. Do not alert on every isolated user error.
-
-## Release evidence
-
-A production release requires:
-
-- all required CI jobs green;
-- zero unresolved critical defects;
-- staging smoke test of the complete visitor and business flow;
-- migration and rollback review;
-- backup and restore evidence when persistence changed materially;
-- required provider credentials and sandbox checks;
-- updated living documentation;
-- a versioned image and release note.
-
-The release is complete only when the deployed version is healthy and the critical flow works in the target environment.
+- Complete required automated suite passes at 100%.
+- No accepted flaky required test exists.
+- 100/80/0 Coverage targets are satisfied for instrumented project-owned code.
+- Static analysis reports zero unresolved project-owned errors.
+- Dependency/secret scans pass; any critical/high dependency finding is resolved or has an explicit reviewed exception.
+- Production build succeeds.
+- Database migrations are tested.
+- Challenge UTC/local boundary cases pass.
+- Scan/manual validation works.
+- Reward can be unlocked and redeemed once.
+- Google Wallet can be issued and updated on a real supported device.
+- Light/dark responsive core pages are reviewed.
+- Production debug is disabled.
+- Structured production logs can be parsed as JSON.
