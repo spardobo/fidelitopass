@@ -49,7 +49,7 @@ Load a project document only when the current implementation decision needs the 
 - Technical retries are protected by idempotency and must not create duplicate Visit facts.
 - `visited_at` is database-generated `timestamptz`.
 - Do not add a duplicated local-date Visit column.
-- Domain-valid "now" comes from PostgreSQL `CURRENT_TIMESTAMP`.
+- After acquiring required row locks, capture PostgreSQL `clock_timestamp()` once as the operation instant for deadline, point-rule, and validity decisions.
 - Use Business-local timezone conversion for the optional special point rule and Challenge deadlines.
 - Challenge progress is the sum of immutable awarded points for that Customer pass and Challenge.
 - Reward entitlement is unique per Customer pass + Challenge.
@@ -117,7 +117,7 @@ Comments explain why a non-obvious constraint exists. Refactor ordinary control 
 - Keep Laravel timezone UTC.
 - Prefer `immutable_datetime` for rule-relevant timestamps.
 - Use CarbonImmutable/framework helpers for Business-local input/output conversion.
-- Use PostgreSQL `CURRENT_TIMESTAMP` for authoritative validity decisions.
+- Use the captured PostgreSQL `clock_timestamp()` operation instant for authoritative validity decisions; do not re-read time within the operation.
 - Use PostgreSQL `AT TIME ZONE` for Business-local weekday/time point rules and Challenge deadlines.
 - Do not trust browser/application-host time.
 
