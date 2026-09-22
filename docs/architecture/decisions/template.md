@@ -1,35 +1,27 @@
-# ADR-XXX: Decision title
+# ADR-NNN: Decision title
 
-**Date:** YYYY-MM-DD  
-**Status:** Proposed, Accepted, or Superseded by ADR-YYY
+## Status
+
+Proposed | Accepted | Superseded by ADR-XXX.
 
 ## Context
 
-State the problem, constraints, and reason the decision must persist.
+Describe the durable problem and constraints.
 
-## Options considered
+## Options Considered
 
-1. State one real option with its main benefit and cost.
-2. State another real option with its main benefit and cost.
+1. Credible option A.
+2. Credible option B.
+3. Credible option C, when genuinely applicable.
 
 ## Decision
 
-State the selected option in direct sentences.
+State the selected option.
+
+## Rationale
+
+Explain why it fits the current constraints.
 
 ## Consequences
 
-### Positive
-
-- State one relevant benefit.
-
-### Negative
-
-- State one relevant cost or risk.
-
-## Related requirements
-
-- List the affected stable requirement identifiers.
-
-## References
-
-- Add primary references when the decision depends on an external standard or provider.
+List important positive and negative effects.
