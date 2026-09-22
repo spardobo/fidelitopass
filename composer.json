@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "spardobo/deturistaando",
+    "name": "spardobo/fidelitopass",
     "type": "project",
-    "description": "Local discovery experiences across independent businesses.",
+    "description": "A Laravel application.",
     "keywords": [
         "laravel",
         "framework"
@@ -22,6 +22,10 @@
     "require-dev": {
         "fakerphp/faker": "^1.24",
         "larastan/larastan": "^3.9",
+        "laravel-lang/attributes": "^2.16",
+        "laravel-lang/http-statuses": "^3.13",
+        "laravel-lang/lang": "^15.35",
+        "laravel/boost": "2.9.1",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
@@ -47,6 +51,7 @@
     "scripts": {
         "setup": [
             "composer install",
+            "@php artisan boost:install --skills --no-interaction",
             "@php -r \"file_exists('.env') || copy('.env.dev.example', '.env');\"",
             "@php artisan key:generate",
             "@php artisan migrate --force",
