@@ -1,141 +1,170 @@
-# **DeTuristaAndo** Documentation Standard
+# FidelitoPass Documentation Standard
 
-This document defines how the **DeTuristaAndo** documentation is organized and maintained. Each document is a living source with one stable purpose.
+This document defines how project documentation is written and maintained.
 
-## Principles
+## Purpose
 
-| Principle | Project rule |
-|---|---|
-| Single source | Put each rule or decision in one authoritative document. Link instead of copying. |
-| Progressive disclosure | Explain product, domain, requirements, architecture, and delivery in that order. |
-| Rolling wave | Detail the active delivery slice. Keep later work at roadmap level. |
-| Evidence | Verify code, integrations, deployment, and external claims before stating them as facts. |
-| Proportionality | Add process, abstraction, security, or tooling only when product risk or delivery needs justify it. |
-| Lean scope | Remove information that does not help a current decision, implementation, operation, or review. |
+Documentation exists to reduce ambiguity in product, implementation, security, quality, and operation.
 
-## Living-document rule
+It must remain lean enough to be useful during active development.
 
-Update project documents directly as agreed decisions evolve. Each document must remain understandable without delivery history:
+## Language
 
-- Standards prescribe agreed rules for present and future development; they are not inventories of implemented features.
-- Conceptual design describes the agreed product model, including capabilities not yet built, without claiming implementation or deployment.
-- Implementation and operating documentation describe verified actual behavior.
-- ADRs preserve decision history under the [detail policy](#detail-policy); issues and pull requests own execution history. Keep concrete issue, pull-request, and commit references, delivery anecdotes, and old-to-new naming narratives out of living project documents.
-- Exclude external project, training, and reviewer attribution. Retain independently justified rules and legitimate technical and market sources.
-
-## Language and terminology
-
-- Write `README.md` in neutral professional Spanish.
-- Write technical documents in English.
-- Write code, identifiers, requirement IDs, ADR IDs, and configuration names in English.
-- Write the product name as **DeTuristaAndo**.
-- Use **experience** as the domain term. Use **experiencia** in Spanish.
-- Keep official framework, standard, command, and API names.
+- Directory `docs/` is written in English.
+- Technical identifiers and source comments are written in English.
+- Root `README.md` is written in neutral professional Spanish.
+- Product UI and generated customer copy are Spanish.
 
 ## Writing profile
 
 Technical documents use controlled English inspired by ASD-STE100. The project does not claim formal certification.
 
-- Use short, direct sentences and active voice.
-- Put one main fact or instruction in each sentence.
+- Use short direct sentences.
+- Prefer active voice.
 - Use one term for one concept.
-- Define domain terms before extensive use.
-- Put a condition before the action that it controls.
-- Prefer lists for procedures and tables for exact comparisons.
-- Use `MUST`, `MUST NOT`, `SHOULD`, and `MAY` only for normative requirements.
-- Avoid decorative language and vague terms such as *fast*, *robust*, or *secure* without a criterion.
-- Do not restate framework defaults unless the product changes, verifies, or depends on them.
-- Do not repeat context that a linked upstream document already explains.
+- Define domain terms before relying on them.
+- Put conditions before actions.
+- Prefer tables for exact comparisons.
+- Prefer lists for procedures.
+- Avoid decorative language.
+- Avoid vague claims such as "robust", "fast", or "secure" without a concrete rule.
+- Do not restate framework defaults unless FidelitoPass depends on or changes them.
 
-## Authoritative documents
+## Knowledge ownership
 
-| Document | Responsibility |
+| Document | Owns |
 |---|---|
-| [`../README.md`](../README.md) | Product entry point, main flow, MVP01 boundary, stack, and repository status. |
-| [`market-analysis.md`](market-analysis.md) | Market evidence, alternatives, positioning, adoption barriers, and commercial direction. |
-| [`conceptual-design.md`](conceptual-design.md) | Actors, domain language, lifecycles, invariants, and main workflows. |
-| [`ui-ux-guidelines.md`](ui-ux-guidelines.md) | Interaction model, screen intent, visual identity, accessibility, and abandonment controls. |
-| [`requirements.md`](requirements.md) | Executive requirement register, User Stories, Given-When-Then acceptance, verification, and MVP01 technical constraints. |
-| [`architecture/overview.md`](architecture/overview.md) | System boundaries, modules, integrations, data, and deployment baseline. |
-| [`architecture/security.md`](architecture/security.md) | Assets, threats, access rules, product-specific controls, and verification. |
-| `architecture/decisions/NNN-title.md` | One durable architecture decision and its consequences. |
-| [`quality-strategy.md`](quality-strategy.md) | Test scope, measurable quality targets, CI gates, and release evidence. |
-| [`development/workflow.md`](development/workflow.md) | Lean/Kanban flow, Git rules, work-item policy, and delivery metrics. |
-| [`development/laravel-application-standard.md`](development/laravel-application-standard.md) | Canonical operational rules for future Laravel, PHP, and Livewire implementation. |
-| [`development/database-standard.md`](development/database-standard.md) | Canonical operational rules for project-owned PostgreSQL schema work and Laravel migrations. |
+| `conceptual-design.md` | Product model, actors, lifecycles, invariants, workflows. |
+| `product-scope.md` | MVP boundary and non-goals. |
+| `challenge-model.md` | Points-based Challenge semantics, point earning, and generated customer copy. |
+| `requirements.md` | Observable behaviour and Given-When-Then acceptance. |
+| `wallet-presentation.md` | Google Wallet information hierarchy and deterministic states. |
+| `ui-ux-guidelines.md` | Web visual/interactions/accessibility/page intent. |
+| `architecture/overview.md` | System boundaries, domain responsibilities, transaction/integration shape. |
+| `architecture/security.md` | Threat boundaries, credentials, authorization, rate limiting, secret/log policy. |
+| `development/database-standard.md` | PostgreSQL schema/time/index/concurrency conventions. |
+| `development/laravel-application-standard.md` | Laravel/Livewire/source conventions. |
+| `quality-strategy.md` | Verification depth and quality evidence. |
+| `delivery-plan.md` | Rolling-wave grouping and sequence. |
+| `development/workflow.md` | Work-item flow and documentation routing. |
+| `architecture/decisions/*` | One durable cross-cutting choice and consequences. |
+| root `README.md` | Spanish public product/engineering entry point. |
 
-## Reading and change order
+## Progressive disclosure
 
-Use the document order in the README. A downstream document must not introduce a product concept that is absent from its upstream sources.
+The design dependency is:
 
-When behavior changes:
+```text
+Concept
+ -> Scope
+ -> Challenge semantics
+ -> Requirements
+ -> UX / Wallet contract
+ -> Architecture / Security
+ -> Implementation standards
+ -> Quality / Delivery
+```
 
-1. Update the product or domain source that owns the change.
-2. Update requirements if observable behavior changes.
-3. Update architecture, security, or an ADR if implementation boundaries change.
-4. Update quality and workflow only when verification or delivery changes.
-5. Update the README only when its public summary, MVP01 boundary, stack, or executable setup changes.
+Architecture responds to agreed product behaviour. It does not invent product requirements to justify a preferred technical pattern.
 
-## Information state
+## Internal references
 
-| State | Meaning |
-|---|---|
-| Conceptual | Agreed product or domain behavior that does not assert code exists. |
-| Planned | Accepted implementation or operational direction. |
-| Implemented | Verified in source code or a working environment. |
-| Pending | Unresolved information that blocks current work. |
+Use references only when another document is required to apply the current rule.
 
-Use a state label only when the text can imply more certainty than evidence supports. Git history provides document versioning.
+Do not add broad "see also" networks.
 
-## Detail policy
+A loaded document does not imply that its referenced documents must also be loaded.
 
-- Keep requirements at outcome level. Put field rules and exhaustive acceptance variants in the active work item or tests.
-- Keep architecture at module and boundary level. Let Laravel conventions resolve routine class and folder choices.
-- Document design principles and patterns as decision criteria. Keep class-level application in the active work item or code.
-- Document framework behavior only when the project configures or relies on it.
-- Add an ADR only for a costly, risky, or cross-cutting decision with credible alternatives.
-- Keep an ADR close to one page. Supersede it instead of rewriting accepted history.
-- Use Mermaid only when state, sequence, or structure is clearer than prose.
-- Delete obsolete text instead of preserving it as commentary.
+## Living documents
+
+Living documents describe current agreed knowledge.
+
+Do not include:
+
+- Source-control history.
+- Temporary work identifiers.
+- Implementation-session narratives.
+- Token/tool usage.
+- Old product/domain names.
+
+Version control owns historical delivery context.
 
 ## Requirement format
 
-Start `requirements.md` with the total count, MoSCoW distribution, type distribution, and a searchable register with these columns: sequence, ID, priority, module, type, and description.
+Start `requirements.md` with:
 
-Each requirement contains:
+- Total count.
+- MoSCoW distribution.
+- Type distribution.
+- Searchable register.
 
-1. A stable domain-based ID and concise title.
-2. Priority, type, module, and source.
-3. One outcome-focused description.
-4. One User Story in As-I want-So that form.
-5. One or more Given-When-Then acceptance scenarios.
-6. A verification method.
+Each detailed requirement contains:
 
-Use one acceptance scenario when it proves the requirement. Add another scenario only for a material rejection, failure, retry, or concurrency path. Add a MoSCoW rationale for Should and Could requirements or for a Must priority that is not evident from risk.
+1. Stable ID and title.
+2. Priority.
+3. Type.
+4. Module.
+5. Outcome-focused description.
+6. User Story in **As / I want / So that** form.
+7. One or more acceptance scenarios using explicit **Given / When / Then**.
+8. Verification method.
 
-Findings, affected files, and solution hints are optional sections for verified defects, refactoring, or implemented constraints. Do not add these sections to greenfield product requirements without code evidence.
+Use a second scenario only for a material rejection, retry, security, concurrency, or failure path.
 
-## Evidence and metrics
+Do not turn every validation branch into a separate product requirement.
 
-- Prefer primary sources for external technical and market claims.
-- Record a verification date for time-sensitive market evidence.
-- Treat vendor impact claims as vendor claims.
-- Keep research screenshots under `docs/evidence/` and explain their origin.
-- Use metrics only when they drive a product or delivery decision.
-- Record a baseline before setting a project-specific improvement target.
-- Treat metrics as signals. Do not optimize a number at the expense of product behavior.
+## ADR policy
+
+Create an ADR only when the decision is:
+
+- Cross-cutting.
+- Costly to reverse.
+- Likely to be questioned again.
+- Security/data/time-provider sensitive.
+
+An ADR contains:
+
+1. Context.
+2. Options considered.
+3. Decision.
+4. Rationale.
+5. Consequences.
+
+Prefer at least three credible options when the decision genuinely had them. Do not invent weak alternatives only to fill a template.
+
+Accepted ADRs are not rewritten to hide changed assumptions; supersede them when a later decision replaces them.
+
+## Evidence
+
+Prefer primary official sources for framework, PostgreSQL, Google Wallet, and security details.
+
+Keep external source material outside the normative product documentation unless it is necessary to justify a technical decision.
+
+Do not copy large source excerpts.
+
+## Lean maintenance
+
+Update only the document whose knowledge changed.
+
+Examples:
+
+- Challenge/point rule change -> challenge model + affected requirement/presentation.
+- Time model change -> conceptual/database/ADR + affected tests.
+- New page interaction -> UX + affected requirement.
+- New framework convention -> application standard.
+- Changed test depth -> quality strategy.
+
+Do not update every document for every feature.
 
 ## Validation
 
-Before merging a documentation change:
+Before accepting documentation changes:
 
-- Confirm that the content belongs to the document.
-- Check terminology, language, headings, lists, tables, code fences, and Mermaid syntax.
-- Check relative links, anchors, requirement IDs, and ADR references.
-- Search for inherited names and obsolete decisions.
-- Compare implementation claims with repository evidence.
-- Compare external claims with cited primary sources.
-- Confirm that no deleted document is referenced.
-- Confirm that the README remains an entry point and not an implementation inventory.
-
-Automate deterministic checks when repository infrastructure exists. Do not claim automation before its workflow passes.
+- Verify document language.
+- Verify requirement IDs/register/detail.
+- Verify internal relative links.
+- Search for obsolete product names.
+- Search for external attribution that does not belong.
+- Verify Mermaid syntax where used.
+- Verify no implementation claim exceeds actual source/runtime evidence.
+- Verify documents do not duplicate authority unnecessarily.
