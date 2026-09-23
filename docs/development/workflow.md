@@ -4,7 +4,7 @@ This document defines product-delivery semantics. It intentionally stays indepen
 
 ## Delivery objective
 
-Deliver one dependency-ready vertical product outcome at a time while keeping active context small.
+Deliver dependency-ready vertical product outcomes while keeping each work item's implementation context focused. Multiple work items may be Active concurrently; there is no numerical or implicit limit on Active items.
 
 Use rolling-wave planning:
 
@@ -21,12 +21,12 @@ Backlog -> Active -> Review -> Verify -> Done
 | State | Meaning |
 |---|---|
 | Backlog | Dependency-ready or upcoming scoped work. |
-| Active | Primary implementation item. |
+| Active | Implementation currently underway; this state is not exclusive to one item or session. |
 | Review | Implementation and focused evidence are ready for review. |
 | Verify | Integrated behaviour is checked in real application context. |
 | Done | Acceptance criteria and required evidence are satisfied. |
 
-Keep one primary product item Active.
+Separate sessions may implement different Active items concurrently on their own branches or worktrees. Coordinate ownership when file surfaces overlap or dependencies interact; concurrency does not require all work items to be independent.
 
 ## Work item shape
 
@@ -53,7 +53,7 @@ Prefer outcomes that make the product more complete:
 - One Challenge evaluator.
 - Reward unlock/redemption.
 
-Avoid isolated refactoring/tooling/documentation work unless it blocks the active product outcome.
+Avoid isolated refactoring/tooling/documentation work unless it blocks an Active product outcome.
 
 ## Documentation routing
 

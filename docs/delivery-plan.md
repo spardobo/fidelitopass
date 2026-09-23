@@ -131,7 +131,7 @@ Demonstration:
 - Structured JSON logs with request correlation.
 - No secrets in representative logs.
 - Required automated tests pass at 100% with zero accepted flaky tests.
-- 100/80/0 Strategic coverage is satisfied where coverage instrumentation applies.
+- Every identified CORE rule has direct automated evidence; instrumented IMPORTANT coverage is reviewed against the 80% diagnostic reference for meaningful gaps, not gated on the number; INFRASTRUCTURE receives applicable runtime checks without a coverage quota.
 - Zero unresolved project-owned static-analysis errors.
 - Critical/high dependency findings are resolved or explicitly reviewed.
 - Responsive and accessible core flows.

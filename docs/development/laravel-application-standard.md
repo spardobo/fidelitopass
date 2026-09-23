@@ -262,7 +262,6 @@ Use PHP backed string enums for stable value sets such as:
 
 ```text
 ChallengeStatus
-ChallengeType
 WalletPresentationState
 ```
 

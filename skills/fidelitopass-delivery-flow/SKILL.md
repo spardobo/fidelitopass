@@ -17,7 +17,7 @@ This skill does not own product semantics, Laravel implementation rules, or repo
 
 Start with only:
 
-1. the active work item;
+1. the work item relevant to this session;
 2. affected source files;
 3. nearby tests;
 4. current repository state needed for the requested operation.
@@ -30,7 +30,7 @@ Use:
 
 `Backlog -> Active -> Review -> Verify -> Done`
 
-Keep one primary product item Active.
+Active means implementation currently underway, not exclusive ownership of the board state. Multiple work items may be Active concurrently, with no numerical or implicit limit. Separate sessions working on different items use their own branches or worktrees and coordinate ownership of overlapping file surfaces or interacting dependencies; the items need not all be independent.
 
 Map these meanings to the configured board/repository provider without making project documentation depend on that provider.
 
@@ -76,7 +76,7 @@ Do not follow document references automatically.
 
 Prefer vertical product outcomes over isolated foundation work.
 
-A technical prerequisite belongs inside the active product outcome unless it has independent value or blocks several immediate outcomes.
+A technical prerequisite belongs inside the relevant Active product outcome unless it has independent value or blocks several immediate outcomes.
 
 Do not create distant speculative work just because later waves exist.
 
