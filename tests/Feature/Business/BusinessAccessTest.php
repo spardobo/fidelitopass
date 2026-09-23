@@ -39,6 +39,25 @@ it('shows only the signed-in owners business and redirects configured owners awa
     $this->assertNotEquals($other->user_id, $mine->user_id);
 });
 
+it('resolves the business page through its multi-file component and localized title', function () {
+    $business = Business::factory()->create();
+    $this->actingAs($business->user);
+
+    $finder = app('livewire.finder');
+    expect($finder->resolveSingleFileComponentPath('pages::business.profile'))->toBeNull()
+        ->and($finder->resolveMultiFileComponentPath('pages::business.profile'))->not->toBeNull();
+
+    $this->get(route('business.edit'))->assertOk()->assertSee('Perfil del negocio');
+});
+
+it('marks business navigation active on the profile and dashboard navigation active on the dashboard', function () {
+    $business = Business::factory()->create();
+    $this->actingAs($business->user);
+
+    $this->get(route('business.edit'))->assertOk()->assertSee('business/profile');
+    $this->get(route('dashboard'))->assertOk()->assertSee('dashboard');
+});
+
 it('keeps Fortify login and registration route names and paths', function () {
     expect(route('login', absolute: false))->toBe('/login')
         ->and(route('register', absolute: false))->toBe('/register');

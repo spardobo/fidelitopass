@@ -12,4 +12,3 @@
 @fonts
 
 @vite('resources/css/app.css')
-@fluxAppearance

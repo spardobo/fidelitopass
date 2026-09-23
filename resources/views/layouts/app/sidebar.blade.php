@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
-        @include('partials.theme-default')
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-business-canvas text-business-ink">
-        <flux:sidebar sticky collapsible="mobile" class="border-e border-business-border bg-business-surface text-business-ink">
+    <body class="min-h-screen bg-zinc-800 text-zinc-100">
+        <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-700 bg-zinc-900">
             <flux:sidebar.header>
                 <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
                 <flux:sidebar.collapse class="lg:hidden" />
@@ -15,6 +14,9 @@
                 <flux:sidebar.group :heading="__('Platform')" class="grid">
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="building-storefront" :href="route('business.edit')" :current="request()->routeIs('business.edit')" wire:navigate>
+                        {{ __('Business profile') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
@@ -35,7 +37,7 @@
         </flux:sidebar>
 
         <!-- mobile user menu -->
-        <flux:header class="border-b border-business-border bg-business-surface text-business-ink lg:hidden">
+        <flux:header class="border-b border-zinc-700 bg-zinc-900 lg:hidden">
             <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
 
             <flux:spacer />
