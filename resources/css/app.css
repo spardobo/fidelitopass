@@ -23,16 +23,32 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
-    --color-accent-foreground: var(--color-white);
+    --color-business-canvas: #f4f1e8;
+    --color-business-surface: #fbf9f2;
+    --color-business-raised: #fffdf7;
+    --color-business-ink: #252820;
+    --color-business-muted: #686b61;
+    --color-business-border: #dad6c8;
+    --color-business-focus: #527b13;
+
+    --color-accent: #b7f34a;
+    --color-accent-content: #466619;
+    --color-accent-foreground: #252820;
 }
 
 @layer theme {
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        --color-business-canvas: #181b17;
+        --color-business-surface: #20241f;
+        --color-business-raised: #282d26;
+        --color-business-ink: #eeebdd;
+        --color-business-muted: #b5b5aa;
+        --color-business-border: #3a4037;
+        --color-business-focus: #b7f34a;
+
+        --color-accent: #b7f34a;
+        --color-accent-content: #c4ed87;
+        --color-accent-foreground: #252820;
     }
 }
 
@@ -58,7 +74,7 @@
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
-    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+    @apply outline-hidden ring-2 ring-business-focus ring-offset-2 ring-offset-business-surface;
 }
 
 /* \[:where(&)\]:size-4 {
