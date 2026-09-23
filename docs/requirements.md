@@ -798,7 +798,7 @@ As a maintainer, I want measurable verification concentrated on high-risk behavi
 
 - **Given** coverage instrumentation is executed for project-owned code.
 - **When** quality evidence is evaluated.
-- **Then** CORE rules/functions meet the 100% direct-coverage target, IMPORTANT code meets at least 80% line/function coverage, and INFRASTRUCTURE has no percentage target.
+- **Then** every identified CORE rule has direct automated evidence; IMPORTANT line/function coverage is reviewed against the 80% diagnostic reference for meaningful gaps, not enforced as a release gate; and INFRASTRUCTURE has no coverage quota but receives applicable runtime checks.
 
 **Scenario: Static and dependency quality**
 
