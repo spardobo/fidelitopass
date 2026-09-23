@@ -32,11 +32,14 @@ async function verificationLink(request, recipient) {
 for (const width of [1280, 375]) {
     test(`verified owner completes onboarding at ${width}px`, async ({ page, request }) => {
         await page.setViewportSize({ width, height: 800 });
+        await page.emulateMedia({ colorScheme: "dark" });
         const recipient = `biz02-${width}-${crypto.randomUUID()}@example.test`;
         const business = `Negocio ${width}`;
 
         await page.goto("/dashboard");
         await expect(page).toHaveURL(/\/login(?:\?|$)/);
+        await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+        expect(await page.evaluate(() => localStorage.getItem("flux.appearance"))).toBe("light");
         await page.goto("/register");
         await expect(
             page.getByRole("heading", { name: /create an account|crear una cuenta/i }),
@@ -74,12 +77,20 @@ for (const width of [1280, 375]) {
         await page.keyboard.press("Enter");
         await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
         await expect(page.getByRole("heading", { name: business })).toBeVisible();
+        await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
         await expect(page.getByText("Zona horaria: America/Argentina/Buenos_Aires")).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
             true,
         );
 
+        await page.goto("/settings/appearance");
+        await page.getByRole("radio", { name: /dark|oscuro/i }).check();
+        await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+        expect(await page.evaluate(() => localStorage.getItem("flux.appearance"))).toBe("dark");
+        await page.goto("/dashboard");
+        await expect(page.locator("html")).toHaveClass(/\bdark\b/);
         await page.getByRole("link", { name: "Editar perfil del negocio" }).click();
+        await expect(page.locator("html")).toHaveClass(/\bdark\b/);
         await expect(page.getByRole("textbox", { name: "Nombre del negocio" })).toHaveValue(
             business,
         );
