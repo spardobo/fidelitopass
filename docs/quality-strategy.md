@@ -31,34 +31,36 @@ Prefer the cheapest test that proves the behaviour.
 Do not build a large browser suite for logic that can be proven deterministically in an evaluator or PostgreSQL-backed feature test.
 
 
-## Strategic coverage model — 100/80/0
+## Honest coverage — risk-based 100/80/0 guidance
 
-Coverage is applied by risk tier instead of chasing one global percentage.
+Ask which failure could materially harm the product. Classify code by risk instead of chasing one global percentage. These numbers guide test effort; they are not automatic per-file CI thresholds.
 
-| Tier | Scope | Target |
-|---|---|---:|
-| CORE | Point awarding, Challenge progress, Visit integrity, Reward unlock/redemption, authorization, time boundaries, idempotency/concurrency. | **100% of identified rules/functions directly covered** |
-| IMPORTANT | Application Actions, Livewire workflows, Wallet mapping/integration boundaries, reusable project-owned services. | **80%+ line/function coverage** |
-| INFRASTRUCTURE | Framework bootstrap, configuration, generated code, trivial migrations, vendor code. | **0% coverage target** |
+| Tier | Scope | Guidance |
+|---|---|---|
+| CORE | Point awarding, Challenge progress, Visit integrity, Reward unlock/redemption, authorization, time boundaries, idempotency/concurrency. | **100% of identified critical rules have direct automated evidence.** |
+| IMPORTANT | Application Actions, Livewire workflows, Wallet mapping/integration boundaries, reusable project-owned services. | **80% line/function coverage is a diagnostic reference, not a release gate.** |
+| INFRASTRUCTURE | Framework bootstrap, configuration, generated code, trivial migrations, vendor code. | **0% coverage quota; verify applicable behaviour by other means.** |
 
 Rules:
 
-- CORE 100% means every identified business/security rule has direct automated evidence; it is not permission to write meaningless tests only to increase a number.
-- IMPORTANT code should maintain at least 80% line/function coverage where coverage instrumentation applies.
-- INFRASTRUCTURE has no percentage target because framework/configuration correctness is better proven by integration, build, migration, or deployment checks.
+- CORE 100% is rule-level evidence, not 100% of statements, branches, functions, and lines. Tests must assert real outcomes; do not mock away the critical calculation or security boundary under test.
+- Where coverage instrumentation applies, use 80% for IMPORTANT code to spot untested flows. Below that reference, inspect meaningful behaviour gaps; do not block release on the number alone or add tests only to raise it.
+- INFRASTRUCTURE 0% means no coverage quota, not no testing. Static analysis cannot prove runtime configuration, migrations, or integrations work; use integration, build, migration, or deployment checks where applicable.
 - Do not use one global repository coverage percentage as the primary quality signal.
+
+When a work item adds or changes project-owned CORE or IMPORTANT behaviour, run `./vendor/bin/sail pest --coverage` and inspect the affected files, not only the global total. For documentation, copy, or configuration changes, choose checks based on the actual risk instead. Every identified CORE rule still needs an outcome-asserting test; do not claim tier coverage without a measured report and that rule-level evidence.
 
 ## Quality metrics
 
-These are the deterministic quality targets for the MVP:
+These MVP metrics distinguish required evidence from diagnostic references and feedback budgets:
 
 | Metric | Target |
 |---|---:|
 | Required automated test success | **100%** |
 | Accepted flaky required tests | **0** |
-| CORE rule/function coverage | **100%** |
-| IMPORTANT line/function coverage | **>= 80%** |
-| INFRASTRUCTURE coverage target | **0%** |
+| CORE critical rules with direct test evidence | **100% of identified rules** |
+| IMPORTANT line/function coverage | **80% diagnostic reference; not a gate** |
+| INFRASTRUCTURE coverage quota | **None (0% guidance)** |
 | Static-analysis errors in project-owned code | **0** |
 | Formatting drift after canonical formatter | **0** |
 | Unresolved critical/high dependency vulnerabilities | **0, or an explicit reviewed exception** |
@@ -67,12 +69,10 @@ These are the deterministic quality targets for the MVP:
 
 The hook time values are feedback budgets, not correctness gates. If a local gate becomes consistently slower, move the expensive check later instead of encouraging bypass.
 
-Accessibility targets for core flows:
+Core-flow baseline requires responsive layouts, keyboard-visible focus, semantic controls, and no status communicated by colour alone. Progressive WCAG AA goals include:
 
-- WCAG AA contrast: at least 4.5:1 for normal text and 3:1 for large text.
+- Contrast of at least 4.5:1 for normal text and 3:1 for large text.
 - Touch targets near or above 44x44px.
-- Keyboard-visible focus and semantic controls.
-- No status communicated by colour alone.
 
 ## Test design
 
@@ -104,7 +104,7 @@ Core rules:
 - Cross-Business authorization.
 - Wallet provider failure after commit.
 
-This list defines the CORE tier for the 100/80/0 strategy. Each identified rule requires direct automated evidence.
+This list defines the CORE tier of the risk-based 100/80/0 guidance. Each identified rule requires direct automated evidence.
 
 ## Feature/integration coverage
 
@@ -146,18 +146,17 @@ Browser rules:
 
 ## Accessibility and usability checks
 
-For core flows:
+Required core-flow checks:
 
 - Semantic HTML.
-- Visible focus.
+- Visible focus and keyboard-reachable controls.
 - Associated form labels.
-- Contrast targeting WCAG AA.
-- Controls usable at touch sizes near 44×44px.
+- Basic touch interaction.
 - No meaning communicated by colour alone.
 - No horizontal scrolling at common narrow viewports.
 - Scanner error leaves manual fallback immediately accessible.
 
-Automated accessibility checks cover only part of the problem. Perform a short manual keyboard/contrast review of the core flows.
+Progressive WCAG AA targets: contrast and controls usable at touch sizes near 44×44px. Automated accessibility checks cover only part of the problem. Perform a short manual keyboard/contrast review of the core flows.
 
 ## Static analysis and formatting
 
@@ -214,7 +213,7 @@ Before a production release:
 
 - Complete required automated suite passes at 100%.
 - No accepted flaky required test exists.
-- 100/80/0 Coverage targets are satisfied for instrumented project-owned code.
+- Every identified CORE rule has direct automated evidence; IMPORTANT coverage below the 80% reference has been checked for meaningful gaps where instrumented. Infrastructure is verified through applicable integration, build, migration, or deployment checks.
 - Static analysis reports zero unresolved project-owned errors.
 - Dependency/secret scans pass; any critical/high dependency finding is resolved or has an explicit reviewed exception.
 - Production build succeeds.
@@ -223,6 +222,6 @@ Before a production release:
 - Scan/manual validation works.
 - Reward can be unlocked and redeemed once.
 - Google Wallet can be issued and updated on a real supported device.
-- Light/dark responsive core pages are reviewed.
+- Light/dark responsive core pages and basic keyboard/touch interaction are reviewed; full WCAG AA conformance is a progressive goal, not a release certification gate.
 - Production debug is disabled.
 - Structured production logs can be parsed as JSON.

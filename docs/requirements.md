@@ -5,8 +5,8 @@ This document defines observable MVP behaviour.
 ## Summary
 
 - Total requirements: **35**.
-- Must: **34**.
-- Should: **1**.
+- Must: **35**.
+- Should: **0**.
 - Functional: **24**.
 - Quality/technical: **11**.
 
@@ -41,7 +41,7 @@ This document defines observable MVP behaviour.
 | 25 | REQ-WAL-002 | Must | Wallet | Quality/technical | Synchronize Wallet after commit and recover safely from provider failure. |
 | 26 | REQ-UX-001 | Must | UX | Quality/technical | Use a warm light theme by default with optional dark mode. |
 | 27 | REQ-UX-002 | Must | UX | Functional | Keep the validation workflow fast and scanner-first. |
-| 28 | REQ-UX-003 | Should | UX | Quality/technical | Meet core responsive and WCAG AA interaction expectations. |
+| 28 | REQ-UX-003 | Must | UX | Quality/technical | Keep core flows responsive with basic keyboard and touch accessibility. |
 | 29 | REQ-UX-004 | Must | UX | Functional | Present explicit success, point-award, reward, expiry, and error states. |
 | 30 | REQ-SEC-001 | Must | Security | Quality/technical | Separate public acquisition identity from private validation authority. |
 | 31 | REQ-SEC-002 | Must | Security | Quality/technical | Enforce server-side authorization, validation, and abuse controls. |
@@ -638,7 +638,7 @@ As a Business owner serving customers quickly, I want the scanner and fallback c
 
 #### REQ-UX-003 — Responsive and accessible core flows
 
-**Priority:** Should
+**Priority:** Must
 **Type:** Quality/technical
 **Module:** UX
 
@@ -652,7 +652,7 @@ As a user, I want controls to be readable, keyboard accessible, and touch friend
 - **When** it is used by keyboard or on a narrow touch viewport.
 - **Then** controls remain reachable, visibly focused, labelled, and free of horizontal page scrolling.
 
-**Verification:** Semantic browser review plus automated accessibility checks where practical.
+**Verification:** Semantic browser review plus automated accessibility checks where practical. Full WCAG AA conformance remains a progressive goal, not an independent MVP release gate.
 
 #### REQ-UX-004 — Explicit operational feedback
 
