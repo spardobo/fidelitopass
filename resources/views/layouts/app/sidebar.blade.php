@@ -17,7 +17,7 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
                     <flux:sidebar.item icon="building-storefront" :href="route('business.edit')" wire:navigate>
-                        {{ __('Business profile') }}
+                        {{ __('business.profile_title') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>

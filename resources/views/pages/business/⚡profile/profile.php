@@ -8,7 +8,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Layout('layouts::app'), Title('Business profile')] class extends Component
+new #[Layout('layouts::app'), Title('business.profile_title')] class extends Component
 {
     public string $name = '';
 

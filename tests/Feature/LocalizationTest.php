@@ -38,6 +38,30 @@ test('landing page translates its title, description and accessible navigation',
         ->assertSee('Ilustración de una tarjeta con seis de diez puntos');
 });
 
+test('project pages resolve grouped translations without leaking keys', function (): void {
+    expect(__('landing.page_title'))->toBe('Haz que volver sea parte del juego');
+    expect(__('landing.page_description'))->toStartWith('Crea retos de puntos');
+    expect(__('landing.navigation.page_sections'))->toBe('Secciones de la página');
+    expect(__('business.profile_title'))->toBe('Perfil del negocio');
+    expect(__('business.dashboard.page_title'))->toBe('Panel del negocio');
+
+    $this->get(route('home'))
+        ->assertSee('aria-label="Secciones de la página"', false)
+        ->assertDontSee('landing.page_title')
+        ->assertDontSee('landing.page_description')
+        ->assertDontSee('landing.navigation.page_sections');
+
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $this->get(route('business.create'))
+        ->assertSee('Perfil del negocio - '.config('app.name'))
+        ->assertSeeText('Configura tu negocio')
+        ->assertDontSee('business.profile_title')
+        ->assertDontSee('business.onboarding.heading');
+
+    expect(__('Log in to your account'))->toBe('Iniciar sesión en tu cuenta');
+});
+
 test('authenticated settings translate Livewire titles and navigation', function (): void {
     $this->actingAs(User::factory()->create());
 
