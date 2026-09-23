@@ -1,0 +1,95 @@
+/* Landing-only visual system; no shared application styles. */
+:root {
+    color-scheme: light;
+    --canvas: #f4f1e8;
+    --surface: #fbf9f2;
+    --raised: #fffdf7;
+    --ink: #252820;
+    --muted: #686b61;
+    --border: #dad6c8;
+    --lime: #b7f34a;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--canvas); color: var(--ink); font: 1rem/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: inherit; }
+a:focus-visible { outline: 3px solid #527b13; outline-offset: 4px; border-radius: 4px; }
+.container { width: min(100% - 2.5rem, 70rem); margin-inline: auto; }
+.skip-link { position: absolute; z-index: 10; top: -5rem; left: 1rem; padding: .6rem 1rem; background: var(--ink); color: var(--raised); }
+.skip-link:focus { top: 1rem; }
+
+.site-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+.header-inner { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; padding-block: 1rem; }
+.wordmark { text-decoration: none; font-size: 1.25rem; font-weight: 800; letter-spacing: -.045em; white-space: nowrap; }
+.wordmark span { color: #467012; }
+.site-nav { display: flex; flex-wrap: wrap; gap: .3rem 1.25rem; order: 3; width: 100%; font-size: .9rem; }
+.site-nav a { text-decoration: none; padding-block: .35rem; }
+.site-nav a:hover, .site-footer a:hover { text-decoration: underline; }
+.header-cta { margin-left: auto; }
+.button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.85rem; padding: .65rem 1.2rem; border-radius: .8rem; font-weight: 700; line-height: 1.25; text-align: center; text-decoration: none; }
+.button-primary { background: var(--lime); border: 1px solid #8ab832; color: var(--ink); }
+.button-primary:hover { background: #a8e33f; }
+.button-outline { border: 1px solid var(--ink); background: transparent; }
+.button-outline:hover { background: var(--surface); }
+
+.section { padding-block: clamp(4rem, 8vw, 7rem); }
+.section-soft { background: var(--surface); }
+h1, h2, h3, p { margin-top: 0; }
+h1, h2, h3 { line-height: 1.16; letter-spacing: -.035em; }
+h1 { font-size: clamp(2.8rem, 7vw, 5.25rem); max-width: 12ch; margin-bottom: 1.4rem; }
+h2 { font-size: clamp(2rem, 4.5vw, 3.4rem); max-width: 18ch; margin-bottom: 1.25rem; }
+h3 { font-size: 1.3rem; }
+.eyebrow { font-size: .82rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #466619; margin-bottom: 1rem; }
+.lead, .section-intro { font-size: 1.15rem; max-width: 40rem; }
+.small-note, .example-note { font-size: .87rem; color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-block: 1.7rem 1rem; }
+.hero-grid, .split-grid { display: grid; gap: 2.5rem; align-items: center; }
+.hero-visual { min-width: 0; padding: 2rem .75rem; border-radius: 2rem; background: radial-gradient(circle at 80% 15%, #e0f8aa, #e9e5d7 65%); }
+.wallet-card { width: min(100%, 24rem); margin: auto; padding: 1.5rem; border-radius: 1.5rem; background: #303b29; color: #f4f1e8; box-shadow: 0 1.5rem 2rem #25302625; transform: rotate(-3deg); }
+.card-top, .card-bottom { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.card-top { font-weight: 800; }
+.card-symbol { color: var(--lime); font-size: 2rem; }
+.card-label { font-size: .72rem; letter-spacing: .06em; color: #d7e8c7; margin-top: 2rem; }
+.wallet-card strong { font-size: 1.7rem; }
+.progress-track { height: .55rem; border-radius: 1rem; background: #66765c; margin-block: 1rem; overflow: hidden; }
+.progress-track span { display: block; width: 60%; height: 100%; background: var(--lime); }
+.wallet-card p:not(.card-label) { font-size: .9rem; }
+.card-bottom { padding-top: 1rem; border-top: 1px solid #718168; font-size: .75rem; }
+.visual-tag { display: block; width: fit-content; margin: 1.6rem auto 0; padding: .35rem .9rem; border-radius: 2rem; background: var(--raised); font-size: .85rem; font-weight: 700; }
+
+.steps { display: grid; gap: 1rem; padding: 0; margin: 2.2rem 0 0; list-style: none; }
+.steps li { padding: 1.5rem; border: 1px solid var(--border); border-radius: 1.2rem; background: var(--raised); }
+.step-icon { display: inline-grid; place-items: center; width: 2.7rem; height: 2.7rem; border-radius: .8rem; background: var(--lime); font-size: 1.4rem; }
+.step-number { display: block; color: var(--muted); font-size: .8rem; font-weight: 700; margin-block: 1.1rem .4rem; }
+.steps h3 { margin-bottom: .65rem; }
+.steps p { margin-bottom: 0; color: var(--muted); }
+.example-panel, .wallet-details { min-width: 0; padding: clamp(1.4rem, 4vw, 2.5rem); border: 1px solid var(--border); border-radius: 1.5rem; background: var(--raised); }
+.example-panel h3 { font-size: 1.65rem; }
+.example-list { padding: 0; margin: 1.5rem 0; list-style: none; }
+.example-list li { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--border); padding-block: .8rem; }
+.example-list strong { white-space: nowrap; }
+.example-note { margin: 0; }
+.wallet-details { background: #e8f4d4; }
+.wallet-details p { font-weight: 700; }
+.wallet-details ul { padding-left: 1.2rem; }
+.wallet-details li { margin-bottom: .65rem; }
+.business-section { text-align: center; }
+.business-inner { max-width: 44rem; }
+.business-inner h2 { margin-inline: auto; }
+.business-inner .small-note { margin: 1rem 0 0; }
+.site-footer { padding-block: 2rem; border-top: 1px solid var(--border); }
+.footer-inner { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 2rem; }
+.footer-inner p { margin: 0; color: var(--muted); }
+.footer-inner a { margin-left: auto; }
+
+@media (min-width: 42rem) {
+    .site-nav { order: 0; width: auto; margin-inline: auto; }
+    .header-cta { margin-left: 0; }
+    .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 55rem) {
+    .hero-grid, .split-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4rem; }
+    .steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
