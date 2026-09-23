@@ -29,6 +29,15 @@ test('guest pages render Spanish copy', function (string $path, string $label): 
     'password reset' => ['/reset-password/test-token', 'Restablecer contraseña'],
 ]);
 
+test('landing page translates its title, description and accessible navigation', function (): void {
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('Haz que volver sea parte del juego - '.config('app.name'))
+        ->assertSee('Crea retos de puntos para tus clientes')
+        ->assertSee('aria-label="Secciones de la página"', false)
+        ->assertSee('Ilustración de una tarjeta con seis de diez puntos');
+});
+
 test('authenticated settings translate Livewire titles and navigation', function (): void {
     $this->actingAs(User::factory()->create());
 

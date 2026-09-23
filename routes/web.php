@@ -3,7 +3,7 @@
 use App\Http\Middleware\EnsureBusinessOnboarded;
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'welcome')->name('home');
+Route::livewire('/', 'pages::landing')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('business/onboarding', 'pages::business.profile')->name('business.create');
