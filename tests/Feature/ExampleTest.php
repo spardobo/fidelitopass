@@ -23,6 +23,9 @@ class ExampleTest extends TestCase
             ->assertSee('href="#retos"', false)
             ->assertSee('href="#negocios"', false)
             ->assertSee('href="'.asset('landing.css').'"', false)
+            ->assertSee('src="'.asset('landing.js').'"', false)
+            ->assertSee('aria-label="Activar modo oscuro"', false)
+            ->assertSee('aria-pressed="false"', false)
             ->assertDontSee('href="'.route('login').'"', false);
     }
 }

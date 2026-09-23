@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="FidelitoPass ayuda a tu negocio a crear retos de visitas, sumar puntos y recompensar a tus clientes con una tarjeta en Google Wallet.">
     <title>FidelitoPass — Haz que volver sea parte del juego</title>
+    <script src="{{ asset('landing.js') }}"></script>
     <link rel="stylesheet" href="{{ asset('landing.css') }}">
 </head>
 <body>
@@ -17,6 +18,15 @@
                 <a href="#retos">Retos</a>
                 <a href="#negocios">Para negocios</a>
             </nav>
+            <details class="mobile-menu">
+                <summary>Menú</summary>
+                <nav aria-label="Secciones de la página">
+                    <a href="#como-funciona">Cómo funciona</a>
+                    <a href="#retos">Retos</a>
+                    <a href="#negocios">Para negocios</a>
+                </nav>
+            </details>
+            <button class="theme-toggle" type="button" aria-label="Activar modo oscuro" aria-pressed="false">Modo oscuro</button>
             <a class="button button-primary header-cta" href="#negocios">Crear mi reto</a>
         </div>
     </header>
