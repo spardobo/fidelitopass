@@ -62,6 +62,7 @@ for (const width of [1280, 375]) {
         await page.goto('/register');
         await expect(page.getByRole('heading', { name: 'Crear una cuenta' })).toBeVisible();
         await expectDarkReadable(page);
+        expect(await page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches)).toBe(true);
         await page.getByRole('textbox', { name: /nombre/i }).first().fill(`Owner ${width}`);
         await page.getByRole('textbox', { name: /correo/i }).fill(recipient);
         await page.locator('input[name="password"]').fill('ValidPassword84!strong');
