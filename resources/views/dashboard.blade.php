@@ -1,18 +1,16 @@
-<x-layouts::app :title="__('Dashboard')">
-    <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
-        <div class="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
+<x-layouts::app title="Panel del negocio">
+    <main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
+        <header class="space-y-2">
+            <flux:heading size="xl" level="1">Tu negocio</flux:heading>
+            <flux:text>Administrá los datos de tu negocio desde este panel.</flux:text>
+        </header>
+
+        <section aria-label="Perfil del negocio" class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
+            <flux:heading level="2">{{ $business->name }}</flux:heading>
+            <flux:text>Zona horaria: {{ $business->timezone }}</flux:text>
+            <div class="mt-5">
+                <flux:button :href="route('business.edit')" wire:navigate>Editar perfil del negocio</flux:button>
             </div>
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-        </div>
-        <div class="relative h-full flex-1 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-            <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-        </div>
-    </div>
+        </section>
+    </main>
 </x-layouts::app>
