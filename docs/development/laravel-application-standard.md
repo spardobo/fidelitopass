@@ -184,9 +184,9 @@ Client-side validation is UX only.
 
 Use Livewire 4 for server-driven interactivity.
 
-For new project-owned pages, prefer native Livewire multi-file components when PHP, Blade, and colocated tests form one clear component responsibility.
+For new project-owned full-page routes, prefer native Livewire multi-file components when PHP, Blade, and colocated tests form one clear component responsibility. Route them with `Route::livewire` and render through the appropriate starter layout (`layouts::public` or `layouts::app`) using its `$slot`.
 
-Do not convert stable components solely for format consistency.
+Preserve the starter's authentication/settings screens and their existing component formats; do not convert stable SFCs solely for consistency.
 
 Livewire owns:
 
@@ -205,10 +205,11 @@ Actions/evaluators own:
 
 - Prefer Flux UI Free components where they fit the product behaviour.
 - Prefer semantic HTML before custom JavaScript.
-- Use Alpine for small client-only interactions such as theme toggling or lightweight disclosure.
+- Keep this MVP dark-only without an appearance toggle; use Alpine only for small client-only interactions such as lightweight disclosure.
 - Keep camera/scanner JavaScript isolated to the validation component.
 - Never duplicate authoritative Challenge/Reward state in Alpine.
-- Use Tailwind design tokens/classes consistently.
+- Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure.
+- Use `wire:navigate` conservatively. Persist shared navigation only outside Livewire components when needed, and keep active-link styling dynamic after navigation.
 - Do not add a SPA framework for MVP.
 
 ## Scanner implementation
@@ -300,7 +301,7 @@ Comments explain **why a non-obvious constraint exists**, not what a line of cod
 
 ## Localization
 
-Customer/Business UI is Spanish.
+Customer/Business UI uses professional, neutral Spanish translated through Laravel; avoid hard-coded repeated user-facing copy.
 
 Technical documentation, source identifiers, comments, enum values, and log event names are English.
 
