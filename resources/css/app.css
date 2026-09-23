@@ -1,3 +1,4 @@
+@import '@fontsource-variable/manrope';
 @import 'tailwindcss';
 @import '../../vendor/livewire/flux/dist/flux.css';
 
@@ -9,7 +10,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Manrope Variable', system-ui, ui-sans-serif, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
     --color-zinc-50: #fafafa;
     --color-zinc-100: #f5f5f5;

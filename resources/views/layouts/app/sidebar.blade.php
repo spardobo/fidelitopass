@@ -10,16 +10,18 @@
                 <flux:sidebar.collapse class="lg:hidden" />
             </flux:sidebar.header>
 
+            @persist('sidebar-navigation')
             <flux:sidebar.nav>
                 <flux:sidebar.group :heading="__('Platform')" class="grid">
-                    <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
+                    <flux:sidebar.item icon="home" :href="route('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="building-storefront" :href="route('business.edit')" :current="request()->routeIs('business.edit')" wire:navigate>
+                    <flux:sidebar.item icon="building-storefront" :href="route('business.edit')" wire:navigate>
                         {{ __('Business profile') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
+            @endpersist
 
             <flux:spacer />
 
