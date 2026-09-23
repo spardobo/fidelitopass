@@ -407,7 +407,7 @@ Then build section by section per A6.
 
 # FidelitoPass stack appendix
 
-- Explicit user and project choices override conflicting upstream hard rules; preserve accessibility, contrast, visible focus, and reduced-motion preferences.
+- Explicit user and project choices override conflicting upstream hard rules; preserve accessibility, contrast, and visible focus.
 - Build with existing Laravel 13 / Livewire 4 full-page MFCs, `Route::livewire`, and shared layouts; reuse Flux 2, Tailwind 4 `@theme`, and the Vite asset pipeline instead of parallel UI infrastructure.
 - Link registration and sign-in through existing Fortify `route('register')` and `route('login')` routes.
 - Put neutral Spanish copy in grouped `lang/es/landing.php` keys. Follow `docs/ui-ux-guidelines.md`: warm-light default, optional dark, generous spacing, soft card corners and rounded controls.
