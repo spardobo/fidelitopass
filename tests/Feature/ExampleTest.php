@@ -26,6 +26,18 @@ class ExampleTest extends TestCase
             ->assertSee('src="'.asset('landing.js').'"', false)
             ->assertSee('aria-label="Activar modo oscuro"', false)
             ->assertSee('aria-pressed="false"', false)
-            ->assertDontSee('href="'.route('login').'"', false);
+            ->assertSee('href="'.route('register').'"', false)
+            ->assertSee('href="'.route('login').'"', false)
+            ->assertSee('Crear mi reto')
+            ->assertSee('Crea tu primer reto')
+            ->assertSee('Registrarse')
+            ->assertDontSee('Crear cuenta Business')
+            ->assertDontSee('Registra tu negocio')
+            ->assertSee('El primer paso es registrar tu cuenta Business.')
+            ->assertSee('Entrar')
+            ->assertSee('Primero crea una cuenta Business para empezar.')
+            ->assertDontSee('href="#"', false)
+            ->assertDontSee('href="/dashboard"', false)
+            ->assertDontSee('disponible próximamente');
     }
 }

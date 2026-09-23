@@ -1,6 +1,6 @@
 // Apply the explicit preference before the stylesheet paints; storage can be unavailable.
 (() => {
-    const key = 'fidelitopass-landing-theme';
+    const key = 'flux.appearance';
     let dark = false;
     try {
         dark = localStorage.getItem(key) === 'dark';

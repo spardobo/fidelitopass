@@ -20,10 +20,10 @@ test('Spanish is the initial interface locale', function (): void {
         ->assertDontSeeText('Log in to your account');
 });
 
-test('starter guest pages render Spanish copy', function (string $path, string $label): void {
+test('guest pages render Spanish copy', function (string $path, string $label): void {
     $this->get($path)->assertSeeText($label);
 })->with([
-    'welcome' => ['/', 'Comencemos'],
+    'welcome' => ['/', 'Haz que volver sea parte del juego.'],
     'registration' => ['/register', 'Crear una cuenta'],
     'forgot password' => ['/forgot-password', 'Recuperar contraseña'],
     'password reset' => ['/reset-password/test-token', 'Restablecer contraseña'],

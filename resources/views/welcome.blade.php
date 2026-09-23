@@ -27,7 +27,8 @@
                 </nav>
             </details>
             <button class="theme-toggle" type="button" aria-label="Activar modo oscuro" aria-pressed="false">Modo oscuro</button>
-            <a class="button button-primary header-cta" href="#negocios">Crear mi reto</a>
+            <a class="button button-primary header-cta" href="{{ route('register') }}">Crear mi reto</a>
+            <a href="{{ route('login') }}">Entrar</a>
         </div>
     </header>
 
@@ -39,10 +40,10 @@
                     <h1 id="hero-title">Haz que volver sea parte del juego.</h1>
                     <p class="lead">Crea retos de visitas, añade la tarjeta a Google Wallet y recompensa a tus clientes cuando los completan.</p>
                     <div class="actions">
-                        <a class="button button-primary" href="#negocios">Crear mi reto</a>
+                        <a class="button button-primary" href="{{ route('register') }}">Crear mi reto</a>
                         <a class="button button-outline" href="#como-funciona">Ver cómo funciona</a>
                     </div>
-                    <p class="small-note">Una experiencia simple para tu negocio y para quienes vuelven.</p>
+                    <p class="small-note">El primer paso es registrar tu cuenta Business.</p>
                 </div>
                 <div class="hero-visual" aria-label="Ejemplo ilustrativo de tarjeta de puntos" role="img">
                     <div class="wallet-card" aria-hidden="true">
@@ -116,15 +117,15 @@
             <div class="container business-inner">
                 <p class="eyebrow">Para negocios</p>
                 <h2 id="business-title">Convierte cada visita en una razón para regresar.</h2>
-                <p>Piensa en una recompensa para tus clientes, crea un reto de puntos y comparte tu QR. FidelitoPass acompaña el recorrido desde la primera visita hasta el canje.</p>
-                <a class="button button-primary" href="#como-funciona">Conoce cómo funciona</a>
-                <p class="small-note">El acceso para crear tu primer reto estará disponible próximamente.</p>
+                <p>Imagina una recompensa para tus clientes y un reto de puntos para sus visitas. FidelitoPass acompaña el recorrido desde la primera visita hasta el canje.</p>
+                <a class="button button-primary" href="{{ route('register') }}">Crea tu primer reto</a>
+                <p class="small-note">Primero crea una cuenta Business para empezar.</p>
             </div>
         </section>
     </main>
 
     <footer class="site-footer">
-        <div class="container footer-inner"><span class="wordmark">Fidelito<span>Pass</span></span><p>Visitas que suman. Recompensas que acercan.</p><a href="#inicio">Volver al inicio ↑</a></div>
+        <div class="container footer-inner"><span class="wordmark">Fidelito<span>Pass</span></span><p>Visitas que suman. Recompensas que acercan.</p><a href="{{ route('register') }}">Registrarse</a><a href="{{ route('login') }}">Entrar</a><a href="#inicio">Volver al inicio ↑</a></div>
     </footer>
 </body>
 </html>
