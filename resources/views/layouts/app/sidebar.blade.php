@@ -4,8 +4,8 @@
         @include('partials.theme-default')
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-white dark:bg-zinc-800">
-        <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+    <body class="min-h-screen bg-business-canvas text-business-ink">
+        <flux:sidebar sticky collapsible="mobile" class="border-e border-business-border bg-business-surface text-business-ink">
             <flux:sidebar.header>
                 <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
                 <flux:sidebar.collapse class="lg:hidden" />
@@ -35,7 +35,7 @@
         </flux:sidebar>
 
         <!-- mobile user menu -->
-        <flux:header class="lg:hidden">
+        <flux:header class="border-b border-business-border bg-business-surface text-business-ink lg:hidden">
             <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
 
             <flux:spacer />

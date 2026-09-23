@@ -2,6 +2,86 @@ import { expect, test } from "@playwright/test";
 
 const mailpit = "http://biz02-mail-84:8025";
 
+function luminance(color) {
+    const channels = color
+        .match(/^rgba?\((\d+), (\d+), (\d+)/)
+        ?.slice(1)
+        .map(Number);
+    expect(channels, `rendered RGB color: ${color}`).toBeTruthy();
+    const linear = channels.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+}
+
+function contrast(foreground, background) {
+    const light = Math.max(luminance(foreground), luminance(background));
+    const dark = Math.min(luminance(foreground), luminance(background));
+    return (light + 0.05) / (dark + 0.05);
+}
+
+async function expectRenderedTheme(page, mode, heading, checkButton = false) {
+    const rendered = await page.evaluate(
+        ({ headingText, checkButton }) => {
+            const title = [...document.querySelectorAll("h1, h2")].find((element) =>
+                element.textContent.includes(headingText),
+            );
+            const action = checkButton
+                ? [...document.querySelectorAll("button[data-flux-button]")].find(
+                      (element) =>
+                          getComputedStyle(element).backgroundColor === "rgb(183, 243, 74)",
+                  )
+                : null;
+            const sidebar = document.querySelector("[data-flux-sidebar]");
+            const field = document.querySelector("input[data-flux-control]");
+            const surface = sidebar ?? field?.closest(".bg-business-surface");
+            const canvas = getComputedStyle(document.body).backgroundColor;
+            if (field) field.focus();
+            return {
+                canvas,
+                ink: getComputedStyle(document.body).color,
+                surface: surface ? getComputedStyle(surface).backgroundColor : null,
+                border: surface ? getComputedStyle(surface).borderRightColor : null,
+                title: title && getComputedStyle(title).color,
+                titleBackground: title?.closest(".bg-business-surface")
+                    ? getComputedStyle(title.closest(".bg-business-surface")).backgroundColor
+                    : canvas,
+                button: action && {
+                    background: getComputedStyle(action).backgroundColor,
+                    text: getComputedStyle(action).color,
+                },
+                focus: field && getComputedStyle(field).boxShadow,
+                focusBackdrop: field?.closest(".bg-business-surface")
+                    ? getComputedStyle(field.closest(".bg-business-surface")).backgroundColor
+                    : canvas,
+            };
+        },
+        { headingText: heading, checkButton },
+    );
+
+    expect(rendered.canvas).toBe(mode === "light" ? "rgb(244, 241, 232)" : "rgb(24, 27, 23)");
+    expect(rendered.ink).toBe(mode === "light" ? "rgb(37, 40, 32)" : "rgb(238, 235, 221)");
+    expect(contrast(rendered.ink, rendered.canvas)).toBeGreaterThanOrEqual(4.5);
+    expect(rendered.title).toBeTruthy();
+    if (checkButton) {
+        expect(rendered.button).toBeTruthy();
+        expect(contrast(rendered.button.text, rendered.button.background)).toBeGreaterThanOrEqual(
+            4.5,
+        );
+    }
+    if (rendered.surface) {
+        expect(rendered.surface).toBe(mode === "light" ? "rgb(251, 249, 242)" : "rgb(32, 36, 31)");
+        expect(rendered.border).toBe(mode === "light" ? "rgb(218, 214, 200)" : "rgb(58, 64, 55)");
+    }
+    expect(contrast(rendered.title, rendered.titleBackground)).toBeGreaterThanOrEqual(4.5);
+    if (rendered.focus) {
+        const focus = mode === "light" ? "rgb(82, 123, 19)" : "rgb(183, 243, 74)";
+        expect(rendered.focus).toContain(focus);
+        expect(contrast(focus, rendered.focusBackdrop)).toBeGreaterThanOrEqual(3);
+    }
+}
+
 async function verificationLink(request, recipient) {
     await expect
         .poll(async () => {
@@ -44,6 +124,7 @@ for (const width of [1280, 375]) {
         await expect(
             page.getByRole("heading", { name: /create an account|crear una cuenta/i }),
         ).toBeVisible();
+        await expectRenderedTheme(page, "light", "", true);
         await page
             .getByRole("textbox", { name: /name|nombre/i })
             .first()
@@ -77,6 +158,7 @@ for (const width of [1280, 375]) {
         await page.keyboard.press("Enter");
         await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
         await expect(page.getByRole("heading", { name: business })).toBeVisible();
+        await expectRenderedTheme(page, "light", business);
         await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
         await expect(page.getByText("Zona horaria: America/Argentina/Buenos_Aires")).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -89,6 +171,7 @@ for (const width of [1280, 375]) {
         expect(await page.evaluate(() => localStorage.getItem("flux.appearance"))).toBe("dark");
         await page.goto("/dashboard");
         await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+        await expectRenderedTheme(page, "dark", business);
         await page.getByRole("link", { name: "Editar perfil del negocio" }).click();
         await expect(page.locator("html")).toHaveClass(/\bdark\b/);
         await expect(page.getByRole("textbox", { name: "Nombre del negocio" })).toHaveValue(
