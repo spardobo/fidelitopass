@@ -1,14 +1,14 @@
-name: deturistaando
+name: fidelitopass
 
 services:
-    deturistaando-laravel-app:
+    fidelitopass-laravel-app:
         build:
             context: './vendor/laravel/sail/runtimes/8.4'
             dockerfile: Dockerfile
             args:
                 WWWGROUP: '${WWWGROUP:-1000}'
-        image: 'sail-deturistaando:dev'
-        container_name: deturistaando-laravel-app
+        image: 'sail-fidelitopass:dev'
+        container_name: fidelitopass-laravel-app
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         ports:
@@ -23,16 +23,16 @@ services:
         volumes:
             - '.:/var/www/html'
         networks:
-            - deturistaando-network
+            - fidelitopass-network
         depends_on:
-            deturistaando-postgres-db:
+            fidelitopass-postgres-db:
                 condition: service_healthy
-            deturistaando-mailpit-dev:
+            fidelitopass-mailpit-dev:
                 condition: service_started
 
-    deturistaando-postgres-db:
+    fidelitopass-postgres-db:
         image: 'postgres:16-alpine'
-        container_name: deturistaando-postgres-db
+        container_name: fidelitopass-postgres-db
         ports:
             - '${FORWARD_DB_PORT:-5432}:5432'
         environment:
@@ -41,10 +41,10 @@ services:
             POSTGRES_USER: '${DB_USERNAME}'
             POSTGRES_PASSWORD: '${DB_PASSWORD}'
         volumes:
-            - 'deturistaando-postgres-data:/var/lib/postgresql/data'
+            - 'fidelitopass-postgres-data:/var/lib/postgresql/data'
             - './vendor/laravel/sail/database/pgsql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-create-testing-database.sql'
         networks:
-            - deturistaando-network
+            - fidelitopass-network
         healthcheck:
             test:
                 - CMD
@@ -59,21 +59,21 @@ services:
             start_period: 10s
             timeout: 5s
 
-    deturistaando-mailpit-dev:
+    fidelitopass-mailpit-dev:
         image: 'axllent/mailpit:latest'
-        container_name: deturistaando-mailpit-dev
+        container_name: fidelitopass-mailpit-dev
         ports:
             - '${FORWARD_MAILPIT_PORT:-1025}:1025'
             - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025'
         networks:
-            - deturistaando-network
+            - fidelitopass-network
 
 networks:
-    deturistaando-network:
-        name: deturistaando-network
+    fidelitopass-network:
+        name: fidelitopass-network
         driver: bridge
 
 volumes:
-    deturistaando-postgres-data:
-        name: deturistaando-postgres-data
+    fidelitopass-postgres-data:
+        name: fidelitopass-postgres-data
         driver: local

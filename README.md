@@ -1,237 +1,474 @@
-# **DeTuristaAndo**
+# FidelitoPass
 
-> **Descubre experiencias locales. Visita negocios a tu manera.**
+> **Retos que hacen volver a tus clientes.**
 
-**DeTuristaAndo** convierte negocios dispersos en experiencias fáciles de descubrir y recorrer. Un organizador publica una propuesta común, el visitante guarda una tarjeta en Google Wallet y cada negocio confirma las visitas. No existe un orden obligatorio: el beneficio se habilita al conocer `K` negocios distintos entre los `N` participantes.
+**FidelitoPass** es una aplicación web de fidelización para pequeños negocios que transforma las visitas recurrentes en retos temporales simples, claros y divertidos.
 
-La plataforma no es un directorio general, una aplicación de puntos ni un sistema de pagos. Su propósito es dar contexto a la oferta local y generar descubrimiento y tráfico cruzado entre negocios independientes.
+El negocio crea un reto, define una recompensa y comparte un QR permanente. El cliente añade una única tarjeta a Google Wallet y la conserva para los retos futuros de ese negocio. Cada visita validada otorga puntos y actualiza el progreso del reto activo hasta desbloquear una recompensa que puede canjearse antes de que termine el plazo.
 
-> **Estado actual:** documentación previa al desarrollo de MVP01. La aplicación y sus integraciones todavía no están implementadas.
-
-## El problema
-
-Descubrir lugares interesantes todavía exige combinar mapas, redes sociales, publicaciones temporales y recomendaciones. El visitante debe investigar, comparar y construir su propio plan. Los negocios con poca presencia digital quedan fuera de ese proceso.
-
-Una feria, asociación o grupo de comercios puede resolver parte del problema mediante promoción conjunta. Sin embargo, suele carecer de una herramienta sencilla para:
-
-- Presentar la propuesta completa en un solo lugar.
-- Mostrar qué negocios participan y dónde están.
-- Permitir que cada persona elija su propio recorrido.
-- Registrar visitas sin conectar cajas, inventarios o ventas.
-- Reconocer a quien conoce varios participantes.
-- Medir si las visitas se distribuyen entre negocios.
-
-## La propuesta
-
-Una **experiencia** reúne negocios coordinados previamente alrededor de una feria, evento o temática. El organizador define los participantes, las fechas, la meta `K/N`, el beneficio y sus condiciones. Cada visitante decide qué lugares conocer y en qué orden.
-
-### Ejemplo completo
-
-Una semana gastronómica reúne diez restaurantes y ofrece un beneficio al visitar cuatro de ellos. Una persona descubre la experiencia en `deturistaando.com` o mediante un QR expuesto por un participante. La landing muestra la propuesta, los negocios, el mapa, la meta y el beneficio.
-
-La persona activa una participación anónima y guarda su tarjeta en Google Wallet. En cada restaurante presenta el QR privado de la tarjeta. El negocio lo escanea, revisa la operación y confirma la visita. Al completar cuatro negocios distintos, el sistema habilita el beneficio para su canje en los puntos autorizados.
-
-Los participantes no comparten ventas, inventarios ni sistemas internos. Solamente operan la validación necesaria para la experiencia.
-
-## Valor por actor
-
-| Actor | Valor principal |
-|---|---|
-| Visitante | Recibe una propuesta concreta, visual y libre de recorrer sin instalar otra aplicación ni crear una cuenta. |
-| Negocio participante | Obtiene visibilidad y visitas cruzadas mediante una operación limitada que no requiere integración técnica. |
-| Organizador | Publica y opera la experiencia desde un único lugar, con progreso, beneficio y métricas esenciales. |
-
-El organizador ya tiene coordinados a los negocios. **DeTuristaAndo** no recluta participantes ni administra sus acuerdos comerciales.
-
-## Experiencias que admite el modelo
-
-| Experiencia | Participantes posibles | Ejemplo de meta |
-|---|---|---|
-| Feria del Libro | Librerías, editoriales y puestos. | Visitar 5 de 20 participantes. |
-| Burger Week | Restaurantes con una propuesta especial. | Visitar 4 de 10 restaurantes. |
-| Festival cervecero | Cervecerías, productores y puestos gastronómicos. | Visitar 5 participantes. |
-| Ruta del Vino | Bodegas, viñedos, restaurantes y comercios relacionados. | Visitar 3 de 8 lugares, sin secuencia obligatoria. |
-| Feria del Café de Especialidad | Cafeterías, tostadores y productores. | Visitar 4 participantes. |
-| Noche cultural | Galerías, talleres, librerías y espacios culturales. | Conocer 4 espacios. |
-| Experiencia para motociclistas | Talleres, miradores, cafés y alojamientos preparados. | Registrar 3 paradas elegidas libremente. |
-| Turista en su propia ciudad | Negocios locales agrupados por temática. | Descubrir 4 lugares nuevos. |
-| Trabajo remoto | Cafeterías y espacios aptos para trabajar. | Visitar 3 espacios durante la vigencia. |
-
-El nombre comercial puede contener palabras como ruta, feria, festival o semana. En el dominio todas representan una **experiencia** y ninguna impone un itinerario.
-
-## Actores
-
-### Visitante
-
-Descubre y participa en una experiencia. Puede ser turista o residente. No crea una cuenta en **DeTuristaAndo** ni proporciona datos personales para obtener su tarjeta.
-
-### Organizador
-
-Crea una cuenta convencional, configura la experiencia e invita a los negocios que ya coordinó. También define el beneficio, controla los accesos y consulta resultados agregados.
-
-### Negocio participante
-
-Activa un acceso limitado mediante un enlace de un solo uso, registra su dispositivo y define un PIN. Puede descargar material público, validar visitas, realizar canjes autorizados y consultar solamente su propia actividad.
-
-### Operación de plataforma
-
-Mantiene el servicio y puede actuar ante fraude, abuso o contenido indebido. No organiza las experiencias ni reemplaza al organizador.
+La propuesta es deliberadamente pequeña: **visitas, puntos, reto y recompensa**. Sin CRM, sin analítica avanzada y sin aplicaciones móviles adicionales.
 
 ## Cómo funciona
 
-### 1. Crear y publicar
+```text
+Negocio crea un reto
+        ↓
+Define una recompensa
+        ↓
+Cliente escanea el QR permanente
+        ↓
+Añade la tarjeta a Google Wallet
+        ↓
+Presenta la tarjeta en cada visita
+        ↓
+Negocio valida la visita
+        ↓
+FidelitoPass otorga los puntos que correspondan
+        ↓
+FidelitoPass actualiza el progreso
+        ↓
+Cliente completa el reto
+        ↓
+Recompensa disponible
+        ↓
+Negocio confirma el canje
+        ↓
+La misma tarjeta espera el próximo reto
+```
 
-1. El organizador se registra con Google o correo y contraseña.
-2. Configura identidad, fechas, ubicación, participantes, meta `K/N`, beneficio y canje.
-3. Revisa la landing y la tarjeta mediante una vista previa.
-4. Publica cuando la configuración obligatoria está completa.
-5. Cada negocio recibe una invitación privada.
+## El diferencial
 
-### 2. Activar un negocio
+FidelitoPass utiliza una única mecánica fácil de explicar:
 
-1. El negocio abre la invitación y confirma que reconoce al organizador y la experiencia.
-2. Registra el dispositivo y define un PIN.
-3. Descarga el QR público o copia el enlace para compartir la experiencia.
-4. Accede al validador desde el mismo dispositivo.
+> **Visita → gana puntos → completa el reto → desbloquea una recompensa.**
 
-El negocio no administra una cuenta completa ni puede consultar la actividad de otros participantes.
+Cada negocio mantiene un solo reto activo. El reto siempre consiste en alcanzar una meta de puntos antes de una fecha.
 
-### 3. Descubrir y guardar la tarjeta
+Ejemplo:
 
-1. El visitante encuentra una experiencia desde la web, un enlace o un QR público.
-2. Consulta participantes, ubicaciones, fechas, meta y beneficio.
-3. Activa una participación anónima.
-4. Guarda la tarjeta en Google Wallet.
-5. Conserva una vista web privada con el detalle de su progreso.
+```text
+🎯 RETO ACTUAL
 
-### 4. Validar una visita
+Consigue 15 puntos antes del 30 SEP.
 
-1. El visitante presenta el QR privado de su tarjeta o vista web.
-2. El negocio lo escanea o introduce el código manual.
-3. La plataforma muestra el contexto y el efecto antes de confirmar.
-4. El negocio confirma la visita.
-5. El progreso y la tarjeta se actualizan.
+9 / 15 puntos
 
-Una visita repetida se registra, pero solo la primera visita a cada negocio incrementa el progreso de lugares distintos.
+Tu visita ahora vale 1 punto.
 
-### 5. Habilitar y canjear el beneficio
+🎁 Hamburguesa gratis
+```
 
-Al alcanzar `K` negocios distintos, la participación recibe un único beneficio. Un punto autorizado revisa sus condiciones y confirma el canje. La operación no puede repetirse ni reinicia el historial de visitas.
+El negocio puede configurar cuánto vale una visita regular y, opcionalmente, una única regla especial para un día de la semana completo o una franja horaria de ese día.
 
-## La tarjeta de experiencia
+Cuando esa regla está activa, la tarjeta lo comunica de forma inmediata:
 
-Google Wallet es parte de MVP01. La tarjeta ofrece acceso rápido a:
+```text
+⚡ Ahora tu visita vale 2 puntos.
+```
 
-- Identidad y vigencia de la experiencia.
-- Progreso `K/N`.
-- Estado del beneficio.
-- QR privado de validación.
-- Enlace a la vista web privada.
+No existen tipos de reto combinables, rachas, reglas arbitrarias ni varios retos activos simultáneamente en el MVP.
 
-La landing pública contiene la información completa de la experiencia. La vista privada contiene el detalle de la participación. La base de datos de **DeTuristaAndo** conserva el estado oficial; Google Wallet lo representa y recibe actualizaciones.
+## Una tarjeta permanente por negocio
 
-Si Wallet no está disponible en un dispositivo, la vista web privada permite participar con el mismo flujo. Apple Wallet queda fuera de MVP01.
+El cliente conserva una única tarjeta Google Wallet para ese negocio.
 
-## Reglas esenciales
+```text
+Cliente + Negocio
+       ↓
+Customer Pass permanente
+       ↓
+Google Wallet
+       ↓
+Reto actual cambia con el tiempo
+```
 
-- La experiencia tiene vigencia y al menos dos negocios participantes.
-- La meta cumple `2 ≤ K ≤ N`.
-- El visitante elige el orden y los negocios que desea conocer.
-- El QR público descubre la experiencia y nunca registra visitas.
-- Solo un negocio autorizado confirma visitas y canjes.
-- La credencial privada no contiene información personal legible.
-- Las visitas repetidas no aumentan el progreso de negocios distintos.
-- MVP01 crea como máximo un beneficio por participación.
-- El canje es único e irreversible.
-- El organizador es el único actor con una cuenta convencional.
+Cuando un reto termina:
 
-El [diseño conceptual](docs/conceptual-design.md) define el vocabulario, los estados y las reglas completas.
+- Deja de aceptar progreso.
+- Deja de aceptar canjes.
+- La tarjeta permanece instalada.
+- Muestra que el reto terminó o que pronto habrá uno nuevo.
+- El siguiente reto reutiliza la misma tarjeta.
 
-## MVP01
+## Experiencia del cliente
 
-MVP01 será gratuito y podrá desplegarse en producción. Su alcance cubre un flujo completo:
+La tarjeta siempre responde las mismas preguntas:
 
-- Descubrimiento público con filtros simples y mapa.
-- Registro del organizador con Google o credenciales.
-- Creación, vista previa y publicación de experiencias.
-- Invitación y acceso limitado para negocios.
-- QR público y material imprimible.
-- Participación anónima y vista web privada.
-- Emisión y actualización de Google Wallet.
-- Validación por cámara y código manual.
-- Progreso por negocios distintos.
-- Beneficio único y canje autorizado.
-- Métricas operativas y auditoría esencial.
+1. **¿Dónde estoy participando?**.
+2. **¿Cuál es el reto?**.
+3. **¿Cómo funciona?**.
+4. **¿Cómo voy?**.
+5. **¿Qué debo hacer ahora?**.
+6. **¿Qué gano?**.
+7. **¿Hasta cuándo?**.
 
-### Fuera de alcance
+Ejemplo:
 
-- Suscripciones, pagos y facturación.
-- Marketplace, reservas, pedidos o logística.
-- Postulación pública o negociación entre negocios.
-- Aplicaciones móviles nativas y Apple Wallet.
-- Puntos por compra, múltiples premios o campañas promocionales.
-- Integraciones con cajas, ventas o inventarios.
-- Inteligencia artificial durante la operación del producto.
+```text
+CAFÉ CENTRAL
 
-### Indicadores iniciales
+🎯 RETO ACTUAL
 
-| Resultado | Indicador |
+Consigue 15 puntos antes del 30 SEP.
+
+9 / 15 puntos
+
+⚡ Ahora tu visita vale 2 puntos.
+
+🎁 Café especial gratis
+Válido hasta 30 SEP
+
+[ código de validación ]
+```
+
+El progreso se representa con números y texto. No se generan círculos, sellos ni gráficos dinámicos para representar el progreso.
+
+## Experiencia del negocio
+
+La aplicación prioriza operaciones rápidas y simples.
+
+### Dashboard
+
+Muestra únicamente:
+
+- Reto actual.
+- Tarjetas emitidas.
+- Puntos obtenidos en el reto actual.
+- Recompensas desbloqueadas.
+- Recompensas canjeadas.
+- Accesos rápidos a **Validar visita**, **Gestionar reto** y **Mostrar QR**.
+
+### Validar una visita
+
+La página está pensada para atención rápida en mostrador:
+
+```text
+┌───────────────────────────┐
+│      Cámara / scanner     │
+└───────────────────────────┘
+
+Código de la tarjeta
+[ 482731                  ]
+[ Buscar tarjeta ]
+
+┌───────────────────────────┐
+│ Estado y progreso         │
+│                           │
+│ [ Registrar visita ]      │
+└───────────────────────────┘
+```
+
+El código manual está **siempre justo debajo del escáner**. No se oculta en modales, menús ni pantallas secundarias.
+
+Si la cámara no está disponible, el mismo formulario manual permanece listo para utilizarse.
+
+Cuando existe una recompensa disponible, la acción principal cambia a:
+
+> **Canjear recompensa**
+
+## Landing pública
+
+La página principal explica FidelitoPass antes de mostrar cualquier panel de gestión.
+
+Estructura:
+
+1. Hero con la propuesta de valor.
+2. Cómo funciona.
+3. Cómo funcionan los puntos y el reto actual.
+4. Una sola tarjeta Google Wallet.
+5. CTA para crear el primer reto.
+
+Copy principal sugerido:
+
+> **Haz que volver sea parte del juego.**
+
+> Crea retos de puntos, añade la tarjeta a Google Wallet y recompensa a tus clientes cuando los completan.
+
+## Diseño visual
+
+FidelitoPass utiliza una interfaz limpia, ligera y redondeada.
+
+### Light mode — por defecto
+
+- Fondo marfil cálido.
+- Superficies crema.
+- Texto carbón.
+- Bordes suaves.
+- Verde lima como único color principal.
+
+### Dark mode — opcional
+
+- Fondo carbón verdoso.
+- Superficies ligeramente más claras.
+- Texto blanco cálido.
+- El mismo verde lima como acento.
+
+No se utilizan blanco puro ni negro puro como fondos principales.
+
+Color principal:
+
+```text
+#B7F34A
+```
+
+Los estados de éxito, advertencia y error utilizan color + icono + texto. El color por sí solo nunca transmite el significado.
+
+## Reglas de tiempo
+
+Toda fecha/hora que representa un hecho del dominio se almacena como un instante UTC mediante PostgreSQL `timestamptz`.
+
+El negocio configura una zona horaria IANA, por ejemplo:
+
+```text
+America/La_Paz
+Europe/Madrid
+```
+
+Al publicar un reto, esa zona horaria se guarda como parte del reto para que sus reglas históricas nunca cambien.
+
+Las visitas guardan únicamente:
+
+```text
+visited_at
+```
+
+No se persiste una fecha local duplicada.
+
+Cuando FidelitoPass necesita saber el día local de una visita, PostgreSQL lo calcula utilizando la zona horaria del reto.
+
+Ejemplo:
+
+```text
+2026-09-22 02:30 UTC -> 2026-09-21 22:30 America/La_Paz
+2026-09-22 05:00 UTC -> 2026-09-22 01:00 America/La_Paz
+```
+
+Aunque ambos instantes pertenecen al 22 de septiembre en UTC, pertenecen a días locales diferentes.
+
+Las decisiones de vigencia utilizan el reloj de PostgreSQL, no el reloj del navegador ni del servidor PHP.
+
+## Modelo conceptual
+
+```mermaid
+erDiagram
+    USERS ||--|| BUSINESSES : owns
+    BUSINESSES ||--o{ CHALLENGES : publishes
+    BUSINESSES ||--o{ CUSTOMER_PASSES : issues
+    CUSTOMER_PASSES ||--o{ VISITS : records
+    CHALLENGES ||--o{ VISITS : contextualizes
+    CUSTOMER_PASSES ||--o{ REWARD_ENTITLEMENTS : earns
+    CHALLENGES ||--o{ REWARD_ENTITLEMENTS : unlocks
+```
+
+El canje final se representa en el propio `RewardEntitlement` mediante `redeemed_at` y `redeemed_by_user_id`. Para el MVP no es necesaria una tabla adicional de redenciones.
+
+## Arquitectura general
+
+FidelitoPass es un **monolito Laravel convencional**.
+
+```mermaid
+flowchart LR
+    C[Cliente / Google Wallet] --> A[Laravel 13 + Livewire 4]
+    B[Negocio] --> A
+    A --> P[(PostgreSQL 16)]
+    A --> G[Google Wallet]
+```
+
+PostgreSQL es la fuente de verdad.
+
+Google Wallet:
+
+- Muestra el reto.
+- Muestra el progreso.
+- Transporta el código de validación.
+- Se actualiza después de cambios confirmados en PostgreSQL.
+
+Una caída temporal de Google Wallet no revierte una visita o canje ya confirmado.
+
+## Stack tecnológico
+
+| Área | Tecnología |
 |---|---|
-| La propuesta despierta interés. | Conversión de landing a tarjeta activada. |
-| El negocio puede operar solo. | Activación y primera validación sin asistencia. |
-| Existe tráfico cruzado. | Participaciones con una segunda visita en un negocio distinto. |
-| La meta es alcanzable. | Tasa de finalización `K/N`. |
-| El beneficio es útil. | Tasa de canje entre beneficios habilitados. |
+| Backend | PHP 8.4, Laravel 13 |
+| UI | Blade, Livewire 4, Alpine.js, Flux UI Free |
+| CSS | Tailwind CSS 4 |
+| Base de datos | PostgreSQL 16 |
+| Autenticación | Laravel Starter Kit / Fortify |
+| Tests PHP | Pest / PHPUnit |
+| Browser testing | Playwright |
+| Análisis estático | Larastan / PHPStan |
+| Formato | Laravel Pint |
+| Desarrollo local | Docker + Laravel Sail |
+| Build frontend | Vite |
+| Integración externa | Google Wallet |
+| Logging | Laravel + Monolog, JSON en producción |
 
-La métrica principal es la proporción de participaciones que registran una segunda visita en un negocio diferente.
+## Instalación local
 
-## Identidad visual
+### Requisitos
 
-**DeTuristaAndo** tendrá una identidad oscura, enérgica y reconocible. Las landing pages usarán fondos casi negros, tarjetas en verde neón e ilustraciones de alto contraste con verdes, púrpuras y acentos complementarios. El lenguaje gráfico combinará formas orgánicas, trazos marcados, color intenso y movimiento breve. El resultado debe sentirse divertido, cool y chill sin perder claridad operativa.
+- Git.
+- Docker con Docker Compose.
 
-El neón identifica descubrimiento, progreso y acciones principales. Los estados de error, advertencia o canje no dependerán solo del color. El sistema mantendrá contraste, foco visible y reducción de movimiento para quien la solicite.
+El flujo normal no requiere instalar PHP, PostgreSQL o Node directamente en el host.
 
-Las [guías UI/UX](docs/ui-ux-guidelines.md) definen la dirección visual sin convertirla en una especificación rígida de píxeles.
+### 1. Clonar el repositorio
 
-## Tecnología y arquitectura
+```bash
+git clone <repository-url> fidelitopass
+cd fidelitopass
+```
 
-| Área | Decisión |
-|---|---|
-| Backend | PHP 8.4 y Laravel 13. |
-| Base de inicio | Starter kit oficial de Laravel, variante Livewire. |
-| Autenticación | Laravel Fortify y Laravel Socialite con Google. |
-| Interfaz | Blade, Livewire 4, Alpine.js, Tailwind CSS 4 y Flux UI Free. |
-| Datos | PostgreSQL 16. |
-| Mapas | Leaflet y datos de OpenStreetMap. |
-| Tarjeta | Google Wallet mediante una Integración propia del proyecto, según [ADR-008](docs/architecture/decisions/008-google-wallet-project-owned-integration.md). |
-| Pruebas | Pest o PHPUnit y Playwright. |
-| Desarrollo | Laravel Sail con la aplicación, PostgreSQL, correo y dependencias locales en contenedores. |
-| Producción | Dockerfile propio en la raíz y entrega mediante GitHub Actions. |
-| Gestión | Lean, rolling wave y Kanban. |
+### 2. Crear configuración local
 
-El starter kit aporta autenticación, recuperación de acceso, verificación de correo, layouts, dashboard, componentes Flux y workflows iniciales. Socialite incorpora el acceso con Google sin delegar la autorización del producto.
+```bash
+cp .env.dev.example .env
+```
 
-Docker es la única dependencia obligatoria del host para desarrollar. Los comandos de PHP, Composer, Node y pruebas se ejecutan mediante Sail. Producción no reutiliza Sail: se construye desde el Dockerfile de la raíz y el item dedicado de CI deberá verificar esa imagen antes de promoverla.
+### 3. Instalar dependencias PHP para disponer de Sail
 
-La aplicación será un **monolito Laravel convencional con Actions de caso de uso**, según [ADR-007](docs/architecture/decisions/007-conventional-laravel-monolith-with-use-case-actions.md). Los comandos de negocio significativos se coordinarán con Actions; Eloquent será la opción predeterminada, y los Services focalizados u otras abstracciones se incorporarán solo cuando exista una necesidad actual demostrada. DRY, KISS, YAGNI y SOLID se aplicarán de forma proporcional.
+Linux/macOS/WSL:
 
-Laravel cubrirá los controles web habituales. La aplicación añadirá autorización por alcance, separación de credenciales, idempotencia, auditoría y límites de intentos donde el dominio lo requiera. La documentación de [arquitectura](docs/architecture/overview.md) y [seguridad](docs/architecture/security.md) explica estas decisiones.
+```bash
+docker run --rm \
+  -u "$(id -u):$(id -g)" \
+  -v "$PWD:/app" \
+  -w /app \
+  composer:2 composer install
+```
 
-## Documentación
+### 4. Iniciar servicios
 
-La documentación avanza desde el producto hacia la implementación. Cada archivo mantiene una responsabilidad y cambia junto con el código.
+```bash
+./vendor/bin/sail up -d
+```
 
-1. [Análisis de mercado](docs/market-analysis.md).
-2. [Diseño conceptual](docs/conceptual-design.md).
-3. [Guías UI/UX](docs/ui-ux-guidelines.md).
-4. [Requisitos](docs/requirements.md).
-5. [Arquitectura](docs/architecture/overview.md), [seguridad](docs/architecture/security.md) y ADR relacionados.
-6. [Estrategia de calidad](docs/quality-strategy.md).
-7. [Flujo de desarrollo](docs/development/workflow.md).
-8. [Estándar de implementación Laravel](docs/development/laravel-application-standard.md).
+### 5. Ejecutar setup
 
-El [estándar de documentación](docs/documentation-standard.md) define autoridad, estilo y mantenimiento.
+```bash
+./vendor/bin/sail composer setup
+```
+
+La aplicación estará disponible normalmente en:
+
+```text
+http://localhost:8000
+```
+
+## Comandos de calidad
+
+```bash
+# Suite PHP
+./vendor/bin/sail composer test
+
+# Formato PHP
+./vendor/bin/sail composer check:format
+
+# Análisis estático
+./vendor/bin/sail composer check:lint
+
+# Tooling/frontend tests
+./vendor/bin/sail npm test
+
+# Build de producción
+./vendor/bin/sail npm run build
+```
+
+Los scripts del repositorio mantienen los quality gates y controles de seguridad configurados para el proyecto.
+
+## Seguridad
+
+FidelitoPass aplica un conjunto pequeño de controles directamente relacionados con el producto:
+
+- Autorización por propiedad del negocio.
+- CSRF y sesiones Laravel.
+- Validación autoritativa en servidor.
+- Eloquent/query binding para consultas.
+- Separación entre QR público y token privado de validación.
+- Rate limiting en autenticación y lookup/validación.
+- Transacciones y bloqueos para visitas/canjes.
+- Secretos fuera del código fuente.
+- Debug desactivado en producción.
+- Logging estructurado sin credenciales.
+- Escaneo de dependencias y secretos en el flujo de calidad.
+
+## Logging
+
+En producción, los logs se escriben como JSON estructurado para facilitar una futura integración con sistemas de agregación.
+
+Ejemplo conceptual:
+
+```json
+{
+  "event": "visit.accepted",
+  "request_id": "019...",
+  "business_id": 12,
+  "challenge_id": 44,
+  "customer_pass_id": 381,
+  "outcome": "accepted"
+}
+```
+
+Nunca se registran contraseñas, cookies, cabeceras de autorización, tokens privados de validación ni claves de Google Wallet.
+
+## Estructura
+
+```text
+app/                    Código Laravel
+bootstrap/              Bootstrap del framework
+config/                 Configuración
+database/               Migraciones, factories y seeders
+docker/                 Runtime de producción
+docs/                   Documentación técnica en inglés
+public/                 Entrada HTTP y assets públicos
+resources/              Blade/Livewire, CSS y JavaScript
+routes/                 Rutas
+scripts/quality/        Automatización de calidad y seguridad
+skills/                 Convenciones operativas del proyecto
+tests/                  Tests PHP y browser
+Dockerfile              Imagen de producción
+compose.yaml            Entorno local
+```
+
+## Documentación técnica
+
+La documentación técnica se encuentra en [`docs/`](docs/README.md).
+
+El orden de diseño es:
+
+1. Concepto.
+2. Alcance.
+3. Catálogo de retos.
+4. Requisitos.
+5. Presentación Wallet.
+6. UX.
+7. Arquitectura y seguridad.
+8. Estándares de datos/Laravel.
+9. Calidad.
+10. Plan de entrega.
+
+Los documentos están separados por dominio de conocimiento y se consultan mediante lazy loading: una tarea abre únicamente la fuente que necesita.
+
+## Fuera de alcance
+
+FidelitoPass no incluye en el MVP:
+
+- CRM.
+- Analítica avanzada.
+- Campañas email/SMS.
+- Referidos.
+- POS.
+- Pagos.
+- Múltiples sucursales.
+- Roles de empleados.
+- Múltiples retos simultáneos.
+- Recompensas múltiples.
+- Reglas personalizadas.
+- Multiplicadores configurables.
+- Apple Wallet.
+- Aplicación móvil nativa.
+- Marketplace de negocios.
 
 ## Licencia
 
-Este proyecto es software propietario con código fuente disponible para transparencia, revisión técnica y evaluación profesional. No es software de código abierto y su disponibilidad pública no concede permisos de uso, modificación, distribución ni explotación. Consulte los términos completos en [LICENSE](LICENSE).
+Consulta [`LICENSE`](LICENSE).

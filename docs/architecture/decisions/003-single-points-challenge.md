@@ -1,0 +1,48 @@
+# ADR-003: Use one points-based Challenge mechanic
+
+## Status
+
+Accepted.
+
+## Context
+
+FidelitoPass needs a loyalty mechanic that is easy for a small Business to configure, easy for a customer to understand in Google Wallet, and small enough to keep the MVP deterministic.
+
+Several distinct Challenge algorithms would increase configuration, presentation states, evaluation logic, and testing scope. A generic rules engine would increase that complexity further.
+
+## Options Considered
+
+1. Several fixed Challenge types with different evaluation rules.
+2. One points-based Challenge with simple point-earning configuration.
+3. A generic configurable rules engine.
+
+## Decision
+
+Use one Challenge mechanic:
+
+> Earn `N` points before the Challenge ends to unlock one Reward.
+
+A Visit is an immutable fact. Each accepted Visit receives an immutable `points_awarded` value according to the Business point configuration that applies at validation time.
+
+The Business may configure one regular Visit value and at most one optional special weekday rule covering either the whole selected day or one time range.
+
+Only one Challenge can be active for a Business at an instant.
+
+## Rationale
+
+This preserves a single customer mental model:
+
+```text
+Visit -> Points -> Challenge progress -> Reward.
+```
+
+The Business can still encourage weak periods by making a Visit worth more points at a selected time, without introducing another customer-facing mechanic.
+
+## Consequences
+
+- Wallet always presents progress in points.
+- Challenge configuration remains small and predictable.
+- Legitimate repeat Visits on the same day can each award points.
+- Technical retries remain protected by idempotency.
+- Historical awarded points are not recalculated after configuration changes.
+- Additional Challenge mechanics remain future product work rather than MVP configuration.

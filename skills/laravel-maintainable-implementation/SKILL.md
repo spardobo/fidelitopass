@@ -1,64 +1,210 @@
 ---
 name: laravel-maintainable-implementation
-description: "Trigger: Laravel maintainable implementation, Laravel Actions, project-owned PHP or Livewire changes. Apply the DeTuristaAndo Laravel implementation authorities."
+description: "Use for project-owned Laravel, PHP, Livewire, PostgreSQL, Google Wallet integration, and application-code changes in FidelitoPass."
 license: Apache-2.0
 metadata:
-  author: gentleman-programming
-  version: "1.4"
+  author: FidelitoPass
+  version: "3.0"
 ---
 
-## Activation Contract
+## Purpose
 
-Use for project-owned Laravel, PHP, or Livewire implementation. Do not use for documentation-only work, source migration, or unapproved scaffolding. Read the active work item first; lazy-load references only when the current scope, risk, or ambiguity needs them.
+Apply FidelitoPass coding and maintainability conventions without loading broad project documentation eagerly.
 
-## Hard Rules
+Framework-specific skills/documentation own framework APIs. This skill owns project-specific implementation constraints.
 
-- Use conventional Laravel technical roots; never create `app/Modules`, formal layers, or empty capability folders.
-- Classify every operation. A meaningful command must use one `<Verb><Subject>Action::handle()`.
-- Give each applicable authorization or transaction boundary complete Action ownership; collaborators must not fragment either boundary. Dispatch provider work after commit when local state is authoritative.
-- Prefer Eloquent. Add a focused Service, optional abstraction, or contract only for a documented current responsibility or boundary. Keep SDK behavior in project-owned Integrations.
-- Follow the canonical standard's complete prospective English PHPDoc/comment contract only when in-scope code needs the full rule; do not eagerly load or reproduce its inventory.
-- Generate elegant code: simple, readable, structurally clear, and maintainable before it is clever.
-- Do not install Laravel Actions or Boost, add ports, mandatory repositories/interfaces, `AGENTS.md`, `CLAUDE.md`, or source migration.
+## Default context
 
-## Elegant Code Rule
+Start with:
 
-Structure functions as a top-to-bottom narrative. Group related statements into clear semantic blocks, separated by whitespace when useful. Keep each block focused on one responsibility and avoid interleaving unrelated concerns. Extract helper methods only when they improve readability, reuse, or abstraction.
+1. active work item and acceptance criteria;
+2. affected source files;
+3. nearby tests;
+4. installed framework/package versions when relevant.
 
-Use concise PHP when it improves clarity: ternaries, null coalescing, collection operations, early returns, and fluent Laravel APIs are welcome when they make the intent easier to read. Reject clever compression, hidden side effects, generic indirection, and long methods explained only by comments.
+Load a project document only when the current implementation decision needs the knowledge it owns.
 
-Prefer modern readable syntax when it makes structure visible. Use heredoc or nowdoc for multi-line HTML, SQL, text, or templates instead of compressed one-line strings; keep the source indentation easy to read. Interpolate and escape only when data is dynamic or untrusted; do not add escaping, helpers, variables, or collection pipelines for static literals.
+## Project coding conventions
 
-Inside a function, add an implementation comment only when the block needs it to become faster to understand. Prefer better naming and structure over comments that narrate obvious code. Extract helpers only when they remove meaningful complexity; do not split tiny static markup or simple literals into indirection.
+- Prefer conventional Laravel structure and Eloquent.
+- Do not introduce formal architecture layers, generic repositories, generic service buckets, or empty scaffolding.
+- Use one focused `<Verb><Subject>Action::handle()` for consequential business commands that coordinate transactions, authorization, idempotency/concurrency, or state-tied external effects.
+- Routine operations remain direct until they acquire meaningful business complexity.
+- The Action owns its complete transaction boundary.
+- Keep network/provider calls outside database transactions.
+- Commit authoritative local state first; dispatch Wallet synchronization after commit.
+- Use Laravel relationships, casts, scopes, Policies, constraints, transactions, row locks, jobs, scheduling, and query builder where each is the clearest native mechanism.
+- Add a Service only for a cohesive reusable capability with a real current responsibility.
+- Add an interface only when more than one real implementation/substitution boundary exists.
+- Do not create a customer `User` account model for MVP.
+- Organizer/Business authorization is based on explicit ownership.
 
-## Decision Gates
+## FidelitoPass domain rules
 
-| Situation | Action |
-| --- | --- |
-| Meaningful command | Use an Action and apply only required boundaries. |
-| Routine query, write, or callback | Use the clearest Laravel-native mechanism directly. |
-| Livewire or security risk | Keep presentation focused; apply validation, server authorization, integrity, and focused tests. |
-| Provider effect | Use an Integration and dispatch it after commit. |
+- MVP has one Challenge mechanic: reach a target number of points before the Challenge ends.
+- Do not build a Challenge type catalog or rule engine.
+- Each accepted Visit stores immutable `points_awarded` determined at validation time.
+- The Business has one regular Visit point value and at most one optional special weekday/time point rule.
+- Legitimate repeat Visits on the same day may each be accepted.
+- Technical retries are protected by idempotency and must not create duplicate Visit facts.
+- `visited_at` is database-generated `timestamptz`.
+- Do not add a duplicated local-date Visit column.
+- After acquiring required row locks, capture PostgreSQL `clock_timestamp()` once as the operation instant for deadline, point-rule, and validity decisions.
+- Use Business-local timezone conversion for the optional special point rule and Challenge deadlines.
+- Challenge progress is the sum of immutable awarded points for that Customer pass and Challenge.
+- Reward entitlement is unique per Customer pass + Challenge.
+- Redemption is one final timestamped state.
+- Google Wallet is the only customer-facing pass; PostgreSQL is authoritative.
 
-## Execution Steps
+## Points calculation convention
 
-1. Load the active item. For persistence or schema work, lazy-load the database standard before design. Choose the smallest clear Laravel-native design from the item itself when possible.
-2. Classify the operation, record applicable boundaries, and justify every optional abstraction.
-3. Implement focused Laravel-native behavior as a readable top-to-bottom narrative with semantic blocks.
-4. Apply security controls and the smallest useful tests for the changed behavior.
-5. Apply the prospective documentation contract only to in-scope changed code; lazy-load the canonical standard when the full PHPDoc/comment rule is needed.
+Keep the MVP calculation direct and explicit:
 
-## Output Contract
+```text
+Visit accepted
+  -> resolve current point value
+  -> persist points_awarded
+  -> sum Challenge points
+  -> unlock Reward when target is reached
+```
 
-Report changed files, command classification, Action and transaction owner, post-commit effects, abstraction justifications, security/testing and documentation applicability, exclusions, commands run, risks, and `skill_resolution`.
+Do not introduce Strategy hierarchies, condition trees, expression languages, or dynamic rule builders for this flow.
 
-## Lazy References
+## Livewire and presentation
 
-Load only the reference needed for the current decision:
+- Use native Livewire multi-file components for new project-owned pages/components when PHP, Blade, and colocated tests form one clear responsibility.
+- Preserve stable existing component format when conversion has no product value.
+- Keep Livewire responsible for presentation state and interaction orchestration.
+- Delegate consequential state changes to Actions.
+- Prefer Flux Free components, semantic Blade, Tailwind, and native framework behaviour before custom JavaScript.
+- Use Alpine only for small client-only interaction such as disclosure/theme.
+- Keep camera/scanner JavaScript isolated.
+- Client/Livewire state never decides Visit validity, Challenge completion, Reward availability, or Redemption finality.
+- Manual-code input remains directly below the scanner; do not hide it behind another interaction.
 
-- [Laravel application standard](../../docs/development/laravel-application-standard.md): full classification, PHPDoc/comment, testing, or abstraction rule.
-- [Database standard](../../docs/development/database-standard.md): PostgreSQL persistence, schema, migration, relationship, lifecycle, audit, or indexing decision.
-- [ADR-007](../../docs/architecture/decisions/007-conventional-laravel-monolith-with-use-case-actions.md): architecture authority or Action convention ambiguity.
-- [ADR-008](../../docs/architecture/decisions/008-google-wallet-project-owned-integration.md): Google Wallet or provider-boundary work.
-- [Architecture overview](../../docs/architecture/overview.md): broad placement or cross-cutting architecture ambiguity.
-- [Development workflow](../../docs/development/workflow.md): delivery, branch, PR, or Kanban questions.
+## Naming, formatting, and source style
+
+- Laravel Pint defines PHP formatting.
+- Follow configured PHPStan/Larastan expectations.
+- Use native types and descriptive English identifiers.
+- Prefer early returns when they make control flow flatter.
+- Keep methods cohesive; split by responsibility, not arbitrary length.
+- Avoid vague names such as `Manager`, `Helper`, `Handler`, and `Util` when a domain/capability name exists.
+- Keep Blade readable; do not compress ordinary markup into PHP strings/helpers.
+- Write code as a top-to-bottom narrative with whitespace between semantic blocks.
+- Extract helpers when they remove meaningful complexity or duplication.
+
+## PHPDoc and comments
+
+Use native types and clear names first.
+
+Add English PHPDoc only when it communicates a contract not obvious from the signature:
+
+- generic/array shape;
+- invariant;
+- time unit/timezone assumption;
+- concurrency/idempotency guarantee;
+- security boundary;
+- side effect/provider timing;
+- exception guarantee.
+
+Do not add rote docblocks to obvious constructors, accessors, framework hooks, or self-explanatory private methods.
+
+Comments explain why a non-obvious constraint exists. Refactor ordinary control flow instead of explaining it with long comments.
+
+## Date/time convention
+
+- Keep Laravel timezone UTC.
+- Prefer `immutable_datetime` for rule-relevant timestamps.
+- Use CarbonImmutable/framework helpers for Business-local input/output conversion.
+- Use the captured PostgreSQL `clock_timestamp()` operation instant for authoritative validity decisions; do not re-read time within the operation.
+- Use PostgreSQL `AT TIME ZONE` for Business-local weekday/time point rules and Challenge deadlines.
+- Do not trust browser/application-host time.
+
+## Persistence convention
+
+- Use Laravel `timestampsTz()` where timezone-aware framework timestamps are appropriate.
+- Use database defaults/expressions for rule-relevant event timestamps when specified by the database standard.
+- Use PHP string enums + PostgreSQL checks for small lifecycles.
+- Do not add SoftDeletes without a concrete recovery requirement.
+- Do not add generic audit columns to all tables.
+- Attribute domain facts directly when required (`validated_by_user_id`, `redeemed_by_user_id`).
+
+## Structured logging convention
+
+Production logs are JSON and written to `stderr` through Laravel/Monolog.
+
+Use stable event names and contextual fields.
+
+Share one request UUID into log context.
+
+Never log passwords, cookies, authorization headers, raw validation tokens, Wallet private keys, or full sensitive provider payloads.
+
+
+## Localization
+
+UI is Spanish.
+
+Technical documentation, identifiers, comments, enum values, and log event names are English.
+
+Centralize generated Challenge copy so:
+
+- Challenge preview;
+- public join page;
+- Wallet payload;
+- operation result messages
+
+cannot drift independently.
+
+## Testing convention
+
+Use Pest for new project-owned tests where practical.
+
+Preserve untouched Starter Kit PHPUnit tests unless active work requires change.
+
+Use the natural layer:
+
+- evaluator unit/domain;
+- PostgreSQL feature/integration;
+- Livewire component;
+- Wallet boundary fake/contract;
+- selected Playwright journey.
+
+Prefer semantic browser selectors and auto-wait; do not use fixed sleeps.
+
+## Lazy-loading route
+
+| Trigger | Read |
+|---|---|
+| Domain lifecycle/invariant unclear | relevant section of `docs/conceptual-design.md` |
+| Points/Challenge calculation unclear | relevant section of `docs/challenge-model.md` |
+| User-visible acceptance unclear | relevant requirement in `docs/requirements.md` |
+| Wallet state/copy unclear | relevant section of `docs/wallet-presentation.md` |
+| Page interaction/visual rule unclear | relevant section of `docs/ui-ux-guidelines.md` |
+| Schema/time/index/deletion decision | relevant section of `docs/development/database-standard.md` |
+| Auth/token/rate-limit/logging decision | relevant section of `docs/architecture/security.md` |
+| Laravel project convention needs detail | relevant section of `docs/development/laravel-application-standard.md` |
+| Verification depth unclear | relevant section of `docs/quality-strategy.md` |
+| Time model disputed | `docs/architecture/decisions/004-database-time-and-business-calendar.md` |
+| Challenge architecture disputed | `docs/architecture/decisions/003-single-points-challenge.md` |
+
+Do not follow references from a loaded document unless the active decision genuinely requires the other document.
+
+## Framework research
+
+When framework behaviour is uncertain:
+
+1. inspect installed versions and local configuration;
+2. use targeted official Laravel/Livewire/Flux documentation;
+3. use installed Laravel Boost/framework documentation tools for the exact question;
+4. inspect installed source when version-specific behaviour still matters;
+5. do not load broad framework documentation or infer APIs when targeted evidence is available.
+
+## Output
+
+Report:
+
+- files changed;
+- meaningful domain/security/time boundaries affected;
+- checks actually run/observed;
+- unresolved risk or deliberate trade-off.

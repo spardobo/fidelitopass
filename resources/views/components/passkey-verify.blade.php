@@ -36,7 +36,7 @@
                 Livewire.navigate(response.redirect || '/dashboard');
             } catch (e) {
                 if (e.constructor?.name !== 'UserCancelledError') {
-                    this.error = e.message;
+                    this.error = @js(__('Unable to authenticate with the passkey. Please try again.'));
                 }
             } finally {
                 this.loading = false;

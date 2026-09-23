@@ -1,161 +1,433 @@
-# Laravel Application Standard
+# FidelitoPass Laravel Application Standard
 
-This is the operational authority for future project-owned Laravel, PHP, and Livewire work. It applies prospectively and implements [ADR-007](../architecture/decisions/007-conventional-laravel-monolith-with-use-case-actions.md) and [ADR-008](../architecture/decisions/008-google-wallet-project-owned-integration.md). The [architecture overview](../architecture/overview.md), [requirements](../requirements.md), [security authority](../architecture/security.md), and [workflow](workflow.md) retain their own responsibilities.
+This document defines project-owned Laravel, PHP, Livewire, testing, and source-code conventions.
 
-For PostgreSQL schema and Laravel migration decisions, use the companion [database standard](database-standard.md).
+Official framework documentation remains authoritative for framework APIs. This document defines only FidelitoPass-specific choices.
 
-## Quick path
+## Core rule
 
-1. Read the active item and the linked authorities. Choose the smallest clear Laravel-native design.
-2. Classify the operation before choosing an Action, Service, query, or abstraction.
-3. Put real code in its conventional technical root. Add a capability group only when current code benefits.
-4. Make authorization, transaction ownership, provider timing, focused tests, and prospective documentation one behavior.
+Prefer the smallest conventional Laravel design that protects the current domain behaviour.
 
-## Structure and classification
+Do not introduce architecture layers for pattern compliance.
 
-Use real responsibilities in `app/Actions`, `app/Models`, `app/Livewire`, `app/Http`, `app/Policies`, `app/Services`, `app/Integrations`, `app/Jobs`, `app/Events`, `app/Enums`, and `app/Data`. A capability may qualify a root, such as `app/Actions/Participation`, only when real cohesive code exists.
+## Framework-first structure
 
-Do not create empty capability directories, `app/Modules`, or Domain/Application/Infrastructure scaffolds. In this standard, application, domain, persistence, and integration are PHPDoc responsibility scopes, not required layers or directories.
+Use Laravel conventional roots:
 
-Classify an operation as a meaningful business command only when all tests pass:
-
-1. It has an imperative product outcome, such as publish, confirm, redeem, or revoke.
-2. It changes authoritative product state or records a consequential product decision.
-3. It coordinates a consequential rule, non-mechanical authorization, atomic multi-record work, concurrency or idempotency, or a state-tied event, job, audit, or provider effect.
-
-| Classification | Required design | Examples |
-|---|---|---|
-| Meaningful command | One project-owned `<Verb><Subject>Action::handle()`. | `PublishExperienceAction::handle()` and `ConfirmVisitAction::handle()`. |
-| Routine operation | Use the clearest Laravel mechanism directly. | One-field setting write, simple Eloquent query, or `mount()` callback. |
-| Mechanical wrapper | Do not add an Action or Service. | A method that only forwards to a Model or another Service. |
-
-An Action owns command-specific authorization only when the command requires authorization and owns the complete database transaction only when the command requires a transaction. Its callers, Services, Integrations, and other collaborators must not create competing partial authorization or transaction boundaries. Keep network calls outside a required transaction. When local state is authoritative, commit it first and dispatch dependent provider work with after-commit semantics. A failed provider effect does not roll back committed authoritative state.
-
-Actions are a DeTuristaAndo convention, not an official Laravel or universal industry rule. Do not install the Laravel Actions package. Do not use `__invoke()` as a competing Action entry point.
-
-## Services, persistence, and abstractions
-
-| Choice | Use when | Reject when |
-|---|---|---|
-| Cohesive-capability Service | A reusable, focused capability has a stable current responsibility, for example `QrPayloadSigner`. | A `UserService` or `ExperienceService` generic CRUD bucket. |
-| Composed-read Service | A current read composes sources or projections beyond a clear Model or query, for example `OrganizerDashboardService`. | A wrapper around `Model::find()`, one scope, or one simple query. |
-| Eloquent / Model | Default persistence. Models may own relationships, casts, scopes, and cohesive local behavior. | A repository added only because a Model exists. |
-| Query builder | It makes an aggregate, projection, bulk operation, or database-specific query clearer. | A layer added merely for symmetry. |
-| Query, repository, interface/contract, DTO/Data, enum, value object, extra Service, or directory | A work item documents the concrete current responsibility or boundary and why the smaller Laravel-native choice is insufficient. | Generic CRUD, anticipated reuse, future possibility, or a mandatory Action-to-Service chain. |
-
-A Query may name a complex or reused filtering, join, aggregation, pagination, or projection. A DTO/Data object may clarify a meaningful payload boundary. An enum may clarify a closed current set. A value object may enforce a current validation, unit, normalization, equality, or invariant. These choices do not adopt DDD.
-
-The list is not closed. A documented current responsibility or boundary may justify another abstraction. Do not reject it only because it is unlisted. Do not create a formal layer, mandatory port, or a mirrored directory taxonomy.
-
-## Integrations, delivery, security, and tests
-
-Keep provider SDK calls, request and response mapping, configuration interpretation, and provider-error classification in project-owned `app/Integrations/<Capability>` classes or another documented integration location. Name the provider and responsibility, such as `GoogleWalletPassPublisher`; avoid vague `Adapter`, `Manager`, or `Helper` names.
-
-A concrete Integration is the default. Add a capability-named contract only for a documented current substitution, test, or dependency boundary need. Do not require a port. For Google Wallet, preserve ADR-008: PostgreSQL is authoritative, the private web experience remains available, and retryable synchronization follows commit.
-
-- Keep Livewire presentation state, validation feedback, and interaction orchestration. Delegate meaningful commands to Actions.
-- Let HTTP handlers, console commands, jobs, and listeners use Laravel conventions and call an Action or focused Service when classification requires it.
-- Use Laravel validation, policies or Gate, database constraints, transactions and locks, idempotency keys, events, jobs, queues, Eloquent, and the query builder when each is clearest.
-- Authorize on the server at the closest clear Laravel boundary. UI visibility is not authorization. Do not mass-assign unapproved input or expose sequential or private identifiers.
-- Test the smallest useful Action/rule, authorization, rejection, transaction rollback, concurrency or idempotency, after-commit dispatch, Livewire orchestration, Laravel fake, or Integration boundary when applicable. Do not add architecture tests or tooling.
-
-## Prospective PHPDoc and comments
-
-This policy applies only to project-owned scoped code created or materially changed after adoption. It does not require cleanup of untouched source, generated or vendor source, tests, migrations, factories, seeders, anonymous classes, or unrelated comments.
-
-Every scoped class needs an English docblock that states its purpose or responsibility and principal guarantee. Every scoped public method needs native types and a complete English PHPDoc contract. Give protected or private methods the same contract only after reasonable refactoring cannot make their complexity, non-obvious invariant, precondition, postcondition, shape or unit, concurrency, idempotency, security, side effect, or exception behavior self-explanatory.
-
-Trivial constructors, obvious accessors, conventional framework hooks, self-explanatory private methods, and closures are exempt unless their contract remains non-self-explanatory. Method length alone never qualifies. Refactor unclear code first; PHPDoc cannot excuse avoidable complexity.
-
-Each required method docblock has an uppercase-first summary, every `@param`, and every `@return`, including `void`. Each tag has useful uppercase-first English prose: parameter meaning and applicable shape or unit, result guarantee, or exception circumstance. Native types do not replace tags.
-
-Use `@throws` only for foreseeable, caller-visible contractual exceptions. List a propagated exception only when it is contractual. Do not inventory engine or dependency `Throwable` values. When no contract exception exists, use the exact prose `Declares no contract exceptions.` and no `@throws` tag. Keep PHPDoc contractual, not an implementation narrative. New or materially changed implementation and configuration comments use lowercase-first English unless grammar requires otherwise.
-
-**Accepted: caller-visible contractual exception.**
-
-```php
-/**
- * Publishes an experience for its authorized organizer.
- * Guarantees the experience is committed before provider work dispatches.
- */
-final class PublishExperienceAction
-{
-    /**
-     * Publishes the supplied experience for its authorized organizer.
-     *
-     * @param Experience $experience Experience to publish after readiness validation.
-     * @param User $organizer Organizer authorized to publish this experience.
-     * @return void Guarantees the committed state is published before dispatch.
-     * @throws PublishConflictException When the experience has already been published.
-     */
-    public function handle(Experience $experience, User $organizer): void {}
-}
+```text
+app/
+  Actions/
+  Enums/
+  Integrations/
+  Jobs/
+  Models/
+  Policies/
+  Support/
+resources/views/
+  pages/
 ```
 
-**Accepted: no contractual exception.**
+Create a directory only when real code needs it.
 
-```php
-/**
- * Presents public attributes for an experience.
- * Guarantees the returned map exposes only public values.
- */
-final class ExperiencePresenter
-{
-    /**
-     * Builds the public experience attributes.
-     * Declares no contract exceptions.
-     *
-     * @param Experience $experience Experience to represent publicly.
-     * @return array<string, string> Guarantees the public attribute map.
-     */
-    public function present(Experience $experience): array
-    {
-        return [];
-    }
-}
+## Eloquent first
+
+Eloquent is the default persistence abstraction.
+
+Use:
+
+- Relationships for ownership/structure.
+- Scopes for reusable query semantics.
+- Casts for enums and dates.
+- Policies for authorization.
+- Transactions and locks for shared-state integrity.
+- Database constraints for final integrity.
+
+Do not add repositories around ordinary Eloquent access.
+
+## Actions
+
+Use one focused `<Verb><Subject>Action::handle()` when a business command coordinates consequential state.
+
+Expected examples:
+
+```text
+PublishChallengeAction
+CancelChallengeAction
+IssueCustomerPassAction
+ValidateVisitAction
+RedeemRewardAction
 ```
 
-**Rejected: incidental dependency or engine propagation is not a caller contract.** Do not add `@throws JsonException` merely because an internal dependency can propagate it.
+An Action is justified when it owns one or more of:
 
-```php
-final class PayloadEncoder
-{
-    /**
-     * Encodes an internal provider payload.
-     * Declares no contract exceptions.
-     *
-     * @param array<string, mixed> $payload Provider payload to encode.
-     * @return string Guarantees the encoded provider payload.
-     */
-    public function encode(array $payload): string
-    {
-        return json_encode($payload, JSON_THROW_ON_ERROR);
-    }
-}
+- A complete database transaction.
+- Authorization tied to a state change.
+- Idempotency/concurrency.
+- Multiple domain writes.
+- An after-commit external effect.
+
+Routine Business profile edits do not require an Action by default.
+
+Do not add a second `__invoke()` entry point for project Actions.
+
+The Action that owns a transaction owns the whole transaction boundary. Callers and collaborators must not create partial competing transaction scopes.
+
+## Points and Challenge calculation
+
+MVP has one Challenge mechanic: reach a target number of points before the Challenge ends.
+
+Keep the calculation direct and explicit. A separate Strategy hierarchy is not required.
+
+At Visit validation time:
+
+- Resolve the applicable point value from the Business point configuration and Business-local time.
+- Persist that value as `points_awarded` on the accepted Visit.
+- Calculate Challenge progress from the sum of awarded points for that Customer pass and Challenge.
+- Create the Reward entitlement when the target is reached.
+
+Do not create generic condition objects, expression languages, dynamic rule builders, or several interchangeable Challenge evaluators in MVP.
+
+## Time and date handling
+
+### Application timezone
+
+Keep Laravel application timezone set to UTC.
+
+### Domain validity
+
+Challenge phase, Visit acceptance, Reward expiry, and Redemption validity use PostgreSQL current time inside the owning query/transaction.
+
+Do not use application `now()` as the authoritative clock for these decisions.
+
+### Date casts
+
+Use `immutable_datetime` casts for rule-relevant timestamps such as:
+
+```text
+starts_at
+ends_at
+visited_at
+unlocked_at
+redeemed_at
+published_at
+cancelled_at
 ```
 
-```php
-// queue Wallet synchronization after the transaction commits.
+### Business-local input/output
 
-/** Rejected: explains a long private method instead of refactoring it. */
-/** Rejected: @param string $code */
-/** Rejected: @throws Throwable Any failure. */
+Use CarbonImmutable/framework date utilities for:
+
+- Parsing Business-local start/end dates.
+- Presenting local Challenge dates to users.
+- Converting a local publication boundary into a UTC instant.
+
+Use the Challenge IANA timezone explicitly.
+
+Do not infer calendar logic from PHP/server system timezone.
+
+### Local-day queries
+
+When Business-local weekday or time affects the optional special point rule, keep the conversion in PostgreSQL using `AT TIME ZONE`.
+
+Do not introduce a duplicated local-date column only to avoid the query.
+
+## Transactions and external effects
+
+Network/provider calls never execute inside the authoritative database transaction.
+
+Pattern:
+
+```text
+authorize
+validate
+begin transaction
+commit authoritative domain state
+dispatch Wallet synchronization after commit
+return domain result
 ```
 
-A qualifying non-public method uses the full contract when, for example, it normalizes a security-sensitive opaque credential or enforces an idempotency invariant that refactoring cannot make clear. A self-explanatory private formatter and a conventional `mount()` hook remain exempt.
+If Google Wallet synchronization fails, domain state remains committed.
 
-## Review checklist
+## Authorization
 
-- [ ] The operation passes all three command tests before an Action is required; routine operations remain direct.
-- [ ] Does the classified command require authorization? If so, does the Action own it completely?
-- [ ] Does the classified command require a database transaction? If so, does the Action own the complete boundary?
-- [ ] No caller, Service, Integration, or other collaborator creates a competing partial authorization or transaction boundary; provider work dispatches after commit when local state is authoritative.
-- [ ] A Service is a cohesive capability or composed read, not generic CRUD or a required chain.
-- [ ] Eloquent or the query builder is the default; every abstraction has a documented current boundary or responsibility.
-- [ ] Provider SDK behavior is isolated in a project-owned Integration; a contract has demonstrated current value.
-- [ ] Laravel-native validation, authorization, integrity, concurrency, idempotency, and focused tests cover applicable risk.
-- [ ] Scoped classes and qualifying methods meet the prospective English PHPDoc and comment contract.
+### Business owner
 
-## Evidence and limits
+Use explicit `business.user_id` ownership.
 
-Laravel's [directory structure](https://laravel.com/docs/13.x/structure) and [Eloquent documentation](https://laravel.com/docs/13.x/eloquent) support the selected local convention. [Laravel Beyond CRUD](https://stitcher.io/blog/laravel-beyond-crud) is concise community research. Neither source makes this project's Action convention a universal Laravel architecture claim.
+Use Policies or direct server-side authorization at the owning boundary.
+
+Never trust a `business_id` merely because it came from Livewire state or a hidden input.
+
+### Customer pass
+
+Customer passes are not `User` accounts.
+
+Every pass operation is scoped through the authenticated Business before any progress/reward detail is returned.
+
+## Validation
+
+Use Laravel/Livewire server-side validation.
+
+Use fixed schema/range validation for Challenge configurations.
+
+Prefer:
+
+- Enum validation.
+- Integer ranges.
+- Distinct weekday arrays.
+- Valid IANA timezone identifiers.
+- Normalized Business-scoped manual-code format.
+
+Client-side validation is UX only.
+
+## Livewire
+
+Use Livewire 4 for server-driven interactivity.
+
+For new project-owned pages, prefer native Livewire multi-file components when PHP, Blade, and colocated tests form one clear component responsibility.
+
+Do not convert stable components solely for format consistency.
+
+Livewire owns:
+
+- Form state.
+- Validation feedback.
+- View interaction.
+- Loading/disabled states.
+
+Actions/evaluators own:
+
+- Consequential state transitions.
+- Authoritative domain rules.
+- Transaction semantics.
+
+## Blade, Flux, Alpine, and Tailwind
+
+- Prefer Flux UI Free components where they fit the product behaviour.
+- Prefer semantic HTML before custom JavaScript.
+- Use Alpine for small client-only interactions such as theme toggling or lightweight disclosure.
+- Keep camera/scanner JavaScript isolated to the validation component.
+- Never duplicate authoritative Challenge/Reward state in Alpine.
+- Use Tailwind design tokens/classes consistently.
+- Do not add a SPA framework for MVP.
+
+## Scanner implementation
+
+The validation component has one authoritative server operation whether input came from:
+
+- Camera barcode scanner; or.
+- Manual code.
+
+The client only provides an identifier/token to the same lookup/validation boundary.
+
+Camera failure must not require route change or modal discovery. Manual code is already visible directly below the scanner.
+
+## Google Wallet integration
+
+Use one project-owned concrete Integration for the Google Wallet provider.
+
+It is responsible for:
+
+- Class/object payload mapping.
+- Object creation/update.
+- Save-to-Wallet issuance payload.
+- Provider error classification.
+
+It is not responsible for:
+
+- Challenge eligibility.
+- Visit acceptance.
+- Reward completion.
+- Redemption authorization.
+
+Do not add a provider interface while only one provider exists unless a real test/substitution boundary requires it.
+
+## Jobs
+
+Use retryable jobs for provider synchronization after authoritative commits.
+
+A sync job:
+
+1. Loads the Customer pass and current authoritative state.
+2. Builds the Wallet presentation model.
+3. Updates the provider object.
+4. Logs success/failure context.
+5. Tolerates duplicate execution.
+
+Use queue retry/backoff capabilities before custom retry infrastructure.
+
+## Enums
+
+Use PHP backed string enums for stable value sets such as:
+
+```text
+ChallengeStatus
+ChallengeType
+WalletPresentationState
+```
+
+Store readable strings and protect allowed values with PostgreSQL checks where appropriate.
+
+Do not create enums for phases that are derived from timestamps.
+
+## Source style
+
+- Laravel Pint defines PHP formatting.
+- Follow configured PHPStan/Larastan rules.
+- Use native PHP types and descriptive English identifiers.
+- Prefer early returns when they flatten control flow.
+- Keep methods cohesive.
+- Split by responsibility, not arbitrary line counts.
+- Avoid vague class names such as `Manager`, `Helper`, `Handler`, or `Util` when a domain/capability name exists.
+- Keep Blade readable; do not hide normal markup inside PHP string builders.
+- Keep code as a top-to-bottom narrative with whitespace between semantic blocks.
+
+## PHPDoc and comments
+
+Use clear code and native types first.
+
+Add English PHPDoc only when it communicates a contract not obvious from the signature:
+
+- Generic/array shape.
+- Domain invariant.
+- Unit/timezone assumption.
+- Concurrency/idempotency guarantee.
+- Side effect/provider timing.
+- Exception guarantee.
+
+Do not add routine docblocks to obvious constructors, accessors, or framework hooks.
+
+Comments explain **why a non-obvious constraint exists**, not what a line of code does.
+
+## Localization
+
+Customer/Business UI is Spanish.
+
+Technical documentation, source identifiers, comments, enum values, and log event names are English.
+
+Use Laravel translations for:
+
+- Challenge generated copy.
+- Validation/error messages.
+- Accessibility labels.
+- Wallet presentation text.
+- Repeated operational text.
+
+Centralize Challenge copy so UI preview and Wallet mapping cannot drift.
+
+## Structured logging
+
+Laravel logging is based on Monolog.
+
+### Production format
+
+Write one JSON object per log record to `stderr` so container/platform log collectors can ingest it.
+
+Use Monolog `JsonFormatter` through Laravel logging configuration/tap customization.
+
+### Correlation
+
+Assign one UUID request identifier in middleware and share it with log channels using Laravel log context.
+
+Recommended stable fields:
+
+```text
+event
+request_id
+actor_type
+actor_id
+business_id
+challenge_id
+customer_pass_id
+outcome
+reason
+```
+
+Not every event needs every field.
+
+Use stable machine-readable event names, for example:
+
+```text
+visit.accepted
+visit.replayed
+visit.rejected
+reward.unlocked
+reward.redeemed
+challenge.cancelled
+wallet.sync_failed
+auth.throttled
+```
+
+### Secret hygiene
+
+Never log:
+
+- Passwords.
+- Session/cookie values.
+- Authorization headers.
+- Raw validation tokens.
+- Google Wallet private keys.
+- Full save JWTs.
+- Sensitive provider payloads.
+
+Local development may use a human-readable channel if desired, but production event semantics stay the same.
+
+## Error handling
+
+Expected domain rejections become clear UI states.
+
+Unexpected exceptions:
+
+- Return a safe generic message.
+- Include the request ID when useful for support.
+- Write detailed server-side context without secrets.
+
+Do not show stack traces in production.
+
+## Security headers
+
+Prefer framework/deployment mechanisms before custom packages.
+
+Keep the baseline described in the security architecture. Do not add an untested strict CSP that breaks Livewire/Alpine/Vite.
+
+## Testing convention
+
+Use Pest for new project-owned tests where practical.
+
+Preserve untouched Starter Kit PHPUnit tests unless the active work requires changes.
+
+Choose the natural boundary:
+
+- Unit/domain evaluator tests.
+- PostgreSQL-backed feature/integration tests.
+- Livewire component tests.
+- Provider-boundary tests/fakes.
+- A small set of Playwright browser journeys.
+
+Do not repeat identical assertions across layers without a reason.
+
+## Framework research
+
+When framework behaviour is version-sensitive:
+
+1. Inspect installed versions and local configuration.
+2. Use targeted official Laravel/Livewire/Flux documentation.
+3. Use Laravel Boost or other installed framework documentation tools for the exact question.
+4. Inspect installed source when necessary.
+5. Do not load broad documentation sets when a narrow lookup resolves the uncertainty.
+
+## Prohibited defaults
+
+Do not add without a current demonstrated need:
+
+- Repository pattern around Eloquent.
+- Generic Service layer for CRUD.
+- CQRS/event sourcing.
+- Microservices.
+- Generic BaseAction hierarchy.
+- Generic rules engine.
+- Custom clock service replacing PostgreSQL for domain validity.
+- Duplicate local-date persistence.
+- Universal SoftDeletes.
+- Universal audit columns.
+- Customer CRM/profile subsystem.

@@ -1,154 +1,455 @@
-# DeTuristaAndo Database Standard
+# FidelitoPass Database Standard
 
-## Answer first
+This document defines PostgreSQL persistence conventions for project-owned schema.
 
-This document is the operational authority for project-owned PostgreSQL 16 schema work and Laravel migrations. PostgreSQL `public` is the authoritative application schema. Laravel migrations are the authoritative schema history.
+## Principles
 
-Every rule in this standard names its scope. Every new project-owned application table follows the same applicable baseline. Existing Laravel, framework, and vendor tables are exempt unless project code materially replaces their schema.
+- Store domain facts, not convenience duplicates.
+- Use PostgreSQL constraints for durable row/relationship invariants.
+- Use framework conventions before custom infrastructure.
+- Use UTC instants for persisted time.
+- Derive Business-local calendar meaning using the published Challenge timezone.
+- Keep ownership, domain facts, and logs separate.
+- Do not add generic audit/status/delete columns to every table.
 
-Use conventional Laravel and PostgreSQL features. Model only current domain needs. Keep database rules proportional to demonstrated product risk and access paths.
+## Supported database
 
-## Quick path
+PostgreSQL 16 is the authoritative database for MVP.
 
-1. Read the active item, this standard, and the linked domain and security authorities.
-2. Model the smallest current record set in PostgreSQL `public` with Laravel migrations.
-3. Use the naming, identifier, type, and invariant decisions below.
-4. Declare each foreign-key action and add only evidence-based indexes.
-5. Add factories and focused persistence tests. Add local demo seeders only when a developer opts in.
-6. Record unresolved retention, deletion, audit, and idempotency decisions before the affected tables ship.
+Application and database timezone configuration remain UTC.
 
-## Scope and authority
+## Identifiers
 
-| Area | Rule |
-|---|---|
-| Database | PostgreSQL 16 is the authoritative application database. |
-| Schema | Use `public`. Do not introduce cross-schema functional coupling. |
-| History | Laravel migrations define application schema history. Make each migration reversible or state explicit recovery steps. |
-| Access | Use Eloquent first. Use the query builder when a database-specific or aggregate query is clearer. |
-| Seeds | Use factories for tests. Use seeders for opt-in local demos. Never create demo rows automatically in production. |
+### Internal primary keys
 
-## Naming and identifiers
+Use Laravel's conventional bigint primary keys for joins:
 
-| Element | Required rule |
-|---|---|
-| Table | Plural `lower_snake_case`, such as `experiences`. |
-| Column | Singular `lower_snake_case`, such as `published_at`. |
-| Foreign key | `<singular>_id`, such as `experience_id`. |
-| Internal key | `bigint id` primary key. |
-| Public key | Add opaque `public_id` where a record is exposed outside trusted internal boundaries. Use PostgreSQL `uuid` with an application-generated UUIDv7. |
-| Public API and UI | Never expose sequential internal IDs. |
-| Constraint and index name | Accept Laravel conventional names. Use an explicit shorter name only when necessary. |
+```php
+$table->id();
+```
 
-## Data and invariant decisions
+### Public identifiers
 
-| Need | Required choice |
-|---|---|
-| Required value | Use `NOT NULL`. |
-| Unique business value | Explicitly choose all-row or non-deleted-row uniqueness based on domain semantics. Use `UNIQUE` for all-row uniqueness. |
-| Valid range or relationship inside a row | Use `CHECK`. |
-| Referenced record | Use a foreign key, except for the historical polymorphic actor references below. |
-| Missing or implied value | Declare nullability and defaults explicitly. Do not use sentinel values. |
-| Absolute moment | Use a timezone-aware timestamp. Mutable domain entities use the common lifecycle timestamps below. |
-| Calendar-only value | Use `date`. |
-| Money | Store minor units in an appropriate `integer`, `bigint`, or `numeric` column. Do not use floating point. |
-| Variable metadata or provider payload boundary | Use `jsonb` only when allowlisted and variable by design. |
-| Business lifecycle | Use canonical `status`, a PHP backed enum, and a database `CHECK` for allowed values. Do not use native database enums by default. |
+Use UUIDv7 `public_id` only where a record is exposed across an untrusted boundary.
 
-Database constraints enforce database invariants. Application validation improves feedback but does not replace a constraint.
+Expected examples:
 
-## Uniform table baseline
+- Business.
+- Challenge.
+- Customer pass.
 
-**Scope: project-owned mutable domain entities**, including `experiences` and `participants`. Use common timestamps and last-actor metadata rather than custom per-table variants. Immutable facts and audit rows are append-only in ordinary operation; they do not inherit a blanket update/delete metadata requirement. Framework, Starter Kit, `users`, and vendor schemas and account behavior are exempt and unchanged; ordinary User hard deletion remains supported.
+Internal foreign keys continue to use bigint IDs.
 
-Mutable domain entities must carry these columns:
+### Provider identifiers
 
-- `created_at`, `created_by_type`, `created_by_id`
-- `updated_at`, `updated_by_type`, `updated_by_id`
-- `deleted_at`, `deleted_by_type`, `deleted_by_id`
+Google Wallet object/class identifiers remain integration fields. They never replace domain primary/public IDs.
 
-Use `timestampsTz()` for `created_at` and `updated_at`, and `softDeletesTz()` for `deleted_at`. Actor types are strings; actor IDs are nullable `VARCHAR` holding native scalar identifiers as text, not public resource identities.
+## Timestamps and timezone model
 
-| Actor type | ID rule |
-|---|---|
-| `user` | Required canonical decimal text of the Starter Kit User `id`. |
-| `system` | `null`; the caller deliberately supplies system context, including seeders and migrations. |
+### General rule
 
-Use these two actor types. Introduce non-user principals only for an actual requirement-defined use case, not invented identifiers, an actor registry, or resolver scaffolding.
+Use `timestamp with time zone` (`timestamptz`) for domain instants.
 
-`created_by_type` is required for new rows. Updated/deleted actor pairs remain null until their event occurs. Polymorphic historical actor references have **no foreign key**: deleting a User must not cascade, restrict deletion, or erase attribution. Retained identifiers do not guarantee resolvable personal history after account deletion. Actor pairs are internal and must never enter public identity or API serialization; domain resource `public_id` rules remain separate.
+In Laravel migrations, use timezone-aware timestamp columns such as `timestampTz()` / `timestampsTz()` where appropriate.
 
-Actor type conversions must preserve existing identifier values and attribution without loss or silent reassignment to another principal. Rollback must reject identifiers incompatible with the destination type; provide a guarded migration and an explicit recovery procedure where reversal is unsafe.
+PostgreSQL stores `timestamptz` instants internally in UTC. The Business/Challenge IANA timezone is stored separately because a `timestamptz` does not retain the original timezone name.
 
-### Attribution ownership
+### Domain clock
 
-Owning write Actions must set attribution server-side, never from untrusted form mass assignment or a generic observer fallback. Missing actor context must not silently become `system`. Creation, update, and soft deletion record their applicable actor; restoration atomically clears `deleted_at` and both deleted-actor fields and sets the updated actor to the restorer.
+Rule-relevant "now" comes from PostgreSQL.
 
-These fields retain the creator and latest updater/deleter, not a sequence of changes. Soft deletion preserves the latest row, not versions or exact past attributes. Semantic audit belongs to its sensitive command, not to generic row-change history.
+For a mutating operation, acquire the relevant row locks first, then use:
 
-## Relationships, deletion, and indexes
+```sql
+clock_timestamp()
+```
 
-| Decision | Required rule |
-|---|---|
-| Foreign-key action | **Scope: every project-owned foreign key.** Declare update and deletion behavior explicitly. Use `RESTRICT` by default. |
-| `CASCADE` | **Scope: declared hard-delete recovery paths only.** Use only for exclusive, disposable children or pivot rows. |
-| `SET NULL` | **Scope: optional retained evidence.** Use only for optional retained evidence. |
-| Immutable or audit history | **Scope: immutable facts and audit rows.** Never cascade delete it. |
-| Hard deletion | **Scope: project-owned mutable domain entities.** Use soft deletion for ordinary removal. Hard deletion requires documented retention/purge or rollback/recovery; exempt Starter Kit User account deletion remains unchanged. |
-| Operational query | **Scope: ordinary application reads.** Exclude soft-deleted rows by default. |
-| Analytics or administrative query | **Scope: authorized historical reporting.** Include retained records according to event period and meaningful business facts, not only currently active or non-deleted parents. |
-| Unique business value | **Scope: every uniqueness rule.** State whether uniqueness covers all rows or only non-deleted rows. For active-row reuse, use a PostgreSQL partial unique index over non-deleted rows. |
-| Referencing-column index | **Scope: demonstrated joins or deletes.** Add one when needed. PostgreSQL does not create it automatically for a foreign key. |
-| Composite or partial index | **Scope: demonstrated constraint or access path.** Add only when needed. |
-| Speculative index | **Scope: all project-owned tables.** Do not add it. |
+exactly once to capture `operation_at`. Reuse that one database-derived instant for every deadline check, Business-local point-rule evaluation, `visited_at`, `redeemed_at`, and related audit/event timestamps in the operation.
 
-Referential actions encode record ownership and retention. Choose them from the domain lifecycle, not from migration convenience.
+Do not use transaction-start `CURRENT_TIMESTAMP` for lock-sensitive Challenge/Visit/Reward validity: a lock wait can make it stale. Do not take multiple `clock_timestamp()` readings within one operation. For read-only phase queries, use an explicitly current PostgreSQL wall-clock instant such as `clock_timestamp()`.
 
-Public child reads must respect parent visibility. Soft-deleting a parent does not soft-delete its children; restoring it does not revive independently deleted children. Historical reportability is distinct from public visibility and does not provide exact past attribute reconstruction. Reporting implementation belongs to its owning feature.
+Do not use:
 
-## Lifecycle, audit, and commands
+- Browser time.
+- JavaScript `Date.now()` for authority.
+- Application-host `now()` to decide Challenge validity.
+- Request-supplied timestamps for accepted Visits.
 
-- **Scope: domain entities with an actual business lifecycle.** Use `status` with a PHP backed enum and database `CHECK`. Experience values are `draft`, `published`, and `cancelled`; schedule-derived `upcoming`, `active`, and `finished` are not stored status values.
-- **Scope: entities without a lifecycle, pure facts, audit rows, and technical rows.** Do not invent meaningless active/inactive states. No separate business status is defined for Participant; `deleted_at` represents logical removal.
-- **Scope: project-owned mutable domain entities.** Carry the common timestamp and actor baseline above.
-- **Scope: immutable domain behavior.** Model visits and redemptions as immutable facts.
-- **Scope: the first sensitive command that owns semantic audit.** Introduce `audit_events` only when a sensitive command requires it. The owning Action writes it transactionally. Facts and audit events remain append-only in ordinary operation: preserve events and define explicit invalidation/correction semantics in the owning feature.
-- **Scope: all work before a sensitive command owns it.** Do not add generic row-change triggers, `_hist` tables, or audit/history scaffolding.
-- **Scope: audit event payloads.** Allowlist and sanitize them. Record the applicable when, where, who, and what. Exclude or protect tokens, passwords, connection strings, keys, and sensitive PII.
-- **Scope: consequential database commands.** One Action owns each transaction. Run external effects after commit.
-- **Scope: sensitive commands.** Use durable scoped idempotency and locking or uniqueness as their risk requires.
+### Business timezone
 
-Controlled retention/purge is separate from ordinary deletion and event correction. Retention periods, domain organizer deletion behavior, audit enforcement, and exact idempotency receipts remain explicit human decisions to resolve before affected production data ships. Preservation is not permission for indefinite PII retention.
+`businesses.timezone` stores a valid IANA identifier such as:
 
-## Publication and temporal state
+```text
+America/La_Paz
+Europe/Madrid
+```
 
-Business publication `status` is separate from date-derived `upcoming`, `active`, and `finished` phases. A date must not silently publish or unpublish an experience. Add write Actions, audit, retention, and idempotency persistence only when an owning feature requires them.
+It is the default timezone for future Challenge publication.
 
-## Migration review checklist
+### Challenge timezone snapshot
 
-- [ ] The migration changes only PostgreSQL `public` application persistence.
-- [ ] Tables, columns, foreign keys, and names follow the naming rules.
-- [ ] Internal and public identifiers have separate purposes.
-- [ ] Nullability, defaults, types, and database invariants are explicit.
-- [ ] Mutable domain entities use common timezone-aware timestamps, soft deletion, and `created_by`, `updated_by`, and `deleted_by` type/ID pairs; immutable facts and exempt schemas are not forced into this baseline.
-- [ ] Internal actor IDs are nullable `VARCHAR`: new writes use canonical decimal User IDs or deliberate `system` with null ID, without foreign keys or public serialization.
-- [ ] Type conversions preserve existing attribution; rollback rejects incompatible identifiers and unsafe reversal has explicit recovery steps. Owning Actions control attribution and atomic restoration.
-- [ ] Every foreign key has explicit update and deletion behavior.
-- [ ] Each uniqueness rule declares all-row or non-deleted-row scope; active-row reuse uses a partial unique index.
-- [ ] Ordinary reads exclude soft-deleted rows and public children respect parent visibility; historical reports use event periods and business facts without promising past attribute reconstruction.
-- [ ] Ordinary domain removal uses soft deletion without cascading it to children; exempt User deletion is unchanged. Domain purge/recovery has an explicit procedure.
-- [ ] Each added index has a demonstrated constraint, join, delete, or read path.
-- [ ] Lifecycle, audit, transaction, provider, locking, and idempotency behavior matches the current work item.
-- [ ] The migration is reversible or has explicit recovery steps.
-- [ ] Factories and focused tests exist; demo data remains opt-in and non-production.
-- [ ] Required human decisions are resolved before affected tables ship.
+`challenges.timezone` stores the Business timezone at publication.
 
-## Evidence and limits
+This is intentional duplication because it freezes calendar semantics for that Challenge.
 
-| Source | Verified claim used by this standard |
-|---|---|
-| [PostgreSQL 16: Constraints](https://www.postgresql.org/docs/16/ddl-constraints.html) | PostgreSQL does not automatically create indexes on referencing foreign-key columns. Referential actions define deletion behavior. |
-| [PostgreSQL 16: Partial Indexes](https://www.postgresql.org/docs/16/indexes-partial.html) | PostgreSQL partial indexes can enforce uniqueness only for rows matching a predicate. |
-| [Laravel 13: Migrations](https://laravel.com/docs/13.x/migrations) | Laravel provides conventional migration support for identifiers, foreign keys, delete actions, `timestampsTz`, and `softDeletesTz`. |
-| [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html) | Security logging needs when, where, who, and what. Tokens, passwords, connection strings, keys, and sensitive PII must be excluded or protected. |
+Changing Business settings later must not reinterpret historical Visit timestamps, awarded points, or Challenge deadlines.
 
-These sources describe platform capabilities and security guidance. They do not decide DeTuristaAndo domain retention, organizer deletion, audit enforcement, or idempotency receipt policy. Those decisions remain human-owned until a scoped work item records them.
+### Challenge window
+
+The Business configures local dates.
+
+Persist only:
+
+```text
+starts_at timestamptz
+ends_at   timestamptz
+timezone  varchar
+```
+
+`starts_at` is inclusive.
+
+`ends_at` is exclusive and represents local midnight immediately after the selected final date.
+
+Do not persist duplicate `starts_on` / `ends_on` date columns in MVP.
+
+The UI can derive/display local dates from the stored instants and Challenge timezone.
+
+### Visit time
+
+Visits persist:
+
+```text
+visited_at timestamptz NOT NULL
+```
+
+Do not persist:
+
+```text
+visited_on
+business_local_date
+```
+
+in MVP.
+
+When local date is required:
+
+```sql
+(visited_at AT TIME ZONE challenges.timezone)::date
+```
+
+When the database-local current Challenge date is required for a mutation, derive it from the operation's one captured instant:
+
+```sql
+(operation_at AT TIME ZONE challenges.timezone)::date
+```
+
+For a read-only phase query, use an explicitly current PostgreSQL wall-clock instant:
+
+```sql
+(clock_timestamp() AT TIME ZONE challenges.timezone)::date
+```
+
+### Example
+
+Stored Visit instants:
+
+```text
+2026-09-22 02:30+00
+2026-09-22 05:00+00
+```
+
+For `America/La_Paz`:
+
+```text
+2026-09-21 22:30
+2026-09-22 01:00
+```
+
+They are different local calendar days even though both UTC values fall on 22 September.
+
+This is exactly why local-day rules are derived from the Challenge timezone rather than from the UTC date.
+
+## Laravel model date handling
+
+Use `immutable_datetime` casts for project-owned rule-relevant timestamps when mutation would be surprising.
+
+Keep Laravel application timezone at UTC.
+
+Carbon/CarbonImmutable may be used to:
+
+- Parse Business-local date input.
+- Render local dates to the UI.
+- Build deterministic publication boundaries.
+
+Once the Challenge window is persisted, live Challenge/Reward validity uses PostgreSQL time.
+
+Generic Eloquent `created_at` / `updated_at` remain framework timestamps and are not used as domain validity clocks.
+
+## Ownership
+
+Ownership is explicit:
+
+```text
+businesses.user_id -> users.id
+```
+
+Do not infer ownership from:
+
+- Creator metadata.
+- Log context.
+- Request/session history.
+
+## Status fields
+
+Add `status` only when a record has a real stored lifecycle.
+
+### Challenge
+
+Stored values:
+
+```text
+draft
+published
+cancelled
+```
+
+Use:
+
+- PHP backed enum.
+- Readable string database value.
+- PostgreSQL `CHECK` constraint.
+
+Do not persist `scheduled`, `active`, or `ended`; they are derived from status + database time + UTC window.
+
+### Other tables
+
+Do not add generic `active/inactive` fields.
+
+Prefer real facts:
+
+- Field `redeemed_at`.
+- Row existence.
+- Provider identifier availability.
+
+Native PostgreSQL ENUM types are not the default. PHP enum + string + `CHECK` is easier to evolve through Laravel migrations while keeping database protection.
+
+## Soft deletes
+
+Do not use `SoftDeletes` by default.
+
+MVP policy:
+
+- Visit: immutable; never soft-delete in normal operation.
+- Reward entitlement: preserve; redemption is a timestamp, not deletion.
+- Published Challenge: cancel instead of delete.
+- Draft Challenge: may be hard-deleted before publication.
+- Customer pass: preserve while it represents a Wallet object.
+- Business/User deletion is not an MVP workflow.
+
+Add soft deletion only when a concrete recovery/legal/product requirement exists.
+
+## Core tables
+
+### businesses
+
+Suggested shape:
+
+```text
+id
+public_id
+user_id
+name
+timezone
+regular_visit_points
+special_weekday nullable
+special_start_time nullable
+special_end_time nullable
+special_visit_points nullable
+logo_path nullable
+created_at
+updated_at
+```
+
+Constraints:
+
+- Constraint `public_id` unique.
+- Constraint `user_id` unique in MVP.
+- Timezone validated in application against supported IANA identifiers.
+- Regular Visit points must be positive.
+- Special point fields are either disabled together or form one valid weekday/full-day/time-range rule.
+
+### challenges
+
+Suggested shape:
+
+```text
+id
+public_id
+business_id
+target_points
+reward_title
+reward_description nullable
+timezone
+starts_at
+ends_at
+status
+published_at nullable
+cancelled_at nullable
+created_at
+updated_at
+```
+
+Constraints:
+
+- Constraint `public_id` unique.
+- FK to Business.
+- Constraint `starts_at < ends_at`.
+- Allowed `status`.
+- Required positive `target_points`.
+- Required Reward title.
+
+
+Published-window overlap is a cross-row rule. MVP enforces it in `PublishChallengeAction` while locking the Business row. Do not add database extensions/exclusion constraints only for this rule unless scale/concurrency demonstrates the need.
+
+### customer_passes
+
+Suggested shape:
+
+```text
+id
+public_id
+business_id
+wallet_object_id nullable
+validation_token_hash
+manual_code
+issued_at
+created_at
+updated_at
+```
+
+Constraints:
+
+- Constraint `public_id` unique.
+- Constraint `wallet_object_id` unique when present.
+- Validation-token hash unique.
+- Constraint `(business_id, manual_code)` unique.
+
+`manual_code` is a Business-scoped lookup identifier, not the authoritative secret.
+
+### visits
+
+Suggested shape:
+
+```text
+id
+customer_pass_id
+challenge_id
+validated_by_user_id
+idempotency_key
+points_awarded
+visited_at
+created_at
+updated_at
+```
+
+Constraints/indexes:
+
+- FKs to Customer pass, Challenge, User.
+- Constraint `idempotency_key` unique.
+- Constraint `points_awarded > 0`.
+- Index `(customer_pass_id, challenge_id, visited_at)`.
+
+There is intentionally no local-day uniqueness rule. Legitimate repeat Visits on the same Business-local day may each be accepted.
+
+`ValidateVisitAction` serializes operations with relevant row locks, then captures one PostgreSQL `clock_timestamp()` value as `operation_at`; idempotency prevents one technical validation request from creating duplicate Visit facts.
+
+### reward_entitlements
+
+Suggested shape:
+
+```text
+id
+customer_pass_id
+challenge_id
+unlocked_at
+redeemed_at nullable
+redeemed_by_user_id nullable
+created_at
+updated_at
+```
+
+Constraints:
+
+- Unique `(customer_pass_id, challenge_id)`.
+- FKs to pass/challenge/user.
+- Field `redeemed_by_user_id` is nullable until redemption.
+
+`unlocked_at` and `redeemed_at` are domain instants. Set them from the mutation's one post-lock PostgreSQL `clock_timestamp()` value, `operation_at`.
+
+No separate Redemption table is required in MVP because one entitlement has one optional final redemption.
+
+## Foreign keys
+
+Use foreign keys for real relationships.
+
+Choose delete rules deliberately:
+
+- Restrict deletion of parents that have immutable domain history.
+- Cascade only when child data has no independent meaning and removal is unquestionably correct.
+- Do not cascade-delete Visits or Reward history from an ordinary UI action.
+
+PostgreSQL does not automatically index referencing FK columns; add indexes for real lookup patterns.
+
+## Uniqueness and concurrency
+
+Database uniqueness is the last barrier for exact duplicates where the invariant can be represented directly.
+
+Use transactions + row locks for rules that depend on current state or derived local dates.
+
+Critical concurrent paths:
+
+- Same validation operation retried or submitted concurrently.
+- Challenge completion attempted concurrently.
+- Reward redeemed twice.
+- Initial Wallet provisioning retried.
+
+## JSONB
+
+Do not use `jsonb` for the core Challenge or point-earning configuration in MVP. The supported fields are small and stable enough to remain explicit relational columns.
+
+Use `jsonb` only later for genuinely variable external metadata that does not deserve first-class relational fields.
+
+## Logging versus audit columns
+
+Do not add:
+
+```text
+register_user_id
+last_update_user_id
+last_access_control_id
+```
+
+to every table.
+
+Use:
+
+- Explicit ownership for Business.
+- Immutable domain facts for Visit/Reward state.
+- Structured application/security logs for request/event tracing.
+- Fields `created_at` / `updated_at` for framework record timestamps.
+
+Add direct actor attribution only when it is itself a domain fact, such as:
+
+```text
+visits.validated_by_user_id
+reward_entitlements.redeemed_by_user_id
+```
+
+## Migrations
+
+Use Laravel migrations as the schema authority.
+
+- Do not modify migrations already applied to shared/production data.
+- Before production/shared data exists, controlled consolidation is acceptable when it simplifies the baseline.
+- Custom SQL requires a clear reason and focused migration tests.
+- Avoid framework-independent schema abstractions that duplicate Laravel's migration API.

@@ -1,0 +1,20 @@
+{
+    "agents": [
+        "pi"
+    ],
+    "cloud": false,
+    "guidelines": false,
+    "mcp": true,
+    "nightwatch": false,
+    "sail": true,
+    "skills": [
+        "infer-conventions",
+        "fortify-development",
+        "laravel-best-practices",
+        "testing-best-practices",
+        "socialite-development",
+        "fluxui-development",
+        "livewire-development",
+        "tailwindcss-development"
+    ]
+}
