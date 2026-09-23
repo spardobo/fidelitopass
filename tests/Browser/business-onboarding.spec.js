@@ -18,14 +18,22 @@ function contrast(foreground, background) {
     return (light + 0.05) / (dark + 0.05);
 }
 
-async function expectDarkReadable(page) {
-    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+async function expectReadable(page, appearance = 'light') {
+    if (appearance === 'dark') {
+        await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    } else {
+        await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+    }
     const colors = await page.evaluate(() => {
         const body = getComputedStyle(document.body);
         const heading = getComputedStyle(document.querySelector('h1'));
         return { background: body.backgroundColor, text: body.color, heading: heading.color };
     });
-    expect(luminance(colors.background)).toBeLessThan(0.2);
+    if (appearance === 'dark') {
+        expect(luminance(colors.background)).toBeLessThan(0.2);
+    } else {
+        expect(luminance(colors.background)).toBeGreaterThan(0.8);
+    }
     expect(contrast(colors.text, colors.background)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(colors.heading, colors.background)).toBeGreaterThanOrEqual(4.5);
 }
@@ -50,10 +58,20 @@ async function verificationLink(request, recipient) {
     return link.replace(/&amp;/g, '&');
 }
 
+test('explicit dark appearance remains readable in authentication', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('flux.appearance', 'dark'));
+    await page.goto('/register');
+    await expectReadable(page, 'dark');
+
+    await page.getByRole('link', { name: 'Iniciar sesión' }).click();
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
+    await expectReadable(page, 'dark');
+});
+
 for (const width of [1280, 375]) {
     test(`verified owner completes onboarding and edits business at ${width}px`, async ({ page, request }) => {
         await page.setViewportSize({ width, height: 800 });
-        await page.emulateMedia({ colorScheme: 'light' });
+        await page.emulateMedia({ colorScheme: 'dark' });
         const recipient = `onboarding-${width}-${crypto.randomUUID()}@example.test`;
         const business = `Negocio ${width} ${crypto.randomUUID()}`;
 
@@ -61,8 +79,8 @@ for (const width of [1280, 375]) {
         await expect(page).toHaveURL(/\/login(?:\?|$)/);
         await page.goto('/register');
         await expect(page.getByRole('heading', { name: 'Crear una cuenta' })).toBeVisible();
-        await expectDarkReadable(page);
-        expect(await page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches)).toBe(true);
+        await expectReadable(page);
+        expect(await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
         await page.getByRole('textbox', { name: /nombre/i }).first().fill(`Owner ${width}`);
         await page.getByRole('textbox', { name: /correo/i }).fill(recipient);
         await page.locator('input[name="password"]').fill('ValidPassword84!strong');
@@ -75,7 +93,7 @@ for (const width of [1280, 375]) {
         await page.goto(await verificationLink(request, recipient));
         await expect(page).toHaveURL(/\/business\/onboarding(?:\?|$)/);
         await expect(page.getByRole('heading', { name: 'Configura tu negocio' })).toBeVisible();
-        await expectDarkReadable(page);
+        await expectReadable(page);
 
         const name = page.getByRole('textbox', { name: 'Nombre del negocio' });
         await name.focus();
@@ -87,7 +105,9 @@ for (const width of [1280, 375]) {
         await page.getByRole('button', { name: 'Guardar negocio' }).click();
         await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
         await expect(page.getByRole('heading', { name: business })).toBeVisible();
-        await expectDarkReadable(page);
+        await expectReadable(page);
+        await page.reload();
+        await expectReadable(page);
         await expect(page.getByText('Zona horaria: America/Argentina/Buenos_Aires')).toBeVisible();
 
         const navigation = page.locator('[data-flux-sidebar] [data-flux-sidebar-item]').filter({ hasText: 'Panel' });
@@ -105,7 +125,7 @@ for (const width of [1280, 375]) {
         await expect(navigation).not.toHaveAttribute('data-current', '');
         await expect(page.getByRole('textbox', { name: 'Nombre del negocio' })).toHaveValue(business);
         await expect(page.getByLabel('Zona horaria')).toHaveValue('America/Argentina/Buenos_Aires');
-        await expectDarkReadable(page);
+        await expectReadable(page);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
 }

@@ -5,7 +5,7 @@
             <flux:text>{{ __('Review your business information.') }}</flux:text>
         </header>
 
-        <section aria-label="{{ __('Business profile') }}" class="rounded-xl border border-zinc-700 bg-zinc-900 p-5">
+        <section aria-label="{{ __('Business profile') }}" class="rounded-2xl border border-outline bg-surface p-5">
             <flux:heading level="2">{{ $business->name }}</flux:heading>
             <flux:text>{{ __('Time zone') }}: {{ $business->timezone }}</flux:text>
             <div class="mt-5">

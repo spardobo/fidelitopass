@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('mobile visitors can navigate the localized product story without overflow', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto('/');
 
@@ -10,7 +11,8 @@ test('mobile visitors can navigate the localized product story without overflow'
     await expect(page.getByRole('contentinfo')).toHaveCount(1);
     await expect(page).toHaveTitle(/Haz que volver sea parte del juego/);
     await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /Crea retos de puntos/);
-    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+    expect(await page.evaluate(() => localStorage.getItem('flux.appearance'))).toBe('light');
     await expect(page.getByRole('button', { name: /modo oscuro|modo claro/i })).toHaveCount(0);
 
     const skip = page.getByRole('link', { name: 'Ir al contenido' });
@@ -34,6 +36,17 @@ test('mobile visitors can navigate the localized product story without overflow'
     }
     await expect(page.getByText('Una sola tarjeta. Nuevos retos con el tiempo.')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('explicit dark appearance persists across public and authentication navigation', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('flux.appearance', 'dark'));
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    await page.getByRole('link', { name: 'Entrar' }).first().click();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    await page.reload();
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
 });
 
 test('public calls to action navigate to starter authentication', async ({ page }) => {
