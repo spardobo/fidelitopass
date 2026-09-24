@@ -329,6 +329,7 @@ new #[Title('Security settings')] class extends Component {
     </x-pages::settings.layout>
 
     {{-- @chisel-passkeys --}}
+    @if ($canManagePasskeys)
     <flux:modal
         name="delete-passkey-modal"
         class="max-w-md md:min-w-md"
@@ -359,5 +360,6 @@ new #[Title('Security settings')] class extends Component {
             </div>
         </div>
     </flux:modal>
+    @endif
     {{-- @end-chisel-passkeys --}}
 </section>

@@ -13,25 +13,6 @@ class SecurityTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        /* @chisel-2fa */
-        $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
-
-        Features::twoFactorAuthentication([
-            'confirm' => true,
-            'confirmPassword' => true,
-        ]);
-        /* @end-chisel-2fa */
-        /* @chisel-passkeys */
-        Features::passkeys([
-            'confirmPassword' => true,
-        ]);
-        /* @end-chisel-passkeys */
-    }
-
     public function test_security_settings_page_can_be_rendered(): void
     {
         $user = User::factory()->create();
@@ -44,14 +25,10 @@ class SecurityTest extends TestCase
 
         $response->assertOk();
 
-        /* @chisel-passkeys */
-        $response->assertSee('Claves de acceso');
-        $response->assertSee('Aún no tienes claves de acceso');
-        /* @end-chisel-passkeys */
-        /* @chisel-2fa */
-        $response->assertSee('Autenticación de doble factor');
-        $response->assertSee('Activar doble factor');
-        /* @end-chisel-2fa */
+        $response->assertSee('Actualizar contraseña');
+        $response->assertDontSee('Claves de acceso');
+        $response->assertDontSee('delete-passkey-modal');
+        $response->assertDontSee('Autenticación de doble factor');
     }
 
     /* @chisel-password-confirmation */
@@ -68,8 +45,6 @@ class SecurityTest extends TestCase
 
     public function test_security_settings_page_renders_without_two_factor_when_feature_is_disabled(): void
     {
-        config(['fortify.features' => []]);
-
         $user = User::factory()->create();
 
         $this->actingAs($user)
@@ -87,6 +62,8 @@ class SecurityTest extends TestCase
     public function test_two_factor_authentication_disabled_when_confirmation_abandoned_between_requests(): void
     {
         /* @chisel-2fa */
+        $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
+
         $user = User::factory()->create();
 
         $user->forceFill([

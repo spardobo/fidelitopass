@@ -6,7 +6,9 @@
         <x-auth-session-status class="text-center" :status="session('status')" />
 
         {{-- @chisel-passkeys --}}
-        <x-passkey-verify />
+        @if (\Laravel\Fortify\Features::enabled(\Laravel\Fortify\Features::passkeys()))
+            <x-passkey-verify />
+        @endif
         {{-- @end-chisel-passkeys --}}
 
         <form method="POST" action="{{ route('login.store') }}" class="flex flex-col gap-6">
