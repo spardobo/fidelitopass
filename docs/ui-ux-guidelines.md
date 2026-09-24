@@ -68,6 +68,12 @@ The dark theme must not use pure `#000000` as its primary canvas.
 - Borders are subtle; shadows are light and sparse.
 - Prefer breathing room over dense dashboards.
 
+### Brand asset exploration
+
+Use the following English prompt to explore a wordmark and favicon, not as approval of a production logo. Check spelling, originality, small-size legibility, and usage rights before replacing any existing asset.
+
+> Design an original, approachable vector identity for **FidelitoPass**, a tool for business owners. Create a precise wordmark reading **FidelitoPass** (capital F and P, no extra words) and a matching standalone favicon. Use a warm ivory `#F4F1E8`, charcoal olive `#252820`, and lime `#B7F34A` palette; the mark should suggest a welcoming return visit through one simple, memorable loop or subtle spark rather than a literal wallet, QR code, card, or trophy. Favor a balanced, softly rounded geometric sans wordmark, confident spacing, and a flat, high-contrast icon legible at 16×16 pixels. Provide light-background (`#F4F1E8`), dark-background (`#181B17`), and single-color variants, plus separate transparent SVG artwork and square favicon previews at 16, 32, and 48 pixels. No gradients, shadows, mockups, stock icons, Google/Wallet branding, invented product claims, or additional text. Keep lettering editable and verify the exact spelling manually before export.
+
 ## Typography
 
 Use the project/system sans-serif stack unless a deliberate brand font is added later.
