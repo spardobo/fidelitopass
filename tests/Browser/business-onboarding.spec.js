@@ -127,5 +127,23 @@ for (const width of [1280, 375]) {
         await expect(page.getByLabel('Zona horaria')).toHaveValue('America/Argentina/Buenos_Aires');
         await expectReadable(page);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+        if (width === 1280) {
+            await page.locator('[data-test="sidebar-menu-button"]').click();
+            await page.getByRole('menuitem', { name: 'Configuración' }).click();
+            await expect(page).toHaveURL(/\/settings\/profile(?:\?|$)/);
+            await page.getByRole('link', { name: 'Apariencia' }).click();
+            await expect(page).toHaveURL(/\/settings\/appearance(?:\?|$)/);
+            await page.getByRole('radio', { name: 'Oscuro' }).check();
+            await expectReadable(page, 'dark');
+            await page.getByRole('link', { name: 'Perfil del negocio' }).click();
+            await expect(page).toHaveURL(/\/business\/profile(?:\?|$)/);
+            await expectReadable(page, 'dark');
+            await page.reload();
+            await expectReadable(page, 'dark');
+            await page.goto('/settings/appearance');
+            await page.getByRole('radio', { name: 'Claro' }).check();
+            await expectReadable(page);
+        }
     });
 }
