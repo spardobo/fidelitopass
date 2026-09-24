@@ -58,6 +58,26 @@ async function verificationLink(request, recipient) {
     return link.replace(/&amp;/g, '&');
 }
 
+async function registerAndVerifyOwner(page, request, width, recipient) {
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
+    await page.goto('/register');
+    await expect(page.getByRole('heading', { name: 'Crear una cuenta' })).toBeVisible();
+    await expectReadable(page);
+    expect(await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
+    await page.getByRole('textbox', { name: /nombre/i }).first().fill(`Owner ${width}`);
+    await page.getByRole('textbox', { name: /correo/i }).fill(recipient);
+    await page.locator('input[name="password"]').fill('ValidPassword84!strong');
+    await page.locator('input[name="password_confirmation"]').fill('ValidPassword84!strong');
+    await page.getByRole('button', { name: 'Crear cuenta' }).click();
+
+    await expect(page).toHaveURL(/\/email\/verify(?:\?|$)/);
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/email\/verify(?:\?|$)/);
+    await page.goto(await verificationLink(request, recipient));
+    await expect(page).toHaveURL(/\/business\/onboarding(?:\?|$)/);
+}
+
 test('explicit dark appearance remains readable in authentication', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('flux.appearance', 'dark'));
     await page.goto('/register');
@@ -75,23 +95,7 @@ for (const width of [1280, 375]) {
         const recipient = `onboarding-${width}-${crypto.randomUUID()}@example.test`;
         const business = `Negocio ${width} ${crypto.randomUUID()}`;
 
-        await page.goto('/dashboard');
-        await expect(page).toHaveURL(/\/login(?:\?|$)/);
-        await page.goto('/register');
-        await expect(page.getByRole('heading', { name: 'Crear una cuenta' })).toBeVisible();
-        await expectReadable(page);
-        expect(await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(true);
-        await page.getByRole('textbox', { name: /nombre/i }).first().fill(`Owner ${width}`);
-        await page.getByRole('textbox', { name: /correo/i }).fill(recipient);
-        await page.locator('input[name="password"]').fill('ValidPassword84!strong');
-        await page.locator('input[name="password_confirmation"]').fill('ValidPassword84!strong');
-        await page.getByRole('button', { name: 'Crear cuenta' }).click();
-
-        await expect(page).toHaveURL(/\/email\/verify(?:\?|$)/);
-        await page.goto('/dashboard');
-        await expect(page).toHaveURL(/\/email\/verify(?:\?|$)/);
-        await page.goto(await verificationLink(request, recipient));
-        await expect(page).toHaveURL(/\/business\/onboarding(?:\?|$)/);
+        await registerAndVerifyOwner(page, request, width, recipient);
         await expect(page.getByRole('heading', { name: 'Configura tu negocio' })).toBeVisible();
         await expectReadable(page);
 

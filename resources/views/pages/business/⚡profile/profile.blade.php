@@ -1,11 +1,14 @@
 <section class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
     <header class="space-y-2">
-        <flux:heading size="xl" level="1">{{ $this->name === '' ? __('business.onboarding.heading') : __('business.profile_title') }}</flux:heading>
+        <flux:heading size="xl" level="1">
+            {{ $this->name === '' ? __('business.onboarding.heading') : __('business.profile_title') }}
+        </flux:heading>
         <flux:text>{{ __('business.onboarding.description') }}</flux:text>
     </header>
 
     <form wire:submit="save" class="flex flex-col gap-5">
-        <flux:input wire:model="name" :label="__('business.onboarding.business_name')" type="text" autocomplete="organization" required autofocus maxlength="255" />
+        <flux:input wire:model="name" :label="__('business.onboarding.business_name')"
+            type="text" autocomplete="organization" required autofocus maxlength="255" />
 
         <flux:field>
             <flux:label>{{ __('business.onboarding.time_zone') }}</flux:label>

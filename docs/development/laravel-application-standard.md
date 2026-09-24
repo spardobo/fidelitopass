@@ -205,7 +205,7 @@ Actions/evaluators own:
 
 - Prefer Flux UI Free components where they fit the product behaviour.
 - Prefer semantic HTML before custom JavaScript.
-- Keep this MVP dark-only without an appearance toggle; use Alpine only for small client-only interactions such as lightweight disclosure.
+- Default to warm light with optional dark using shared Tailwind theme tokens and Flux `@fluxAppearance`; use Alpine only for small client-only interactions such as lightweight disclosure.
 - Keep camera/scanner JavaScript isolated to the validation component.
 - Never duplicate authoritative Challenge/Reward state in Alpine.
 - Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure.
@@ -279,7 +279,8 @@ Do not create enums for phases that are derived from timestamps.
 - Keep methods cohesive.
 - Split by responsibility, not arbitrary line counts.
 - Avoid vague class names such as `Manager`, `Helper`, `Handler`, or `Util` when a domain/capability name exists.
-- Keep Blade readable; do not hide normal markup inside PHP string builders.
+- Keep Blade readable; do not hide normal markup inside PHP string builders. Separate semantic blocks with whitespace, group related attributes, and break attribute lines only when length impedes scanning; do not enforce one attribute per line.
+- Scoped Pint `--blade` needs the npm packages `prettier`, `prettier-plugin-blade`, and `prettier-plugin-tailwindcss`, which are not installed here. Its Blade check is not a passing validation or a required dependency; apply the manual conventions above without adding formatter tooling.
 - Keep code as a top-to-bottom narrative with whitespace between semantic blocks.
 
 ## PHPDoc and comments

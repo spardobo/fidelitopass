@@ -4,7 +4,10 @@
     <a href="#contenido" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-accent focus:px-5 focus:py-3 focus:text-accent-foreground">{{ __('landing.navigation.skip_to_content') }}</a>
     <header class="border-b border-outline bg-surface text-ink">
         <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
-            <a href="#inicio" class="text-xl font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent" aria-label="{{ __('landing.navigation.back_to_top_label') }}">Fidelito<span class="text-accent-content">Pass</span><span aria-hidden="true" class="ml-1 text-accent-content">✳</span></a>
+            <a href="#inicio" class="text-xl font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+                aria-label="{{ __('landing.navigation.back_to_top_label') }}">
+                Fidelito<span class="text-accent-content">Pass</span><span aria-hidden="true" class="ml-1 text-accent-content">✳</span>
+            </a>
             <nav class="hidden items-center gap-7 text-sm text-muted-ink md:flex" aria-label="{{ __('landing.navigation.page_sections') }}">
                 <a class="hover:text-accent-content focus-visible:outline-2 focus-visible:outline-accent" href="#como-funciona">{{ __('landing.navigation.how_it_works') }}</a>
                 <a class="hover:text-accent-content focus-visible:outline-2 focus-visible:outline-accent" href="#retos">{{ __('landing.navigation.challenges') }}</a>
@@ -12,7 +15,9 @@
                 <a class="hover:text-accent-content focus-visible:outline-2 focus-visible:outline-accent" href="#negocios">{{ __('landing.navigation.for_businesses') }}</a>
             </nav>
             <div class="flex items-center gap-3 text-sm">
-                <button type="button" x-data aria-label="{{ __('landing.navigation.dark_mode') }}" :aria-pressed="$flux.dark.toString()" @click="$flux.dark = ! $flux.dark" class="rounded-full border border-outline px-3 py-2 font-semibold text-ink hover:bg-raised aria-pressed:border-accent-content aria-pressed:bg-raised aria-pressed:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">{{ __('landing.navigation.dark_mode') }}</button>
+                <button type="button" x-data aria-label="{{ __('landing.navigation.dark_mode') }}"
+                    :aria-pressed="$flux.dark.toString()" @click="$flux.dark = ! $flux.dark"
+                    class="rounded-full border border-outline px-3 py-2 font-semibold text-ink hover:bg-raised aria-pressed:border-accent-content aria-pressed:bg-raised aria-pressed:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">{{ __('landing.navigation.dark_mode') }}</button>
                 <a class="inline-flex rounded-full bg-accent px-5 py-2.5 font-bold text-accent-foreground transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="{{ route('register') }}">{{ __('landing.actions.create_account') }}</a>
             </div>
             <details class="w-full rounded-xl border border-outline p-3 text-sm md:hidden">
@@ -37,7 +42,10 @@
                     <div class="mt-9 flex flex-wrap gap-4">
                         <a class="rounded-full bg-accent px-7 py-4 font-bold text-accent-foreground transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent" href="{{ route('register') }}">{{ __('landing.actions.create_account') }}</a>
                     </div>
-                    <p class="mt-5 text-sm text-muted-ink">{{ __('landing.hero.sign_in_prompt') }} <a class="font-semibold underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent" href="{{ route('login') }}" wire:navigate>{{ __('landing.hero.sign_in_link') }}</a></p>
+                    <p class="mt-5 text-sm text-muted-ink">
+                        {{ __('landing.hero.sign_in_prompt') }}
+                        <a class="font-semibold underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent" href="{{ route('login') }}" wire:navigate>{{ __('landing.hero.sign_in_link') }}</a>
+                    </p>
                     <p class="mt-6 text-sm text-muted-ink">{{ __('landing.hero.registration_note') }}</p>
                 </div>
                 <div class="relative rounded-3xl border border-outline bg-surface p-5 shadow-2xl shadow-accent/5 sm:p-9" role="img" aria-label="{{ __('landing.hero.card_aria') }}">
@@ -74,9 +82,12 @@
         </section>
 
         <section aria-label="{{ __('landing.tagline.label') }}" class="border-b border-outline bg-canvas py-24">
-            <p x-data="{ revealed: false }" x-intersect:enter.once="revealed = true" class="mx-auto max-w-2xl px-5 text-4xl font-semibold sm:text-5xl" data-tagline>
+            <p x-data="{ revealed: false }" x-intersect:enter.once="revealed = true"
+                class="mx-auto max-w-2xl px-5 text-4xl font-semibold sm:text-5xl" data-tagline>
                 @foreach (__('landing.tagline.words') as $word)
-                    <span class="inline-block transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none" :class="revealed ? 'text-ink translate-y-0' : 'text-muted-ink translate-y-1'" style="transition-delay: {{ $loop->index * 100 }}ms" data-tagline-word>{{ $word }}</span>@if ($loop->index === 9)<br>@else{{ $loop->last ? '' : ' ' }}@endif
+                    <span class="inline-block transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+                        :class="revealed ? 'text-ink translate-y-0' : 'text-muted-ink translate-y-1'"
+                        style="transition-delay: {{ $loop->index * 100 }}ms" data-tagline-word>{{ $word }}</span>@if ($loop->index === 9)<br>@else{{ $loop->last ? '' : ' ' }}@endif
                 @endforeach
             </p>
         </section>
@@ -158,7 +169,9 @@
                 <div class="mt-8 grid gap-4">
                     @foreach (__('landing.faq.items') as $item)
                         <details class="rounded-2xl border border-outline bg-canvas p-6 text-ink">
-                            <summary class="cursor-pointer font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">{{ $item['question'] }}</summary>
+                            <summary class="cursor-pointer font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
+                                {{ $item['question'] }}
+                            </summary>
                             <p class="mt-4 text-muted-ink">{{ $item['answer'] }}</p>
                         </details>
                     @endforeach
