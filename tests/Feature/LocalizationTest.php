@@ -33,14 +33,14 @@ test('landing page translates its title, description and accessible navigation',
     $this->get(route('home'))
         ->assertOk()
         ->assertSee('Haz que volver sea parte del juego - '.config('app.name'))
-        ->assertSee('Crea retos de puntos para tus clientes')
+        ->assertSee('Crea tu cuenta y registra tu negocio')
         ->assertSee('aria-label="Secciones de la página"', false)
-        ->assertSee('Ilustración de una tarjeta con seis de diez puntos');
+        ->assertSee('Vista conceptual de una tarjeta con seis de diez puntos');
 });
 
 test('project pages resolve grouped translations without leaking keys', function (): void {
     expect(__('landing.page_title'))->toBe('Haz que volver sea parte del juego');
-    expect(__('landing.page_description'))->toStartWith('Crea retos de puntos');
+    expect(__('landing.page_description'))->toStartWith('Crea tu cuenta y registra tu negocio');
     expect(__('landing.navigation.page_sections'))->toBe('Secciones de la página');
     expect(__('business.profile_title'))->toBe('Perfil del negocio');
     expect(__('business.dashboard.page_title'))->toBe('Panel del negocio');
