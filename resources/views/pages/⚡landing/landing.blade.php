@@ -58,6 +58,29 @@
             </div>
         </section>
 
+        <section id="beneficios" aria-labelledby="benefits-title" class="border-b border-outline bg-surface py-24">
+            <div class="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-2 lg:items-center">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-widest text-accent-content">{{ __('landing.benefits.eyebrow') }}</p>
+                    <h2 id="benefits-title" class="mt-4 max-w-2xl text-4xl font-semibold text-ink sm:text-5xl">{{ __('landing.benefits.heading') }}</h2>
+                    <p class="mt-6 max-w-2xl text-lg text-muted-ink">{{ __('landing.benefits.problem') }}</p>
+                </div>
+                <div class="rounded-3xl border border-outline bg-canvas p-8 sm:p-10">
+                    <h3 class="text-2xl font-semibold text-ink">{{ __('landing.benefits.proposition_heading') }}</h3>
+                    <p class="mt-5 text-lg text-muted-ink">{{ __('landing.benefits.proposition') }}</p>
+                    <p class="mt-6 text-sm font-semibold text-accent-content">{{ __('landing.benefits.stage') }}</p>
+                </div>
+            </div>
+        </section>
+
+        <section aria-label="{{ __('landing.tagline.label') }}" class="border-b border-outline bg-canvas py-24">
+            <p x-data="{ revealed: false }" x-intersect:enter.once="revealed = true" class="mx-auto max-w-2xl px-5 text-4xl font-semibold sm:text-5xl" data-tagline>
+                @foreach (__('landing.tagline.words') as $word)
+                    <span class="inline-block transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none" :class="revealed ? 'text-ink translate-y-0' : 'text-muted-ink translate-y-1'" style="transition-delay: {{ $loop->index * 100 }}ms" data-tagline-word>{{ $word }}</span>@if ($loop->index === 9)<br>@else{{ $loop->last ? '' : ' ' }}@endif
+                @endforeach
+            </p>
+        </section>
+
         <section id="como-funciona" aria-labelledby="steps-title" class="scroll-mt-6 border-b border-outline bg-surface py-24">
             <div class="mx-auto max-w-7xl px-5 sm:px-8">
                 <p class="text-xs font-bold uppercase tracking-[.3em] text-accent-content">{{ __('landing.steps.eyebrow') }}</p>
@@ -125,6 +148,20 @@
                         <li>{{ __('landing.wallet.reward_and_deadline') }}</li>
                     </ul>
                     <p class="mt-10 border-t border-outline pt-7 font-semibold text-ink">{{ __('landing.wallet.closing') }}</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="preguntas" aria-labelledby="faq-title" class="border-b border-outline bg-surface py-24">
+            <div class="mx-auto max-w-3xl px-5 sm:px-8">
+                <h2 id="faq-title" class="text-4xl font-semibold text-ink">{{ __('landing.faq.heading') }}</h2>
+                <div class="mt-8 grid gap-4">
+                    @foreach (__('landing.faq.items') as $item)
+                        <details class="rounded-2xl border border-outline bg-canvas p-6 text-ink">
+                            <summary class="cursor-pointer font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">{{ $item['question'] }}</summary>
+                            <p class="mt-4 text-muted-ink">{{ $item['answer'] }}</p>
+                        </details>
+                    @endforeach
                 </div>
             </div>
         </section>

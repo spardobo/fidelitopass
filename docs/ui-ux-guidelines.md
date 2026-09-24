@@ -91,8 +91,8 @@ The landing page introduces the product, not the dashboard.
 - FidelitoPass wordmark/logo on the left.
 - Compact anchors: `Cómo funciona`, `Retos`, `Para negocios`.
 - Theme toggle may appear as an icon/control.
-- Primary CTA: **Crear mi reto**.
-- Sign-in action: **Entrar**.
+- Primary CTA: **Crear mi cuenta**, linked to available registration and Business profile setup.
+- Sign-in action: **Inicia sesión**, visually subordinate to registration.
 
 On small screens, collapse navigation while keeping the primary CTA reachable.
 
@@ -106,15 +106,13 @@ Suggested copy:
 
 **Supporting copy**
 
-> Crea retos de visitas, añade la tarjeta a Google Wallet y recompensa a tus clientes cuando los completan.
+> Hoy puedes crear tu cuenta y registrar tu negocio. Los retos de puntos y la tarjeta para Google Wallet están en desarrollo.
 
 Primary CTA:
 
-> Crear mi reto
+> Crear mi cuenta
 
-Secondary action:
-
-> Ver cómo funciona
+Sign-in remains a discreet link; do not present future Challenge creation as available.
 
 Hero visual:
 
@@ -124,14 +122,9 @@ Hero visual:
 
 ### How it works
 
-Use four fixed steps:
+Present registration and Business profile as the available first step. Label the remaining conceptual journey explicitly as future functionality: QR sharing, Visit validation, and Rewards. No Challenge creation or publication is currently available.
 
-1. **Crea un reto**.
-2. **Comparte tu QR**.
-3. **Valida visitas**.
-4. **Entrega la recompensa**.
-
-Each step uses one icon, short title, and one sentence.
+Each step uses a numbered marker, short title, and one sentence.
 
 ### Challenge section
 
@@ -139,7 +132,7 @@ Explain one clear Challenge model:
 
 > Consigue puntos antes de una fecha y desbloquea una recompensa.
 
-Show one real example and one example of a moment when a Visit is worth more points. Avoid configurator controls on the landing page.
+Show a clearly labeled conceptual example and one proposed moment when a Visit could be worth more points. Avoid configurator controls on the landing page.
 
 ### Wallet section
 
@@ -153,7 +146,7 @@ Show the stable Wallet information hierarchy.
 
 One clear action:
 
-> Crea tu primer reto
+> Crear mi cuenta
 
 ### Footer
 
@@ -193,7 +186,7 @@ Do not expose UTC offsets as the stored Business identity because offsets can ch
 
 ## Dashboard
 
-The dashboard is operational, not analytical.
+The current dashboard provides Business onboarding and profile access, not operational Challenge controls or analytics. The following operational dashboard guidance describes the future target, not current MVP functionality.
 
 ### Top section
 

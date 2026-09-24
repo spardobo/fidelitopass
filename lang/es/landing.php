@@ -35,6 +35,27 @@ return [
         'card_detail' => 'Así podría verse el progreso de un reto futuro.',
         'card_badge' => 'En desarrollo',
     ],
+    'benefits' => [
+        'eyebrow' => 'Una idea para negocios de barrio',
+        'heading' => 'Que cada visita tenga un motivo para volver.',
+        'problem' => 'Cuando una persona vuelve, reconocer su constancia puede hacer que la próxima visita tenga más sentido. Hoy todavía no hay retos para registrar esas visitas.',
+        'proposition_heading' => 'Prepara tu presencia desde ahora.',
+        'proposition' => 'Crea tu cuenta y completa el perfil de tu negocio. Estamos desarrollando una experiencia de puntos y recompensas para acompañar futuras visitas.',
+        'stage' => 'Perfil disponible hoy · Retos en desarrollo',
+    ],
+    'tagline' => [
+        'label' => 'Nuestra visión',
+        'words' => ['Cada', 'visita', 'puede', 'ser', 'el', 'comienzo', 'de', 'una', 'nueva', 'historia.', 'Empieza', 'por', 'tu', 'negocio.'],
+    ],
+    'faq' => [
+        'heading' => 'Preguntas frecuentes',
+        'items' => [
+            ['question' => '¿Qué puedo hacer hoy?', 'answer' => 'Puedes crear una cuenta y completar el perfil de tu negocio.'],
+            ['question' => '¿Ya puedo crear un reto?', 'answer' => 'No. Los retos de puntos y recompensas todavía están en desarrollo.'],
+            ['question' => '¿Puedo emitir una tarjeta para Google Wallet?', 'answer' => 'No. La tarjeta mostrada es conceptual y la emisión aún no está disponible.'],
+            ['question' => '¿Necesito una tarjeta de crédito para registrarme?', 'answer' => 'No. El formulario de registro no solicita datos de pago.'],
+        ],
+    ],
     'steps' => [
         'eyebrow' => 'Presente y futuro',
         'heading' => 'Un primer paso disponible. Una idea en desarrollo.',

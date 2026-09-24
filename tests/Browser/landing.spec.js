@@ -38,6 +38,41 @@ test('mobile visitors can navigate the localized product story without overflow'
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+test('story, word reveal and grounded FAQ work in the browser', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#benefits-title')).toBeVisible();
+    await expect(page.locator('#beneficios')).toHaveCount(1);
+    const tagline = page.locator('[data-tagline]');
+    const firstWord = tagline.locator('[data-tagline-word]').first();
+    const lastWord = tagline.locator('[data-tagline-word]').last();
+    await expect(firstWord).toHaveClass(/text-muted-ink/);
+    await expect(lastWord).toHaveClass(/text-muted-ink/);
+    await tagline.scrollIntoViewIfNeeded();
+    await expect(firstWord).toHaveClass(/text-ink translate-y-0/);
+    await expect(lastWord).toHaveClass(/text-ink translate-y-0/);
+    await expect(tagline).toContainText('Cada visita puede ser');
+    await expect(tagline).toContainText('Empieza por tu negocio.');
+    await expect(page.locator('#preguntas details')).toHaveCount(4);
+    const question = page.locator('#preguntas details').first();
+    await expect(question).not.toHaveAttribute('open', '');
+    await question.locator('summary').click();
+    await expect(question).toHaveAttribute('open', '');
+    await expect(question.getByText('Puedes crear una cuenta y completar el perfil de tu negocio.')).toBeVisible();
+});
+
+test('landing produces desktop and mobile theme screenshots', async ({ page }, testInfo) => {
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 812 });
+        await page.goto('/');
+        for (const theme of ['light', 'dark']) {
+            await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/);
+            await page.screenshot({ path: testInfo.outputPath(`landing-${width}-${theme}.png`), fullPage: true, animations: 'disabled' });
+            if (theme === 'light') await page.getByRole('button', { name: 'Modo oscuro' }).click();
+        }
+        await page.getByRole('button', { name: 'Modo oscuro' }).click();
+    }
+});
+
 test('explicit dark appearance persists across public and authentication navigation', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Modo oscuro' }).click();
@@ -91,9 +126,8 @@ test('meaningful landing text remains legible in both themes at mobile and deskt
         await page.goto('/');
         await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
         for (const theme of ['light', 'dark']) {
-            for (const selector of ['header > div > a', 'header a[href$="register"]', 'header button[aria-pressed]', '#hero-title', '#inicio p', '#inicio a[href$="login"]', '#inicio a[href$="register"]', '#inicio [role="img"] p', '#inicio [role="img"] > p', '#steps-title', '#retos h2', '#wallet h2', '#negocios h2', '#negocios a[href$="register"]']) {
-                const ratio = await contrastOf(page.locator(selector).first());
-                expect(ratio, `${theme} ${width}px ${selector}`).toBeGreaterThanOrEqual(4.5);
+            for (const selector of ['header > div > a', 'header a[href$="register"]', 'header button[aria-pressed]', '#hero-title', '#inicio p', '#inicio a[href$="login"]', '#inicio a[href$="register"]', '#inicio [role="img"] p', '#inicio [role="img"] > p', '#benefits-title', '#beneficios p', '[data-tagline-word]', '#faq-title', '#preguntas summary', '#preguntas details p', '#steps-title', '#retos h2', '#wallet h2', '#negocios h2', '#negocios a[href$="register"]']) {
+                await expect.poll(() => contrastOf(page.locator(selector).first()), { message: `${theme} ${width}px ${selector}` }).toBeGreaterThanOrEqual(4.5);
             }
             expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
             if (theme === 'light') await page.getByRole('button', { name: 'Modo oscuro' }).click();
