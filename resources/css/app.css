@@ -1,16 +1,15 @@
-@import '@fontsource-variable/manrope';
+@import '@fontsource-variable/onest';
 @import 'tailwindcss';
 @import '../../vendor/livewire/flux/dist/flux.css';
 
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
 @source '../../vendor/livewire/flux/stubs/**/*.blade.php';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-    --font-sans: 'Manrope Variable', system-ui, ui-sans-serif, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Onest Variable', system-ui, ui-sans-serif, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
     --color-zinc-50: #fafafa;
     --color-zinc-100: #f5f5f5;
@@ -24,35 +23,52 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
-    --color-canvas: #f4f1e8;
-    --color-surface: #fbf9f2;
-    --color-raised: #fffdf7;
-    --color-ink: #252820;
-    --color-muted-ink: #686b61;
-    --color-outline: #dad6c8;
+    --color-canvas: #181818;
+    --color-shell: #000000;
+    --color-surface: #1F1F1F;
+    --color-ink: #F6F5F2;
+    --color-outline: #414141;
 
-    --color-accent: #b7f34a;
-    --color-accent-content: #466619;
-    --color-accent-foreground: #252820;
+    --color-accent: #B7ABE4;
+    --color-accent-content: #D8CEF5;
+    --color-accent-foreground: #181818;
 }
 
 @layer theme {
-    .dark {
-        --color-canvas: #181b17;
-        --color-surface: #20241f;
-        --color-raised: #282d26;
-        --color-ink: #eeebdd;
-        --color-muted-ink: #b5b5aa;
-        --color-outline: #3a4037;
-
-        --color-accent: #b7f34a;
-        --color-accent-content: #c4ed87;
-        --color-accent-foreground: #252820;
+    :root, .dark {
+        color-scheme: dark;
+        --color-canvas: #181818;
+        --color-shell: #000000;
+        --color-surface: #1F1F1F;
+        --color-ink: #F6F5F2;
+        --color-outline: #414141;
+        --color-accent: #B7ABE4;
+        --color-accent-content: #D8CEF5;
+        --color-accent-foreground: #181818;
     }
 }
 
-@layer base {
+@layer components {
+    .landing-world { font-family: 'Onest Variable', sans-serif; background: #242424; overflow-x: clip; }
+    .landing-world h1, .landing-world h2, .landing-world h3 { text-wrap: balance; }
+    .landing-world p { text-wrap: pretty; }
+    html:has(.landing-world) { scroll-behavior: smooth; }
+    .landing-world section[id] { scroll-margin-top: 2rem; }
+    .landing-world a:focus-visible, .landing-world summary:focus-visible { outline: 2px solid #B7ABE4; outline-offset: 4px; }
+    .landing-world .tagline-word { color: #8C8C8C; transition: color 700ms cubic-bezier(0.32, 0.72, 0, 1); }
+    .landing-world .tagline-word.is-lit { color: #F6F5F2; }
+    .landing-world .landing-thumbnail { position: relative; width: 100%; max-width: 576px; aspect-ratio: 3 / 2; }
+    .landing-world .landing-pass-scale { position: absolute; top: 0; left: 0; width: 576px; height: 384px; transform: scale(var(--landing-scale, 1)); transform-origin: top left; }
+    .landing-world .landing-pass { width: 576px; height: 384px; transform-origin: center center; isolation: isolate; background-image: linear-gradient(115deg, transparent 12%, rgb(255 255 255 / 24%) 34%, rgb(255 255 255 / 8%) 50%, transparent 72%); background-size: 160% 160%; background-position: var(--sheen-x, 50%) var(--sheen-y, 50%); }
+    .landing-world .landing-pass-qr { position: relative; z-index: 1; }
+    @media (prefers-reduced-motion: no-preference) { .landing-world .landing-pass { transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1), background-position 180ms cubic-bezier(0.32, 0.72, 0, 1); } }
+    @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+        .landing-world .landing-info-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgb(0 0 0 / 18%); }
+    }
+    @media (prefers-reduced-motion: reduce) { html:has(.landing-world) { scroll-behavior: auto; } .landing-world *, .landing-world *::before, .landing-world *::after { animation: none !important; transition: none !important; } .landing-world .tagline-word { color: #F6F5F2; } }
+}
 
+@layer base {
     *,
     ::after,
     ::before,
@@ -67,7 +83,7 @@
 }
 
 [data-flux-label] {
-    @apply  !mb-0 !leading-tight;
+    @apply !mb-0 !leading-tight;
 }
 
 input:focus[data-flux-control],
@@ -75,7 +91,3 @@ textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-surface;
 }
-
-/* \[:where(&)\]:size-4 {
-    @apply size-4;
-} */

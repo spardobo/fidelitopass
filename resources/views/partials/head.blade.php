@@ -9,12 +9,9 @@
     <meta name="description" content="{{ $description }}" />
 @endif
 
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+@include('partials.icons')
 
 @include('partials.theme-default')
 @fluxAppearance
-@fonts
 
 @vite('resources/css/app.css')

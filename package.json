@@ -6,21 +6,18 @@
         "dev": "vp dev",
         "build": "vp build",
         "format": "vp fmt resources/js scripts/quality playwright.config.js vite.config.js --write",
-
         "check:format": "vp fmt resources/js scripts/quality playwright.config.js vite.config.js --check",
         "check:lint": "vp lint resources/js scripts/quality playwright.config.js vite.config.js",
         "check:documentation": "node scripts/quality/documentation/validate-documentation.mjs",
         "check:playwright-runtime": "node scripts/quality/browser/check-playwright-runtime.mjs",
-
         "test": "node --test \"scripts/quality/**/*.test.mjs\"",
         "test:documentation-validator": "node --test scripts/quality/documentation/validate-documentation.test.mjs",
         "test:e2e": "playwright test",
         "test:e2e:list": "playwright test --list",
-
         "prepare": "husky"
     },
     "dependencies": {
-        "@fontsource-variable/manrope": "^5.3.0",
+        "@fontsource-variable/onest": "^5.3.1",
         "@laravel/passkeys": "^0.2.0",
         "@tailwindcss/vite": "^4.1.11",
         "concurrently": "^10.0.3",
