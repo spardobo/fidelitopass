@@ -5,6 +5,7 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator;
+use Laravel\Fortify\Features;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -120,6 +121,8 @@ test('authentication rejection and two factor validation show Spanish messages',
 });
 
 test('unreadable recovery codes render a Spanish error without exposing recovery data', function (): void {
+    $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
+
     $user = User::factory()->create([
         'two_factor_secret' => encrypt('test-secret'),
         'two_factor_confirmed_at' => now(),
