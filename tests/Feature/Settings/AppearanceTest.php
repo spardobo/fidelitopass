@@ -15,30 +15,26 @@ class AppearanceTest extends TestCase
         $this->get(route('appearance.edit'))->assertRedirect(route('login'));
     }
 
-    public function test_appearance_settings_show_translated_native_choices_and_navigation(): void
+    public function test_bookmarked_appearance_page_is_static_and_dark(): void
     {
         $this->actingAs(User::factory()->create())
             ->get(route('appearance.edit'))
             ->assertOk()
+            ->assertSee('class="dark"', false)
             ->assertSee('Apariencia')
-            ->assertSee('Actualiza la apariencia de tu cuenta')
-            ->assertSee('Claro')
-            ->assertSee('Oscuro')
-            ->assertSee('Sistema')
-            ->assertSee('value="light"', false)
-            ->assertSee('value="dark"', false)
-            ->assertSee('value="system"', false)
-            ->assertSee(route('appearance.edit'))
-            ->assertDontSee('Esta aplicación utiliza un tema oscuro')
-            ->assertDontSee('El tema oscuro está activo para todas las cuentas');
+            ->assertSee('El modo oscuro está siempre activo')
+            ->assertSee('El tema oscuro está activo para todas las cuentas.')
+            ->assertDontSee('Dark mode is always on')
+            ->assertDontSee('value="light"', false)
+            ->assertDontSee('value="system"', false)
+            ->assertDontSee('<flux:radio', false);
     }
 
-    public function test_other_settings_pages_link_to_appearance(): void
+    public function test_other_settings_pages_do_not_offer_appearance_navigation(): void
     {
         $this->actingAs(User::factory()->create())
             ->get(route('profile.edit'))
             ->assertOk()
-            ->assertSee(route('appearance.edit'))
-            ->assertSee('Apariencia');
+            ->assertDontSee(route('appearance.edit'));
     }
 }

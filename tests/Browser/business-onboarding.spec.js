@@ -18,24 +18,44 @@ function contrast(foreground, background) {
     return (light + 0.05) / (dark + 0.05);
 }
 
-async function expectReadable(page, appearance = 'light') {
-    if (appearance === 'dark') {
-        await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-    } else {
-        await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
-    }
+async function expectReadable(page) {
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    expect(await page.evaluate(() => localStorage.getItem('flux.appearance'))).toBe('dark');
     const colors = await page.evaluate(() => {
         const body = getComputedStyle(document.body);
         const heading = getComputedStyle(document.querySelector('h1'));
         return { background: body.backgroundColor, text: body.color, heading: heading.color };
     });
-    if (appearance === 'dark') {
-        expect(luminance(colors.background)).toBeLessThan(0.2);
-    } else {
-        expect(luminance(colors.background)).toBeGreaterThan(0.8);
-    }
+    expect(luminance(colors.background)).toBeLessThan(0.2);
     expect(contrast(colors.text, colors.background)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(colors.heading, colors.background)).toBeGreaterThanOrEqual(4.5);
+}
+
+async function expectAuthenticatedSurface(page, surface) {
+    const appearance = await page.evaluate((selector) => {
+        const card = document.querySelector(selector);
+        const header = document.querySelector('[data-flux-header], [data-flux-sidebar]');
+
+        return {
+            font: getComputedStyle(document.body).fontFamily,
+            canvas: getComputedStyle(document.body).backgroundColor,
+            card: getComputedStyle(card).backgroundColor,
+            header: header ? getComputedStyle(header).backgroundColor : null,
+            overflow: document.documentElement.scrollWidth > window.innerWidth,
+        };
+    }, surface);
+
+    expect(appearance.font).toContain('Onest Variable');
+    expect(appearance.canvas).toBe('rgb(24, 24, 24)');
+    expect(appearance.card).toBe('rgb(39, 39, 39)');
+    expect(appearance.header).not.toBeNull();
+    expect(luminance(appearance.header)).toBeLessThan(luminance(appearance.canvas));
+    expect(appearance.overflow).toBe(false);
+
+    const logoIcon = page.locator('img[src$="logo_icon.svg"]').first();
+    await expect(logoIcon).toBeVisible();
+    await expect(logoIcon).toHaveCSS('filter', 'brightness(0)');
+    await expect(logoIcon.locator('..')).toHaveCSS('background-color', 'rgb(183, 171, 228)');
 }
 
 async function verificationLink(request, recipient) {
@@ -78,18 +98,50 @@ async function registerAndVerifyOwner(page, request, width, recipient) {
     await expect(page).toHaveURL(/\/business\/onboarding(?:\?|$)/);
 }
 
-test('explicit dark appearance remains readable in authentication', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('flux.appearance', 'dark'));
-    await page.goto('/register');
-    await expectReadable(page, 'dark');
+test('saved light appearance is replaced before authentication renders', async ({ page }, testInfo) => {
+    await page.addInitScript(() => localStorage.setItem('flux.appearance', 'light'));
 
-    await page.getByRole('link', { name: 'Iniciar sesión' }).click();
-    await expect(page).toHaveURL(/\/login(?:\?|$)/);
-    await expectReadable(page, 'dark');
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+
+        for (const [path, heading] of [['/register', 'Crear una cuenta'], ['/login', 'Iniciar sesión']]) {
+            await page.goto(path);
+            await expectReadable(page);
+            await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+
+            const logo = page.getByRole('link', { name: 'FidelitoPass' }).getByRole('img');
+            await expect(logo).toBeVisible();
+            await expect(logo).toHaveAttribute('src', /logo-header\.webp$/);
+
+            const card = page.locator('.rounded-2xl.border').filter({ has: page.locator('form') });
+            await expect(card).toHaveCSS('background-color', 'rgb(39, 39, 39)');
+            await expect(card).toHaveCSS('border-color', 'rgb(65, 65, 65)');
+            expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+            const primary = page.getByRole('button', { name: path === '/login' ? 'Iniciar sesión' : 'Crear cuenta' });
+            await expect(primary).toHaveCSS('background-color', 'rgb(183, 171, 228)');
+            const buttonColors = await primary.evaluate((element) => ({
+                foreground: getComputedStyle(element).color,
+                background: getComputedStyle(element).backgroundColor,
+            }));
+            expect(contrast(buttonColors.foreground, buttonColors.background)).toBeGreaterThanOrEqual(4.5);
+
+            const logoLink = page.getByRole('link', { name: 'FidelitoPass' });
+            await logoLink.focus();
+            await page.keyboard.press('Shift+Tab');
+            await page.keyboard.press('Tab');
+            await expect(logoLink).toBeFocused();
+            await expect(logoLink).toHaveCSS('outline-style', 'solid');
+            await expect(logoLink).toHaveCSS('outline-color', 'rgb(183, 171, 228)');
+            await page.keyboard.press('Tab');
+            await expect(page.locator('input[autofocus]')).toBeFocused();
+            await page.screenshot({ path: testInfo.outputPath(`auth-${path.slice(1)}-${width}.png`), fullPage: true });
+        }
+    }
 });
 
 for (const width of [1280, 375]) {
-    test(`verified owner completes onboarding and edits business at ${width}px`, async ({ page, request }) => {
+    test(`verified owner completes onboarding and edits business at ${width}px`, async ({ page, request }, testInfo) => {
         await page.setViewportSize({ width, height: 800 });
         await page.emulateMedia({ colorScheme: 'dark' });
         const recipient = `onboarding-${width}-${crypto.randomUUID()}@example.test`;
@@ -113,41 +165,92 @@ for (const width of [1280, 375]) {
         await page.reload();
         await expectReadable(page);
         await expect(page.getByText('Zona horaria: America/Argentina/Buenos_Aires')).toBeVisible();
+        await expectAuthenticatedSurface(page, 'section[aria-label]');
+        await page.screenshot({ path: testInfo.outputPath(`app-header-dashboard-${width}.png`), fullPage: true });
 
-        const navigation = page.locator('[data-flux-sidebar] [data-flux-sidebar-item]').filter({ hasText: 'Panel' });
-        const profileLink = page.locator('[data-flux-sidebar] [data-flux-sidebar-item]').filter({ hasText: 'Perfil del negocio' });
+        const ownerName = `Owner ${width}`;
+        const menuButton = page.locator('[data-test="sidebar-menu-button"]');
+        await expect(menuButton).toContainText(ownerName);
+        await expect(page.locator('[data-flux-avatar]')).toHaveCount(0);
+
         if (width === 375) {
             await page.getByRole('banner').getByRole('button', { name: /mostrar u ocultar barra lateral/i }).click();
         }
-        await expect(navigation).toHaveAttribute('data-current', '');
+
+        const activeNavigation = width === 375 ? page.locator('[data-flux-sidebar]') : page.getByRole('banner');
+        for (const label of ['Search', 'Repository', 'Documentation']) {
+            await expect(activeNavigation.getByRole('link', { name: label, exact: true })).toHaveCount(0);
+        }
+        await expect(activeNavigation.locator('a[href="#"]')).toHaveCount(0);
+        await expect(activeNavigation.locator('a[href="https://github.com/laravel/livewire-starter-kit"]')).toHaveCount(0);
+        await expect(activeNavigation.locator('a[href="https://laravel.com/docs/starter-kits#livewire"]')).toHaveCount(0);
+
+        const navigation = width === 375
+            ? page.locator('[data-flux-sidebar] [data-flux-sidebar-item]').filter({ hasText: 'Panel' })
+            : page.getByRole('banner').getByRole('link', { name: 'Panel' });
+        const profileLink = width === 375
+            ? page.locator('[data-flux-sidebar] [data-flux-sidebar-item]').filter({ hasText: 'Perfil del negocio' })
+            : page.getByRole('banner').getByRole('link', { name: 'Perfil del negocio' });
+
+        await expect(navigation).toHaveAttribute('data-current', 'data-current');
         await expect(profileLink).not.toHaveAttribute('data-current', '');
-        await navigation.evaluate((element) => { window.__persistedSidebarLink = element; });
         await profileLink.click();
         await expect(page).toHaveURL(/\/business\/profile(?:\?|$)/);
-        expect(await navigation.evaluate((element) => element === window.__persistedSidebarLink)).toBe(true);
-        await expect(profileLink).toHaveAttribute('data-current', '');
+        await expect(profileLink).toHaveAttribute('data-current', 'data-current');
         await expect(navigation).not.toHaveAttribute('data-current', '');
         await expect(page.getByRole('textbox', { name: 'Nombre del negocio' })).toHaveValue(business);
         await expect(page.getByLabel('Zona horaria')).toHaveValue('America/Argentina/Buenos_Aires');
         await expectReadable(page);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await expectAuthenticatedSurface(page, 'form[wire\\:submit]');
+        await page.screenshot({ path: testInfo.outputPath(`app-header-profile-${width}.png`), fullPage: true });
+
+        await menuButton.click();
+        await expect(page.getByRole('menuitem', { name: 'Cerrar sesión' })).toBeVisible();
+        await page.getByRole('menuitem', { name: 'Configuración' }).click();
+        await expect(page).toHaveURL(/\/settings\/profile(?:\?|$)/);
+
+        for (const [path, heading] of [
+            ['/settings/profile', 'Perfil'],
+            ['/settings/security', 'Actualizar contraseña'],
+            ['/settings/appearance', 'Apariencia'],
+        ]) {
+            await page.goto(path);
+            if (path === '/settings/security' && await page.getByRole('heading', { name: 'Confirmar contraseña' }).isVisible()) {
+                await page.getByRole('textbox', { name: 'Contraseña' }).fill('ValidPassword84!strong');
+                await page.getByRole('button', { name: 'Confirmar' }).click();
+                await expect(page).toHaveURL(/\/settings\/security(?:\?|$)/);
+            }
+            await expect(page.getByRole('heading', { name: heading }).last()).toBeVisible();
+            await expectAuthenticatedSurface(page, '[data-test="settings-surface"]');
+            await expect(page.locator('[data-test="settings-surface"]')).toHaveCSS('background-color', 'rgb(39, 39, 39)');
+            await page.screenshot({ path: testInfo.outputPath(`settings-${path.split('/').at(-1)}-${width}.png`), fullPage: true });
+        }
+
+        await expect(page.getByText('El tema oscuro está activo para todas las cuentas.')).toBeVisible();
+        await expect(page.getByRole('radio')).toHaveCount(0);
+        await page.goto('/settings/security');
+        const passwordInput = page.getByRole('textbox', { name: 'Contraseña actual' });
+        await passwordInput.focus();
+        await expect(passwordInput).toBeFocused();
 
         if (width === 1280) {
-            await page.locator('[data-test="sidebar-menu-button"]').click();
-            await page.getByRole('menuitem', { name: 'Configuración' }).click();
-            await expect(page).toHaveURL(/\/settings\/profile(?:\?|$)/);
-            await page.getByRole('link', { name: 'Apariencia' }).click();
-            await expect(page).toHaveURL(/\/settings\/appearance(?:\?|$)/);
-            await page.getByRole('radio', { name: 'Oscuro' }).check();
-            await expectReadable(page, 'dark');
+            await expect(page.getByRole('link', { name: 'Apariencia' })).toHaveCount(0);
+            await page.goto('/settings/appearance');
+            await expect(page.getByText('El tema oscuro está activo para todas las cuentas.')).toBeVisible();
+            await expect(page.getByRole('radio')).toHaveCount(0);
+            await expectReadable(page);
             await page.getByRole('link', { name: 'Perfil del negocio' }).click();
             await expect(page).toHaveURL(/\/business\/profile(?:\?|$)/);
-            await expectReadable(page, 'dark');
+            await expectReadable(page);
             await page.reload();
-            await expectReadable(page, 'dark');
-            await page.goto('/settings/appearance');
-            await page.getByRole('radio', { name: 'Claro' }).check();
             await expectReadable(page);
         }
+
+        await menuButton.click();
+        await page.getByRole('menuitem', { name: 'Cerrar sesión' }).click();
+        await expect(page).toHaveURL(/\/$/);
+        await page.goto('/dashboard');
+        await expect(page).toHaveURL(/\/login(?:\?|$)/);
     });
 }

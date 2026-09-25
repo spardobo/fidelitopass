@@ -205,10 +205,10 @@ Actions/evaluators own:
 
 - Prefer Flux UI Free components where they fit the product behaviour.
 - Prefer semantic HTML before custom JavaScript.
-- Default to warm light with optional dark using shared Tailwind theme tokens and Flux `@fluxAppearance`; use Alpine only for small client-only interactions such as lightweight disclosure.
+- Use the dark-only Onest theme: shared Tailwind `@theme` tokens in `resources/css/app.css` define the black shell, charcoal canvas/surfaces, off-white ink, and lavender accent. `resources/views/partials/theme-default.blade.php` initializes dark appearance before Flux loads through the shared head; do not offer a light-mode toggle. Use Alpine only for small client-only interactions such as lightweight disclosure.
 - Keep camera/scanner JavaScript isolated to the validation component.
 - Never duplicate authoritative Challenge/Reward state in Alpine.
-- Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure.
+- Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure. The current authentication wrapper `resources/views/layouts/auth.blade.php` renders `layouts::auth.card`; the application uses `resources/views/layouts/app/header.blade.php` as its header layout.
 - Use `wire:navigate` conservatively. Persist shared navigation only outside Livewire components when needed, and keep active-link styling dynamic after navigation.
 - Do not add a SPA framework for MVP.
 
