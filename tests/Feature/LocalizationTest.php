@@ -5,8 +5,6 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator;
-use Laravel\Fortify\Features;
-use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -106,37 +104,11 @@ test('standard numeric validation is translated', function (): void {
     expect($errors->first('name'))->toBe('El campo nombre tiene que estar entre 10 y 20.');
 });
 
-test('authentication rejection and two factor validation show Spanish messages', function (): void {
+test('authentication rejection shows a Spanish message', function (): void {
     $user = User::factory()->create();
 
     $this->post('/login', ['email' => $user->email, 'password' => 'wrong-password'])
         ->assertSessionHasErrors(['email' => 'Estas credenciales no coinciden con nuestros registros.']);
-
-    $this->actingAs($user);
-    Livewire::test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
-        ->set('showVerificationStep', true)
-        ->set('code', '12')
-        ->call('confirmTwoFactor')
-        ->assertSeeText('El campo código debe contener 6 caracteres.');
-});
-
-test('unreadable recovery codes render a Spanish error without exposing recovery data', function (): void {
-    $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
-
-    $user = User::factory()->create([
-        'two_factor_secret' => encrypt('test-secret'),
-        'two_factor_confirmed_at' => now(),
-        'two_factor_recovery_codes' => 'malformed-recovery-payload',
-    ]);
-
-    $this->actingAs($user);
-
-    Livewire::test('pages::settings.two-factor.recovery-codes')
-        ->assertHasErrors(['recoveryCodes'])
-        ->assertSet('recoveryCodes', [])
-        ->assertSeeText('No se pudieron cargar los códigos de recuperación.')
-        ->assertDontSeeText('Failed to load recovery codes')
-        ->assertDontSeeText('malformed-recovery-payload');
 });
 
 test('password reset and verification mail render Spanish actions and copy', function (): void {

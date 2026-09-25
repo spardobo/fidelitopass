@@ -5,7 +5,6 @@ namespace Tests\Feature\Settings;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Laravel\Fortify\Features;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -57,33 +56,6 @@ class SecurityTest extends TestCase
             ->assertDontSee('Administra tus claves de acceso para iniciar sesión sin contraseña')
             ->assertDontSee('Añade una clave de acceso para iniciar sesión sin contraseña')
             ->assertDontSee('Autenticación de doble factor');
-    }
-
-    public function test_two_factor_authentication_disabled_when_confirmation_abandoned_between_requests(): void
-    {
-        /* @chisel-2fa */
-        $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
-
-        $user = User::factory()->create();
-
-        $user->forceFill([
-            'two_factor_secret' => encrypt('test-secret'),
-            'two_factor_recovery_codes' => encrypt(json_encode(['code1', 'code2'])),
-            'two_factor_confirmed_at' => null,
-        ])->save();
-
-        $this->actingAs($user);
-
-        $component = Livewire::test('pages::settings.security');
-
-        $component->assertSet('twoFactorEnabled', false);
-
-        $this->assertDatabaseHas('users', [
-            'id' => $user->id,
-            'two_factor_secret' => null,
-            'two_factor_recovery_codes' => null,
-        ]);
-        /* @end-chisel-2fa */
     }
 
     public function test_password_can_be_updated(): void

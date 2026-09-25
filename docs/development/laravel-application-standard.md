@@ -391,6 +391,12 @@ Prefer framework/deployment mechanisms before custom packages.
 
 Keep the baseline described in the security architecture. Do not add an untested strict CSP that breaks Livewire/Alpine/Vite.
 
+## Retired two-factor persistence
+
+The new retirement migration drops only existing columns among `users.two_factor_secret`, `users.two_factor_recovery_codes`, and `users.two_factor_confirmed_at`. It also succeeds on fresh no-2FA schemas where all three are absent. Its rollback is intentionally a no-op: deleted credential values cannot be recovered, and rollback must not recreate retired columns. The original starter views and original schema migration remain unchanged; Fortify's two-factor feature stays disabled and passkeys remain independently configured.
+
+To re-enable two-factor authentication in a future project, explicitly opt in to Fortify's feature, restore the `TwoFactorAuthenticatable` model trait and appropriate hidden attributes, add a new forward migration for the three credential columns, restore compatible setup/challenge UI and tests, and enroll users with new credentials. Do not treat rollback as credential recovery.
+
 ## Testing convention
 
 Use Pest for new project-owned tests where practical.

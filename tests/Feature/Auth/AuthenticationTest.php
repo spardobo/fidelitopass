@@ -3,14 +3,49 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
-use Laravel\Fortify\Features;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_users_table_cannot_store_two_factor_credentials(): void
+    {
+        foreach (['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at'] as $column) {
+            $this->assertFalse(Schema::hasColumn('users', $column), "Unexpected users column: {$column}");
+        }
+    }
+
+    public function test_retirement_migration_is_safe_when_columns_are_already_absent(): void
+    {
+        $migration = require database_path('migrations/2026_09_25_024647_remove_two_factor_columns_from_users_table.php');
+
+        $migration->up();
+        $migration->down();
+
+        foreach (['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at'] as $column) {
+            $this->assertFalse(Schema::hasColumn('users', $column), "Unexpected users column after rollback: {$column}");
+        }
+    }
+
+    public function test_retirement_migration_drops_only_existing_two_factor_columns(): void
+    {
+        Schema::table('users', function (Blueprint $table): void {
+            $table->text('two_factor_recovery_codes')->nullable();
+        });
+
+        $migration = require database_path('migrations/2026_09_25_024647_remove_two_factor_columns_from_users_table.php');
+        $migration->up();
+        $migration->down();
+
+        foreach (['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at'] as $column) {
+            $this->assertFalse(Schema::hasColumn('users', $column), "Unexpected users column after rollback: {$column}");
+        }
+    }
 
     public function test_login_screen_can_be_rendered(): void
     {
@@ -47,43 +82,6 @@ class AuthenticationTest extends TestCase
         $response->assertSessionHasErrorsIn('email');
 
         $this->assertGuest();
-    }
-
-    public function test_users_with_two_factor_enabled_are_redirected_to_two_factor_challenge(): void
-    {
-        $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
-
-        Features::twoFactorAuthentication([
-            'confirm' => true,
-            'confirmPassword' => true,
-        ]);
-
-        $user = User::factory()->withTwoFactor()->create();
-
-        $response = $this->post(route('login.store'), [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $response->assertRedirect(route('two-factor.login'));
-        $this->assertGuest();
-    }
-
-    public function test_stored_two_factor_credentials_do_not_challenge_password_login_when_feature_is_disabled(): void
-    {
-        $this->assertFalse(Features::enabled(Features::twoFactorAuthentication()));
-
-        $user = User::factory()->withTwoFactor()->create();
-
-        $response = $this->post(route('login.store'), [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $response->assertSessionHasNoErrors()
-            ->assertRedirect(route('dashboard', absolute: false));
-        $this->assertAuthenticatedAs($user);
-        $this->assertNotNull($user->refresh()->two_factor_secret);
     }
 
     public function test_disabled_two_factor_passkey_and_discovery_routes_are_unavailable(): void
