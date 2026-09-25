@@ -39,7 +39,7 @@ This document defines observable MVP behaviour.
 | 23 | REQ-REW-003 | Must | Reward | Functional | Reject Reward use after Challenge expiry or cancellation. |
 | 24 | REQ-WAL-001 | Must | Wallet | Functional | Present deterministic Wallet content for every customer state. |
 | 25 | REQ-WAL-002 | Must | Wallet | Quality/technical | Synchronize Wallet after commit and recover safely from provider failure. |
-| 26 | REQ-UX-001 | Must | UX | Quality/technical | Use a warm light theme by default with optional dark mode. |
+| 26 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
 | 27 | REQ-UX-002 | Must | UX | Functional | Keep the validation workflow fast and scanner-first. |
 | 28 | REQ-UX-003 | Must | UX | Quality/technical | Keep core flows responsive with basic keyboard and touch accessibility. |
 | 29 | REQ-UX-004 | Must | UX | Functional | Present explicit success, point-award, reward, expiry, and error states. |
@@ -588,27 +588,33 @@ As a Business owner, I want accepted Visits and Redemptions to remain valid even
 
 ### UX
 
-#### REQ-UX-001 — Warm light-first theme with optional dark mode
+#### REQ-UX-001 — Dark-only Onest/lavender interface
 
 **Priority:** Must
 **Type:** Quality/technical
 **Module:** UX
 
-As a user, I want a calm interface with a clear accent so that long or fast operational use does not feel visually harsh.
+As a user, I want a consistent dark interface with a clear accent so that long or fast operational use remains comfortable.
 
 **Acceptance Criteria**
 
-**Scenario: Default theme**
+**Scenario: Consistent dark presentation**
 
-- **Given** no saved theme preference.
-- **When** the application opens.
-- **Then** the warm light theme is used.
+- **Given** a public, authentication, or application page.
+- **When** the page opens with no saved theme preference.
+- **Then** it uses a dark-only interface with locally served Onest and lavender `#B7ABE4` accents.
 
-**Scenario: Dark preference**
+**Scenario: Saved or system light preference**
 
-- **Given** the user selects dark mode.
-- **When** navigation continues.
-- **Then** the preference persists and uses the same semantic design tokens.
+- **Given** a saved light preference or a system light preference.
+- **When** a public, authentication, or application page opens.
+- **Then** the dark theme is applied before content appears, without a light-theme flash or a theme switch.
+
+**Scenario: Responsive and accessible presentation**
+
+- **Given** a public, authentication, or application page.
+- **When** it is viewed on a narrow viewport, navigated by keyboard, or used with reduced motion enabled.
+- **Then** its layout remains responsive, controls have visible focus, and nonessential motion respects reduced-motion preferences.
 
 **Verification:** Browser/UI review.
 

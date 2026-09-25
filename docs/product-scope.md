@@ -19,6 +19,8 @@ Create challenge
 
 The product wins through clarity and playful mechanics, not feature volume.
 
+Current implementation includes registration, login, email verification, Business setup/profile, and a public landing page with a conceptual sample pass and static fictional QR/code; Challenge creation, customer acquisition, Wallet issuance, visit validation, and Redemption remain target MVP requirements, not delivered flows. The sample QR/code does not validate a visit.
+
 ## Must-have capabilities
 
 ### Public product
@@ -151,4 +153,4 @@ MVP is complete when one Business can demonstrate:
 9. One successful Redemption.
 10. Challenge expiry behaviour.
 11. Persistent Wallet reuse for a following Challenge.
-12. Clean responsive light/dark web experience.
+12. Clean responsive dark-only web experience.

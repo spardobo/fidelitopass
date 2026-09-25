@@ -23,7 +23,7 @@ test('Spanish is the initial interface locale', function (): void {
 test('guest pages render Spanish copy', function (string $path, string $label): void {
     $this->get($path)->assertSeeText($label);
 })->with([
-    'welcome' => ['/', 'Haz que volver sea parte del juego.'],
+    'welcome' => ['/', 'Dale a tus clientes una razón para volver.'],
     'registration' => ['/register', 'Crear una cuenta'],
     'forgot password' => ['/forgot-password', 'Recuperar contraseña'],
     'password reset' => ['/reset-password/test-token', 'Restablecer contraseña'],
@@ -32,16 +32,30 @@ test('guest pages render Spanish copy', function (string $path, string $label): 
 test('landing page translates its title, description and accessible navigation', function (): void {
     $this->get(route('home'))
         ->assertOk()
-        ->assertSee('Haz que volver sea parte del juego - '.config('app.name'))
-        ->assertSee('Crea tu cuenta y registra tu negocio')
+        ->assertSee('FidelitoPass - Dale a tus clientes una razón para volver.')
+        ->assertSee('Convierte cada visita en una razón para volver con retos de puntos y un pase de Google Wallet para tu negocio.')
         ->assertSee('aria-label="Secciones de la página"', false)
-        ->assertSee('Vista conceptual de una tarjeta con seis de diez puntos');
+        ->assertSee('Vista del pase de Google Wallet de CAFÉ CENTRAL')
+        ->assertSee('El pase')
+        ->assertSee('Beneficios')
+        ->assertSee('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 10 puntos antes del plazo, tu cliente obtiene un café.')
+        ->assertDontSee('landing.hero.sample.business')
+        ->assertDontSee('landing.hero.card_aria')
+        ->assertDontSee('tarjeta Wallet');
+});
+
+test('design preview is unavailable in every environment', function (): void {
+    $this->get('/design-preview')->assertNotFound();
 });
 
 test('project pages resolve grouped translations without leaking keys', function (): void {
-    expect(__('landing.page_title'))->toBe('Haz que volver sea parte del juego');
-    expect(__('landing.page_description'))->toStartWith('Crea tu cuenta y registra tu negocio');
+    expect(__('landing.page_title'))->toBe('FidelitoPass - Dale a tus clientes una razón para volver.');
+    $blade = file_get_contents(resource_path('views/pages/⚡landing/landing.blade.php'));
+    expect($blade)->not->toMatch('/CAFÉ CENTRAL|RETO ACTUAL|Consigue 15 puntos|9 \/ 15 puntos|Hamburguesa gratis|Código manual|48273|Retos que se renuevan|Progreso en puntos|>\s*El pase\s*</u');
+    expect(__('landing.page_description'))->toStartWith('Convierte cada visita en una razón para volver con retos de puntos');
     expect(__('landing.navigation.page_sections'))->toBe('Secciones de la página');
+    expect(__('landing.hero.pass_aria'))->toContain('pase de Google Wallet');
+    expect(array_intersect(['card_aria', 'card_caption', 'card_progress', 'card_detail', 'card_badge'], array_keys(__('landing.hero'))))->toBe([]);
     expect(__('business.profile_title'))->toBe('Perfil del negocio');
     expect(__('business.dashboard.page_title'))->toBe('Panel del negocio');
 

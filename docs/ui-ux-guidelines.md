@@ -12,52 +12,29 @@ This document defines the web interaction model, visual system, page intent, and
 6. Keep one primary action per decision point.
 7. Show immediate feedback for every validation/redeem operation.
 8. Use text and iconography in addition to colour.
-9. Keep customer and Business copy in neutral Spanish.
-10. Avoid visually harsh pure-white/pure-black surfaces.
+9. Address merchants with consistent informal Spanish (tuteo); use neutral Spanish elsewhere.
+10. Use the approved dark-only palette with legible contrast and visible focus.
 
 ## Visual system
 
-### Primary colour
+### Approved dark-only palette
 
-Use one playful lime-green accent:
-
-```text
-Primary:        #B7F34A
-Primary hover:  #A8E33F
-Primary active: #98D333
-```
-
-Use dark text on lime surfaces. Do not use the lime as body text on light surfaces unless contrast is verified.
-
-### Light theme — default
+The application shell is black; content uses layered charcoal surfaces. Use dark ink on lavender controls and verify contrast for every state.
 
 ```text
-Canvas:        #F4F1E8   warm ivory
-Surface:       #FBF9F2   warm near-white
-Surface raised:#FFFDF7   soft cream
-Text:          #252820   charcoal olive
-Text muted:    #686B61
-Border:        #DAD6C8
-Primary:       #B7F34A
-Danger:        semantic muted red
-Warning:       semantic muted amber
+Shell:          #000000
+Canvas:         #181818
+Surface:        #1F1F1F
+Raised surface: #272727
+Border:         #414141
+Ink:            #F6F5F2   off-white
+Accent:         #B7ABE4   lavender
+Accent hover:   #D8CEF5
+Public landing: #242424   background
+Landing panels: #303030
 ```
 
-The light theme must not use pure `#FFFFFF` as the page canvas.
-
-### Dark theme — optional
-
-```text
-Canvas:        #181B17   charcoal green
-Surface:       #20241F
-Surface raised:#282D26
-Text:          #EEEBDD   warm off-white
-Text muted:    #B5B5AA
-Border:        #3A4037
-Primary:       #B7F34A
-```
-
-The dark theme must not use pure `#000000` as its primary canvas.
+Keep semantic danger/warning feedback distinct from the accent. The landing uses its own charcoal panels, not a light-theme variant.
 
 ### Shape and spacing
 
@@ -68,15 +45,15 @@ The dark theme must not use pure `#000000` as its primary canvas.
 - Borders are subtle; shadows are light and sparse.
 - Prefer breathing room over dense dashboards.
 
-### Brand asset exploration
+### Approved asset inventory
 
-Use the following English prompt to explore a wordmark and favicon, not as approval of a production logo. Check spelling, originality, small-size legibility, and usage rights before replacing any existing asset.
-
-> Design an original, approachable vector identity for **FidelitoPass**, a tool for business owners. Create a precise wordmark reading **FidelitoPass** (capital F and P, no extra words) and a matching standalone favicon. Use a warm ivory `#F4F1E8`, charcoal olive `#252820`, and lime `#B7F34A` palette; the mark should suggest a welcoming return visit through one simple, memorable loop or subtle spark rather than a literal wallet, QR code, card, or trophy. Favor a balanced, softly rounded geometric sans wordmark, confident spacing, and a flat, high-contrast icon legible at 16×16 pixels. Provide light-background (`#F4F1E8`), dark-background (`#181B17`), and single-color variants, plus separate transparent SVG artwork and square favicon previews at 16, 32, and 48 pixels. No gradients, shadows, mockups, stock icons, Google/Wallet branding, invented product claims, or additional text. Keep lettering editable and verify the exact spelling manually before export.
+- `public/logo.png`: source artwork; `public/logo-header.webp`: optimized header/footer wordmark.
+- `public/logo_icon.svg`: standalone isotipo, including the decorative mark in the landing pass visual.
+- `resources/views/partials/head.blade.php`: favicon links to `public/favicon.ico`, `public/favicon.svg`, PNG favicon sizes, and Apple touch icon; `public/site.webmanifest` lists Android icons. Keep the shared head partial as the single integration point.
 
 ## Typography
 
-Use the project/system sans-serif stack unless a deliberate brand font is added later.
+Use the approved Onest Variable sans-serif stack from `resources/css/app.css`.
 
 Hierarchy:
 
@@ -95,36 +72,14 @@ The landing page introduces the product, not the dashboard.
 ### Header
 
 - FidelitoPass wordmark/logo on the left.
-- Compact anchors: `Cómo funciona`, `Retos`, `Para negocios`.
-- Theme toggle may appear as an icon/control.
-- Primary CTA: **Crear mi cuenta**, linked to available registration and Business profile setup.
-- Sign-in action: **Inicia sesión**, visually subordinate to registration.
+- Navigation order: **Beneficios → Cómo funciona → Retos de puntos → El pase → Preguntas frecuentes → Empezar**.
+- No header registration button or theme toggle. The header links to page sections; the hero and final section carry the same registration action.
 
-On small screens, collapse navigation while keeping the primary CTA reachable.
+On small screens, keep navigation accessible without adding a competing registration CTA.
 
 ### Hero
 
-Suggested copy:
-
-**Heading**
-
-> Haz que volver sea parte del juego.
-
-**Supporting copy**
-
-> Hoy puedes crear tu cuenta y registrar tu negocio. Los retos de puntos y la tarjeta para Google Wallet están en desarrollo.
-
-Primary CTA:
-
-> Crear mi cuenta
-
-Sign-in remains a discreet link; do not present future Challenge creation as available.
-
-Hero visual:
-
-- One clean Wallet-card mockup.
-- One challenge example.
-- No dashboard screenshot collage.
+Use the current marketing copy in `lang/es/landing.php`; do not replace it with a speculative draft. The hero and final CTA both link to registration; sign-in remains subordinate. Show the illustrative pass and Challenge as conceptual product visuals, not proof of shipped Wallet issuance or Visit validation. The mock QR is not independently decoded or functional. If publishing the page, make the distinction between the target journey and available functionality explicit in product-facing copy.
 
 ### How it works
 
@@ -142,17 +97,11 @@ Show a clearly labeled conceptual example and one proposed moment when a Visit c
 
 ### Wallet section
 
-Explain:
-
-> Una sola tarjeta. Nuevos retos con el tiempo.
-
-Show the stable Wallet information hierarchy.
+Describe a persistent **pase para Google Wallet**, not a tarjeta. Show the target Wallet information hierarchy; issuance remains a future capability.
 
 ### Final CTA
 
-One clear action:
-
-> Crear mi cuenta
+Repeat the hero registration action and label from `lang/es/landing.php`.
 
 ### Footer
 

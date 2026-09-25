@@ -408,8 +408,9 @@ Then build section by section per A6.
 # FidelitoPass stack appendix
 
 - Explicit user and project choices override conflicting upstream hard rules; preserve accessibility, contrast, and visible focus.
-- Build with existing Laravel 13 / Livewire 4 full-page MFCs, `Route::livewire`, and shared layouts; reuse Flux 2, Tailwind 4 `@theme`, and the Vite asset pipeline instead of parallel UI infrastructure.
-- Link registration and sign-in through existing Fortify `route('register')` and `route('login')` routes.
-- Put neutral Spanish copy in grouped `lang/es/landing.php` keys. Follow `docs/ui-ux-guidelines.md`: warm-light default, optional dark, generous spacing, soft card corners and rounded controls.
+- Build with existing Laravel 13 / Livewire 4 full-page MFCs, `Route::livewire`, and shared layouts; reuse Flux 2, Tailwind 4 `@theme`, and the Vite asset pipeline instead of a duplicate build pipeline.
+- Use the approved dark-only Onest palette: lavender `#B7ABE4` (hover `#D8CEF5`), black app shell, charcoal surfaces, and the `#242424` / `#303030` public landing layers. Follow `docs/ui-ux-guidelines.md` for current tokens and assets.
+- Link registration and sign-in through existing Fortify `route('register')` and `route('login')` routes. Keep merchant-directed copy in consistent informal Spanish (tuteo), neutral Spanish elsewhere, and landing copy in grouped `lang/es/landing.php` keys.
+- Distinguish currently available registration and Business setup from target Challenge, scanner, and Wallet flows. The illustrative pass QR is not independently functional; make availability explicit in product-facing copy before publication.
 - Validate semantic, accessible behavior with reusable browser tests through the current Docker Playwright wrapper (`./scripts/quality/browser/run-playwright.sh`).
 - Do not invent product metrics, testimonials, free pricing, or unimplemented capabilities; omit unsupported proof and offers.
