@@ -79,6 +79,8 @@ Do not introduce Strategy hierarchies, condition trees, expression languages, or
 - Prefer Flux Free components, semantic Blade, Tailwind, and native framework behaviour before custom JavaScript.
 - Use Alpine only for small client-only interaction such as disclosure/theme.
 - Keep camera/scanner JavaScript isolated.
+- Keep page-local interactions in the owning Livewire component's `@script` when appropriate; use the configured Vite entry for shared JavaScript and CSS. Do not add a standalone bundle, inline global script, or duplicate asset pipeline just to move code.
+- Make DOM listeners, observers, animation frames, and timers idempotent across Livewire navigation/morphs; release or cancel them when their owner is removed. Respect touch and reduced-motion behavior.
 - Client/Livewire state never decides Visit validity, Challenge completion, Reward availability, or Redemption finality.
 - Manual-code input remains directly below the scanner; do not hide it behind another interaction.
 
@@ -90,7 +92,10 @@ Do not introduce Strategy hierarchies, condition trees, expression languages, or
 - Prefer early returns when they make control flow flatter.
 - Keep methods cohesive; split by responsibility, not arbitrary length.
 - Avoid vague names such as `Manager`, `Helper`, `Handler`, and `Util` when a domain/capability name exists.
-- Keep Blade readable; do not compress ordinary markup into PHP strings/helpers.
+- Keep Blade readable: separate header, form, card, navigation, section, and action blocks with indentation and a genuinely empty source line between adjacent logical blocks (not merely text echoes on their own lines). For long views, add brief English HTML comments before major visible regions (for example `<!-- navigation -->` or `<!-- main content -->`) when they make the corresponding UI easy to find; do not comment every element or restate obvious markup. Do not compress multiple ordinary elements, nested directives, or whole sections onto one line or into PHP strings/helpers.
+- Use descriptive English identifiers in Blade too, including DOM `id`, fragment targets, `data-*` hooks, and linked `href="#..."`; update every reference and test together rather than translating user-facing copy into identifiers.
+- Put visible labels, localized expressions (`{{ __('...') }}`), and other `{{ }}` text on their own indented line between opening and closing tags, including `<flux:label>`, headings, buttons, links, and option text. Keep short self-closing components with attribute-bound labels (`:label="__('...')"`) on one line when readable. Preserve inline whitespace only where it determines rendered text (such as word separators or mixed inline emphasis).
+- For JavaScript, apply the same maintainability standard as PHP: descriptive English names, focused functions, early returns, one responsibility per block, and whitespace between steps. Avoid dense one-line handlers, nested callbacks that obscure control flow, magic numbers without named intent, and comments that restate code. Extract helpers only when they remove real complexity or duplication; do not over-engineer a local interaction.
 - Write code as a top-to-bottom narrative with whitespace between semantic blocks.
 - Extract helpers when they remove meaningful complexity or duplication.
 
@@ -110,7 +115,7 @@ Add English PHPDoc only when it communicates a contract not obvious from the sig
 
 Do not add rote docblocks to obvious constructors, accessors, framework hooks, or self-explanatory private methods.
 
-Comments explain why a non-obvious constraint exists. Refactor ordinary control flow instead of explaining it with long comments.
+Keep internal code and HTML comments in lowercase English; reserve comments for useful major regions, not every element. Comments explain why a non-obvious constraint exists. Refactor ordinary control flow instead of explaining it with long comments.
 
 ## Date/time convention
 
@@ -143,7 +148,7 @@ Never log passwords, cookies, authorization headers, raw validation tokens, Wall
 
 ## Localization
 
-UI is Spanish.
+UI is Spanish. Every visible Blade string, including labels, headings, button/link text, placeholder, `alt`, `title`, and accessible names, must come from Laravel i18n (`__()` or the project's existing translation mechanism). Do not hardcode Spanish UI copy in Blade, even for an illustrative card; keep dynamic sample data in translation keys when it is display text. Empty decorative `alt=""` is not visible copy.
 
 Technical documentation, identifiers, comments, enum values, and log event names are English.
 
