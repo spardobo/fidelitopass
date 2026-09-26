@@ -93,8 +93,8 @@ Core rules:
 - Challenge target/Reward configuration ranges.
 - Challenge active/scheduled/ended state from database time.
 - Non-overlapping publication.
-- Regular Visit point awarding.
-- Optional special weekday/time point awarding.
+- Fixed one-point regular Visit awarding.
+- Recurring weekday xN multiplier awarding: whole-day versus disjoint half-open timed windows, touching endpoints, overlap rejection, and no stacking.
 - Legitimate repeat Visits on the same day.
 - Idempotent/concurrent validation of one operation.
 - Challenge progress from immutable awarded points.

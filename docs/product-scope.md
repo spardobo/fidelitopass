@@ -33,11 +33,11 @@ Current implementation includes registration, login, email verification, Busines
 
 - Register and authenticate.
 - Configure Business name, logo/branding basics, and IANA timezone.
-- Create one points-based Challenge with start date, end date, target points, and one Reward.
-- Configure the regular Visit point value and at most one optional special weekday/time rule.
+- Create multiple draft and future scheduled instances of one points-based Challenge mechanic, each with start date, end date, target points, and one Reward.
+- Configure a fixed one-point regular Visit and any number of nonoverlapping weekly local-weekday xN multiplier windows (whole-day or timed).
 - Preview customer Wallet copy before publication.
-- Publish non-overlapping Challenge windows.
-- View the active/scheduled Challenge and minimal operational counters.
+- Publish non-overlapping effective Challenge windows and cancel scheduled or active Challenges without erasing their history.
+- View the active/scheduled Challenges and minimal operational counters.
 - Display/download the permanent acquisition QR.
 - Validate a customer by scanner or manual code.
 - Redeem an available Reward.
@@ -75,10 +75,10 @@ Every Challenge asks the customer to reach a target number of points before its 
 
 Point earning remains intentionally small:
 
-- A Regular Visit has one configured point value.
-- At most one optional special rule can make a Visit worth a different value on one selected weekday.
-- The special rule may apply for the whole selected day or for one time range.
-- Point rules do not stack.
+- Every accepted regular Visit awards exactly one point.
+- Any number of weekly recurring rules may multiply that base by integer xN (N >= 2) on a Business-local weekday, either all day or in several disjoint half-open intraday windows.
+- A whole-day rule excludes timed windows on that weekday; rules cannot cross midnight or stack. Outside windows x1 applies.
+- Future Visits use the current rules and the active published Challenge timezone snapshot; stored awarded points are immutable.
 
 There is no Challenge-type catalog and no generic rule builder in MVP.
 
@@ -96,12 +96,11 @@ MVP does not include:
 - Payments or billing.
 - Multiple branches per Business.
 - Staff roles beyond the owner account.
-- Multiple simultaneous Challenges.
+- Multiple simultaneous effective Active Challenges (draft and future scheduled instances are allowed).
 - Multiple Rewards per Challenge.
 - Reward inventory/capacity.
 - Custom Challenge formulas.
-- Several simultaneous special point rules.
-- Rule stacking.
+- Overlapping multiplier windows or rule stacking.
 - Apple Wallet.
 - Native mobile applications.
 - Customer discovery marketplace.
@@ -144,7 +143,7 @@ MVP is complete when one Business can demonstrate:
 
 1. Registration and Business setup.
 2. Permanent acquisition QR.
-3. One published Challenge.
+3. Publication of sequential Challenge instances without effective overlap.
 4. Anonymous customer Wallet issuance.
 5. Scan and manual-code validation.
 6. Correct Challenge progress.

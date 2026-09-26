@@ -8,7 +8,7 @@ This document defines the web interaction model, visual system, page intent, and
 2. Prefer recognition over memory.
 3. Keep operational Business flows short.
 4. Explain every Challenge in plain language.
-5. Use progressive disclosure for the optional special point rule.
+5. Use progressive disclosure for recurring weekday multiplier windows.
 6. Keep one primary action per decision point.
 7. Show immediate feedback for every validation/redeem operation.
 8. Use text and iconography in addition to colour.
@@ -189,25 +189,15 @@ Show only:
 
 Keep point earning compact and separate from the Challenge goal.
 
-Show:
+Show the fixed regular Visit value: 1 point. Let the Business add any number of recurring weekday multiplier rules xN (integer N >= 2). For each weekday, offer either a whole-day rule or multiple disjoint half-open `[start, end)` time slots; timed slots may touch at endpoints but must not overlap. A whole-day rule cannot coexist with timed slots on that weekday. Show weekday, multiplier, and start/end times for timed slots only.
 
-- Regular Visit point value.
-- Optional special rule toggle.
-
-When the optional rule is enabled, progressively reveal:
-
-- One weekday.
-- Full-day or time-range option.
-- Start/end time only when time range is selected.
-- Special Visit point value.
-
-Do not offer multiple special rules, rule stacking, expressions, or arbitrary conditions.
+Do not offer overlapping windows, rule stacking, expressions, or a generic rule builder.
 
 ### Preview
 
 Show a deterministic Wallet preview alongside the form on wide screens and below the form on narrow screens.
 
-The preview always uses points as the progress unit and shows the current Visit point value.
+The preview always uses points as the progress unit and shows the current Visit point value (1 point outside multiplier windows, xN points inside one window).
 
 Do not generate dynamic stamp-circle graphics.
 

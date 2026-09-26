@@ -26,7 +26,7 @@ Demonstration:
 
 ## Wave 2 — Challenge authoring and publication
 
-**Outcome:** the Business can configure point earning and create/publish one deterministic points-based Challenge.
+**Outcome:** the Business can configure recurring point multipliers and author, preview, schedule, publish, and cancel instances of one points-based Challenge mechanic.
 
 Requirements:
 
@@ -39,12 +39,13 @@ Requirements:
 
 Demonstration:
 
-- Regular Visit point value.
-- Optional special weekday/time point rule.
+- Fixed one-point regular Visit and multiple disjoint weekly xN multiplier windows (whole-day or timed).
 - Challenge dates + target points + Reward.
 - Deterministic preview.
-- Publication to UTC window.
-- Overlap/edit/cancel rules.
+- Publication to immutable UTC windows with timezone snapshots; multiple drafts/future instances, at most one effective Active.
+- Serialized overlap/edit/cancel rules; cancellation releases remaining occupancy without changing publication history.
+
+Wave 2 does not validate Visits, issue Wallet passes, award points, or redeem Rewards. Its preview is conceptual and deterministic.
 
 ## Wave 3 — Acquisition and persistent Google Wallet pass
 
@@ -91,8 +92,8 @@ Demonstration:
 - Database-time Visit.
 - Legitimate same-day repeat Visits.
 - Idempotent validation retries.
-- Regular point awarding.
-- Special weekday/time point awarding.
+- Every accepted regular Visit awards exactly one point.
+- Applicable Business-local weekday/time xN multiplier awards N immutable points per accepted Visit, with no stacking; outside windows x1 applies.
 - Challenge completion from target points.
 
 ## Wave 5 — Reward and Wallet synchronization

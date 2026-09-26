@@ -8,7 +8,7 @@ FidelitoPass has one Challenge mechanic in MVP:
 
 > Earn a target number of points before the Challenge ends to unlock one Reward.
 
-The Business does not choose between different Challenge algorithms.
+The Business does not choose between different Challenge algorithms. It may keep any number of draft and future scheduled instances, but at most one is effective Active at an instant.
 
 ## Challenge configuration
 
@@ -28,7 +28,8 @@ On publication:
 - Local `start_date 00:00` becomes inclusive `starts_at`.
 - Midnight immediately after `end_date` becomes exclusive `ends_at`.
 - The instants are stored as `timestamptz`.
-- The published Challenge window and Reward semantics remain stable while active.
+- The original UTC window, timezone snapshot, target and Reward remain immutable from publication, including after cancellation.
+- Published effective windows for one Business never overlap; touching endpoints are allowed.
 
 ## Point earning
 
@@ -36,15 +37,9 @@ A Visit is the immutable business fact. Points are the progress awarded for that
 
 Each accepted Visit records the number of points awarded at validation time.
 
-The Business has a small, deterministic point configuration:
+Every accepted regular Visit awards exactly one point. A Business may configure any number of weekly recurring multiplier rules xN (integer N >= 2), keyed by Business-local weekday. A rule covers the whole day or a half-open `[start, end)` time window within that day. Several timed windows on one weekday must be distinct and nonoverlapping; touching endpoints are valid. Whole-day and timed rules cannot coexist on the same weekday. Split overnight promotions into separate weekday rules.
 
-- A regular Visit value.
-- At most one optional special rule.
-- The special rule applies to one selected weekday.
-- The special rule may cover the full selected day or one time range on that day.
-- The special rule defines the Visit value while that window is active.
-
-The configuration is intentionally small. There is no rule builder, condition tree, stacking, or combination of several special rules in MVP.
+Exactly one multiplier applies at a time: x1 outside configured windows, xN within one window, with no stacking. There is no generic rule builder or condition tree.
 
 Examples:
 
@@ -55,10 +50,13 @@ Wednesday: 2 points all day.
 
 ```text
 Regular visit: 1 point.
-Wednesday 14:00-17:00: 2 points.
+Wednesday 14:00-15:00: x2 = 2 points.
+Wednesday 17:00-18:00: x3 = 3 points.
+Friday all day: x5 = 5 points.
+Outside those windows: x1 = 1 point.
 ```
 
-The application determines the applicable point value from PostgreSQL time and the Business timezone at the moment the Visit is accepted.
+For future Visit acceptance, the application derives local weekday/time from the active published Challenge's timezone snapshot and the single post-lock PostgreSQL operation instant. Preview shows the multiplier and resulting points; changing rules never rewrites recorded `points_awarded`.
 
 ## Multiple Visits on the same day
 
@@ -70,7 +68,7 @@ Technical retries of the same validation operation remain idempotent and must no
 
 ## Challenge progress
 
-Only points awarded by accepted Visits associated with the active Challenge count toward that Challenge.
+Only points awarded by accepted Visits associated with that Challenge count toward its progress. Cancellation stops new progress and redemption immediately, without removing historical Visits.
 
 ```text
 progress = sum(points_awarded)
@@ -101,9 +99,9 @@ Current Visit value:
 
 > Tu visita ahora vale {current_visit_points} punto(s).
 
-If the special rule is currently active:
+When a multiplier window is currently active:
 
-> ⚡ Ahora tu visita vale {special_points} puntos.
+> ⚡ Ahora tu visita vale {current_visit_points} puntos.
 
 Reward:
 
@@ -151,8 +149,7 @@ para el próximo reto.
 
 Do not implement:
 
-- Multiple simultaneous Challenges.
-- Multiple special point rules.
+- Multiple effective Active Challenges.
 - Rule stacking.
 - Customer-selected Challenges.
 - Alternative Challenge mechanics.
