@@ -5,11 +5,13 @@
     {{ filled($title ?? null) ? __($title).' - '.config('app.name', 'Laravel') : config('app.name', 'Laravel') }}
 </title>
 
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+@if (isset($description))
+    <meta name="description" content="{{ $description }}" />
+@endif
 
-@fonts
+@include('partials.icons')
+
+@include('partials.theme-default')
+@fluxAppearance
 
 @vite('resources/css/app.css')
-@fluxAppearance

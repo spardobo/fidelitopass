@@ -184,9 +184,9 @@ Client-side validation is UX only.
 
 Use Livewire 4 for server-driven interactivity.
 
-For new project-owned pages, prefer native Livewire multi-file components when PHP, Blade, and colocated tests form one clear component responsibility.
+For new project-owned full-page routes, prefer native Livewire multi-file components when PHP, Blade, and colocated tests form one clear component responsibility. Route them with `Route::livewire` and render through the appropriate starter layout (`layouts::public` or `layouts::app`) using its `$slot`.
 
-Do not convert stable components solely for format consistency.
+Preserve the starter's authentication/settings screens and their existing component formats; do not convert stable SFCs solely for consistency.
 
 Livewire owns:
 
@@ -205,10 +205,11 @@ Actions/evaluators own:
 
 - Prefer Flux UI Free components where they fit the product behaviour.
 - Prefer semantic HTML before custom JavaScript.
-- Use Alpine for small client-only interactions such as theme toggling or lightweight disclosure.
+- Use the dark-only Onest theme: shared Tailwind `@theme` tokens in `resources/css/app.css` define the black shell, charcoal canvas/surfaces, off-white ink, and lavender accent. `resources/views/partials/theme-default.blade.php` initializes dark appearance before Flux loads through the shared head; do not offer a light-mode toggle. Use Alpine only for small client-only interactions such as lightweight disclosure.
 - Keep camera/scanner JavaScript isolated to the validation component.
 - Never duplicate authoritative Challenge/Reward state in Alpine.
-- Use Tailwind design tokens/classes consistently.
+- Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure. The current authentication wrapper `resources/views/layouts/auth.blade.php` renders `layouts::auth.card`; the application uses `resources/views/layouts/app/header.blade.php` as its header layout.
+- Use `wire:navigate` conservatively. Persist shared navigation only outside Livewire components when needed, and keep active-link styling dynamic after navigation.
 - Do not add a SPA framework for MVP.
 
 ## Scanner implementation
@@ -278,7 +279,8 @@ Do not create enums for phases that are derived from timestamps.
 - Keep methods cohesive.
 - Split by responsibility, not arbitrary line counts.
 - Avoid vague class names such as `Manager`, `Helper`, `Handler`, or `Util` when a domain/capability name exists.
-- Keep Blade readable; do not hide normal markup inside PHP string builders.
+- Keep Blade readable; do not hide normal markup inside PHP string builders. Separate semantic blocks with whitespace, group related attributes, and break attribute lines only when length impedes scanning; do not enforce one attribute per line.
+- Scoped Pint `--blade` needs the npm packages `prettier`, `prettier-plugin-blade`, and `prettier-plugin-tailwindcss`, which are not installed here. Its Blade check is not a passing validation or a required dependency; apply the manual conventions above without adding formatter tooling.
 - Keep code as a top-to-bottom narrative with whitespace between semantic blocks.
 
 ## PHPDoc and comments
@@ -300,7 +302,7 @@ Comments explain **why a non-obvious constraint exists**, not what a line of cod
 
 ## Localization
 
-Customer/Business UI is Spanish.
+Customer/Business UI uses professional, neutral Spanish translated through Laravel; avoid hard-coded repeated user-facing copy.
 
 Technical documentation, source identifiers, comments, enum values, and log event names are English.
 
@@ -388,6 +390,12 @@ Do not show stack traces in production.
 Prefer framework/deployment mechanisms before custom packages.
 
 Keep the baseline described in the security architecture. Do not add an untested strict CSP that breaks Livewire/Alpine/Vite.
+
+## Retired two-factor persistence
+
+The new retirement migration drops only existing columns among `users.two_factor_secret`, `users.two_factor_recovery_codes`, and `users.two_factor_confirmed_at`. It also succeeds on fresh no-2FA schemas where all three are absent. Its rollback is intentionally a no-op: deleted credential values cannot be recovered, and rollback must not recreate retired columns. The original starter views and original schema migration remain unchanged; Fortify's two-factor feature stays disabled and passkeys remain independently configured.
+
+To re-enable two-factor authentication in a future project, explicitly opt in to Fortify's feature, restore the `TwoFactorAuthenticatable` model trait and appropriate hidden attributes, add a new forward migration for the three credential columns, restore compatible setup/challenge UI and tests, and enroll users with new credentials. Do not treat rollback as credential recovery.
 
 ## Testing convention
 

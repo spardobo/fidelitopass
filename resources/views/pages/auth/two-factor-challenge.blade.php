@@ -53,7 +53,7 @@
                                 x-model="code"
                                 length="6"
                                 name="code"
-                                :label="__('OTP Code')"
+                                label="OTP Code"
                                 label:sr-only
                                 class="mx-auto"
                              />

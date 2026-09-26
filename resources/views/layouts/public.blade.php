@@ -3,7 +3,7 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-white antialiased dark:bg-neutral-950">
+    <body class="min-h-screen bg-canvas text-ink antialiased">
         {{ $slot }}
 
         @fluxScripts

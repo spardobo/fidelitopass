@@ -31,7 +31,7 @@
                 { pattern: /Windows/, name: 'Windows' },
             ].find(({ pattern }) => pattern.test(ua))?.name;
 
-            return [browser, os].filter(Boolean).join(@js(__(' on '))) || '';
+            return [browser, os].filter(Boolean).join(' on ') || '';
         },
         init() {
             this.name = this.getDefaultPasskeyName();
@@ -52,7 +52,7 @@
                 await $wire.loadPasskeys();
             } catch (e) {
                 if (e.constructor?.name !== 'UserCancelledError') {
-                    this.error = @js(__('Unable to register the passkey. Please try again.'));
+                    this.error = e.message;
                 }
             } finally {
                 this.loading = false;

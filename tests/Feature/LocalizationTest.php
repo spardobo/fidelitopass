@@ -5,7 +5,6 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator;
-use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -20,14 +19,61 @@ test('Spanish is the initial interface locale', function (): void {
         ->assertDontSeeText('Log in to your account');
 });
 
-test('starter guest pages render Spanish copy', function (string $path, string $label): void {
+test('guest pages render Spanish copy', function (string $path, string $label): void {
     $this->get($path)->assertSeeText($label);
 })->with([
-    'welcome' => ['/', 'Comencemos'],
+    'welcome' => ['/', 'Dale a tus clientes una razón para volver.'],
     'registration' => ['/register', 'Crear una cuenta'],
     'forgot password' => ['/forgot-password', 'Recuperar contraseña'],
     'password reset' => ['/reset-password/test-token', 'Restablecer contraseña'],
 ]);
+
+test('landing page translates its title, description and accessible navigation', function (): void {
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('FidelitoPass - Dale a tus clientes una razón para volver.')
+        ->assertSee('Convierte cada visita en una razón para volver con retos de puntos y un pase de Google Wallet para tu negocio.')
+        ->assertSee('aria-label="Secciones de la página"', false)
+        ->assertSee('Vista del pase de Google Wallet de CAFÉ CENTRAL')
+        ->assertSee('El pase')
+        ->assertSee('Beneficios')
+        ->assertSee('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 10 puntos antes del plazo, tu cliente obtiene un café.')
+        ->assertDontSee('landing.hero.sample.business')
+        ->assertDontSee('landing.hero.card_aria')
+        ->assertDontSee('tarjeta Wallet');
+});
+
+test('design preview is unavailable in every environment', function (): void {
+    $this->get('/design-preview')->assertNotFound();
+});
+
+test('project pages resolve grouped translations without leaking keys', function (): void {
+    expect(__('landing.page_title'))->toBe('FidelitoPass - Dale a tus clientes una razón para volver.');
+    $blade = file_get_contents(resource_path('views/pages/⚡landing/landing.blade.php'));
+    expect($blade)->not->toMatch('/CAFÉ CENTRAL|RETO ACTUAL|Consigue 15 puntos|9 \/ 15 puntos|Hamburguesa gratis|Código manual|48273|Retos que se renuevan|Progreso en puntos|>\s*El pase\s*</u');
+    expect(__('landing.page_description'))->toStartWith('Convierte cada visita en una razón para volver con retos de puntos');
+    expect(__('landing.navigation.page_sections'))->toBe('Secciones de la página');
+    expect(__('landing.hero.pass_aria'))->toContain('pase de Google Wallet');
+    expect(array_intersect(['card_aria', 'card_caption', 'card_progress', 'card_detail', 'card_badge'], array_keys(__('landing.hero'))))->toBe([]);
+    expect(__('business.profile_title'))->toBe('Perfil del negocio');
+    expect(__('business.dashboard.page_title'))->toBe('Panel del negocio');
+
+    $this->get(route('home'))
+        ->assertSee('aria-label="Secciones de la página"', false)
+        ->assertDontSee('landing.page_title')
+        ->assertDontSee('landing.page_description')
+        ->assertDontSee('landing.navigation.page_sections');
+
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $this->get(route('business.create'))
+        ->assertSee('Perfil del negocio - '.config('app.name'))
+        ->assertSeeText('Configura tu negocio')
+        ->assertDontSee('business.profile_title')
+        ->assertDontSee('business.onboarding.heading');
+
+    expect(__('Log in to your account'))->toBe('Iniciar sesión en tu cuenta');
+});
 
 test('authenticated settings translate Livewire titles and navigation', function (): void {
     $this->actingAs(User::factory()->create());
@@ -58,35 +104,11 @@ test('standard numeric validation is translated', function (): void {
     expect($errors->first('name'))->toBe('El campo nombre tiene que estar entre 10 y 20.');
 });
 
-test('authentication rejection and two factor validation show Spanish messages', function (): void {
+test('authentication rejection shows a Spanish message', function (): void {
     $user = User::factory()->create();
 
     $this->post('/login', ['email' => $user->email, 'password' => 'wrong-password'])
         ->assertSessionHasErrors(['email' => 'Estas credenciales no coinciden con nuestros registros.']);
-
-    $this->actingAs($user);
-    Livewire::test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
-        ->set('showVerificationStep', true)
-        ->set('code', '12')
-        ->call('confirmTwoFactor')
-        ->assertSeeText('El campo código debe contener 6 caracteres.');
-});
-
-test('unreadable recovery codes render a Spanish error without exposing recovery data', function (): void {
-    $user = User::factory()->create([
-        'two_factor_secret' => encrypt('test-secret'),
-        'two_factor_confirmed_at' => now(),
-        'two_factor_recovery_codes' => 'malformed-recovery-payload',
-    ]);
-
-    $this->actingAs($user);
-
-    Livewire::test('pages::settings.two-factor.recovery-codes')
-        ->assertHasErrors(['recoveryCodes'])
-        ->assertSet('recoveryCodes', [])
-        ->assertSeeText('No se pudieron cargar los códigos de recuperación.')
-        ->assertDontSeeText('Failed to load recovery codes')
-        ->assertDontSeeText('malformed-recovery-payload');
 });
 
 test('password reset and verification mail render Spanish actions and copy', function (): void {
