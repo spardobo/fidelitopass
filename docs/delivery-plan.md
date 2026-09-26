@@ -22,7 +22,7 @@ Demonstration:
 - Anonymous visitor understands FidelitoPass from the landing page.
 - Owner registers/signs in.
 - Business profile/timezone is configured.
-- Light/dark shell is available.
+- Public, authentication, and application pages demonstrate the dark-only shell without a light-theme switch.
 
 ## Wave 2 — Challenge authoring and publication
 
