@@ -121,7 +121,7 @@ The snapshot prevents historical interpretation from changing if Business settin
 
 ### Local-day calculations
 
-Use PostgreSQL conversion when Business-local calendar meaning matters, including the optional special point rule:
+Use PostgreSQL conversion when Business-local calendar meaning matters, including recurring weekday multiplier windows:
 
 ```sql
 (visited_at AT TIME ZONE challenge_timezone)::date

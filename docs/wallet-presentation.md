@@ -43,7 +43,7 @@ Código: 482731
 | Challenge title | `🎯 RETO ACTUAL` | Platform-generated. |
 | Challenge description | `Consigue 15 puntos antes del 30 SEP.` | Platform-generated from Challenge values. |
 | Progress | `9 / 15 puntos` | PostgreSQL-authoritative Challenge progress. |
-| Current Visit value | `Ahora tu visita vale 2 puntos.` | Current Business-local point rule. |
+| Current Visit value | `Ahora tu visita vale 2 puntos.` | Applicable weekly multiplier of the fixed one-point base, evaluated in the active published Challenge timezone. |
 | Reward | `🎁 Hamburguesa gratis` | Business-owned Reward value. |
 | Deadline | `Válido hasta 30 SEP` | Derived from Challenge local end date. |
 | Barcode | QR/private value | Private validation token. |
@@ -85,13 +85,13 @@ Válido hasta 30 SEP
 Código: 482731
 ```
 
-When the optional special point rule is active:
+When a multiplier window is active (for example x2):
 
 ```text
 ⚡ Ahora tu visita vale 2 puntos.
 ```
 
-The pass always shows the point value that applies at that moment according to Business-local time.
+The pass conceptually shows the point value at that moment: one point outside windows, or N points in one xN window, with no stacking. Use the active published Challenge timezone snapshot; rule changes affect future Visits only. Wallet issuance and synchronization belong to later waves.
 
 ## State 3 — Reward available
 

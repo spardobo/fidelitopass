@@ -42,13 +42,13 @@ The product deliberately avoids CRM, marketing automation, POS integration, and 
 | Term | Meaning |
 |---|---|
 | Business | Local business operating one FidelitoPass loyalty experience. |
-| Challenge | One global, time-bound loyalty campaign published by a business. |
+| Challenge | A time-bound instance of the single points-based loyalty mechanic, published by a Business. |
 | Customer pass | Persistent anonymous loyalty identity for one customer and one business. |
 | Wallet pass | Google Wallet representation of the Customer pass. |
 | Visit | One accepted physical-business visit for a Customer pass. |
 | Challenge timezone | IANA timezone snapshot used to interpret calendar days for one published Challenge. |
 | Points | The only customer-visible progress unit in MVP. Each accepted Visit stores the points awarded at that moment. |
-| Point rule | Business configuration that defines the regular Visit value and one optional special weekday/time value. |
+| Point rule | Weekly Business-local xN multiplier window applied to the fixed one-point regular Visit. |
 | Progress | Sum of points awarded by accepted Visits for the current Challenge. |
 | Reward | Business-defined benefit attached to a Challenge. |
 | Reward entitlement | One-time right created when a Customer pass completes a Challenge. |
@@ -105,11 +105,12 @@ Operational phase is derived from database time:
 
 Rules:
 
-- Published challenge windows for one Business must not overlap.
-- Target points, Reward semantics, timezone, and window are immutable once the Challenge is active.
+- A Business may retain multiple draft and future scheduled instances; at most one Challenge is effective Active at an instant.
+- Published effective windows for one Business must not overlap; touching endpoints are allowed. Cancellation truncates occupancy to `[starts_at, min(ends_at, cancelled_at))`, empty if cancelled before start, without changing the original UTC window.
+- Target points, Reward semantics, timezone, and original window are immutable from publication; drafts remain editable and ended Challenges historical.
 - Visits are accepted only while the Challenge is active.
 - Rewards cannot be unlocked or redeemed at or after `ends_at`.
-- Cancellation stops new progress and redemption immediately.
+- Scheduled or active cancellation records `cancelled_at` at the single post-lock PostgreSQL operation instant and stops effective progress/redemption immediately. Publication and cancellation serialize on the Business row lock and recompute occupancy after locking. A date-only replacement after intraday cancellation starts no earlier than the next Business-local midnight.
 
 ## Customer pass lifecycle
 
@@ -179,7 +180,7 @@ Every Challenge uses the same rule:
 
 > Reach the configured target points before the Challenge ends.
 
-The Business point configuration determines how many points a Visit is worth at validation time. MVP supports a regular Visit value and at most one optional special rule for one weekday, either for the full day or one time range.
+Every accepted regular Visit awards one point. A Business may add any number of weekly recurring integer xN (N >= 2) multiplier windows by local weekday: either whole day or several disjoint half-open intraday windows per day, never both on that day. Split midnight-crossing rules across days; no stacking, and x1 outside windows. Future Visits use the active published Challenge timezone snapshot and current rules; recorded `points_awarded` stays immutable.
 
 The platform owns generated Challenge description, progress copy, Reward states, and Wallet mapping. The Business does not write expressions, conditions, or formulas.
 
@@ -205,7 +206,7 @@ MVP has one Reward per Challenge.
 4. FidelitoPass shows a deterministic Wallet preview.
 5. The Challenge is saved as draft.
 6. On publication, FidelitoPass snapshots the Business timezone and resolves the local dates to UTC `starts_at` and exclusive `ends_at`.
-7. Publication fails if its window overlaps another published Challenge.
+7. Under the Business row lock, publication captures one post-lock PostgreSQL instant and rejects any overlap with published effective occupied windows; touching endpoints are allowed. Cancellation takes the same lock and releases remaining future occupancy without mutating original publication terms.
 
 ### Join the Business
 
@@ -255,7 +256,7 @@ When the Challenge reaches `ends_at`:
 - Every Business has exactly one owner in MVP.
 - Every published Challenge has one immutable timezone snapshot.
 - Challenge windows are stored as UTC instants and use an exclusive end.
-- A Business has at most one Active Challenge at any instant.
+- A Business has at most one effective Active Challenge at any instant; published occupied windows never overlap.
 - A Customer pass belongs to one Business.
 - A Visit belongs to one Customer pass and one Challenge from the same Business.
 - Field `visited_at` comes from the mutation's single post-lock PostgreSQL `clock_timestamp()` value, not the browser or application host clock.

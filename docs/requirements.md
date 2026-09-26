@@ -18,11 +18,11 @@ This document defines observable MVP behaviour.
 | 2 | REQ-BIZ-002 | Must | Business | Functional | Configure Business profile and IANA timezone. |
 | 3 | REQ-PUB-001 | Must | Public | Functional | Present a product landing page. |
 | 4 | REQ-PUB-002 | Must | Public | Functional | Present the Business join page from the permanent QR. |
-| 5 | REQ-CHL-001 | Must | Challenge | Functional | Create one points-based Challenge. |
+| 5 | REQ-CHL-001 | Must | Challenge | Functional | Create instances of one points-based Challenge mechanic. |
 | 6 | REQ-CHL-002 | Must | Challenge | Functional | Configure deterministic point earning. |
 | 7 | REQ-CHL-003 | Must | Challenge | Functional | Publish local dates as an immutable UTC window. |
 | 8 | REQ-CHL-004 | Must | Challenge | Functional | Reject overlapping published Challenge windows. |
-| 9 | REQ-CHL-005 | Must | Challenge | Functional | Lock active Challenge terms and support cancellation. |
+| 9 | REQ-CHL-005 | Must | Challenge | Functional | Lock published Challenge terms and support cancellation. |
 | 10 | REQ-PAS-001 | Must | Pass | Functional | Provide one permanent acquisition QR per Business. |
 | 11 | REQ-PAS-002 | Must | Pass | Functional | Create an anonymous Customer pass without registration. |
 | 12 | REQ-PAS-003 | Must | Wallet | Functional | Reuse one persistent Google Wallet pass across Challenges. |
@@ -31,7 +31,7 @@ This document defines observable MVP behaviour.
 | 15 | REQ-VIS-003 | Must | Visit | Quality/technical | Timestamp accepted Visits from PostgreSQL time. |
 | 16 | REQ-VIS-004 | Must | Visit | Functional | Accept legitimate repeat Visits while remaining retry-safe. |
 | 17 | REQ-EVL-001 | Must | Evaluation | Functional | Award points for every accepted Visit. |
-| 18 | REQ-EVL-002 | Must | Evaluation | Functional | Apply the optional special point rule. |
+| 18 | REQ-EVL-002 | Must | Evaluation | Functional | Apply recurring weekday multiplier windows. |
 | 19 | REQ-EVL-003 | Must | Evaluation | Functional | Evaluate Challenge completion from earned points. |
 | 20 | REQ-EVL-004 | Must | Evaluation | Quality/technical | Preserve awarded points as immutable Visit outcomes. |
 | 21 | REQ-REW-001 | Must | Reward | Functional | Unlock one Reward entitlement on completion. |
@@ -148,7 +148,7 @@ As a customer in a Business, I want a clear joining page so that I can understan
 
 ### Challenge
 
-#### REQ-CHL-001 — Create one points-based Challenge
+#### REQ-CHL-001 — Create points-based Challenge instances
 
 **Priority:** Must
 **Type:** Functional
@@ -162,7 +162,7 @@ As a Business owner, I want to create a simple points target so that customers a
 
 - **Given** the Challenge creation page.
 - **When** the owner provides the start date, end date, target points, and Reward.
-- **Then** FidelitoPass presents one deterministic Challenge preview using points as the progress unit.
+- **Then** FidelitoPass presents a deterministic preview using points as the progress unit; the Business may retain multiple drafts and future scheduled instances of this one mechanic.
 
 **Verification:** Livewire component tests.
 
@@ -176,23 +176,23 @@ As a Business owner, I want a small point configuration so that I can make selec
 
 **Acceptance Criteria**
 
-**Scenario: Regular Visit value**
+**Scenario: Configure recurring multiplier windows**
 
-- **Given** the Business loyalty configuration.
-- **When** the owner defines the regular Visit point value.
-- **Then** accepted Visits outside a special rule use that value.
+- **Given** the Business point configuration with a fixed regular Visit value of one point.
+- **When** the owner adds any number of weekly recurring rules with integer multiplier `N >= 2`, each covering a Business-local weekday either all day or a half-open `[start, end)` time window within that day.
+- **Then** the preview shows the applicable multiplier and resulting points (x1 = 1 outside rules, x2 = 2, x5 = 5); rules affect future accepted Visits only.
 
-**Scenario: Optional special rule**
+**Scenario: Reject conflicting or invalid windows**
 
-- **Given** the Business loyalty configuration.
-- **When** the owner configures one weekday and either the full day or one time range with a special point value.
-- **Then** only Visits accepted in that Business-local window use the special value.
+- **Given** existing rules for a weekday.
+- **When** the owner submits overlapping timed windows, a whole-day rule alongside timed windows on that day, a midnight-crossing window, or a non-integer or below-x2 multiplier.
+- **Then** validation rejects the change without altering the current configuration; touching timed endpoints are allowed, and overnight promotions require separate weekday rules.
 
-**Scenario: Unsupported complexity**
+**Scenario: Multiple distinct windows**
 
-- **Given** the Business loyalty configuration.
-- **When** the owner attempts to combine several special rules or arbitrary conditions.
-- **Then** the application does not offer that configuration in MVP.
+- **Given** two disjoint timed windows on the same Business-local weekday.
+- **When** the owner previews either window or a time outside both.
+- **Then** exactly one multiplier applies in each window and x1 applies outside; rules never stack.
 
 **Verification:** Livewire/validation tests plus local-time boundary tests.
 
@@ -210,7 +210,7 @@ As a Business owner, I want Challenge dates to behave according to my local cale
 
 - **Given** valid local start and end dates and a Business timezone.
 - **When** the Challenge is published.
-- **Then** `starts_at`, exclusive `ends_at`, and the Challenge timezone snapshot are persisted consistently.
+- **Then** `starts_at`, exclusive `ends_at`, and the Challenge timezone snapshot are persisted consistently and cannot be changed after publication, even on cancellation.
 
 **Scenario: Evaluate current phase**
 
@@ -230,15 +230,27 @@ As a Business owner, I want only one Challenge to be active at a time so that cu
 
 **Acceptance Criteria**
 
-**Scenario: Overlapping window**
+**Scenario: Effective window overlap**
 
-- **Given** an existing published Challenge window.
-- **When** another overlapping draft is published.
-- **Then** publication is rejected without partial state change.
+- **Given** published instances for one Business, each occupying `[starts_at, min(ends_at, cancelled_at))` when cancelled, or `[starts_at, ends_at)` otherwise (empty if cancelled before start).
+- **When** a draft is published with a window intersecting any occupied interval.
+- **Then** publication is rejected without partial state change; touching endpoints are allowed and at most one Challenge is effective Active at an instant.
+
+**Scenario: Concurrent publish and cancellation**
+
+- **Given** competing publications or a cancellation and publication for the same Business.
+- **When** both operations request the Business row lock.
+- **Then** each recomputes overlap after acquiring that lock using its single post-lock PostgreSQL `clock_timestamp()` instant; only a nonoverlapping result commits, regardless of lock order.
+
+**Scenario: Replacement after intraday cancellation**
+
+- **Given** an Active Challenge cancelled during a Business-local day.
+- **When** a replacement is published using local start and end dates.
+- **Then** its earliest valid start is the next local midnight, not an immediate same-day start; the cancelled Challenge retains its original UTC window.
 
 **Verification:** Transactional feature tests.
 
-#### REQ-CHL-005 — Lock active Challenge terms and support cancellation
+#### REQ-CHL-005 — Lock published Challenge terms and support cancellation
 
 **Priority:** Must
 **Type:** Functional
@@ -248,17 +260,23 @@ As a customer, I want the Challenge rules to stay stable after play begins so th
 
 **Acceptance Criteria**
 
-**Scenario: Edit active semantics**
+**Scenario: Edit published semantics**
 
-- **Given** an Active Challenge.
-- **When** the owner attempts to change its target points, Reward, timezone, or window.
+- **Given** a published scheduled, active, or ended Challenge (drafts remain editable).
+- **When** the owner attempts to change its target points, Reward, timezone, `starts_at`, or `ends_at`.
 - **Then** the operation is rejected.
 
-**Scenario: Cancel active Challenge**
+**Scenario: Cancel scheduled or active Challenge**
 
-- **Given** an Active Challenge.
-- **When** the owner confirms cancellation.
-- **Then** new progress and Reward redemption stop immediately and Wallet state becomes cancelled/waiting.
+- **Given** a scheduled or Active Challenge.
+- **When** the owner confirms cancellation under the Business row lock.
+- **Then** `cancelled_at` records the single post-lock PostgreSQL operation instant, effective progress and redemption stop immediately, remaining future occupancy is released, and Wallet presentation becomes cancelled/waiting; prior Visits and original publication window remain historical.
+
+**Scenario: Ended Challenge**
+
+- **Given** a Challenge whose original window has ended.
+- **When** the owner requests cancellation.
+- **Then** it remains historical rather than being cancelled.
 
 **Verification:** Feature tests for transition and authorization.
 
@@ -416,13 +434,13 @@ As a customer, I want every accepted Visit to tell me how many points I earned s
 
 **Scenario: Regular Visit**
 
-- **Given** an Active Challenge and no applicable special point rule.
+- **Given** an Active Challenge and no applicable multiplier window.
 - **When** a Visit is accepted.
-- **Then** the Visit stores the regular awarded point value and Challenge progress increases by that amount.
+- **Then** the Visit stores exactly one `points_awarded` and Challenge progress increases by one; the regular value is not configurable.
 
 **Verification:** Domain/feature tests.
 
-#### REQ-EVL-002 — Apply the optional special point rule
+#### REQ-EVL-002 — Apply recurring multiplier windows
 
 **Priority:** Must
 **Type:** Functional
@@ -432,17 +450,23 @@ As a customer, I want FidelitoPass to show when my Visit is worth more points so
 
 **Acceptance Criteria**
 
-**Scenario: Special window applies**
+**Scenario: Multiplier window applies**
 
-- **Given** one configured special point rule.
-- **When** the Visit is accepted during its Business-local weekday and time window.
-- **Then** the Visit stores the special awarded point value.
+- **Given** multiple disjoint recurring rules and an Active published Challenge with a timezone snapshot.
+- **When** a Visit is accepted in one rule's local weekday and half-open time window using the single post-lock PostgreSQL operation instant.
+- **Then** exactly that rule's integer xN applies to the fixed one-point base; the Visit stores N immutable `points_awarded`, without stacking.
 
-**Scenario: Special window does not apply**
+**Scenario: Outside and boundary**
 
-- **Given** one configured special point rule.
-- **When** the Visit is accepted outside its Business-local window.
-- **Then** the Visit stores the regular awarded point value.
+- **Given** recurring windows with touching endpoints or a local day that differs from the UTC day.
+- **When** a Visit is accepted outside every window, at a window endpoint, or across that UTC/local-day boundary.
+- **Then** the Challenge timezone snapshot determines the local weekday/time; only a window containing that instant applies, otherwise the Visit stores one point.
+
+**Scenario: Configuration changes**
+
+- **Given** an accepted Visit with stored `points_awarded`.
+- **When** the Business changes its multiplier rules.
+- **Then** only future accepted Visits use the new rules; historical awarded points and progress are not recalculated.
 
 **Verification:** PostgreSQL-backed local-time boundary tests.
 

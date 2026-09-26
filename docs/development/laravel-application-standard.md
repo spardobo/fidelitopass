@@ -127,7 +127,7 @@ Do not infer calendar logic from PHP/server system timezone.
 
 ### Local-day queries
 
-When Business-local weekday or time affects the optional special point rule, keep the conversion in PostgreSQL using `AT TIME ZONE`.
+When Business-local weekday or time determines a recurring multiplier window, keep the conversion in PostgreSQL using `AT TIME ZONE`.
 
 Do not introduce a duplicated local-date column only to avoid the query.
 

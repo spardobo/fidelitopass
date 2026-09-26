@@ -108,7 +108,7 @@ timezone  varchar
 
 `starts_at` is inclusive.
 
-`ends_at` is exclusive and represents local midnight immediately after the selected final date.
+`ends_at` is exclusive and represents local midnight immediately after the selected final date. Publication fixes both UTC instants and the timezone snapshot permanently. Cancellation keeps them and records `cancelled_at`; effective occupancy is `[starts_at, min(ends_at, cancelled_at))`, empty when cancelled before start.
 
 Do not persist duplicate `starts_on` / `ends_on` date columns in MVP.
 
@@ -260,11 +260,6 @@ public_id
 user_id
 name
 timezone
-regular_visit_points
-special_weekday nullable
-special_start_time nullable
-special_end_time nullable
-special_visit_points nullable
 logo_path nullable
 created_at
 updated_at
@@ -275,8 +270,27 @@ Constraints:
 - Constraint `public_id` unique.
 - Constraint `user_id` unique in MVP.
 - Timezone validated in application against supported IANA identifiers.
-- Regular Visit points must be positive.
-- Special point fields are either disabled together or form one valid weekday/full-day/time-range rule.
+- Regular accepted Visits have a fixed one-point base; no configurable regular-points column.
+
+### business_point_windows
+
+Suggested relational shape (no generic rule builder):
+
+```text
+id
+business_id
+weekday
+multiplier
+start_time nullable
+end_time nullable
+created_at
+updated_at
+```
+
+- FK to Business; `weekday` is a valid local weekday and integer `multiplier >= 2`.
+- Row `CHECK`: both times null for whole day, or both nonnull with `start_time < end_time` for a half-open intraday `[start_time, end_time)` window; midnight-crossing rules are split across weekdays.
+- Multiple timed windows per weekday are allowed, with touching endpoints but no overlap; whole-day and timed windows on that weekday are mutually exclusive.
+- Cross-row overlap is validated transactionally after locking the Business row for rule changes, including concurrent edits. No fixed count of rules and no JSONB configuration.
 
 ### challenges
 
@@ -307,9 +321,9 @@ Constraints:
 - Allowed `status`.
 - Required positive `target_points`.
 - Required Reward title.
+- Published `starts_at`, `ends_at`, timezone, target, and Reward stay immutable, including after cancellation; ended instances remain historical.
 
-
-Published-window overlap is a cross-row rule. MVP enforces it in `PublishChallengeAction` while locking the Business row. Do not add database extensions/exclusion constraints only for this rule unless scale/concurrency demonstrates the need.
+Published effective-window overlap is a cross-row rule. Publication and cancellation serialize under the Business row lock, then recompute occupancy from original UTC windows and `cancelled_at`; cancellation uses the single post-lock PostgreSQL `clock_timestamp()` as its instant. A cancelled interval occupies `[starts_at, min(ends_at, cancelled_at))`, empty if cancelled before start. Touching endpoints are valid. A date-only replacement after intraday cancellation cannot start before the next Business-local midnight. Do not add database extensions/exclusion constraints only for this rule unless scale/concurrency demonstrates the need.
 
 ### customer_passes
 
@@ -415,7 +429,7 @@ Critical concurrent paths:
 
 ## JSONB
 
-Do not use `jsonb` for the core Challenge or point-earning configuration in MVP. The supported fields are small and stable enough to remain explicit relational columns.
+Do not use `jsonb` for the core Challenge or point-earning configuration in MVP. Keep the Challenge columns explicit and multiplier windows in a lean relational table.
 
 Use `jsonb` only later for genuinely variable external metadata that does not deserve first-class relational fields.
 

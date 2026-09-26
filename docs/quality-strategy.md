@@ -93,8 +93,8 @@ Core rules:
 - Challenge target/Reward configuration ranges.
 - Challenge active/scheduled/ended state from database time.
 - Non-overlapping publication.
-- Regular Visit point awarding.
-- Optional special weekday/time point awarding.
+- Fixed one-point regular Visit awarding.
+- Recurring weekday xN multiplier awarding: whole-day versus disjoint half-open timed windows, touching endpoints, overlap rejection, and no stacking.
 - Legitimate repeat Visits on the same day.
 - Idempotent/concurrent validation of one operation.
 - Challenge progress from immutable awarded points.
@@ -134,7 +134,7 @@ Required journeys:
 5. Manual-code fallback directly below scanner.
 6. Successful Visit -> progress result.
 7. Reward available -> Redemption.
-8. Responsive/theme smoke coverage.
+8. Responsive dark-only smoke coverage, including saved/system light preferences without a light-theme flash.
 
 Browser rules:
 
@@ -222,6 +222,6 @@ Before a production release:
 - Scan/manual validation works.
 - Reward can be unlocked and redeemed once.
 - Google Wallet can be issued and updated on a real supported device.
-- Light/dark responsive core pages and basic keyboard/touch interaction are reviewed; full WCAG AA conformance is a progressive goal, not a release certification gate.
+- Dark-only responsive core pages (including saved/system light preferences without a light-theme flash) and basic keyboard/touch interaction are reviewed; full WCAG AA conformance is a progressive goal, not a release certification gate.
 - Production debug is disabled.
 - Structured production logs can be parsed as JSON.

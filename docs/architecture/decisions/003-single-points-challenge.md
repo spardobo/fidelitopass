@@ -24,9 +24,9 @@ Use one Challenge mechanic:
 
 A Visit is an immutable fact. Each accepted Visit receives an immutable `points_awarded` value according to the Business point configuration that applies at validation time.
 
-The Business may configure one regular Visit value and at most one optional special weekday rule covering either the whole selected day or one time range.
+A regular accepted Visit awards exactly one point. A Business may configure any number of recurring integer xN (N >= 2) multiplier rules by local weekday: one whole-day rule or multiple distinct nonoverlapping half-open intraday windows per day, never stacked. The published Challenge timezone snapshot determines local weekday/time at Visit acceptance; rules affect future Visits only.
 
-Only one Challenge can be active for a Business at an instant.
+Only one Challenge can be effective Active for a Business at an instant; multiple draft and future scheduled instances retain the same points-based mechanic.
 
 ## Rationale
 
@@ -36,7 +36,7 @@ This preserves a single customer mental model:
 Visit -> Points -> Challenge progress -> Reward.
 ```
 
-The Business can still encourage weak periods by making a Visit worth more points at a selected time, without introducing another customer-facing mechanic.
+The Business can still encourage weak periods through deterministic multiplier windows without introducing another customer-facing mechanic.
 
 ## Consequences
 
