@@ -1,114 +1,43 @@
 ---
 name: fidelitopass-delivery-flow
-description: "Use for FidelitoPass wave selection, work-item scope, board movement, and next-work decisions."
+description: "Trigger: FidelitoPass wave selection, Kanban board movement, work-item scope, next-work decisions. Route delivery by dependencies and focused documentation."
 license: Apache-2.0
 metadata:
   author: FidelitoPass
   version: "1.0"
 ---
 
-## Purpose
+## Activation Contract
 
-Keep FidelitoPass delivery aligned with the current product wave while minimizing context.
+Use for delivery selection, scoping, board transitions and completion. Do not use for product semantics, Laravel coding rules or provider-specific commands.
 
-This skill does not own product semantics, Laravel implementation rules, or repository-host-specific commands.
+## Hard Rules
 
-## Default context
+- Select dependency-ready vertical outcomes in rolling waves; never assign requirement IDs permanently to numbered waves. Preserve all 35 IDs, including historical CHL IDs for Promotion.
+- Load only the relevant work item, source, nearby tests and document **section** needed for the decision; do not traverse references automatically.
+- Multiple related items may be Active concurrently when ownership and dependencies are coordinated. Use `Backlog -> Active -> Review -> Verify -> Done`.
+- Follow approved issue → own branch → one coherent PR per outcome, subject to human authorization.
 
-Start with only:
+## Decision Gates
 
-1. the work item relevant to this session;
-2. affected source files;
-3. nearby tests;
-4. current repository state needed for the requested operation.
+| Situation | Action |
+| --- | --- |
+| Choosing current work | Read relevant `docs/delivery-plan.md` section; regroup by pending dependencies. |
+| Product, points or acceptance uncertain | Read the relevant section of `docs/conceptual-design.md`, `docs/promotion-model.md` or `docs/requirements.md`, respectively. |
+| Technical prerequisite | Include in Active outcome unless independently valuable or blocking several immediate outcomes. |
+| Marking Done | Require acceptance, proportionate evidence, integrated behaviour and current owned documentation. |
 
-Do not read the complete `docs/` tree by default.
+## Execution Steps
 
-## Board semantics
+1. Identify current dependency-ready outcome and its requirement IDs; specify scope, exclusions, Given-When-Then criteria and material risks.
+2. Route only necessary document sections using `references/delivery-details.md`; coordinate overlapping work before concurrent execution.
+3. Advance board state on observed evidence, not intention; report blockers without inventing distant work.
 
-Use:
+## Output Contract
 
-`Backlog -> Active -> Review -> Verify -> Done`
+Report current wave/board state, outcome and IDs, actual checks, blocker/risk, and next decision only if required.
 
-Active means implementation currently underway, not exclusive ownership of the board state. Multiple work items may be Active concurrently, with no numerical or implicit limit. Separate sessions working on different items use their own branches or worktrees and coordinate ownership of overlapping file surfaces or interacting dependencies; the items need not all be independent.
+## References
 
-Map these meanings to the configured board/repository provider without making project documentation depend on that provider.
-
-## Work selection
-
-Use rolling-wave delivery.
-
-Read only the current section of `docs/delivery-plan.md` when selecting or loading work.
-
-A work item should contain:
-
-- one outcome;
-- requirement IDs;
-- scope;
-- explicit exclusions when useful;
-- Given-When-Then acceptance criteria;
-- dependencies;
-- material security/data/time risks.
-
-Do not paste broad documentation into the work item.
-
-## Lazy-loading route
-
-| Need | Read |
-|---|---|
-| Select/load current or next wave | relevant section of `docs/delivery-plan.md` |
-| Confirm MVP inclusion | `docs/product-scope.md` |
-| Resolve a domain term/lifecycle | relevant section of `docs/conceptual-design.md` |
-| Configure/evaluate points or Challenge progress | relevant section of `docs/challenge-model.md` |
-| Resolve acceptance behaviour | relevant requirement in `docs/requirements.md` |
-| Resolve Wallet copy/state | relevant section of `docs/wallet-presentation.md` |
-| Resolve web UX/layout | relevant section of `docs/ui-ux-guidelines.md` |
-| Resolve architecture boundary | relevant section of `docs/architecture/overview.md` |
-| Resolve auth/token/rate-limit/logging risk | relevant section of `docs/architecture/security.md` |
-| Resolve schema/time/concurrency | relevant section of `docs/development/database-standard.md` |
-| Resolve Laravel project convention | relevant section of `docs/development/laravel-application-standard.md` |
-| Resolve verification depth | relevant section of `docs/quality-strategy.md` |
-| Revisit a durable decision | only the relevant ADR |
-
-Do not follow document references automatically.
-
-## Scope discipline
-
-Prefer vertical product outcomes over isolated foundation work.
-
-A technical prerequisite belongs inside the relevant Active product outcome unless it has independent value or blocks several immediate outcomes.
-
-Do not create distant speculative work just because later waves exist.
-
-## Documentation discipline
-
-Update documentation only when the knowledge owned by that document changes.
-
-Do not add:
-
-- task/review identifiers;
-- temporary branch names;
-- revision hashes;
-- source-control history;
-- implementation-session narratives;
-- tool usage narratives.
-
-## Completion
-
-A work item is complete when:
-
-- acceptance criteria are satisfied;
-- proportionate automated evidence passes;
-- applicable authorization/data/time/concurrency risks are covered;
-- integrated behaviour works;
-- owned documentation is current when its knowledge changed;
-- no unrelated scope was added.
-
-## Output
-
-Report concisely:
-
-- current wave/board state;
-- selected outcome and requirement IDs;
-- material blocker/risk;
-- next decision only when one is required.
+- `references/delivery-details.md` — board meaning, routing and completion details.
+- `docs/development/workflow.md` — product delivery authority.
