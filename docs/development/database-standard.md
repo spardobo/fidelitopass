@@ -8,7 +8,7 @@ This document defines PostgreSQL persistence conventions for project-owned schem
 - Use PostgreSQL constraints for durable row/relationship invariants.
 - Use framework conventions before custom infrastructure.
 - Use UTC instants for persisted time.
-- Derive Business-local calendar meaning using the published Challenge timezone.
+- Derive Business-local calendar meaning using the published Promotion timezone.
 - Keep ownership, domain facts, and logs separate.
 - Do not add generic audit/status/delete columns to every table.
 
@@ -35,7 +35,7 @@ Use UUIDv7 `public_id` only where a record is exposed across an untrusted bounda
 Expected examples:
 
 - Business.
-- Challenge.
+- Promotion.
 - Customer pass.
 
 Internal foreign keys continue to use bigint IDs.
@@ -52,7 +52,7 @@ Use `timestamp with time zone` (`timestamptz`) for domain instants.
 
 In Laravel migrations, use timezone-aware timestamp columns such as `timestampTz()` / `timestampsTz()` where appropriate.
 
-PostgreSQL stores `timestamptz` instants internally in UTC. The Business/Challenge IANA timezone is stored separately because a `timestamptz` does not retain the original timezone name.
+PostgreSQL stores `timestamptz` instants internally in UTC. The Business/Promotion IANA timezone is stored separately because a `timestamptz` does not retain the original timezone name.
 
 ### Domain clock
 
@@ -66,13 +66,13 @@ clock_timestamp()
 
 exactly once to capture `operation_at`. Reuse that one database-derived instant for every deadline check, Business-local point-rule evaluation, `visited_at`, `redeemed_at`, and related audit/event timestamps in the operation.
 
-Do not use transaction-start `CURRENT_TIMESTAMP` for lock-sensitive Challenge/Visit/Reward validity: a lock wait can make it stale. Do not take multiple `clock_timestamp()` readings within one operation. For read-only phase queries, use an explicitly current PostgreSQL wall-clock instant such as `clock_timestamp()`.
+Do not use transaction-start `CURRENT_TIMESTAMP` for lock-sensitive Promotion/Visit/Reward validity: a lock wait can make it stale. Do not take multiple `clock_timestamp()` readings within one operation. For read-only phase queries, use an explicitly current PostgreSQL wall-clock instant such as `clock_timestamp()`.
 
 Do not use:
 
 - Browser time.
 - JavaScript `Date.now()` for authority.
-- Application-host `now()` to decide Challenge validity.
+- Application-host `now()` to decide Promotion validity.
 - Request-supplied timestamps for accepted Visits.
 
 ### Business timezone
@@ -84,17 +84,17 @@ America/La_Paz
 Europe/Madrid
 ```
 
-It is the default timezone for future Challenge publication.
+It is the current timezone used to display drafts and the default for future Promotion publication. Drafts have no independent timezone selector; if the Business timezone changes after draft review, require refreshed review and reconfirmation before publication.
 
-### Challenge timezone snapshot
+### Promotion timezone snapshot
 
-`challenges.timezone` stores the Business timezone at publication.
+`promotions.timezone` stores the confirmed Business timezone at publication.
 
-This is intentional duplication because it freezes calendar semantics for that Challenge.
+This is intentional duplication because it freezes calendar semantics for that Promotion.
 
-Changing Business settings later must not reinterpret historical Visit timestamps, awarded points, or Challenge deadlines.
+Changing Business settings later must not reinterpret historical Visit timestamps, awarded points, or Promotion deadlines.
 
-### Challenge window
+### Promotion window
 
 The Business configures local dates.
 
@@ -108,11 +108,9 @@ timezone  varchar
 
 `starts_at` is inclusive.
 
-`ends_at` is exclusive and represents local midnight immediately after the selected final date.
+`ends_at` is exclusive and represents local midnight immediately after the selected final date. Publication fixes the original local dates, both UTC instants and the timezone snapshot permanently. Cancellation keeps them and records `cancelled_at`; effective occupancy is `[starts_at, min(ends_at, cancelled_at))`, empty when cancelled before start.
 
-Do not persist duplicate `starts_on` / `ends_on` date columns in MVP.
-
-The UI can derive/display local dates from the stored instants and Challenge timezone.
+Retain the original local dates as published terms; do not add redundant derived local-date columns to Visits. The UI displays dates using the published Promotion timezone.
 
 ### Visit time
 
@@ -134,19 +132,19 @@ in MVP.
 When local date is required:
 
 ```sql
-(visited_at AT TIME ZONE challenges.timezone)::date
+(visited_at AT TIME ZONE promotions.timezone)::date
 ```
 
-When the database-local current Challenge date is required for a mutation, derive it from the operation's one captured instant:
+When the database-local current Promotion date is required for a mutation, derive it from the operation's one captured instant:
 
 ```sql
-(operation_at AT TIME ZONE challenges.timezone)::date
+(operation_at AT TIME ZONE promotions.timezone)::date
 ```
 
 For a read-only phase query, use an explicitly current PostgreSQL wall-clock instant:
 
 ```sql
-(clock_timestamp() AT TIME ZONE challenges.timezone)::date
+(clock_timestamp() AT TIME ZONE promotions.timezone)::date
 ```
 
 ### Example
@@ -167,7 +165,7 @@ For `America/La_Paz`:
 
 They are different local calendar days even though both UTC values fall on 22 September.
 
-This is exactly why local-day rules are derived from the Challenge timezone rather than from the UTC date.
+This is exactly why local-day rules are derived from the Promotion timezone rather than from the UTC date.
 
 ## Laravel model date handling
 
@@ -181,7 +179,7 @@ Carbon/CarbonImmutable may be used to:
 - Render local dates to the UI.
 - Build deterministic publication boundaries.
 
-Once the Challenge window is persisted, live Challenge/Reward validity uses PostgreSQL time.
+Once the Promotion window is persisted, live Promotion/Reward validity uses PostgreSQL time.
 
 Generic Eloquent `created_at` / `updated_at` remain framework timestamps and are not used as domain validity clocks.
 
@@ -203,7 +201,7 @@ Do not infer ownership from:
 
 Add `status` only when a record has a real stored lifecycle.
 
-### Challenge
+### Promotion
 
 Stored values:
 
@@ -219,7 +217,7 @@ Use:
 - Readable string database value.
 - PostgreSQL `CHECK` constraint.
 
-Do not persist `scheduled`, `active`, or `ended`; they are derived from status + database time + UTC window.
+Do not persist `scheduled`, `active`, or `ended`; they are derived from published status + an explicitly current PostgreSQL wall-clock instant + UTC window.
 
 ### Other tables
 
@@ -241,8 +239,8 @@ MVP policy:
 
 - Visit: immutable; never soft-delete in normal operation.
 - Reward entitlement: preserve; redemption is a timestamp, not deletion.
-- Published Challenge: cancel instead of delete.
-- Draft Challenge: may be hard-deleted before publication.
+- Published Promotion: cancel instead of delete.
+- Draft Promotion: may be hard-deleted before publication.
 - Customer pass: preserve while it represents a Wallet object.
 - Business/User deletion is not an MVP workflow.
 
@@ -260,11 +258,6 @@ public_id
 user_id
 name
 timezone
-regular_visit_points
-special_weekday nullable
-special_start_time nullable
-special_end_time nullable
-special_visit_points nullable
 logo_path nullable
 created_at
 updated_at
@@ -275,10 +268,30 @@ Constraints:
 - Constraint `public_id` unique.
 - Constraint `user_id` unique in MVP.
 - Timezone validated in application against supported IANA identifiers.
-- Regular Visit points must be positive.
-- Special point fields are either disabled together or form one valid weekday/full-day/time-range rule.
+- Regular accepted Visits have a fixed one-point base; no configurable regular-points column or Business-global multiplier schedule.
 
-### challenges
+### Promotion-owned multiplier windows
+
+Use a lean relational child of each Promotion (table name to be chosen during implementation), not a Business-global rule builder. Suggested shape:
+
+```text
+id
+promotion_id
+weekday
+multiplier
+start_time nullable
+end_time nullable
+created_at
+updated_at
+```
+
+- FK `promotion_id` references the owning Promotion; `weekday` and `multiplier` are required.
+- Row `CHECK`: `weekday` is a valid local weekday (for ISO weekday numbering, 1–7) and `multiplier IN (2, 3, 5)`; no other multipliers are accepted.
+- Row `CHECK`: both times null for whole day, or both nonnull with `start_time < end_time` for a half-open intraday `[start_time, end_time)` window; midnight-crossing rules are split across weekdays.
+- Multiple timed windows per weekday are allowed, with touching endpoints but no overlap; whole-day and timed windows on that weekday are mutually exclusive. Windows do not stack; outside them a Visit earns one point.
+- Cross-row overlap is validated transactionally while serializing edits to the draft Promotion, including concurrent edits. No fixed count of rules and no JSONB configuration. Publication freezes all windows, even when scheduled; new Promotions inherit no prior schedule.
+
+### promotions
 
 Suggested shape:
 
@@ -289,6 +302,8 @@ business_id
 target_points
 reward_title
 reward_description nullable
+start_date
+end_date
 timezone
 starts_at
 ends_at
@@ -307,9 +322,9 @@ Constraints:
 - Allowed `status`.
 - Required positive `target_points`.
 - Required Reward title.
+- The published snapshot is immutable even while scheduled or after cancellation: original local dates, `starts_at`, `ends_at`, timezone, target, Reward title and optional description, and every multiplier weekday/time/value; ended instances remain historical. Drafts remain editable.
 
-
-Published-window overlap is a cross-row rule. MVP enforces it in `PublishChallengeAction` while locking the Business row. Do not add database extensions/exclusion constraints only for this rule unless scale/concurrency demonstrates the need.
+Published effective-window overlap is a cross-row rule. Publication and cancellation serialize under the Business row lock, then recompute occupancy from original UTC windows and `cancelled_at`; cancellation uses the single post-lock PostgreSQL `clock_timestamp()` as its instant. A cancelled interval occupies `[starts_at, min(ends_at, cancelled_at))`, empty if cancelled before start. Touching endpoints are valid. A date-only replacement after intraday cancellation cannot start before the next Business-local midnight. Do not add database extensions/exclusion constraints only for this rule unless scale/concurrency demonstrates the need.
 
 ### customer_passes
 
@@ -343,7 +358,7 @@ Suggested shape:
 ```text
 id
 customer_pass_id
-challenge_id
+promotion_id
 validated_by_user_id
 idempotency_key
 points_awarded
@@ -354,10 +369,10 @@ updated_at
 
 Constraints/indexes:
 
-- FKs to Customer pass, Challenge, User.
+- FKs to Customer pass, Promotion, User.
 - Constraint `idempotency_key` unique.
 - Constraint `points_awarded > 0`.
-- Index `(customer_pass_id, challenge_id, visited_at)`.
+- Index `(customer_pass_id, promotion_id, visited_at)`.
 
 There is intentionally no local-day uniqueness rule. Legitimate repeat Visits on the same Business-local day may each be accepted.
 
@@ -370,7 +385,7 @@ Suggested shape:
 ```text
 id
 customer_pass_id
-challenge_id
+promotion_id
 unlocked_at
 redeemed_at nullable
 redeemed_by_user_id nullable
@@ -380,8 +395,8 @@ updated_at
 
 Constraints:
 
-- Unique `(customer_pass_id, challenge_id)`.
-- FKs to pass/challenge/user.
+- Unique `(customer_pass_id, promotion_id)`.
+- FKs to pass/Promotion/user.
 - Field `redeemed_by_user_id` is nullable until redemption.
 
 `unlocked_at` and `redeemed_at` are domain instants. Set them from the mutation's one post-lock PostgreSQL `clock_timestamp()` value, `operation_at`.
@@ -409,13 +424,13 @@ Use transactions + row locks for rules that depend on current state or derived l
 Critical concurrent paths:
 
 - Same validation operation retried or submitted concurrently.
-- Challenge completion attempted concurrently.
+- Promotion completion attempted concurrently.
 - Reward redeemed twice.
 - Initial Wallet provisioning retried.
 
 ## JSONB
 
-Do not use `jsonb` for the core Challenge or point-earning configuration in MVP. The supported fields are small and stable enough to remain explicit relational columns.
+Do not use `jsonb` for the core Promotion or point-earning configuration in MVP. Keep the Promotion columns explicit and multiplier windows in a lean relational table.
 
 Use `jsonb` only later for genuinely variable external metadata that does not deserve first-class relational fields.
 
@@ -450,6 +465,6 @@ reward_entitlements.redeemed_by_user_id
 Use Laravel migrations as the schema authority.
 
 - Do not modify migrations already applied to shared/production data.
-- Before production/shared data exists, controlled consolidation is acceptable when it simplifies the baseline.
+- Already-applied legacy Business-owned `business_point_windows` migrations and rows must be preserved through a forward migration to Promotion ownership; do not delete, reassign, reset, or rewrite applied migration history. Handle existing rows explicitly without silently attaching them to a Promotion.
 - Custom SQL requires a clear reason and focused migration tests.
 - Avoid framework-independent schema abstractions that duplicate Laravel's migration API.

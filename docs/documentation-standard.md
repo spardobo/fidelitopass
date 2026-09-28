@@ -36,7 +36,7 @@ Technical documents use controlled English inspired by ASD-STE100. The project d
 |---|---|
 | `conceptual-design.md` | Product model, actors, lifecycles, invariants, workflows. |
 | `product-scope.md` | MVP boundary and non-goals. |
-| `challenge-model.md` | Points-based Challenge semantics, point earning, and generated customer copy. |
+| `promotion-model.md` | Promotion-owned x2/x3/x5 extra-point rules, point earning, progress, and generated customer copy. |
 | `requirements.md` | Observable behaviour and Given-When-Then acceptance. |
 | `wallet-presentation.md` | Google Wallet information hierarchy and deterministic states. |
 | `ui-ux-guidelines.md` | Web visual/interactions/accessibility/page intent. |
@@ -45,7 +45,7 @@ Technical documents use controlled English inspired by ASD-STE100. The project d
 | `development/database-standard.md` | PostgreSQL schema/time/index/concurrency conventions. |
 | `development/laravel-application-standard.md` | Laravel/Livewire/source conventions. |
 | `quality-strategy.md` | Verification depth and quality evidence. |
-| `delivery-plan.md` | Rolling-wave grouping and sequence. |
+| `delivery-plan.md` | Rolling-wave grouping and candidate outcomes, not a fixed sequence. |
 | `development/workflow.md` | Work-item flow and documentation routing. |
 | `architecture/decisions/*` | One durable cross-cutting choice and consequences. |
 | root `README.md` | Spanish public product/engineering entry point. |
@@ -57,7 +57,7 @@ The design dependency is:
 ```text
 Concept
  -> Scope
- -> Challenge semantics
+ -> Promotion semantics
  -> Requirements
  -> UX / Wallet contract
  -> Architecture / Security
@@ -65,7 +65,7 @@ Concept
  -> Quality / Delivery
 ```
 
-Architecture responds to agreed product behaviour. It does not invent product requirements to justify a preferred technical pattern.
+Architecture responds to agreed product behaviour. It does not invent product requirements to justify a preferred technical pattern. The concept document originates domain meaning without outbound links. Each document owns its domain; links do not transfer ownership or require automatic traversal.
 
 ## Internal references
 
@@ -73,7 +73,7 @@ Use references only when another document is required to apply the current rule.
 
 Do not add broad "see also" networks.
 
-A loaded document does not imply that its referenced documents must also be loaded.
+A loaded document does not imply that its referenced documents must also be loaded. Follow a link only when the current decision requires its owner's knowledge.
 
 ## Living documents
 
@@ -85,7 +85,7 @@ Do not include:
 - Temporary work identifiers.
 - Implementation-session narratives.
 - Token/tool usage.
-- Old product/domain names.
+- Obsolete product/domain names in current guidance. Preserve historical ADRs and stable requirement identifiers, including historical CHL-prefixed IDs; do not rewrite them to erase history.
 
 Version control owns historical delivery context.
 
@@ -148,7 +148,7 @@ Update only the document whose knowledge changed.
 
 Examples:
 
-- Challenge/point rule change -> challenge model + affected requirement/presentation.
+- Promotion-owned x2/x3/x5 point rule change -> `promotion-model.md` + affected requirement/presentation.
 - Time model change -> conceptual/database/ADR + affected tests.
 - New page interaction -> UX + affected requirement.
 - New framework convention -> application standard.

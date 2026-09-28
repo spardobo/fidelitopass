@@ -10,7 +10,7 @@ const ignoredDirectories = new Set([".git", "node_modules", "storage", "vendor"]
 
 function markdownFiles(root) {
     const files = [];
-    const roots = ["README.md", "docs"];
+    const roots = ["README.md", "docs", "skills"];
 
     function visit(path) {
         if (!existsSync(path)) return;
@@ -50,6 +50,26 @@ function markdownTargets(content) {
     return targets;
 }
 
+function codeTargets(content, file, root) {
+    const targets = [];
+    const withoutFences = content.replace(/^\s*(```|~~~)[^\n]*\n[\s\S]*?^\s*\1[^\n]*$/gm, (match) =>
+        " ".repeat(match.length),
+    );
+    const isSkill = relative(root, file).startsWith(`skills${sep}`);
+    for (const match of withoutFences.matchAll(/`(docs\/[^`\s]+|references\/[^`\s]+)`/g)) {
+        const target = match[1].replace(/[.,;:]$/, "");
+        if (target.startsWith("docs/") || (isSkill && target.startsWith("references/"))) {
+            targets.push({
+                target,
+                offset: match.index,
+                rootRelative: target.startsWith("docs/"),
+                skillRelative: target.startsWith("references/"),
+            });
+        }
+    }
+    return targets;
+}
+
 function localTarget(target) {
     const normalized = target.replace(/^<|>$/g, "");
 
@@ -75,11 +95,17 @@ export function validateMarkdownLinks(root) {
     for (const file of markdownFiles(root)) {
         const content = readFileSync(file, "utf8");
 
-        for (const { target, offset } of markdownTargets(content)) {
+        for (const { target, offset, rootRelative, skillRelative } of [
+            ...markdownTargets(content),
+            ...codeTargets(content, file, root),
+        ]) {
             const local = localTarget(target);
             if (!local) continue;
 
-            const destination = resolve(dirname(file), local);
+            const skillRoot = skillRelative
+                ? resolve(root, relative(root, file).split(sep).slice(0, 2).join(sep))
+                : dirname(file);
+            const destination = resolve(rootRelative ? root : skillRoot, local);
             const relativeTarget = relative(root, destination);
             const escapedRoot = relativeTarget === ".." || relativeTarget.startsWith(`..${sep}`);
 

@@ -2,25 +2,25 @@
 
 This document defines the deterministic Google Wallet presentation for MVP.
 
-The pass structure does not change between Challenges. Only Business identity, Challenge values, current Visit point value, progress, Reward state, and deadline change.
+The pass structure does not change between Promotions. Only Business identity, Promotion values, current Visit point value, progress, Reward state, and deadline change.
 
 ## Presentation hierarchy
 
-Every active Challenge pass answers the same questions:
+Every active Promotion pass answers the same questions:
 
-1. What is the current Challenge.
+1. What is the current Promotion.
 2. How many points are required.
 3. How many points the customer has.
 4. How many points a Visit is worth now.
 5. What Reward will be unlocked.
-6. When the Challenge ends.
+6. When the Promotion ends.
 
 Example:
 
 ```text
 CAFÉ CENTRAL
 
-🎯 RETO ACTUAL
+🎯 PROMOCIÓN ACTUAL
 
 Consigue 15 puntos antes del 30 SEP.
 
@@ -32,7 +32,7 @@ Consigue 15 puntos antes del 30 SEP.
 Válido hasta 30 SEP
 
 [barcode]
-Código: 482731
+Código del Pase: 482731
 ```
 
 ## Stable fields
@@ -40,37 +40,37 @@ Código: 482731
 | Field | Example | Source |
 |---|---|---|
 | Business name | `CAFÉ CENTRAL` | Business. |
-| Challenge title | `🎯 RETO ACTUAL` | Platform-generated. |
-| Challenge description | `Consigue 15 puntos antes del 30 SEP.` | Platform-generated from Challenge values. |
-| Progress | `9 / 15 puntos` | PostgreSQL-authoritative Challenge progress. |
-| Current Visit value | `Ahora tu visita vale 2 puntos.` | Current Business-local point rule. |
+| Promotion title | `🎯 PROMOCIÓN ACTUAL` | Platform-generated. |
+| Promotion description | `Consigue 15 puntos antes del 30 SEP.` | Platform-generated from Promotion values. |
+| Progress | `9 / 15 puntos` | PostgreSQL-authoritative Promotion progress. |
+| Current Visit value | `Ahora tu visita vale 2 puntos.` | Applicable Puntos extra of the fixed one-point base, evaluated in the active published Promotion timezone. |
 | Reward | `🎁 Hamburguesa gratis` | Business-owned Reward value. |
-| Deadline | `Válido hasta 30 SEP` | Derived from Challenge local end date. |
+| Deadline | `Válido hasta 30 SEP` | Derived from Promotion local end date. |
 | Barcode | QR/private value | Private validation token. |
 | Manual code | `482731` | Short Business-scoped lookup code. |
 
-## State 1 — Waiting for a Challenge
+## State 1 — Waiting for a Promotion
 
 ```text
 CAFÉ CENTRAL
 
-👀 PRÓXIMO RETO
+👀 PRÓXIMA PROMOCIÓN
 
-Tu tarjeta ya está lista.
-Aquí aparecerá el próximo reto del negocio.
+Tu Pase ya está listo.
+Aquí aparecerá la próxima promoción del negocio.
 
 [barcode]
-Código: 482731
+Código del Pase: 482731
 ```
 
-Use this state when no Challenge is currently active.
+Use this state when no Promotion is currently active, including a scheduled Promotion awaiting its start.
 
-## State 2 — Challenge in progress
+## State 2 — Promotion in progress
 
 ```text
 CAFÉ CENTRAL
 
-🎯 RETO ACTUAL
+🎯 PROMOCIÓN ACTUAL
 
 Consigue 15 puntos antes del 30 SEP.
 
@@ -82,23 +82,23 @@ Tu visita ahora vale 1 punto.
 Válido hasta 30 SEP
 
 [barcode]
-Código: 482731
+Código del Pase: 482731
 ```
 
-When the optional special point rule is active:
+When a Puntos extra window is active (for example x2):
 
 ```text
 ⚡ Ahora tu visita vale 2 puntos.
 ```
 
-The pass always shows the point value that applies at that moment according to Business-local time.
+The pass indicates the point value at that moment: one point outside Puntos extra windows, or x2, x3 or x5 in one window, without stacking. The server awards points using its operation instant and the published Promotion timezone snapshot. Updates after commit may lag; never imply instant provider synchronization or invite duplicate visits.
 
 ## State 3 — Reward available
 
 ```text
 CAFÉ CENTRAL
 
-🎉 RETO COMPLETADO
+🎉 PROMOCIÓN COMPLETADA
 
 15 / 15 puntos
 
@@ -109,10 +109,10 @@ CAFÉ CENTRAL
 Canjéala antes del 30 SEP.
 
 [barcode]
-Código: 482731
+Código del Pase: 482731
 ```
 
-The Reward becomes the visual priority. Do not keep encouraging additional Challenge progress.
+The Reward becomes the visual priority. Do not keep encouraging additional Promotion progress.
 
 ## State 4 — Reward redeemed
 
@@ -123,27 +123,27 @@ CAFÉ CENTRAL
 
 Gracias por volver.
 
-Tu tarjeta seguirá lista
-para el próximo reto.
+Tu Pase seguirá listo
+para la próxima promoción.
 
 [barcode]
-Código: 482731
+Código del Pase: 482731
 ```
 
-## State 5 — Challenge ended without Reward
+## State 5 — Promotion ended without Reward
 
 ```text
 CAFÉ CENTRAL
 
-⌛ RETO FINALIZADO
+⌛ PROMOCIÓN FINALIZADA
 
-Este reto ya terminó.
+Esta promoción ya terminó.
 
-Tu tarjeta seguirá lista
-para el próximo reto.
+Tu Pase seguirá listo
+para la próxima promoción.
 
 [barcode]
-Código: 482731
+Código del Pase: 482731
 ```
 
 ## State 6 — Reward expired
@@ -153,39 +153,39 @@ CAFÉ CENTRAL
 
 ⌛ RECOMPENSA VENCIDA
 
-El plazo de este reto terminó
+El plazo de esta promoción terminó
 y la recompensa ya no está disponible.
 
-Tu tarjeta seguirá lista
-para el próximo reto.
+Tu Pase seguirá listo
+para la próxima promoción.
 
 [barcode]
-Código: 482731
+Código del Pase: 482731
 ```
 
-## State 7 — Challenge cancelled
+## State 7 — Promotion cancelled
 
 ```text
 CAFÉ CENTRAL
 
-RETO CANCELADO
+PROMOCIÓN CANCELADA
 
-Este reto ya no está activo.
+Esta promoción ya no está activa.
 
-Tu tarjeta seguirá lista
-para el próximo reto.
+Tu Pase seguirá listo
+para la próxima promoción.
 
 [barcode]
-Código: 482731
+Código del Pase: 482731
 ```
 
 ## Presentation rules
 
 - Use points as the only progress unit.
 - Do not use stamp circles as the primary progress representation.
-- Keep Challenge copy generated centrally in Spanish.
+- Keep Promotion copy generated centrally in Spanish.
 - Keep descriptions short enough to scan quickly.
-- Show the current Visit point value while a Challenge is active.
+- Show the current Visit point value while a Promotion is active.
 - Prefer exact local dates when deadlines matter.
 - A state must never imply an action that the server would reject.
 - Use icon/emoji plus text; colour alone never communicates state.
@@ -193,14 +193,16 @@ Código: 482731
 - The barcode contains the private high-entropy validation token; the manual code is a separate Business-scoped lookup identifier.
 - Wallet content is a presentation of PostgreSQL state, never an independent business-rule authority.
 
+The public acquisition QR is not the private barcode or the separate manual lookup code. A provider update is eventually synchronized after database commit; failures do not roll back an accepted Visit and must not cause a second commercial action. The web preview is illustrative, not an issued credential. Google Wallet accepts a configured background colour (`hexBackgroundColor`), but native text colour is provider-controlled and cannot be guaranteed; ensure legible web previews independently.
+
 ## Google Wallet structure
 
 Use the Google Wallet loyalty Class/Object model:
 
 - One shared Business loyalty class for Business-level identity/presentation.
 - One loyalty object per Customer pass.
-- Field `loyaltyPoints` or equivalent structured field for numeric Challenge progress where useful.
-- Text modules for Challenge description, current Visit point value, Reward, and validity.
+- Field `loyaltyPoints` or equivalent structured field for numeric Promotion progress where useful.
+- Text modules for Promotion description, current Visit point value, Reward, and validity.
 - Barcode for the validation token.
 - Alternate barcode text/manual code for quick fallback where suitable.
 

@@ -8,7 +8,7 @@ Quality work follows product risk. It must protect the loyalty loop without turn
 
 | Priority | Main risk | Primary evidence |
 |---|---|---|
-| Challenge correctness | Wrong awarded points or progress damages trust. | Domain/feature tests. |
+| Promotion correctness | Wrong awarded points or progress damages trust. | Domain/feature tests. |
 | Visit integrity | Retried/concurrent validation can duplicate points if idempotency fails. | PostgreSQL-backed transaction/concurrency tests. |
 | Reward finality | Double redemption creates direct Business loss. | Transaction/idempotency tests. |
 | Authorization | One Business could alter another Business's passes. | Policy/feature abuse tests. |
@@ -37,7 +37,7 @@ Ask which failure could materially harm the product. Classify code by risk inste
 
 | Tier | Scope | Guidance |
 |---|---|---|
-| CORE | Point awarding, Challenge progress, Visit integrity, Reward unlock/redemption, authorization, time boundaries, idempotency/concurrency. | **100% of identified critical rules have direct automated evidence.** |
+| CORE | Point awarding, Promotion progress, Visit integrity, Reward unlock/redemption, authorization, time boundaries, idempotency/concurrency. | **100% of identified critical rules have direct automated evidence.** |
 | IMPORTANT | Application Actions, Livewire workflows, Wallet mapping/integration boundaries, reusable project-owned services. | **80% line/function coverage is a diagnostic reference, not a release gate.** |
 | INFRASTRUCTURE | Framework bootstrap, configuration, generated code, trivial migrations, vendor code. | **0% coverage quota; verify applicable behaviour by other means.** |
 
@@ -78,7 +78,7 @@ Core-flow baseline requires responsive layouts, keyboard-visible focus, semantic
 
 - Structure focused tests with Arrange, Act, Assert.
 - Test observable behaviour and domain outcomes, not private methods.
-- Use real PostgreSQL when behaviour depends on transactions, constraints, `timestamptz`, `AT TIME ZONE`, or row locks.
+- Use real PostgreSQL when behaviour depends on transactions, constraints, `timestamptz`, `AT TIME ZONE`, or row locks; assert that mutations capture one post-lock PostgreSQL `operation_at` for deadline checks, local award evaluation, and domain timestamps.
 - Fake Google Wallet at the provider boundary for deterministic automated tests.
 - Keep one real-device Wallet verification checklist for release confidence.
 - Fix or remove flaky required tests; do not normalize retry-until-green.
@@ -90,17 +90,17 @@ Every identified core rule must have direct automated evidence.
 
 Core rules:
 
-- Challenge target/Reward configuration ranges.
-- Challenge active/scheduled/ended state from database time.
+- Promotion target/Reward configuration ranges.
+- Promotion active/scheduled/ended state from explicitly current PostgreSQL time; publication freezes scheduled terms, timezone, and multiplier schedule.
 - Non-overlapping publication.
-- Regular Visit point awarding.
-- Optional special weekday/time point awarding.
+- Fixed one-point regular Visit awarding; no Business-global earning configuration or inherited previous-Promotion rules.
+- Promotion-owned recurring weekday x2/x3/x5 multiplier awarding: whole-day versus disjoint half-open timed windows, touching endpoints, overlap rejection, no stacking, and one point outside windows; published scheduled schedules remain frozen.
 - Legitimate repeat Visits on the same day.
 - Idempotent/concurrent validation of one operation.
-- Challenge progress from immutable awarded points.
+- Promotion progress from immutable awarded points.
 - One Reward entitlement.
 - One Redemption.
-- Challenge expiry/cancellation.
+- Promotion expiry/cancellation, including effective occupancy after cancellation and exclusive-end rejection.
 - Cross-Business authorization.
 - Wallet provider failure after commit.
 
@@ -112,7 +112,7 @@ Use Laravel feature tests for:
 
 - Authentication boundary.
 - Business ownership.
-- Challenge forms/publication.
+- Promotion draft/publication, frozen scheduled terms, timezone reconfirmation after Business changes, and cancellation.
 - Public join flow.
 - Pass lookup.
 - Rate limiting.
@@ -128,13 +128,13 @@ Keep browser coverage representative.
 Required journeys:
 
 1. Public landing -> Business registration entry.
-2. Owner creates/publishes a Challenge.
+2. Owner creates/publishes a Promotion.
 3. Customer join page -> Add to Google Wallet handoff (provider boundary may be stubbed).
 4. Business validation page with scanner path represented where practical.
 5. Manual-code fallback directly below scanner.
 6. Successful Visit -> progress result.
 7. Reward available -> Redemption.
-8. Responsive/theme smoke coverage.
+8. Responsive dark-only smoke coverage, including saved/system light preferences without a light-theme flash.
 
 Browser rules:
 
@@ -180,7 +180,7 @@ Keep lightweight security evidence in the delivery pipeline:
 - Authorization/rate-limit feature tests.
 - Production configuration checks such as debug disabled.
 
-Security tooling detects patterns; it does not replace review of Challenge/Visit/Reward business rules.
+Security tooling detects patterns; it does not replace review of Promotion/Visit/Reward business rules.
 
 ## Local and CI feedback
 
@@ -217,11 +217,11 @@ Before a production release:
 - Static analysis reports zero unresolved project-owned errors.
 - Dependency/secret scans pass; any critical/high dependency finding is resolved or has an explicit reviewed exception.
 - Production build succeeds.
-- Database migrations are tested.
-- Challenge UTC/local boundary cases pass.
+- Database migrations are tested. Direct PostgreSQL-backed migration tests must start with populated, already-applied Business-owned `business_point_windows`, run the forward migration, and verify every original row remains accounted for without silent Promotion reassignment, deletion, reset, or applied-history rewrite. This is required future evidence, not a claim that migration exists.
+- Promotion UTC/local and DST boundary cases, scheduled snapshot freeze, post-lock `operation_at`, and cancellation/occupancy cases pass.
 - Scan/manual validation works.
 - Reward can be unlocked and redeemed once.
 - Google Wallet can be issued and updated on a real supported device.
-- Light/dark responsive core pages and basic keyboard/touch interaction are reviewed; full WCAG AA conformance is a progressive goal, not a release certification gate.
+- Dark-only responsive core pages (including saved/system light preferences without a light-theme flash) and basic keyboard/touch interaction are reviewed; full WCAG AA conformance is a progressive goal, not a release certification gate.
 - Production debug is disabled.
 - Structured production logs can be parsed as JSON.

@@ -7,8 +7,8 @@ This document defines the web interaction model, visual system, page intent, and
 1. Make the primary action obvious within a few seconds.
 2. Prefer recognition over memory.
 3. Keep operational Business flows short.
-4. Explain every Challenge in plain language.
-5. Use progressive disclosure for the optional special point rule.
+4. Explain every Promoción in plain language.
+5. Keep Puntos extra weekday and hour choices compact and explicit.
 6. Keep one primary action per decision point.
 7. Show immediate feedback for every validation/redeem operation.
 8. Use text and iconography in addition to colour.
@@ -63,41 +63,41 @@ Hierarchy:
 - Body: comfortable reading line height.
 - Operational labels: short and explicit.
 
-Do not use uppercase for long sentences. Challenge labels in Wallet may use short uppercase titles.
+Do not use uppercase for long sentences. Promoción labels in Wallet may use short uppercase titles.
 
 ## Public landing page
 
-The landing page introduces the product, not the dashboard.
+The landing page introduces the product, not the dashboard. When landing content is published before an illustrated capability is available, label that capability as future in product-facing copy; do not present the target journey as currently operational.
 
 ### Header
 
 - FidelitoPass wordmark/logo on the left.
-- Navigation order: **Beneficios → Cómo funciona → Retos de puntos → El pase → Preguntas frecuentes → Empezar**.
+- Navigation order: **Beneficios → Cómo funciona → Promociones → El pase → Preguntas frecuentes → Empezar**.
 - No header registration button or theme toggle. The header links to page sections; the hero and final section carry the same registration action.
 
 On small screens, keep navigation accessible without adding a competing registration CTA.
 
 ### Hero
 
-Use the current marketing copy in `lang/es/landing.php`; do not replace it with a speculative draft. The hero and final CTA both link to registration; sign-in remains subordinate. Show the illustrative pass and Challenge as conceptual product visuals, not proof of shipped Wallet issuance or Visit validation. The mock QR is not independently decoded or functional. If publishing the page, make the distinction between the target journey and available functionality explicit in product-facing copy.
+Use the current marketing copy in `lang/es/landing.php`; do not replace it with a speculative draft. The hero and final CTA both link to registration; sign-in remains subordinate. Show the illustrative Pase and Promoción as conceptual product visuals, not proof of issued Wallet credentials or operational Visit validation. The mock QR is not independently decoded or functional. Do not present conceptual visuals as usable credentials.
 
 ### How it works
 
-Present registration and Business profile as the available first step. Label the remaining conceptual journey explicitly as future functionality: QR sharing, Visit validation, and Rewards. No Challenge creation or publication is currently available.
+Explain the customer journey in product terms: register the Business, share its public QR, validate visits and deliver Rewards. Distinguish illustrations from operational controls; do not imply an unavailable operation works.
 
 Each step uses a numbered marker, short title, and one sentence.
 
-### Challenge section
+### Promoción section
 
-Explain one clear Challenge model:
+Explain one clear Promoción model:
 
 > Consigue puntos antes de una fecha y desbloquea una recompensa.
 
-Show a clearly labeled conceptual example and one proposed moment when a Visit could be worth more points. Avoid configurator controls on the landing page.
+Show a clearly labeled conceptual example and a Puntos extra moment when a Visit could be worth more points. Avoid configurator controls on the landing page.
 
 ### Wallet section
 
-Describe a persistent **pase para Google Wallet**, not a tarjeta. Show the target Wallet information hierarchy; issuance remains a future capability.
+Describe a persistent **Pase para Google Wallet**, not a new pass per Promoción. Show the Wallet information hierarchy without implying an illustrative preview is an issued credential.
 
 ### Final CTA
 
@@ -120,34 +120,30 @@ Use the Starter Kit/Fortify flows with the FidelitoPass visual tokens.
 - Labels remain visible.
 - Validation appears close to the field.
 - Do not add decorative side panels that distract from authentication.
-- Business registration does not ask for Challenge configuration.
+- Registration collects Business name and a visible, confirmable, server-validated IANA timezone alongside owner credentials in one atomic operation; no logo or Promoción configuration is required.
 
 ## Business onboarding
 
-After first sign-in, request only the minimum Business setup:
-
-1. Business name.
-2. IANA timezone.
-3. Logo (optional for initial save; required before polished Wallet publication if Google Wallet branding requires it).
+For an existing owner without a Business, offer compatible setup with only Business name and visible, server-validated IANA timezone. A logo is optional, not a publication prerequisite. **Resumen** is the ordinary authenticated application home, not a required first stop after sign-in. Keep Profile and logout available; its incomplete-setup CTA uses the same **Pase** route as navigation, not a forced wizard.
 
 Timezone selection should:
 
 - Preselect a browser-suggested timezone when available.
 - Display the IANA name in a searchable/selectable control.
 - Remain editable in settings.
-- Explain briefly that it controls Challenge days and deadlines.
+- Explain briefly that it controls Promoción days and deadlines.
 
 Do not expose UTC offsets as the stored Business identity because offsets can change in many regions.
 
 ## Dashboard
 
-The current dashboard provides Business onboarding and profile access, not operational Challenge controls or analytics. The following operational dashboard guidance describes the future target, not current MVP functionality.
+**Resumen** leads with the next relevant action and distinguishes missing setup, scheduled, active, ended and cancelled Promociones. Show truthful waiting states rather than fabricated activity. A scheduled Promoción completes setup but is not yet eligible for visits.
 
 ### Top section
 
 Show:
 
-- Current/scheduled Challenge.
+- Current/scheduled Promoción.
 - Status.
 - Local validity dates.
 - Primary action appropriate to state.
@@ -156,8 +152,8 @@ Show:
 
 Use only:
 
-- Wallet passes issued.
-- Points earned in current Challenge.
+- Wallet passes issued (not installations or unique people).
+- Points earned in current Promoción.
 - Rewards unlocked.
 - Rewards redeemed.
 
@@ -165,97 +161,75 @@ Counters are informative, not charts.
 
 ### Quick actions
 
-- **Validar visita**.
-- **Gestionar reto**.
-- **Mostrar QR**.
+- **Registrar visita** as a prominent global action, reachable on mobile. Disable it until validation is operational, with an honest explanation rather than a dead or deceptive control.
+- **Pase** for managing Promociones and appearance.
+- **Invitar clientes** for the public acquisition QR.
 
 Avoid advanced analytics, segmentation, trends, or customer lists in MVP.
 
-## Challenge builder
+## Pase and Promoción editor
 
-The builder uses one stable page and one Challenge mechanic.
+**Pase** is a vertical sequence: compact illustrative Wallet preview, independently saved pass appearance, then Promoción list. Avoid a giant phone mockup or blank full-height preview column. Appearance offers presets, native colour input and synchronized hexadecimal field, with validation and automatically contrasting web text; Google Wallet supports background colour but does not guarantee a chosen native text colour. List drafts, scheduled, active, ended and cancelled Promociones. Only draft terms are editable; cancellation is a separate action.
 
-### Challenge fields
+Open one editor modal with exactly two labelled, keyboard-accessible tabs: **Información general** and **Puntos extra**. Use Flux Free modal/basic fields, native date controls and accessible custom Blade/Alpine tabs (focus, arrow-key navigation and labelled panels); do not promise Pro tabs or date/colour pickers.
 
-Show only:
+### Información general
 
-- Start date.
-- End date.
-- Target points.
-- Reward title.
-- Optional Reward description.
+Show local start/end dates, positive target points, Reward title and optional description, and the current Business IANA timezone as read-only context, not an independent selector. Publication review confirms the timezone; if it changed since review, refresh and ask for confirmation again. Published terms, including scheduled ones, are immutable.
 
-### Point earning
+### Puntos extra
 
-Keep point earning compact and separate from the Challenge goal.
+State the fixed regular Visit value: 1 point. Keep an inline Add form stable while entries are added: weekday, whole day or start/end hours, and multiplier x2, x3 or x5. Below it show each added entry as a row with weekday, whole-day or hours, multiplier and **Quitar**. Multiple disjoint half-open `[start, end)` windows may touch endpoints but not overlap; whole-day and timed entries cannot coexist on one weekday. Split overnight intervals across days. Never stack rules or offer expressions/a generic builder. No rules are inherited from previous Promociones.
 
-Show:
+### Shared footer and preview
 
-- Regular Visit point value.
-- Optional special rule toggle.
-
-When the optional rule is enabled, progressively reveal:
-
-- One weekday.
-- Full-day or time-range option.
-- Start/end time only when time range is selected.
-- Special Visit point value.
-
-Do not offer multiple special rules, rule stacking, expressions, or arbitrary conditions.
-
-### Preview
-
-Show a deterministic Wallet preview alongside the form on wide screens and below the form on narrow screens.
-
-The preview always uses points as the progress unit and shows the current Visit point value.
-
-Do not generate dynamic stamp-circle graphics.
+Use **Cancelar**, **Guardar borrador**, **Publicar** when applicable. Preserve unsaved values across tabs, reveal errors in the hidden tab, warn about incomplete unadded entries and confirm closing a dirty editor. Save/publish the complete Promoción and its Puntos extra atomically; appearance saves separately. Server validation is authoritative. Show a deterministic compact preview with numeric points, regular or applicable Puntos extra Visit value and no dynamic stamp circles; it is not a native-device colour or issuance guarantee.
 
 ## Acquisition QR page
 
 Business view:
 
 - Business identity.
-- Permanent QR large enough to print.
+- Permanent public QR with adequate print contrast and quiet zone; avoid promising an unverified physical size.
 - Short copy explaining what customers do.
 - Download/print action.
 
 Customer join view:
 
-- Business logo/name.
-- Current Challenge title/description if active.
+- Business name and optional logo.
+- Current Promoción description if active, otherwise a waiting message.
 - Reward.
 - Local deadline.
 - Add to Google Wallet action.
 
 No account-creation form for customers.
 
-## Validate visit page
+## Registrar visita dialog
 
-This page is designed for fast counter use.
+Once operational, the global action opens one identification → confirmation → result dialog for fast counter use. Until then, keep the action disabled with an honest explanation.
 
 ### Required order
 
-1. Page title: **Validar visita**.
+1. Dialog title: **Registrar visita**.
 2. Scanner/camera area.
 3. Manual fallback **immediately below the scanner**.
-4. Customer-pass result/action card.
+4. Customer-Pase lookup, explicit confirmation and result card in the same dialog.
 
 Manual fallback:
 
 ```text
-Código de la tarjeta
+Código del Pase
 [ 482731              ]
-[ Buscar tarjeta ]
+[ Buscar pase ]
 ```
 
-Do not hide manual entry behind a modal, secondary page, accordion, or menu.
+Keep manual entry visible inside this same dialog directly beneath the camera, including camera errors. Scanning and manual lookup are read-only and lead to the same confirmation; release camera and listeners on close/navigation.
 
 ### Camera error
 
 Keep the scanner region in place and show:
 
-> No se pudo acceder a la cámara. Revisa los permisos o introduce el código de la tarjeta.
+> No se pudo acceder a la cámara. Revisá los permisos o ingresá el código del Pase.
 
 The manual field remains immediately below.
 
@@ -263,7 +237,7 @@ The manual field remains immediately below.
 
 Show only operationally relevant data:
 
-- Current Challenge.
+- Current Promoción.
 - Current progress.
 - Current Visit point value.
 - Result state.
@@ -275,12 +249,12 @@ Do not expose customer identity because none exists.
 
 | State | Primary action |
 |---|---|
-| Active and can progress | **Registrar visita** |
+| Active and can progress | **Confirmar visita** |
 | Reward available | **Canjear recompensa** |
-| Challenge ended/cancelled | none |
-| Waiting for Challenge | none |
+| Promoción ended/cancelled | none |
+| Waiting for Promoción | none |
 
-After an action, show immediate success feedback and the resulting progress.
+Before mutation, explicitly confirm the intended operation. On confirmation, revalidate ownership, eligibility, published terms and database time on the server with an idempotency key; show resulting progress after commit. Provider sync failures must not invite a duplicate Visit or redemption.
 
 ## Reward redemption
 
@@ -289,7 +263,7 @@ Redemption is final.
 Before confirmation show:
 
 - Reward title.
-- Challenge.
+- Promoción.
 - Validity deadline.
 - Explicit confirmation.
 
@@ -310,7 +284,7 @@ Do not use optimistic UI for redemption.
 - Preserve entered data after recoverable validation errors.
 - Prefer validation on blur/submit rather than aggressive per-keystroke error states.
 - Error copy states what is wrong and how to fix it.
-- Use specific CTA labels: **Publicar reto**, **Registrar visita**, **Canjear recompensa**.
+- Use specific CTA labels: **Publicar**, **Registrar visita**, **Canjear recompensa**.
 
 ## Loading and perceived responsiveness
 
