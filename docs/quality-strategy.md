@@ -217,7 +217,7 @@ Before a production release:
 - Static analysis reports zero unresolved project-owned errors.
 - Dependency/secret scans pass; any critical/high dependency finding is resolved or has an explicit reviewed exception.
 - Production build succeeds.
-- Database migrations are tested. Direct PostgreSQL-backed migration tests must start with populated, already-applied Business-owned `business_point_windows`, run the forward migration, and verify every original row remains accounted for without silent Promotion reassignment, deletion, reset, or applied-history rewrite. This is required future evidence, not a claim that migration exists.
+- Applicable new schema migrations are checked against the target PostgreSQL migration state, with proportionate PostgreSQL-backed tests for constraints, safe forward changes, and preservation of existing data where relevant.
 - Promotion UTC/local and DST boundary cases, scheduled snapshot freeze, post-lock `operation_at`, and cancellation/occupancy cases pass.
 - Scan/manual validation works.
 - Reward can be unlocked and redeemed once.

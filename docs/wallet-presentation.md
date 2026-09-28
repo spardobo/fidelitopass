@@ -43,7 +43,7 @@ Código del Pase: 482731
 | Promotion title | `🎯 PROMOCIÓN ACTUAL` | Platform-generated. |
 | Promotion description | `Consigue 15 puntos antes del 30 SEP.` | Platform-generated from Promotion values. |
 | Progress | `9 / 15 puntos` | PostgreSQL-authoritative Promotion progress. |
-| Current Visit value | `Ahora tu visita vale 2 puntos.` | Applicable Puntos extra of the fixed one-point base, evaluated in the active published Promotion timezone. |
+| Current Visit value | `Ahora tu visita vale 2 puntos.` | Applicable extra points on the fixed one-point base, evaluated in the active published Promotion timezone. |
 | Reward | `🎁 Hamburguesa gratis` | Business-owned Reward value. |
 | Deadline | `Válido hasta 30 SEP` | Derived from Promotion local end date. |
 | Barcode | QR/private value | Private validation token. |
@@ -85,13 +85,13 @@ Válido hasta 30 SEP
 Código del Pase: 482731
 ```
 
-When a Puntos extra window is active (for example x2):
+When a multiplier window is active (for example x2):
 
 ```text
 ⚡ Ahora tu visita vale 2 puntos.
 ```
 
-The pass indicates the point value at that moment: one point outside Puntos extra windows, or x2, x3 or x5 in one window, without stacking. The server awards points using its operation instant and the published Promotion timezone snapshot. Updates after commit may lag; never imply instant provider synchronization or invite duplicate visits.
+The pass indicates the point value at that moment: one point outside multiplier windows, or x2, x3 or x5 in one window, without stacking. The server awards points using its operation instant and the published Promotion timezone snapshot. Updates after commit may lag; never imply instant provider synchronization or invite duplicate visits.
 
 ## State 3 — Reward available
 
