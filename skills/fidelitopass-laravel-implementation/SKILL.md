@@ -1,5 +1,5 @@
 ---
-name: laravel-maintainable-implementation
+name: fidelitopass-laravel-implementation
 description: "Trigger: FidelitoPass Laravel, PHP, Livewire, PostgreSQL, Google Wallet application-code changes. Apply project-specific implementation and domain constraints."
 license: Apache-2.0
 metadata:

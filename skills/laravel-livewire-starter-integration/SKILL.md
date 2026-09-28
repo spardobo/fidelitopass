@@ -1,5 +1,5 @@
 ---
-name: laravel-starter-first-livewire
+name: laravel-livewire-starter-integration
 description: "Trigger: integrating UI features into a Laravel + Livewire starter, full-page Livewire routes, starter layouts, Flux navigation. Reuse installed starter conventions before adding presentation infrastructure."
 license: Apache-2.0
 metadata:
