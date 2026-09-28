@@ -13,34 +13,36 @@ Use for delivery selection, scoping, board transitions and completion. Do not us
 
 ## Hard Rules
 
-- Start with Kanban Active, Review and Verify work and dependencies; after checking unfinished work and overlapping ownership, prefer a dependency-ready candidate from `docs/delivery-plan.md` when relevant, or scope unplanned documentation, maintenance, or defects as one new Project draft item without requiring a plan row. Candidates are not scheduled commitments.
-- Read only the relevant work item, affected source/tests and bounded entry for applicable original IDs in `docs/requirements.md`; do not reload the entire requirements master or follow references automatically. Requirement ↔ item is N:N; selected criteria, not every linked criterion, define the item.
-- Board state owns progress, not requirement status or issue closure. Never reopen a completed item just because a linked requirement has remaining criteria. Do not rewrite historical cards.
-- For new planned or unplanned work not already represented on the board, inspect board and scope, create exactly one Project draft item in Backlog, then obtain human approval of its scope. A draft may lack assignee and repository issue; documentation governance repairs can be standalone without a plan row or product ID. Convert that same draft in place to one repository issue before Active; the Project item retains its distinct identifier/ID and must not become a duplicate card. Apply `status:approved` to the issue to reflect prior approval. Assign the moving actor on the issue and read back both issue assignees and Project Assignees to confirm that actor appears in each; the issue is the source of truth and the Project automatically reflects linked issue assignees. Do not assign the Project separately or promise automatic moving-actor assignment. Only then set the item Active; if conversion, label, assignment, status, or readback fails, stop without claiming activation. An issue form, if present, supports converted content rather than starting a separate issue. Issue ↔ PR is 1:N; intermediate PRs reference the repository issue, and the final PR's `Closes #N` closes repository issue #N after accepted item evidence, not the Project item. Move the Project item independently to Done under board policy or configured built-in GitHub automation on issue closure; closure alone guarantees neither this transition nor acceptance. No direct PR bypass for activated work. Obtain authorization before repository-host actions.
+- Inspect Kanban Active, Review and Verify work, dependencies and ownership before choosing a candidate. Prefer dependency-ready planned work when relevant; unplanned documentation, maintenance and defects need no plan row or product ID. Candidates are not commitments.
+- Read only bounded applicable requirement entries and relevant sources; selected criteria, not all criteria of linked requirements, define the item. Requirement ↔ item is N:N. Do not infer whole-requirement acceptance from item completion.
+- For UI-backed selection, inspect the bounded page/menu entry in `docs/ui-ux-guidelines.md`, parent relationship in `docs/conceptual-design.md`, intended persistence in `docs/development/database-standard.md`, and relevant current migrations. Distinguish conceptual parent from physical foreign key; never infer an entity, table or FK from a page name.
+- Board state owns progress, not requirement status or issue closure. Do not reopen completed items or rewrite historical cards. Follow `references/delivery-details.md` for draft-first activation, issue/Project identity, assignment readbacks, PR evidence and Done. Obtain authorization before repository-host actions.
 
 ## Decision Gates
 
 | Situation | Action |
 | --- | --- |
-| Choosing work | Inspect Active/Review/Verify evidence and dependencies, then prefer a ready plan candidate when relevant or scope unplanned documentation, maintenance, or defects in one new Backlog Project draft item without a required plan row; avoid duplicating ownership and refine scope with the product owner before activation. |
-| Product or acceptance uncertain | Read only the relevant product document section and bounded canonical requirement entry; record selected criteria in the item issue. |
-| Defect in an open issue's agreed scope | Keep the fix and evidence in that issue; no mandatory delivery-plan row for an unplanned bug. |
-| Defect or unmet criteria after issue closure | Leave the predecessor Project item Done; create a new Backlog draft item, approve its scope, then convert it to a new issue linked to the predecessor issue. |
-| Product obligation genuinely changes | Propose a new requirement ID explicitly linked to its predecessor in the requirements source; do not repurpose the old ID or mutate historical cards. |
-| Marking Done | Require agreed item outcome, proportionate checks, integrated evidence and product-owner acceptance with QA/developer evidence in issue/PR; do not infer whole-requirement completion or treat documentation work as proof of REQ-QLT-001. |
+| Choosing work | Check existing board work and ownership; choose a dependency-ready plan candidate or scope one unplanned Backlog draft without duplicating work. |
+| UI, domain and implemented schema disagree | Choose the missing parent/setup prerequisite first; if the intended relationship is ambiguous, ask one focused product question before activation. Record page/menu, conceptual parent and migration evidence. |
+| Acceptance uncertain | Read only the relevant product section and bounded canonical requirement entry; select criteria in the item. |
+| New work not represented on board | Create one Project draft in Backlog, get human scope approval, then convert that same draft in place to one issue before Active; follow reference activation checks. |
+| Defect in open issue scope | Keep fix and evidence in that issue. |
+| Defect or unmet criteria after closure | Keep predecessor Done; scope and approve a new Backlog draft linked to predecessor, then convert to a new issue. |
+| Product obligation changes | Propose a new requirement ID linked to its predecessor; do not repurpose the old ID. |
+| Marking Done | Require agreed item outcome, proportionate checks, integrated evidence and product-owner acceptance with QA/developer evidence; do not infer whole-requirement completion. |
 
 ## Execution Steps
 
-1. Identify board state and dependencies, choose a ready work item, and define selected IDs/criteria, exclusions, risks and checkable outcome.
-2. Use `references/delivery-details.md` to route bounded sources and record evidence in the activated issue and linked PRs.
-3. Advance board state only on observed evidence; report blockers and remaining requirement criteria without reopening completed work.
+1. Inspect board evidence and dependencies; select one item with criteria/IDs, exclusions, risks and a checkable outcome.
+2. Use `references/delivery-details.md` for bounded source routing, draft activation and issue/PR evidence.
+3. Advance board state only on observed evidence; report blockers and remaining requirement criteria.
 
 ## Output Contract
 
-Report board state, selected work item and criteria/IDs, issue/PR evidence and checks, remaining gaps, blocker/risk and next decision only if required.
+Report board state, selected item and criteria/IDs, issue/PR evidence and checks, remaining gaps, risks/blockers and next decision only if required. For UI-backed work, state page/menu entry, conceptual parent and whether its schema exists today.
 
 ## References
 
-- `references/delivery-details.md` — bounded routing and completion decisions.
+- `references/delivery-details.md` — bounded routing, activation and completion decisions.
 - `docs/delivery-plan.md` — candidate work items.
 - `docs/development/workflow.md` — product delivery authority.
