@@ -32,7 +32,7 @@ Protect:
 - Business owner account/session.
 - Google Wallet issuer credentials/private key material.
 - Customer validation tokens.
-- Challenge configuration and Reward finality.
+- Promotion-owned frozen point settings and Reward finality.
 - Visit history.
 - Reward entitlement state.
 - Structured logs from secret leakage or forged context.
@@ -61,7 +61,7 @@ The server never trusts:
 
 - Value `business_id` from a hidden form field.
 - Value `customer_pass_id` supplied without Business scoping.
-- Client-calculated Challenge progress.
+- Client-calculated Promotion progress.
 - Client Reward state.
 
 Use Laravel Policies or explicit authorization at the owning boundary.
@@ -77,7 +77,7 @@ Purpose:
 - Identify a Business join page.
 - Allow customers to start the Wallet flow.
 
-It must never authorize a Visit or Redemption.
+It must never identify a private pass for validation or authorize a Visit or Redemption; confirmation requires a private Wallet validation credential or authenticated, Business-scoped manual-code fallback.
 
 ### Wallet validation token
 
@@ -116,7 +116,7 @@ Treat all external input as untrusted.
 
 - Use Laravel validation/Form Requests or Livewire validation.
 - Prefer allowlists/enums/ranges over blacklist filtering.
-- Validate Challenge target/Reward fields and the small point-earning configuration against explicit allowlists/ranges.
+- Validate Promotion target/Reward fields and Promotion-owned Puntos extra multipliers (x2, x3, x5), weekdays, and whole-day or disjoint half-open timed windows against explicit allowlists/ranges; reject overlap, stacking, and mixed whole-day/timed rules.
 - Validate IANA timezone names against supported timezone identifiers.
 - Validate public identifiers and manual codes by format before lookup.
 - Use Eloquent/query-builder parameter binding; do not concatenate user input into raw SQL.
@@ -132,8 +132,9 @@ Client-side validation may improve UX but never replaces server validation.
 - Requires authenticated Business ownership.
 - Locks the Customer pass.
 - Uses database time.
-- Enforces active Challenge.
-- Resolves the point value that applies at the current Business-local time.
+- Enforces an active, uncancelled published Promotion using its frozen terms and exclusive UTC end.
+- After acquiring relevant locks, captures one PostgreSQL `clock_timestamp()` as `operation_at` and reuses it for validity, Promotion-local weekday/time evaluation, Visit and related event timestamps.
+- Awards the fixed one-point base or exactly one applicable frozen Promotion-owned x2, x3, or x5 multiplier in the published Promotion timezone; new Promotions inherit no Business-global point rules.
 - Enforces idempotency so one technical validation operation creates at most one Visit.
 - Allows legitimate repeat Visits when the Business intentionally validates a new customer visit.
 - Creates at most one Reward entitlement.
@@ -144,7 +145,7 @@ Client-side validation may improve UX but never replaces server validation.
 
 - Requires authenticated Business ownership.
 - Locks the entitlement.
-- Checks Challenge validity using database time.
+- Captures the same single post-lock PostgreSQL `operation_at` pattern to check Promotion expiry/cancellation and record final redemption.
 - Rejects already-redeemed state.
 - Records one final `redeemed_at`.
 
@@ -219,7 +220,7 @@ request_id
 actor_type
 actor_id
 business_id
-challenge_id
+promotion_id
 customer_pass_id
 outcome
 reason
@@ -232,7 +233,7 @@ Useful security/domain events include:
 - Authentication throttled or anomalous failure.
 - Invalid manual-code attempts above ordinary noise.
 - Validation rejected for Business scope.
-- Challenge cancellation.
+- Promotion cancellation.
 - Reward redemption.
 - Wallet synchronization failure.
 - Unexpected authorization denial.
@@ -269,6 +270,6 @@ Give additional review attention to changes affecting:
 - Manual-code lookup.
 - Visit idempotency/concurrency.
 - Reward finality.
-- Challenge time calculations.
+- Promotion timezone, frozen multiplier schedules, and post-lock time calculations.
 - Outgoing Wallet credentials.
 - Logging/sanitization.

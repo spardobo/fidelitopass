@@ -8,7 +8,7 @@ Documentation follows progressive disclosure. Read only the document required by
 
 1. Document `conceptual-design.md` — product model, actors, domain language, lifecycles, and invariants.
 2. Document `product-scope.md` — MVP boundary and explicit non-goals.
-3. Document `challenge-model.md` — points-based Challenge model and deterministic point-earning semantics.
+3. Document `promotion-model.md` — Promotion-owned x2/x3/x5 extra-point rules and deterministic point-earning semantics.
 4. Document `requirements.md` — observable behaviour and acceptance criteria.
 5. Document `wallet-presentation.md` — deterministic Google Wallet states and copy contract.
 6. Document `ui-ux-guidelines.md` — web interaction, visual system, accessibility, and page intent.
@@ -21,7 +21,7 @@ Documentation follows progressive disclosure. Read only the document required by
 13. Document `development/workflow.md` — delivery flow and documentation routing.
 14. Directory `architecture/decisions/` — durable cross-cutting decisions only.
 
-`documentation-standard.md` defines how these documents are written and maintained.
+`documentation-standard.md` defines how these documents are written and maintained. ADR-006 supersedes only ADR-003's Business-global mutable extra-point rule ownership. ADR-003, ADR-004, and ADR-005 remain preserved decision history; historical CHL-prefixed requirement IDs remain stable. Read the relevant ADR only when revisiting that decision.
 
 ## Lazy-loading map
 
@@ -29,7 +29,7 @@ Documentation follows progressive disclosure. Read only the document required by
 |---|---|
 | Understand the product or a domain term | `conceptual-design.md` |
 | Decide whether something belongs in MVP | `product-scope.md` |
-| Configure/evaluate points or Challenge progress | relevant section of `challenge-model.md` |
+| Configure/evaluate Promotion-owned x2/x3/x5 points or progress | relevant section of `promotion-model.md` |
 | Confirm user-visible behaviour | relevant requirement in `requirements.md` |
 | Map a customer state to Google Wallet | relevant section of `wallet-presentation.md` |
 | Design a page or interaction | relevant section of `ui-ux-guidelines.md` |
