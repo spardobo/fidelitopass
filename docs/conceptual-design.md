@@ -42,12 +42,13 @@ The product deliberately avoids customer accounts, CRM, marketing automation, PO
 | Term | Meaning |
 |---|---|
 | Business | Local business operating one FidelitoPass loyalty experience. |
+| Shared pass configuration | Business-controlled appearance and Promotion offering for its customer-facing pass; shared across customers, not an individual Customer pass or a separate physical model specified here. |
 | Promotion | A time-bound instance of the single points-based loyalty mechanic, published by a Business. |
 | Customer pass | Persistent anonymous loyalty identity for one customer and one business. |
 | Wallet pass | Google Wallet representation of the Customer pass. |
 | Visit | One accepted physical-business visit for a Customer pass. |
 | Promotion timezone | IANA timezone snapshot used to interpret calendar days for one published Promotion. |
-| Points | The only customer-visible progress unit in MVP. Each accepted Visit stores the points awarded at that moment. A Promotion can offer **Puntos extra**: x2, x3 or x5 instead of the regular one point on configured local days and times. |
+| Points | The only customer-visible progress unit in MVP. Each accepted Visit stores the points awarded at that moment. A Promotion can offer **extra points**: x2, x3 or x5 instead of the regular one point on configured local days and times. |
 | Progress | Sum of points awarded by accepted Visits for the current Promotion. |
 | Reward | Business-defined benefit attached to a Promotion. |
 | Reward entitlement | One-time right created when a Customer pass completes a Promotion. |
@@ -57,16 +58,21 @@ The product deliberately avoids customer accounts, CRM, marketing automation, PO
 
 ## Core relationships
 
+Conceptual relationships, not a physical schema or a claim about configuration storage or cardinality:
+
 ```mermaid
 flowchart TB
     U[Business owner] --> B[Business]
-    B --> C[Promotion]
+    B --> S[Shared pass configuration]
+    S -->|offers| C[Promotion]
     B --> P[Customer pass]
+    S -.->|styles| P
+    C -->|defines| X[Multiplier window]
     P --> V[Visit]
     C --> V
     C --> E[Reward entitlement]
     P --> E
-    P --> W[Google Wallet pass]
+    P --> W[Wallet pass]
 ```
 
 ## Business lifecycle
@@ -108,7 +114,7 @@ Rules:
 
 - A Business may retain multiple drafts and sequential future scheduled Promotions; at most one Promotion is effectively Active at an instant.
 - Published effective windows for one Business must not overlap; touching endpoints are allowed. Cancellation releases only remaining occupancy, empty if cancelled before start, without changing the original UTC window or historical record.
-- The entire draft, including its Reward and Puntos extra, remains editable. Draft save and publication are atomic; publication freezes the full configuration: goal, Reward title and optional description, dates, timezone and weekly days, times and multipliers, even when scheduled. Cancellation is a separate lifecycle transition, not an edit or deletion.
+- The entire draft, including its Reward and multiplier windows, remains editable. Draft save and publication are atomic; publication freezes the full configuration: goal, Reward title and optional description, dates, timezone and weekly days, times and multipliers, even when scheduled. Cancellation is a separate lifecycle transition, not an edit or deletion.
 - Visits are accepted only while the Promotion is active.
 - Rewards cannot be unlocked or redeemed at or after the exclusive end.
 - Scheduled or active cancellation records its instant at the single post-lock PostgreSQL operation instant and stops effective progress/redemption immediately. Publication and cancellation serialize for the Business and recompute occupancy after locking. A date-only replacement after intraday cancellation starts no earlier than the next Business-local midnight.
@@ -142,7 +148,7 @@ The Visit instant comes from the mutating operation's one post-lock PostgreSQL-d
 MVP rules:
 
 - A Visit is created only after the authenticated Business confirms validation.
-- After acquiring relevant row locks, a mutating transaction captures one post-lock PostgreSQL operation instant and reuses it for validity checks, Business-local Puntos extra evaluation, the Visit instant, and related audit/event timestamps.
+- After acquiring relevant row locks, a mutating transaction captures one post-lock PostgreSQL operation instant and reuses it for validity checks, Business-local multiplier-window evaluation, the Visit instant, and related audit/event timestamps.
 - Legitimate repeat Visits on the same Business-local day may each be accepted.
 - Technical retries of the same validation operation return the prior accepted result through idempotency.
 - Visits remain stored after Promotion completion, expiration, cancellation, or redemption.
@@ -150,13 +156,13 @@ MVP rules:
 
 ## Promotion model
 
-A Promotion defines the goal in points, Reward title and optional description, Business-local start and end dates, timezone, lifecycle status, and optional **Puntos extra**.
+A Promotion defines the goal in points, Reward title and optional description, Business-local start and end dates, timezone, lifecycle status, and optional **extra points**.
 
 Every Promotion uses the same rule:
 
 > Reach the configured target points before the Promotion ends.
 
-Every accepted regular Visit awards one point. Each Promotion may offer weekly recurring x2, x3 or x5 on local weekdays, either for a whole day or in several disjoint half-open timed windows on that day, never both. Touching endpoints are allowed; split overnight intervals across days. Windows never stack, and outside them the Visit awards one point. New Promotions inherit no previous or Business-global Puntos extra configuration. Future Visits use the active published Promotion's frozen timezone and schedule; past awarded points remain immutable.
+Every accepted regular Visit awards one point. Each Promotion may offer weekly recurring x2, x3 or x5 on local weekdays, either for a whole day or in several disjoint half-open timed windows on that day, never both. Touching endpoints are allowed; split overnight intervals across days. Windows never stack, and outside them the Visit awards one point. New Promotions inherit no previous or Business-global multiplier-window configuration. Future Visits use the active published Promotion's frozen timezone and schedule; past awarded points remain immutable.
 
 The platform owns generated Promotion description, progress copy, Reward states, and Wallet mapping. The Business does not write expressions, conditions, or formulas.
 
@@ -177,7 +183,7 @@ MVP has one Reward per Promotion.
 ### Create and publish a Promotion
 
 1. The Business owner navigates to Pase after authentication, either through normal navigation or Summary's setup action; both use the same Pase route.
-2. The owner defines Promotion dates, target points, one Reward with optional description, and optional **Puntos extra** days, times and multipliers.
+2. The owner defines Promotion dates, target points, one Reward with optional description, and optional **multiplier windows** (weekdays, times and values).
 3. The owner reviews this Promotion's configuration in the current Business timezone; a timezone change since review requires reconfirmation before publication.
 4. FidelitoPass shows a deterministic Wallet preview.
 5. The entire configuration is saved atomically as an editable draft, or published atomically.
@@ -230,13 +236,13 @@ When the Promotion reaches its exclusive end:
 ## Invariants
 
 - Every Business has exactly one owner in MVP.
-- Every published Promotion freezes its goal, Reward title and optional description, dates, timezone and Puntos extra schedule; cancellation preserves that snapshot.
+- Every published Promotion freezes its goal, Reward title and optional description, dates, timezone and multiplier schedule; cancellation preserves that snapshot.
 - Promotion windows are stored as UTC instants and use an exclusive end.
 - A Business may retain multiple drafts and future scheduled Promotions but has at most one effectively Active Promotion at any instant; published occupied windows never overlap.
 - A Customer pass belongs to one Business.
 - A Visit belongs to one Customer pass and one Promotion from the same Business.
 - The Visit instant comes from the mutation's single post-lock PostgreSQL instant, not the browser or application host clock.
-- Lock-sensitive mutations reuse one operation instant for deadline checks, Business-local Puntos extra evaluation, domain timestamps and related audit events; read-only phase queries use an explicitly current PostgreSQL wall-clock instant.
+- Lock-sensitive mutations reuse one operation instant for deadline checks, Business-local multiplier-window evaluation, domain timestamps and related audit events; read-only phase queries use an explicitly current PostgreSQL wall-clock instant.
 - Legitimate repeat Visits on the same Business-local day may each be accepted and award points.
 - Public acquisition identifiers never authorize Visit or Reward operations.
 - The Wallet validation token and manual lookup code have different authority.

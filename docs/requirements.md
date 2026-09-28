@@ -19,7 +19,7 @@ This document defines observable MVP behaviour, not implementation status. The s
 | 3 | REQ-PUB-001 | Must | Public | Functional | Present a product landing page. |
 | 4 | REQ-PUB-002 | Must | Public | Functional | Present the Business join page from the permanent QR. |
 | 5 | REQ-CHL-001 | Must | Promotion | Functional | Create editable draft points-based Promotions. |
-| 6 | REQ-CHL-002 | Must | Promotion | Functional | Configure Promotion-owned Puntos extra. |
+| 6 | REQ-CHL-002 | Must | Promotion | Functional | Configure Promotion-owned extra points. |
 | 7 | REQ-CHL-003 | Must | Promotion | Functional | Publish local dates and immutable Promotion terms. |
 | 8 | REQ-CHL-004 | Must | Promotion | Functional | Reject overlapping published Promotion windows. |
 | 9 | REQ-CHL-005 | Must | Promotion | Functional | Lock published Promotion terms and support cancellation. |
@@ -166,8 +166,8 @@ As a Business owner, I want to create a simple points target so that customers a
 
 **Scenario: Create a Promotion**
 
-- **Given** the Pase page and a new Promotion editor with general and Puntos extra tabs.
-- **When** the owner provides start and end dates, target points, Reward title and description, and optional owned Puntos extra rules.
+- **Given** the Pase page and a new Promotion editor with general and **Puntos extra** tabs.
+- **When** the owner provides start and end dates, target points, Reward title and description, and optional owned multiplier windows.
 - **Then** FidelitoPass previews points as progress and saves the complete editable draft atomically; multiple drafts and future scheduled Promotions of this one mechanic may coexist.
 
 **Verification:** Livewire component tests.
@@ -184,7 +184,7 @@ As a Business owner, I want a small point configuration so that I can make selec
 
 **Scenario: Configure recurring multiplier windows**
 
-- **Given** a draft Promotion with its own Puntos extra rules and a fixed regular Visit value of one point; no Business-global or previous-Promotion rules are inherited.
+- **Given** a draft Promotion with its own multiplier windows and a fixed regular Visit value of one point; no Business-global or previous-Promotion rules are inherited.
 - **When** the owner adds weekly recurring rules with multiplier x2, x3, or x5, each covering a Business-local weekday either all day or a half-open `[start, end)` time window within that day.
 - **Then** the preview shows the applicable multiplier and resulting points (x1 = 1 outside rules, x2 = 2, x5 = 5); rules affect future accepted Visits only.
 
@@ -216,7 +216,7 @@ As a Business owner, I want Promotion dates to behave according to my local cale
 
 - **Given** valid local start and end dates and a Business timezone.
 - **When** the Promotion is published.
-- **Then** `starts_at`, exclusive `ends_at`, and the Promotion timezone snapshot are persisted consistently. Drafts display the current Business timezone without an independent selector; publication copies it and freezes the entire scheduled or active aggregate, including goal, Reward title and description, dates, timezone and Puntos extra schedule. If the Business timezone changed since review, refreshed review and renewed confirmation are required before publication; dates cannot be silently reinterpreted.
+- **Then** `starts_at`, exclusive `ends_at`, and the Promotion timezone snapshot are persisted consistently. Drafts display the current Business timezone without an independent selector; publication copies it and freezes the entire scheduled or active aggregate, including goal, Reward title and description, dates, timezone and multiplier schedule. If the Business timezone changed since review, refreshed review and renewed confirmation are required before publication; dates cannot be silently reinterpreted.
 
 **Scenario: Evaluate current phase**
 
@@ -269,7 +269,7 @@ As a customer, I want the Promotion rules to stay stable after play begins so th
 **Scenario: Edit published semantics**
 
 - **Given** a published scheduled, active, or ended Promotion (drafts remain editable).
-- **When** the owner attempts to change its goal, Reward title or description, dates, timezone, `starts_at`, `ends_at`, or any Puntos extra rule.
+- **When** the owner attempts to change its goal, Reward title or description, dates, timezone, `starts_at`, `ends_at`, or any multiplier-window rule.
 - **Then** the operation is rejected.
 
 **Scenario: Cancel scheduled or active Promotion**
@@ -286,7 +286,7 @@ As a customer, I want the Promotion rules to stay stable after play begins so th
 
 **Verification:** Feature tests for transition and authorization.
 
-**Editor:** One modal with accessible general and Puntos extra tabs, an Add form, Remove list, and shared cancel/save draft/publish actions. Tabs retain unsaved values; save and publish persist the aggregate atomically, warn about incomplete unadded rules, reveal hidden-tab errors and confirm dirty close. Pass appearance is saved independently of Promotion terms.
+**Editor:** One modal with accessible general and **Puntos extra** tabs, an Add form, Remove list, and shared cancel/save draft/publish actions. Tabs retain unsaved values; save and publish persist the aggregate atomically, warn about incomplete unadded rules, reveal hidden-tab errors and confirm dirty close. Pass appearance is saved independently of Promotion terms.
 
 ### Customer pass and Wallet identity
 
@@ -468,7 +468,7 @@ As a customer, I want FidelitoPass to show when my Visit is worth more points so
 
 - **Given** recurring windows with touching endpoints or a local day that differs from the UTC day.
 - **When** a Visit is accepted outside every window, at a window endpoint, or across that UTC/local-day boundary.
-- **Then** the published Promotion timezone snapshot and its frozen Puntos extra schedule determine the local weekday/time; only a window containing that instant applies, otherwise the Visit stores one point.
+- **Then** the published Promotion timezone snapshot and its frozen multiplier schedule determine the local weekday/time; only a window containing that instant applies, otherwise the Visit stores one point.
 
 **Scenario: Configuration changes**
 
@@ -509,7 +509,7 @@ As a system operator, I want each accepted Visit to preserve the points awarded 
 **Scenario: Point configuration changes later**
 
 - **Given** an accepted Visit with a stored awarded point value.
-- **When** a later Promotion is published with different Puntos extra rules.
+- **When** a later Promotion is published with different multiplier windows.
 - **Then** the historical Visit keeps its original awarded points and completed progress is not recalculated using the new configuration.
 
 **Verification:** Persistence/domain tests.

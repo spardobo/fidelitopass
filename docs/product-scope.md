@@ -35,9 +35,9 @@ Implementation status (separate from this product design): registration, login, 
 - Configure Business name, logo/branding basics, and IANA timezone.
 - Use Summary as the ordinary authenticated application home, without requiring it as a first stop after registration or sign-in; its setup action and navigation lead to the same Pase route, without a forced wizard.
 - Create multiple editable drafts and future scheduled instances of one points-based Promotion mechanic, each with Business-local start and end dates, target points, one Reward and optional description.
-- Configure a fixed one-point regular Visit and Promotion-owned Puntos extra: any number of nonoverlapping weekly local-weekday x2, x3 or x5 windows (whole-day or timed), never inherited from Business-global settings or another Promotion.
+- Configure a fixed one-point regular Visit and Promotion-owned extra points: any number of nonoverlapping weekly local-weekday x2, x3 or x5 windows (whole-day or timed), never inherited from Business-global settings or another Promotion.
 - Preview deterministic customer Wallet copy before publication and reconfirm if the Business timezone changes after review.
-- Publish non-overlapping effective Promotion windows, freezing goal, Reward title and description, dates, timezone, and entire Puntos extra schedule even when scheduled; cancel scheduled or active Promotions without erasing their original snapshot or history.
+- Publish non-overlapping effective Promotion windows, freezing goal, Reward title and description, dates, timezone, and entire multiplier schedule even when scheduled; cancel scheduled or active Promotions without erasing their original snapshot or history.
 - View draft, active, scheduled, ended and cancelled Promotions and minimal operational counters on Pase and Summary.
 - Display/download the permanent acquisition QR.
 - Validate a Customer pass in one scanner-first dialog with manual-code fallback immediately below the scanner, followed by explicit confirmation and result in the same dialog.
@@ -57,7 +57,7 @@ Implementation status (separate from this product design): registration, login, 
 - Record accepted Visits as timestamped facts.
 - Accept legitimate repeat Visits while keeping validation retry-safe.
 - Award points deterministically for every accepted Visit.
-- Evaluate one points-based Promotion mechanic using its published timezone and Puntos extra snapshot.
+- Evaluate one points-based Promotion mechanic using its published timezone and multiplier schedule snapshot.
 - Unlock at most one Reward entitlement per Customer pass and Promotion.
 - Redeem exactly once before Promotion expiry or cancellation.
 - Keep PostgreSQL authoritative.
@@ -77,7 +77,7 @@ Every Promotion asks the customer to reach a target number of points before its 
 Point earning remains intentionally small:
 
 - Every accepted regular Visit awards exactly one point.
-- Each Promotion independently configures weekly recurring Puntos extra at x2, x3 or x5 on a local weekday, either all day or in several disjoint half-open `[start, end)` intraday windows; touching endpoints are allowed.
+- Each Promotion independently configures weekly recurring multiplier windows at x2, x3 or x5 on a local weekday, either all day or in several disjoint half-open `[start, end)` intraday windows; touching endpoints are allowed.
 - A whole-day entry excludes timed windows on that weekday; intervals cannot cross midnight or stack (split overnight periods across weekdays). Outside windows x1 applies.
 - Future Visits use the active published Promotion's frozen schedule and timezone snapshot; stored awarded points are immutable. No Business-global or previous-Promotion schedule is inherited.
 
@@ -147,7 +147,7 @@ MVP is complete when one Business can demonstrate:
 3. Publication of sequential Promotion instances without effective overlap, including immutable scheduled terms and cancellation.
 4. Anonymous customer Wallet issuance through the permanent public acquisition QR.
 5. Scanner-first and manual-code validation in one confirmation dialog.
-6. Correct Promotion progress from its own frozen Puntos extra schedule.
+6. Correct Promotion progress from its own frozen multiplier schedule.
 7. Retry-safe validation with legitimate repeat Visits supported.
 8. Reward unlock.
 9. One successful Redemption.
