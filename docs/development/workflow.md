@@ -43,7 +43,7 @@ Load only the source needed for the current decision.
 |---|---|
 | What is the domain meaning? | relevant section of `docs/conceptual-design.md` |
 | Is it in MVP? | `docs/product-scope.md` |
-| How do points or Promotion progress work? | relevant section of `docs/promotion-model.md` and ADR-006 when ownership/freeze matters |
+| How do points or Promotion progress work? | relevant section of `docs/promotion-model.md` and ADR-003 when ownership/freeze matters |
 | What behaviour must pass? | relevant requirement in `docs/requirements.md` |
 | What must Wallet display? | relevant state in `docs/wallet-presentation.md` |
 | What should the page look/behave like? | relevant section of `docs/ui-ux-guidelines.md` |

@@ -465,6 +465,6 @@ reward_entitlements.redeemed_by_user_id
 Use Laravel migrations as the schema authority.
 
 - Do not modify migrations already applied to shared/production data.
-- Already-applied legacy Business-owned `business_point_windows` migrations and rows must be preserved through a forward migration to Promotion ownership; do not delete, reassign, reset, or rewrite applied migration history. Handle existing rows explicitly without silently attaching them to a Promotion.
+- For new schema, check the target PostgreSQL database and applied migration history before migration; preserve existing data and use forward-only changes where migrations have already been applied. Test data preservation and relevant constraints proportionately.
 - Custom SQL requires a clear reason and focused migration tests.
 - Avoid framework-independent schema abstractions that duplicate Laravel's migration API.
