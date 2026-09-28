@@ -8,7 +8,7 @@ export default defineConfig({
     workers: process.env.CI ? 1 : undefined,
     reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
     use: {
-        baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://deturistaando-laravel-app",
+        baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://fidelitopass-laravel-app",
         screenshot: "only-on-failure",
         trace: "retain-on-failure",
         video: "retain-on-failure",

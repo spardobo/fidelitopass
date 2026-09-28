@@ -96,8 +96,12 @@ Thumbs.db
 ##############################################################################
 # local project, SDD, and indexing state
 ##############################################################################
-/.atl/
 /.codegraph/
+/.engram/
 /.gentle-ai/
 /.git-local/
+/.pi/
+/odd/
 /openspec/
+# Local Pi runtime state
+.atl/

@@ -5,32 +5,12 @@ namespace Tests\Feature\Settings;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Laravel\Fortify\Features;
 use Livewire\Livewire;
 use Tests\TestCase;
 
 class SecurityTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        /* @chisel-2fa */
-        $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
-
-        Features::twoFactorAuthentication([
-            'confirm' => true,
-            'confirmPassword' => true,
-        ]);
-        /* @end-chisel-2fa */
-        /* @chisel-passkeys */
-        Features::passkeys([
-            'confirmPassword' => true,
-        ]);
-        /* @end-chisel-passkeys */
-    }
 
     public function test_security_settings_page_can_be_rendered(): void
     {
@@ -44,14 +24,10 @@ class SecurityTest extends TestCase
 
         $response->assertOk();
 
-        /* @chisel-passkeys */
-        $response->assertSee('Passkeys');
-        $response->assertSee('No passkeys yet');
-        /* @end-chisel-passkeys */
-        /* @chisel-2fa */
-        $response->assertSee('Two-factor authentication');
-        $response->assertSee('Enable 2FA');
-        /* @end-chisel-2fa */
+        $response->assertSee('Actualizar contraseña');
+        $response->assertDontSee('Claves de acceso');
+        $response->assertDontSee('delete-passkey-modal');
+        $response->assertDontSee('Autenticación de doble factor');
     }
 
     /* @chisel-password-confirmation */
@@ -68,8 +44,6 @@ class SecurityTest extends TestCase
 
     public function test_security_settings_page_renders_without_two_factor_when_feature_is_disabled(): void
     {
-        config(['fortify.features' => []]);
-
         $user = User::factory()->create();
 
         $this->actingAs($user)
@@ -78,35 +52,10 @@ class SecurityTest extends TestCase
             /* @end-chisel-password-confirmation */
             ->get(route('security.edit'))
             ->assertOk()
-            ->assertSee('Update password')
-            ->assertDontSee('Manage your passkeys for passwordless sign-in')
-            ->assertDontSee('Add a passkey to sign in without a password')
-            ->assertDontSee('Two-factor authentication');
-    }
-
-    public function test_two_factor_authentication_disabled_when_confirmation_abandoned_between_requests(): void
-    {
-        /* @chisel-2fa */
-        $user = User::factory()->create();
-
-        $user->forceFill([
-            'two_factor_secret' => encrypt('test-secret'),
-            'two_factor_recovery_codes' => encrypt(json_encode(['code1', 'code2'])),
-            'two_factor_confirmed_at' => null,
-        ])->save();
-
-        $this->actingAs($user);
-
-        $component = Livewire::test('pages::settings.security');
-
-        $component->assertSet('twoFactorEnabled', false);
-
-        $this->assertDatabaseHas('users', [
-            'id' => $user->id,
-            'two_factor_secret' => null,
-            'two_factor_recovery_codes' => null,
-        ]);
-        /* @end-chisel-2fa */
+            ->assertSee('Actualizar contraseña')
+            ->assertDontSee('Administra tus claves de acceso para iniciar sesión sin contraseña')
+            ->assertDontSee('Añade una clave de acceso para iniciar sesión sin contraseña')
+            ->assertDontSee('Autenticación de doble factor');
     }
 
     public function test_password_can_be_updated(): void

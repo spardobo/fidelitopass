@@ -8,7 +8,7 @@ set -eu
 ./vendor/bin/sail composer check:format
 ./vendor/bin/sail composer check:lint
 
-# run fast PHP tests
+# run focused PHP Unit-suite tests
 ./vendor/bin/sail composer test:unit
 
 # check JavaScript formatting and linting independently

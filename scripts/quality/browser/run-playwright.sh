@@ -16,7 +16,7 @@ docker run --rm --init --ipc=host \
     --env HOME=/tmp \
     --env CI="${CI:-}" \
     --env NPM_CONFIG_UPDATE_NOTIFIER=false \
-    --network deturistaando-network \
+    --network fidelitopass-network \
     --volume "$repository_root:/work" \
     --workdir /work \
     "$PLAYWRIGHT_IMAGE" \
