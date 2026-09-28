@@ -45,7 +45,7 @@ Technical documents use controlled English inspired by ASD-STE100. The project d
 | `development/database-standard.md` | PostgreSQL schema/time/index/concurrency conventions. |
 | `development/laravel-application-standard.md` | Laravel/Livewire/source conventions. |
 | `quality-strategy.md` | Verification depth and quality evidence. |
-| `delivery-plan.md` | Rolling-wave grouping and candidate outcomes, not a fixed sequence. |
+| `delivery-plan.md` | Candidate work items and scoped requirement links, not a fixed sequence. |
 | `development/workflow.md` | Work-item flow and documentation routing. |
 | `architecture/decisions/*` | One durable cross-cutting choice and consequences. |
 | root `README.md` | Spanish public product/engineering entry point. |

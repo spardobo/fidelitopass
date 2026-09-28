@@ -1,46 +1,29 @@
 name: Work item
-description: Define one traceable, reviewable delivery outcome.
+description: Structure the repository issue converted from the approved Backlog Project draft item.
 body:
   - type: markdown
     attributes:
-      value: Use an outcome-oriented title with at most one primary requirement ID, for example `[REQ-HOM-001] Present the product home page`. Keep every related requirement ID in the issue body, never in the title.
+      value: This form supports issue content after conversion of the same approved Project draft item; do not start with a separate issue or add an existing one. Use an outcome-oriented title with at most one primary requirement ID, for example `[REQ-BIZ-001] Authenticate a Business owner`. Use original IDs from `docs/requirements.md` for product work. For non-product documentation or maintenance work, omit the ID from the title and explain the scope; never cite REQ-QLT-001 as evidence of product completion merely because documentation closed.
   - type: input
     id: requirement-ids
     attributes:
       label: Requirement IDs
-      description: List the primary and related authoritative requirement IDs. Do not copy the full requirements or repeat every ID in the title.
-      placeholder: REQ-HOM-001
-    validations:
-      required: true
-  - type: dropdown
-    id: wave
-    attributes:
-      label: Wave
-      description: Select the delivery wave that controls dependency order.
-      options:
-        - Wave 0
-        - Wave 1
-        - Wave 2
-        - Wave 3
-        - Wave 4
-        - Wave 5
-        - Wave 6
-        - Wave 7
-        - Wave 8
+      description: List applicable IDs from docs/requirements.md for product work; for non-product documentation/maintenance write `None` and justify scope below. Do not copy full criteria.
+      placeholder: REQ-BIZ-001 or None
     validations:
       required: true
   - type: textarea
     id: outcome
     attributes:
       label: Outcome
-      description: State the observable user or system outcome.
+      description: State the observable outcome. This issue comes from conversion of the approved Backlog Project draft item in place; its Project item ID differs from this issue number. After conversion, apply status:approved, assign the moving actor on this issue and verify both issue assignees and Project Assignees display that actor before setting Active. If conversion, label, assignment, status or readback fails, stop without claiming activation; never assign the Project item independently.
     validations:
       required: true
   - type: textarea
     id: scope
     attributes:
-      label: Scope
-      description: State what is included and explicitly excluded.
+      label: Scope and selected criteria
+      description: State what is included and excluded, identify selected canonical criteria for product work, or justify why non-product work has no requirement ID. Do not imply every linked requirement is satisfied.
     validations:
       required: true
   - type: textarea
@@ -54,13 +37,13 @@ body:
     id: acceptance-evidence
     attributes:
       label: Acceptance evidence
-      description: State the acceptance examples, rejection paths, and verification evidence.
+      description: State acceptance examples, rejection paths, and verification evidence for this item. Link actual evidence in this issue and its PRs; closure alone does not prove whole-requirement acceptance.
     validations:
       required: true
   - type: textarea
     id: cross-cutting-requirements
     attributes:
       label: Cross-cutting requirements
-      description: List applicable security, accessibility, performance, reliability, and maintainability requirement IDs, or write `None`.
+      description: List applicable security, accessibility, performance, reliability, and maintainability requirement IDs, or write `None` with scope justification. Documentation completion alone does not verify REQ-QLT-001.
     validations:
       required: true

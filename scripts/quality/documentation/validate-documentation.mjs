@@ -126,21 +126,49 @@ export function validateRequirementIds(root) {
 
     if (!existsSync(register)) return ["docs/requirements.md is missing"];
 
-    const definitions = new Map();
+    const definitions = new Set();
     const registerContent = readFileSync(register, "utf8");
-    const definitionPattern = /^####\s+(REQ-[A-Z]+-\d{3})\s+—\s+/gm;
-
-    for (const match of registerContent.matchAll(definitionPattern)) {
+    const declaredTotal = registerContent.match(/^- Total requirements: \*\*(\d+)\*\*\.\s*$/m);
+    if (!declaredTotal) errors.push("docs/requirements.md total requirements summary is missing");
+    const registerSection =
+        registerContent
+            .split("## Requirement register\n")[1]
+            ?.split("## Detailed requirements\n")[0] ?? "";
+    const rows = [];
+    const rowIds = new Set();
+    for (const match of registerSection.matchAll(/^\|\s*(\d+)\s*\|\s*(REQ-[^|\s]+)\s*\|/gm)) {
+        const [, number, id] = match;
+        if (!requirementPattern.test(id))
+            errors.push(`docs/requirements.md has malformed register ID ${id}`);
+        if (rowIds.has(id)) errors.push(`docs/requirements.md repeats register row ${id}`);
+        rowIds.add(id);
+        rows.push(id);
+        if (Number(number) !== rows.length)
+            errors.push(`docs/requirements.md register row ${id} is out of order`);
+    }
+    if (declaredTotal && Number(declaredTotal[1]) !== rows.length)
+        errors.push(
+            `docs/requirements.md total requirements ${declaredTotal[1]} differs from register count ${rows.length}`,
+        );
+    const headings = [];
+    for (const match of registerContent.matchAll(/^####\s+(REQ-[^\s]+)\s+—\s+/gm)) {
         const id = match[1];
-        if (definitions.has(id)) {
-            errors.push(`docs/requirements.md defines ${id} more than once`);
-        }
-        definitions.set(id, true);
+        if (!requirementPattern.test(id))
+            errors.push(`docs/requirements.md has malformed heading ID ${id}`);
+        if (definitions.has(id)) errors.push(`docs/requirements.md defines ${id} more than once`);
+        definitions.add(id);
+        headings.push(id);
     }
-
-    if (definitions.size === 0) {
+    if (headings.length === 0)
         errors.push("docs/requirements.md contains no canonical requirement headings");
-    }
+    for (const id of rows)
+        if (!definitions.has(id))
+            errors.push(`docs/requirements.md register row ${id} has no heading`);
+    for (const id of headings)
+        if (!rowIds.has(id)) errors.push(`docs/requirements.md heading ${id} has no register row`);
+    if (rows.length !== headings.length || rows.some((id, index) => id !== headings[index]))
+        errors.push("docs/requirements.md register rows and headings must match in order");
+    const known = definitions;
 
     for (const file of markdownFiles(root)) {
         const content = readFileSync(file, "utf8");
@@ -151,7 +179,7 @@ export function validateRequirementIds(root) {
 
             if (!requirementPattern.test(id)) {
                 errors.push(`${location} contains malformed requirement identifier ${id}`);
-            } else if (!definitions.has(id)) {
+            } else if (!known.has(id)) {
                 errors.push(`${location} references unknown requirement ${id}`);
             }
         }
