@@ -17,7 +17,7 @@ Documentation follows progressive disclosure. Read only the document required by
 9. Document `development/database-standard.md` — PostgreSQL and migration conventions.
 10. Document `development/laravel-application-standard.md` — Laravel, Livewire, and application-code conventions.
 11. Document `quality-strategy.md` — proportionate verification strategy.
-12. Document `delivery-plan.md` — rolling-wave requirement grouping.
+12. Document `delivery-plan.md` — candidate work items and scoped requirement links.
 13. Document `development/workflow.md` — delivery flow and documentation routing.
 14. Directory `architecture/decisions/` — durable cross-cutting decisions only.
 

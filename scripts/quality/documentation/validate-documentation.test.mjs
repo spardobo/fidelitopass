@@ -11,7 +11,7 @@ function fixture() {
     mkdirSync(join(root, "docs"));
     writeFileSync(
         join(root, "docs/requirements.md"),
-        "#### REQ-TEC-001 — Provide a valid requirement\n",
+        "- Total requirements: **1**.\n## Requirement register\n| 1 | REQ-TEC-001 | Must |\n## Detailed requirements\n#### REQ-TEC-001 — Provide a valid requirement\n",
     );
     writeFileSync(join(root, "README.md"), "[Requirements](docs/requirements.md)\n");
 
@@ -60,25 +60,51 @@ test("repo-root documentation code paths are checked without matching examples o
     assert.deepEqual(validateMarkdownLinks(root), []);
 });
 
-test("requirement references must exist in the canonical register", (context) => {
+test("register and headings must have unique matching identities", (context) => {
     const root = fixture();
     context.after(() => rmSync(root, { recursive: true, force: true }));
-    writeFileSync(join(root, "README.md"), "Implements REQ-TEC-001.\n");
-    assert.deepEqual(validateRequirementIds(root), []);
-
-    writeFileSync(join(root, "README.md"), "Implements REQ-TEC-999.\n");
-    assert.match(validateRequirementIds(root)[0], /references unknown requirement/);
-});
-
-test("malformed and duplicate requirement identifiers fail", (context) => {
-    const root = fixture();
-    context.after(() => rmSync(root, { recursive: true, force: true }));
-    writeFileSync(join(root, "README.md"), "Implements REQ-TEC--001.\n");
-    assert.match(validateRequirementIds(root)[0], /malformed requirement identifier/);
-
-    writeFileSync(
-        join(root, "docs/requirements.md"),
-        "#### REQ-TEC-001 — First\n#### REQ-TEC-001 — Duplicate\n",
+    const path = join(root, "docs/requirements.md");
+    const rows = Array.from(
+        { length: 35 },
+        (_, i) => `| ${i + 1} | REQ-TST-${String(i + 1).padStart(3, "0")} | Must |`,
     );
-    assert.match(validateRequirementIds(root)[0], /defines REQ-TEC-001 more than once/);
+    const headings = Array.from(
+        { length: 35 },
+        (_, i) => `#### REQ-TST-${String(i + 1).padStart(3, "0")} — Entry`,
+    );
+    const source = `- Total requirements: **35**.\n## Requirement register\n${rows.join("\n")}\n## Detailed requirements\n${headings.join("\n")}\n`;
+    writeFileSync(path, source);
+    assert.deepEqual(validateRequirementIds(root), []);
+    writeFileSync(join(root, "README.md"), "REQ-TST-999 REQ-TST--001");
+    assert.match(validateRequirementIds(root).join("\n"), /unknown requirement/);
+    assert.match(validateRequirementIds(root).join("\n"), /malformed requirement/);
+    writeFileSync(join(root, "README.md"), "");
+    writeFileSync(path, source.replace(headings[1], headings[0]));
+    assert.match(validateRequirementIds(root).join("\n"), /more than once/);
+    writeFileSync(path, source.replace(rows[1], rows[0]));
+    assert.match(validateRequirementIds(root).join("\n"), /repeats register row/);
+    writeFileSync(path, source.replace(rows[1], ""));
+    assert.match(validateRequirementIds(root).join("\n"), /has no register row/);
+    writeFileSync(
+        path,
+        source.replace(`${headings[1]}\n${headings[2]}`, `${headings[2]}\n${headings[1]}`),
+    );
+    assert.match(validateRequirementIds(root).join("\n"), /must match in order/);
+    writeFileSync(path, source.replace(`${rows[1]}\n`, "").replace(`${headings[1]}\n`, ""));
+    assert.match(validateRequirementIds(root).join("\n"), /total requirements.*register count/i);
+    writeFileSync(path, source.replace("- Total requirements: **35**.\n", ""));
+    assert.match(validateRequirementIds(root).join("\n"), /total requirements.*missing/i);
+    writeFileSync(path, source.replace("**35**", "**36**"));
+    assert.match(validateRequirementIds(root).join("\n"), /total requirements.*register count/i);
+    writeFileSync(
+        path,
+        source
+            .replace("**35**", "**36**")
+            .replace(
+                "## Detailed requirements",
+                `| 36 | REQ-TST-036 | Must |\n## Detailed requirements`,
+            )
+            .concat("#### REQ-TST-036 — Entry\n"),
+    );
+    assert.deepEqual(validateRequirementIds(root), []);
 });
