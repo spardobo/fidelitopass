@@ -1,5 +1,5 @@
 ---
-name: fidelitopass-delivery-flow
+name: fidelitopass-delivery-planning
 description: "Trigger: FidelitoPass wave selection, Kanban board movement, work-item scope, next-work decisions. Route delivery by dependencies and focused documentation."
 license: Apache-2.0
 metadata:
