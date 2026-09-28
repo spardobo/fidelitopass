@@ -1,259 +1,102 @@
-# **DeTuristaAndo** Development Workflow
+# FidelitoPass Development Workflow
 
-This document defines a Lean delivery flow for **DeTuristaAndo**. Work is refined close to implementation and remains traceable to the [requirements](../requirements.md).
+This document defines product-delivery semantics. It intentionally stays independent from repository hosting and from the internal implementation method used by development tools.
 
-## Delivery model
+## Delivery objective
 
-- Use Kanban and continuous flow instead of fixed-scope sprints.
-- Limit active implementation to one primary work item.
-- Deliver vertical slices that produce an observable outcome.
-- Refine only the next ready items.
-- Integrate frequently through short-lived branches.
-- Keep documentation and code in the same change when they describe the same behavior.
+Deliver dependency-ready vertical product outcomes while keeping each work item's implementation context focused. A rolling wave is a set of pending related requirements, not a fixed requirement-to-wave schedule. Select requirements by current dependencies and group those jointly addressable into Kanban work items; regroup candidates as dependencies change. Multiple work items may be Active concurrently; there is no numerical or implicit limit on Active items.
 
-## Board
+Use rolling-wave planning:
 
-```mermaid
-flowchart LR
-    BACKLOG["Backlog"] --> READY["Ready"]
-    READY --> ACTIVE["Active"]
-    ACTIVE --> REVIEW["Review"]
-    REVIEW --> VERIFY["Verify"]
-    VERIFY --> DONE["Done"]
-    ACTIVE --> BLOCKED["Blocked"]
-    BLOCKED --> ACTIVE
+- Detail only the current wave's work items.
+- Keep the next wave coarse until it becomes relevant.
+- Avoid speculative implementation planning for distant work; the delivery plan's outcome groups are illustrative, not permanent allocations.
+
+## Board semantics
+
+```text
+Backlog -> Active -> Review -> Verify -> Done
 ```
 
-| State | Entry rule | Exit rule |
-|---|---|---|
-| Backlog | Valuable idea or identified defect. | Scope and priority are clear enough to refine. |
-| Ready | Meets Definition of Ready. | Development starts and WIP is available. |
-| Active | One owner is changing code or documentation. | Local evidence is complete. |
-| Review | Pull request is focused and self-reviewed. | Required feedback and CI are complete. |
-| Verify | Change is merged or deployed to the target test environment. | Acceptance and operational checks pass. |
-| Done | Required evidence exists and documentation is current. | Reopen only for a new defect or changed requirement. |
-| Blocked | External decision, access, provider, or defect prevents progress. | Blocker and next action are resolved. |
-
-WIP limit is one item in `Active` for the primary developer. A blocked item does not justify starting several unrelated features.
-
-## Work item
-
-Each item contains only the information required to implement and verify one outcome:
-
-- Title and user or system outcome.
-- Related requirement IDs.
-- Included and excluded scope.
-- Acceptance examples and important rejection paths.
-- Security, data, provider, or migration risk.
-- Verification method.
-- Documentation affected.
-
-Do not copy full requirements or architecture sections into the item. Link to the authoritative source.
-
-Use an outcome-oriented title with at most one primary requirement ID, such as `[REQ-HOM-001] Present the product home page`. Never concatenate several requirement IDs in a title. Record the primary, related, and cross-cutting requirement IDs in the item body so the title remains readable. Maintenance and documentation items that do not implement an authoritative requirement do not need a fabricated requirement prefix.
-
-A draft must become a repository issue before it enters `Active`. The issue is the durable unit linked to its branch, pull request, checks, and resulting commit.
-
-## Definition of Ready
-
-An item is ready when:
-
-- the outcome and owner are clear;
-- upstream product and domain terms exist;
-- dependencies and external access are known;
-- acceptance can be verified;
-- the item fits one reviewable pull request or has a safe split;
-- unresolved decisions that change the solution are closed.
-
-## Definition of Done
-
-An item is done when:
-
-- acceptance behavior works;
-- relevant automated tests pass;
-- authorization, failure, and retry paths are covered when applicable;
-- formatting, static analysis, build, and required scans pass;
-- migrations are reversible or have an explicit recovery path;
-- observability is sufficient for the changed operation;
-- owning documentation is updated;
-- the deployed or staging flow is verified when the change affects integration.
-
-Delivery evidence depends on the type of change:
-
-- Versioned work links the pull request and the resulting commit on `main`.
-- The one-time repository baseline exception links its direct initial commit.
-- GitHub configuration that does not exist in Git history links the stable Project, ruleset, or settings resource and records the verification date.
-
-The two Done drafts created before the issue-first gate remain historical drafts with explicit evidence. They are not precedent for bypassing the repository issue, pull-request, or protected-branch workflow.
-
-## Initial delivery slices
-
-The initial sequence follows risk and produces end-to-end evidence early:
-
-1. Laravel 13 project, Livewire starter kit, base Socialite Google configuration, Sail with PostgreSQL and mail, root production Dockerfile, CI, and dark neon design tokens.
-2. Google Wallet technical spike: class, object, web issue, QR, and update.
-3. Organizer login, safe identity linking, and empty experience workspace.
-4. Experience draft, participants, goal, benefit, and preview.
-5. Publication, public landing, discovery QR, and invitation.
-6. Business activation, device access, PIN, and validator shell.
-7. Anonymous participation, private view, and Wallet delivery.
-8. Visit confirmation, distinct progress, idempotency, and Wallet update.
-9. Entitlement, capacity, redemption, and audit.
-10. Reporting, recovery, accessibility, performance, and deployment hardening.
-
-The Wallet spike occurs before broad feature work because provider approval and update behavior are the largest external uncertainty.
-
-## Local development environment
-
-Laravel Sail is mandatory for development. Docker is the only required host dependency; PHP, Composer, Node, PostgreSQL, and the local mail service run in containers. Add another local dependency to the Sail topology instead of making it a host prerequisite.
-
-On a fresh clone, create the local environment file and install Composer dependencies through Docker before invoking Sail:
-
-```bash
-cp .env.dev.example .env
-docker run --rm \
-    --user "$(id -u):$(id -g)" \
-    --volume "$(pwd):/app" \
-    --workdir /app \
-    composer:2 composer install --no-interaction
-./vendor/bin/sail artisan key:generate
-```
-
-`.env.dev.example` is the versioned, mostly populated contract for disposable local development and is copied to the ignored `.env`. There is no `.env.dev` file. `.env.example` is the production deployment template; operators must provide its blank credentials and secrets through the target environment.
-
-Use the repository-local Sail executable for application commands:
-
-```bash
-./vendor/bin/sail up -d
-./vendor/bin/sail artisan <command>
-./vendor/bin/sail composer <command>
-./vendor/bin/sail npm <command>
-./vendor/bin/sail test
-```
-
-Run `./vendor/bin/sail npm ci` once after cloning to install frontend dependencies from the lock file and activate the versioned Husky hooks. Keep Sail running while committing and pushing because both hooks execute their checks inside the application container.
-
-Docker Desktop groups the development stack as `deturistaando`. It contains `deturistaando-laravel-app`, `deturistaando-postgres-db`, and `deturistaando-mailpit-dev`; the application image is `sail-deturistaando:dev`. The stack exposes the application at `http://localhost:8000`, PostgreSQL on port `5432`, and the Mailpit inbox at `http://localhost:8025`.
-
-Google OAuth credentials remain empty in both versioned templates. Local values belong only in the ignored `.env`; production secrets belong in the deployment environment. The redirect contract is `${APP_URL}/auth/google/callback`, while the route and account-linking flow remain part of the organizer-authentication slice.
-
-PostgreSQL 16 is the required database for development and automated tests. After starting Sail, reset only the disposable local database and verify the integration with:
-
-```bash
-./vendor/bin/sail up -d
-./vendor/bin/sail artisan migrate:fresh
-./vendor/bin/sail test tests/Feature/PostgreSQLConfigurationTest.php
-./vendor/bin/sail test
-```
-
-`migrate:fresh` drops all tables in the selected database. Never run this local reset command against staging or production.
-
-Formatting, static analysis, frontend checks, and dependency audits run through Sail. Gitleaks and Playwright run through repository wrappers that use pinned official Docker images, so neither scanner nor browser dependencies are installed on the host. Production uses the independent `Dockerfile` at the repository root; it does not reuse the Sail development image. See [ADR-005](../architecture/decisions/005-sail-development-and-production-container.md).
-
-Run the current security gates and verify the browser harness with:
-
-```bash
-./scripts/quality/security/audit-dependencies.sh
-./scripts/quality/security/scan-git-secrets.sh
-./scripts/quality/browser/run-playwright.sh check:playwright-runtime
-```
-
-The dependency gate blocks all Composer advisories and abandoned locked packages, plus npm findings at `high` or `critical` severity. The Playwright harness is available but is not part of pre-push until `tests/Browser/` contains a complete owned journey.
-
-Build and smoke-test the production image independently:
-
-```bash
-docker build --tag deturistaando:local .
-docker run --detach --rm \
-    --name deturistaando-production-smoke \
-    --publish 8080:8080 \
-    --env-file .env.example \
-    --env 'APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
-    deturistaando:local
-curl --fail http://localhost:8080/up
-docker stop deturistaando-production-smoke
-```
-
-The fixed key is disposable smoke-test data and must never be used for a deployment. The image runs its web processes as `www-data`, writes logs to standard streams, optimizes Laravel at startup, and never runs migrations automatically. Its direct base images are fixed by version and digest; nginx and Supervisor are fixed to revisions compatible with Alpine 3.24. Production supplies managed PostgreSQL and real secrets outside the image. TLS and HSTS are configured at the deployment edge, not inside the HTTP-only application container. Wiring this build into GitHub Actions remains part of the dedicated CI delivery item.
-
-## Git and pull requests
-
-- Use GitHub Flow: branch from `main`, open a pull request, pass the required checks, merge, and delete the branch.
-- Protect `main`; keep it releasable.
-- Use one of these branch prefixes: `feat/`, `fix/`, `chore/`, `docs/`, `style/`, `refactor/`, `perf/`, `test/`, `build/`, `ci/`, or `revert/`. The suffix uses lowercase letters, digits, dots, underscores, or hyphens. Dependabot's generated `dependabot/` branches are also valid.
-- Use Conventional Commits with a short subject and useful body when rationale is not obvious.
-- Keep one outcome per pull request.
-- Rebase or update before merge and prefer squash merge for a focused history.
-- Do not use GitFlow, long-lived release branches, or mandatory second-person approval for a one-developer project.
-
-The repository baseline is established by one non-empty root commit before branch protection. It is the only direct-to-`main` exception; every later change follows GitHub Flow.
-
-The pull-request description states outcome, requirement IDs, risk, evidence, screenshots for UI changes, and follow-up work that is explicitly excluded. Every human pull request must reference at least one repository issue labeled `status:approved`. A final pull request uses `Closes #N`, `Fixes #N`, or `Resolves #N`; an intermediate pull request in a documented chain uses `Refs #N`, `References #N`, or `Part of #N`. Only the final pull request closes the shared issue. Apply exactly one `type:*` label to the pull request.
-
-Dependabot maintenance is the only operational exception to issue linkage: a pull request authored by `dependabot[bot]` from a matching `dependabot/` branch may omit the closing reference and approved issue, but must carry exactly the `type:chore` label. Human pull requests and every other bot remain subject to the full policy.
-
-Local quality gates increase in cost without replacing CI:
-
-1. During development, run the smallest focused test that proves the behavior being changed.
-2. `.husky/pre-commit` delegates to `scripts/quality/gates/pre-commit.sh`. The gate clears cached Laravel configuration, runs `composer check:format`, `composer check:lint`, and `composer test:unit`, then runs the independent Vite+ `npm run check:format` and `npm run check:lint` commands, tests the documentation validator, and applies it to the repository. PHPStan remains the PHP static analyzer behind the stable `check:lint` command. Its target budget is 90 seconds.
-3. `.husky/pre-push` delegates to `scripts/quality/gates/pre-push.sh`. The gate repeats pre-commit, audits locked dependencies, scans reachable Git history for secrets, creates the frontend production build, and runs `composer test:feature`. The composed gates therefore cover all current PHP tests without repeating Pint, Larastan, or Unit tests. Its target budget is three minutes.
-4. Pull-request CI repeats the deterministic pre-push baseline with direct runner commands in one required job and a disposable PostgreSQL 16 service. It also runs the complete Node test command and documentation validator rather than only the focused local pre-commit test.
-5. Coverage and critical Chromium browser tests enter pre-push and CI only after owned domain rules and complete browser journeys exist.
-
-Composer and npm expose atomic capabilities with operation-first names: `format` changes files, `check:*` inspects without changing files, and `test:*` runs a named suite. They share a grammar, not an artificial one-to-one catalog: each ecosystem exposes only capabilities backed by a real tool or suite. Gate scripts own stage composition; Husky only decides when to invoke them. `npm test` runs every current Node test, `npm run check:documentation` applies the repository validator, and `npm run test:documentation-validator` proves that the validator itself recognizes controlled failures.
-
-If a local gate repeatedly exceeds its budget, move the expensive portion to CI instead of normalizing `--no-verify`. Use `--no-verify` only to recover from a confirmed broken or unavailable local hook mechanism, never to ignore a failing quality check.
-
-## AI-assisted development
-
-GentleAI and coding agents can analyze, implement, test, and review. They do not own acceptance.
-
-- Give the agent the smallest authoritative document set needed for the item.
-- Ask for a plan before broad or risky changes.
-- Inspect generated authorization, transactions, migrations, external calls, and tests.
-- Run deterministic tools after every generated change.
-- Do not provide production secrets or unnecessary personal data.
-- Reject abstractions, dependencies, and scope that the active item does not require.
-
-## CI/CD flow
-
-The current automation baseline uses one required `quality` job on a disposable GitHub-hosted runner with PHP 8.4, Composer 2, Node.js 24, and an ephemeral PostgreSQL 16 Alpine service. It directly runs Composer validation and installation, Laravel configuration reset, PHP and JavaScript format and lint checks, all current PHP and Node tests, documentation validation, dependency audits, a reachable-history Gitleaks scan, and the frontend build. Local development remains Sail-based; CI does not start Sail or Mailpit.
-
-Checkout uses full history for Gitleaks. All actions are fixed by commit SHA, and PostgreSQL and Gitleaks are fixed by image digest. `actions/setup-node` caches npm downloads and `actions/cache` caches Composer download archives with a `composer.lock`-derived key. CI never caches `node_modules/` or `vendor/`; `npm ci` and `composer install` reconstruct both dependency trees from lockfiles on every run.
-
-GitHub Copilot Code Review and the Copilot coding agent are not part of Copilot Free, so neither is configured. Human acceptance and deterministic CI remain authoritative.
-
-The delivery target is:
-
-1. The pull request runs the checks currently available in the [quality strategy](../quality-strategy.md).
-2. Merge creates one versioned deployable image.
-3. The same image is promoted to staging.
-4. Staging runs migration, health, and critical-flow smoke tests.
-5. Production deployment uses the verified image and environment configuration.
-6. The release verifies health, queue state, migration, and the main experience flow.
-7. A failed verification triggers rollback or the documented recovery path.
-
-The Playwright container harness now exists. Product browser journeys and their CI gate remain deferred until complete owned flows exist. The production image is also available, while its GitHub Actions build and verification remain part of the dedicated CI delivery item.
-
-Use GitHub Actions and GitHub Projects when available. Do not add a separate project-management platform for MVP01.
-
-## Flow and delivery metrics
-
-Track a small set of signals from the first implementation item:
-
-| Metric | Purpose |
+| State | Meaning |
 |---|---|
-| Cycle time | Time from `Active` to `Done`; reveals oversized or blocked work. |
-| Lead time | Time from commitment to production; shows delivery delay. |
-| Deployment frequency | Shows whether small changes can reach production safely. |
-| Change failure rate | Share of deployments that require rollback, hotfix, or incident response. |
-| MTTR | Time to restore the product after a production failure. |
-| Blocked time | Shows provider, decision, or environment friction. |
+| Backlog | Dependency-ready or upcoming scoped work. |
+| Active | Implementation currently underway; this state is not exclusive to one item or session. |
+| Review | Implementation and focused evidence are ready for review. |
+| Verify | Integrated behaviour is checked in real application context. |
+| Done | Acceptance criteria and required evidence are satisfied. |
 
-Record a baseline before setting improvement targets. Metrics support retrospection and must not become quotas.
+The normal route for an item is an approved issue, its own branch, and one coherent pull request for the outcome—not one PR per commit. Coordinate ownership and dependencies per session before concurrent work: separate sessions may implement different Active items on their own branches or worktrees, including related items when overlap is explicitly coordinated. Concurrency does not require all work items to be independent.
 
-## Decision and documentation rule
+## Work item shape
 
-Update an existing authoritative document for normal product or technical refinement. Create an ADR only for a durable cross-cutting decision with credible alternatives and meaningful reversal cost.
+A useful work item contains only:
 
-At the end of each completed slice, remove stale detail, keep links valid, and confirm that the README still describes the product rather than the implementation history.
+- Outcome.
+- Requirement IDs.
+- Scope.
+- Exclusions when material.
+- Given-When-Then acceptance criteria.
+- Dependencies.
+- Material security/data/time risks.
+
+Do not copy whole documents into the work item.
+
+## Vertical slicing
+
+Prefer outcomes that make the product more complete:
+
+- Business setup + landing entry.
+- Promotion creation/publication.
+- Permanent QR + Wallet issuance.
+- Visit validation.
+- One Promotion evaluator.
+- Reward unlock/redemption.
+
+Avoid isolated refactoring/tooling/documentation work unless it blocks an Active product outcome.
+
+## Documentation routing
+
+Load only the source needed for the current decision.
+
+| Question | Read |
+|---|---|
+| What is the domain meaning? | relevant section of `docs/conceptual-design.md` |
+| Is it in MVP? | `docs/product-scope.md` |
+| How do points or Promotion progress work? | relevant section of `docs/promotion-model.md` |
+| What behaviour must pass? | relevant requirement in `docs/requirements.md` |
+| What must Wallet display? | relevant state in `docs/wallet-presentation.md` |
+| What should the page look/behave like? | relevant section of `docs/ui-ux-guidelines.md` |
+| Does it change system boundaries? | relevant section of `docs/architecture/overview.md` |
+| Does it touch auth/tokens/rate limits/logging? | relevant section of `docs/architecture/security.md` |
+| Does it change schema/time/indexes? | relevant section of `docs/development/database-standard.md` |
+| Does it need a Laravel project convention? | relevant section of `docs/development/laravel-application-standard.md` |
+| What tests/evidence are appropriate? | relevant section of `docs/quality-strategy.md` |
+| What comes next? | current relevant candidate section of `docs/delivery-plan.md`, selected by pending dependencies |
+| Is a durable decision being challenged? | only the relevant ADR |
+
+Do not follow links/references automatically.
+
+## Documentation maintenance
+
+Update a document only when the knowledge it owns changes.
+
+Do not add:
+
+- Temporary task identifiers.
+- Branch/revision history.
+- Implementation-session narratives.
+- Tool-consumption notes.
+
+Documentation describes FidelitoPass, not how a particular change was produced.
+
+## Done criteria
+
+A product work item is Done when:
+
+- Given-When-Then acceptance criteria are satisfied.
+- Proportionate automated evidence passes.
+- Applicable authorization/data/time/concurrency risks are covered.
+- Integrated behaviour works.
+- Owned documentation is updated only if its knowledge changed.
+- No unrelated scope was added.

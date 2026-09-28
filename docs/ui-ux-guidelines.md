@@ -1,208 +1,321 @@
-# **DeTuristaAndo** UI/UX Guidelines
+# FidelitoPass UI/UX Guidelines
 
-This document translates the [conceptual design](conceptual-design.md) into an interaction and visual direction. It guides formal design without fixing every layout or pixel value.
+This document defines the web interaction model, visual system, page intent, and customer-facing UX constraints.
 
-## Experience goal
+## Experience principles
 
-**DeTuristaAndo** must feel like an invitation to go out, move, and discover. Public pages are visual, energetic, and relaxed. Operational screens remain focused because businesses use them during live service.
-
-The product uses one dark identity. It does not provide a light theme in MVP01.
-
-## Interaction principles
-
-- Show the experience value, goal, benefit, dates, and participants before activation.
-- Keep one primary action per viewport or task state.
-- Let visitors participate without forms or accounts.
-- Let businesses validate from one focused workspace.
-- Explain public QR, private credential, visit, progress, and redemption with different words and visuals.
-- Show the expected effect before a state-changing confirmation.
-- Keep camera and manual-code paths together.
-- Preserve visible recovery after external or connectivity failure.
-
-## Information architecture
-
-```mermaid
-flowchart TB
-    HOME["Public home"] --> DISCOVER["Discover"]
-    DISCOVER --> DETAIL["Experience landing"]
-    DETAIL --> PASS["Private participation"]
-    HOME --> AUTH["Organizer access"]
-    AUTH --> DASH["Organizer workspace"]
-    DASH --> BUILDER["Experience builder"]
-    INVITE["Business invitation"] --> VALIDATOR["Business workspace"]
-```
-
-The public flow optimizes discovery and activation. The organizer flow optimizes readiness. The business flow optimizes fast, reliable counter operation.
-
-## Screen intent
-
-| Screen | Must communicate | Primary action |
-|---|---|---|
-| Public home | What the product does and examples of current experiences. | Discover or create an experience. |
-| Discovery | Available experiences by place, date, category, and audience. | Open an experience. |
-| Experience landing | Story, participants, unordered map, dates, `K/N` goal, benefit, and conditions. | Activate participation. |
-| Private participation | Progress, visits, next discovery options, credential, and benefit state. | Open Wallet or present credential. |
-| Organizer workspace | Owned experiences, status, readiness, and key results. | Continue draft or create experience. |
-| Experience builder | Required configuration with landing and card previews. | Save, preview, or publish. |
-| Business invitation | Organizer, experience, participant, permissions, and expiry. | Activate this device. |
-| Business workspace | Own material, scanner, manual code, redemption, and own activity. | Validate visit. |
-| Validation review | Exact context, expected effect, and prior result. | Confirm or cancel. |
-
-## Public landing pages
-
-The landing pages carry most of the brand expression.
-
-- Use a strong visual hero with a thematic illustration created for the experience.
-- Keep experience name, locality, date, and main action visible without scrolling on common mobile screens.
-- Present the `K/N` goal as a challenge, not as loyalty points.
-- Show participant cards before long conditions or organizer detail.
-- Treat the map as exploration support. Do not imply route order or draw a mandatory path.
-- Use editorial sections, horizontal card rails, bold type, and short copy instead of dashboard grids.
-- Repeat the activation action after the participant and benefit sections.
-
-## Organizer builder
-
-Use a guided sequence with saved progress:
-
-1. Identity and visual material.
-2. Dates, place, and discovery settings.
-3. Participants.
-4. Goal and benefit.
-5. Redemption responsibility.
-6. Preview and publication readiness.
-
-Keep each step focused on a small related group of fields. Optional detail stays collapsed until requested. A readiness summary links to incomplete sections instead of presenting a wall of errors.
-
-The preview must show the public landing and Google Wallet information hierarchy before publication.
-
-## Business workspace
-
-The workspace has two dominant actions:
-
-- Validate a visit.
-- Redeem a benefit when this participant is authorized.
-
-Public material and own activity are secondary. The validator opens the camera directly when permission is available and keeps manual entry visible. The confirmation view shows business, experience, current progress, requested action, and expected result.
-
-Result states use explicit language:
-
-- Visit confirmed; first visit to this business.
-- Visit confirmed; repeated visit, distinct progress unchanged.
-- Goal completed; benefit now available.
-- Benefit redeemed.
-- Operation already processed.
-- Operation rejected with the recovery action.
-
-## QR system
-
-| Code | Purpose | Visual treatment |
-|---|---|---|
-| Public discovery QR | Opens the experience and records acquisition source only. | Neon-green frame, discovery icon, and “Discover this experience”. |
-| Private validation QR | Identifies one participation for business confirmation. | High-contrast monochrome code inside Wallet or private view; never used on posters. |
-| Manual code | Recovers the private validation flow when scanning fails. | Grouped characters with copy and read-aloud spacing. |
-
-Do not distinguish the codes only by color. Use name, icon, instruction, and placement.
-
-## Google Wallet card
-
-The card is a compact access surface, not the complete experience page.
-
-Information priority:
-
-1. Experience identity.
-2. Progress `K/N`.
-3. Benefit state.
-4. Private validation QR.
-5. Validity and link to the private web view.
-
-The Wallet design uses the same dark and neon identity. It must remain legible under provider layout constraints and must not depend on animation or glow.
+1. Make the primary action obvious within a few seconds.
+2. Prefer recognition over memory.
+3. Keep operational Business flows short.
+4. Explain every Promoción in plain language.
+5. Keep Puntos extra weekday and hour choices compact and explicit.
+6. Keep one primary action per decision point.
+7. Show immediate feedback for every validation/redeem operation.
+8. Use text and iconography in addition to colour.
+9. Address merchants with consistent informal Spanish (tuteo); use neutral Spanish elsewhere.
+10. Use the approved dark-only palette with legible contrast and visible focus.
 
 ## Visual system
 
-### Character
+### Approved dark-only palette
 
-The visual language is **night discovery**: black space, fluorescent color, illustrated movement, and social energy. It should feel fun, cool, and chill without becoming childish or visually noisy.
+The application shell is black; content uses layered charcoal surfaces. Use dark ink on lavender controls and verify contrast for every state.
 
-### Color roles
+```text
+Shell:          #000000
+Canvas:         #181818
+Surface:        #1F1F1F
+Raised surface: #272727
+Border:         #414141
+Ink:            #F6F5F2   off-white
+Accent:         #B7ABE4   lavender
+Accent hover:   #D8CEF5
+Public landing: #242424   background
+Landing panels: #303030
+```
 
-The values below are starting tokens. Formal design can adjust them after contrast and device tests.
+Keep semantic danger/warning feedback distinct from the accent. The landing uses its own charcoal panels, not a light-theme variant.
 
-| Role | Starting direction | Use |
-|---|---|---|
-| Canvas | Near-black green or charcoal, such as `#080A08`. | Page background. |
-| Surface | Deep neutral green, such as `#111510`. | Navigation, forms, and operational cards. |
-| Neon primary | Electric lime, such as `#B8FF3D`. | Featured experience cards, primary actions, progress, and focus. |
-| Neon support | Mint or cyan, such as `#42FFB0`. | Secondary highlights and map state. |
-| Purple accent | Saturated violet, such as `#9B5CFF`. | Illustration depth, gradients, and secondary emphasis. |
-| Complementary accent | Cyan, magenta, or warm acid yellow. | Small illustration details and celebratory moments. |
-| Main text | Warm off-white. | Body text on dark surfaces. |
-| Dark text | Near-black. | Text on neon-filled cards and buttons. |
-| Status colors | Separate success, warning, and error values. | Operational feedback with icon and text. |
+### Shape and spacing
 
-Featured experience cards use a neon-green fill with dark text. Standard cards use a dark surface with a neon edge or small glow. Avoid a strong glow on every component; it reduces hierarchy and readability.
+- Page containers use generous whitespace.
+- Cards use rounded corners, typically `16–24px`.
+- Inputs/buttons use rounded corners, typically `10–14px`.
+- Avoid sharp rectangular panels.
+- Borders are subtle; shadows are light and sparse.
+- Prefer breathing room over dense dashboards.
 
-### Illustration system
+### Approved asset inventory
 
-The provided visual reference defines style, not subject matter. Use these characteristics:
+- `public/logo.png`: source artwork; `public/logo-header.webp`: optimized header/footer wordmark.
+- `public/logo_icon.svg`: standalone isotipo, including the decorative mark in the landing pass visual.
+- `resources/views/partials/head.blade.php`: favicon links to `public/favicon.ico`, `public/favicon.svg`, PNG favicon sizes, and Apple touch icon; `public/site.webmanifest` lists Android icons. Keep the shared head partial as the single integration point.
 
-- High-saturation illustration on a black or near-black field.
-- Neon green as the dominant product color, supported by saturated purple and small complementary accents.
-- Strong silhouette, thick contours, layered volume, and controlled fluorescent glow.
-- Organic, liquid, or energetic shapes that suggest movement between places.
-- A poster, street-art, or contemporary comic energy without copying a specific artwork or character.
-- A clear central subject related to the experience, such as food, books, coffee, wine, music, motorcycles, or local craft.
+## Typography
 
-Use illustration in public heroes, featured cards, empty states, and completion moments. Keep forms, maps, QR codes, and validator screens visually stable. Do not place decorative detail behind essential text or scanning surfaces.
+Use the approved Onest Variable sans-serif stack from `resources/css/app.css`.
 
-The platform identity is illustration-first. Organizer logos and participant photographs can provide factual context, but they do not replace the main illustrated language. Avoid generic stock tourism, clip art, photorealistic AI imagery, and text embedded inside illustrations.
+Hierarchy:
 
-### Typography and media
+- Page title: strong, compact.
+- Section title: clear but not oversized.
+- Card title: concise.
+- Body: comfortable reading line height.
+- Operational labels: short and explicit.
 
-- Use a bold geometric display face, such as Space Grotesk, for names and major headings.
-- Use a highly legible sans-serif, such as Inter, for body and operational content.
-- Use large display type and short lines on public pages.
-- Preserve a clean area around illustrated subjects for responsive crops.
-- Require alternative text when an illustration communicates content rather than decoration.
+Do not use uppercase for long sentences. Promoción labels in Wallet may use short uppercase titles.
 
-### Shape, depth, and motion
+## Public landing page
 
-- Use rounded cards and deliberate overlap on public pages.
-- Use flat, stable surfaces in forms and validator screens.
-- Use borders, contrast, and one restrained shadow or glow layer to express depth.
-- Use short entrance, progress, and completion motion only when it clarifies state.
-- Respect `prefers-reduced-motion` and keep all tasks usable without animation.
+The landing page introduces the product, not the dashboard. When landing content is published before an illustrated capability is available, label that capability as future in product-facing copy; do not present the target journey as currently operational.
 
-## Responsive and accessibility baseline
+### Header
 
-- Design public and validator flows mobile first.
-- Keep the primary touch target at least `44 × 44` CSS pixels where practical and never below WCAG 2.2 minimum target rules.
-- Keep normal text contrast at least `4.5:1` and large text at least `3:1`.
-- Provide visible keyboard focus and semantic labels.
-- Do not use color, glow, motion, or position as the only state indicator.
-- Keep content usable at `200%` zoom.
-- Use text alternatives for meaningful images and accessible names for icons.
-- Test neon colors on mid-range mobile displays and in bright ambient light.
+- FidelitoPass wordmark/logo on the left.
+- Navigation order: **Beneficios → Cómo funciona → Promociones → El pase → Preguntas frecuentes → Empezar**.
+- No header registration button or theme toggle. The header links to page sections; the hero and final section carry the same registration action.
 
-## Responsiveness metrics
+On small screens, keep navigation accessible without adding a competing registration CTA.
 
-| Signal | Target or behavior |
+### Hero
+
+Use the current marketing copy in `lang/es/landing.php`; do not replace it with a speculative draft. The hero and final CTA both link to registration; sign-in remains subordinate. Show the illustrative Pase and Promoción as conceptual product visuals, not proof of issued Wallet credentials or operational Visit validation. The mock QR is not independently decoded or functional. Do not present conceptual visuals as usable credentials.
+
+### How it works
+
+Explain the customer journey in product terms: register the Business, share its public QR, validate visits and deliver Rewards. Distinguish illustrations from operational controls; do not imply an unavailable operation works.
+
+Each step uses a numbered marker, short title, and one sentence.
+
+### Promoción section
+
+Explain one clear Promoción model:
+
+> Consigue puntos antes de una fecha y desbloquea una recompensa.
+
+Show a clearly labeled conceptual example and a Puntos extra moment when a Visit could be worth more points. Avoid configurator controls on the landing page.
+
+### Wallet section
+
+Describe a persistent **Pase para Google Wallet**, not a new pass per Promoción. Show the Wallet information hierarchy without implying an illustrative preview is an issued credential.
+
+### Final CTA
+
+Repeat the hero registration action and label from `lang/es/landing.php`.
+
+### Footer
+
+Keep minimal:
+
+- Product name.
+- Short product sentence.
+- Privacy/legal links when available.
+- Sign-in/register links.
+
+## Authentication pages
+
+Use the Starter Kit/Fortify flows with the FidelitoPass visual tokens.
+
+- Keep forms narrow.
+- Labels remain visible.
+- Validation appears close to the field.
+- Do not add decorative side panels that distract from authentication.
+- Registration collects Business name and a visible, confirmable, server-validated IANA timezone alongside owner credentials in one atomic operation; no logo or Promoción configuration is required.
+
+## Business onboarding
+
+For an existing owner without a Business, offer compatible setup with only Business name and visible, server-validated IANA timezone. A logo is optional, not a publication prerequisite. **Resumen** is the ordinary authenticated application home, not a required first stop after sign-in. Keep Profile and logout available; its incomplete-setup CTA uses the same **Pase** route as navigation, not a forced wizard.
+
+Timezone selection should:
+
+- Preselect a browser-suggested timezone when available.
+- Display the IANA name in a searchable/selectable control.
+- Remain editable in settings.
+- Explain briefly that it controls Promoción days and deadlines.
+
+Do not expose UTC offsets as the stored Business identity because offsets can change in many regions.
+
+## Dashboard
+
+**Resumen** leads with the next relevant action and distinguishes missing setup, scheduled, active, ended and cancelled Promociones. Show truthful waiting states rather than fabricated activity. A scheduled Promoción completes setup but is not yet eligible for visits.
+
+### Top section
+
+Show:
+
+- Current/scheduled Promoción.
+- Status.
+- Local validity dates.
+- Primary action appropriate to state.
+
+### Counters
+
+Use only:
+
+- Wallet passes issued (not installations or unique people).
+- Points earned in current Promoción.
+- Rewards unlocked.
+- Rewards redeemed.
+
+Counters are informative, not charts.
+
+### Quick actions
+
+- **Registrar visita** as a prominent global action, reachable on mobile. Disable it until validation is operational, with an honest explanation rather than a dead or deceptive control.
+- **Pase** for managing Promociones and appearance.
+- **Invitar clientes** for the public acquisition QR.
+
+Avoid advanced analytics, segmentation, trends, or customer lists in MVP.
+
+## Pase and Promoción editor
+
+**Pase** is a vertical sequence: compact illustrative Wallet preview, independently saved pass appearance, then Promoción list. Avoid a giant phone mockup or blank full-height preview column. Appearance offers presets, native colour input and synchronized hexadecimal field, with validation and automatically contrasting web text; Google Wallet supports background colour but does not guarantee a chosen native text colour. List drafts, scheduled, active, ended and cancelled Promociones. Only draft terms are editable; cancellation is a separate action.
+
+Open one editor modal with exactly two labelled, keyboard-accessible tabs: **Información general** and **Puntos extra**. Use Flux Free modal/basic fields, native date controls and accessible custom Blade/Alpine tabs (focus, arrow-key navigation and labelled panels); do not promise Pro tabs or date/colour pickers.
+
+### Información general
+
+Show local start/end dates, positive target points, Reward title and optional description, and the current Business IANA timezone as read-only context, not an independent selector. Publication review confirms the timezone; if it changed since review, refresh and ask for confirmation again. Published terms, including scheduled ones, are immutable.
+
+### Puntos extra
+
+State the fixed regular Visit value: 1 point. Keep an inline Add form stable while entries are added: weekday, whole day or start/end hours, and multiplier x2, x3 or x5. Below it show each added entry as a row with weekday, whole-day or hours, multiplier and **Quitar**. Multiple disjoint half-open `[start, end)` windows may touch endpoints but not overlap; whole-day and timed entries cannot coexist on one weekday. Split overnight intervals across days. Never stack rules or offer expressions/a generic builder. No rules are inherited from previous Promociones.
+
+### Shared footer and preview
+
+Use **Cancelar**, **Guardar borrador**, **Publicar** when applicable. Preserve unsaved values across tabs, reveal errors in the hidden tab, warn about incomplete unadded entries and confirm closing a dirty editor. Save/publish the complete Promoción and its Puntos extra atomically; appearance saves separately. Server validation is authoritative. Show a deterministic compact preview with numeric points, regular or applicable Puntos extra Visit value and no dynamic stamp circles; it is not a native-device colour or issuance guarantee.
+
+## Acquisition QR page
+
+Business view:
+
+- Business identity.
+- Permanent public QR with adequate print contrast and quiet zone; avoid promising an unverified physical size.
+- Short copy explaining what customers do.
+- Download/print action.
+
+Customer join view:
+
+- Business name and optional logo.
+- Current Promoción description if active, otherwise a waiting message.
+- Reward.
+- Local deadline.
+- Add to Google Wallet action.
+
+No account-creation form for customers.
+
+## Registrar visita dialog
+
+Once operational, the global action opens one identification → confirmation → result dialog for fast counter use. Until then, keep the action disabled with an honest explanation.
+
+### Required order
+
+1. Dialog title: **Registrar visita**.
+2. Scanner/camera area.
+3. Manual fallback **immediately below the scanner**.
+4. Customer-Pase lookup, explicit confirmation and result card in the same dialog.
+
+Manual fallback:
+
+```text
+Código del Pase
+[ 482731              ]
+[ Buscar pase ]
+```
+
+Keep manual entry visible inside this same dialog directly beneath the camera, including camera errors. Scanning and manual lookup are read-only and lead to the same confirmation; release camera and listeners on close/navigation.
+
+### Camera error
+
+Keep the scanner region in place and show:
+
+> No se pudo acceder a la cámara. Revisá los permisos o ingresá el código del Pase.
+
+The manual field remains immediately below.
+
+### Customer-pass result
+
+Show only operationally relevant data:
+
+- Current Promoción.
+- Current progress.
+- Current Visit point value.
+- Result state.
+- One primary action.
+
+Do not expose customer identity because none exists.
+
+### Primary action mapping
+
+| State | Primary action |
 |---|---|
-| Direct control feedback | Show a visual response within `100 ms`. |
-| Operation longer than `300 ms` | Show pending state and prevent duplicate action. |
-| LCP | At or below `2.5 s` at the 75th percentile. |
-| INP | At or below `200 ms` at the 75th percentile. |
-| CLS | At or below `0.1` at the 75th percentile. |
+| Active and can progress | **Confirmar visita** |
+| Reward available | **Canjear recompensa** |
+| Promoción ended/cancelled | none |
+| Waiting for Promoción | none |
 
-Measure public discovery and validation separately. A neon visual identity does not justify heavy media, blocking fonts, or decorative scripts.
+Before mutation, explicitly confirm the intended operation. On confirmation, revalidate ownership, eligibility, published terms and database time on the server with an idempotency key; show resulting progress after commit. Provider sync failures must not invite a duplicate Visit or redemption.
 
-## Relationship to SoyCasero
+## Reward redemption
 
-Keep SoyCasero's strongest interaction lessons: preview during setup, clear Wallet delivery, scan plus manual fallback, confirmation before mutation, and explicit benefit state.
+Redemption is final.
 
-Do not copy its layout, palette, card geometry, loyalty language, or visual tone. **DeTuristaAndo** uses a dark, neon, discovery-led identity and one shared multi-business experience.
+Before confirmation show:
 
-## References
+- Reward title.
+- Promoción.
+- Validity deadline.
+- Explicit confirmation.
 
-- [Current Core Web Vitals](https://web.dev/articles/vitals).
-- [WCAG 2.2 text contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).
-- [WCAG 2.2 target size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
+Primary CTA:
+
+> Canjear recompensa
+
+After completion:
+
+> Recompensa canjeada
+
+Do not use optimistic UI for redemption.
+
+## Form behaviour
+
+- Server-side validation is authoritative.
+- Use client-side hints only for convenience.
+- Preserve entered data after recoverable validation errors.
+- Prefer validation on blur/submit rather than aggressive per-keystroke error states.
+- Error copy states what is wrong and how to fix it.
+- Use specific CTA labels: **Publicar**, **Registrar visita**, **Canjear recompensa**.
+
+## Loading and perceived responsiveness
+
+- Provide immediate button/loading feedback for network actions.
+- Disable only the operation currently in flight.
+- Use compact skeletons only where content loading is visible enough to justify them.
+- Do not use fixed-duration sleeps in browser behaviour.
+- Do not use optimistic updates for Visit creation, Reward unlock, or Redemption.
+
+## Accessibility baseline
+
+Core pages should target WCAG AA interaction expectations:
+
+- Semantic HTML controls.
+- Visible focus.
+- Associated labels.
+- Sufficient contrast.
+- Minimum touch targets near 44×44px.
+- Status text that does not rely on colour alone.
+- Keyboard-accessible navigation and actions.
+- Attribute `aria-live`/status semantics for important dynamic operation feedback where appropriate.
+- Reduced motion support for non-essential animation.
+
+## Motion
+
+Use motion only to reinforce success or transition.
+
+Allowed examples:
+
+- Subtle progress update.
+- Short Reward-unlock emphasis.
+- Small card state transition.
+
+Avoid continuous animation in the dashboard, scanner, or Wallet preview.

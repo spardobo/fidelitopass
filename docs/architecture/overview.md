@@ -1,217 +1,276 @@
-# **DeTuristaAndo** Architecture Overview
+# FidelitoPass Architecture Overview
 
-This document defines the technical boundaries for the [MVP01 requirements](../requirements.md). It leaves routine implementation choices to Laravel conventions and the active work item.
+This document defines the MVP system boundaries and implementation shape.
 
-## Drivers
+## Architecture style
 
-- Deliver one production-capable product with a small codebase and one developer workflow.
-- Keep visit, progress, entitlement, and redemption rules correct under retries and concurrency.
-- Keep organizer, business, and visitor access models separate.
-- Make Google Wallet mandatory without making it authoritative.
-- Operate within a free or low-cost initial deployment.
-- Support later growth without introducing distributed-system cost in MVP01.
+FidelitoPass is a conventional Laravel monolith backed by PostgreSQL.
 
-## Architecture decision
+Use Laravel conventions and Eloquent first. Add focused Actions for consequential business commands. Promotion progress
+uses one points-based rule, so no strategy hierarchy is required in MVP.
 
-**DeTuristaAndo** uses a **modular monolith with hexagonal architecture**.
+Do not introduce microservices, generic repositories, CQRS, event sourcing, or a generic rules engine in MVP.
 
-Each business module separates these areas:
+## Technology baseline
 
-- **Domain:** entities, value objects, policies, and business rules.
-- **Application:** use cases, transaction coordination, and ports.
-- **Inbound adapters:** HTTP, Livewire, console commands, and queued jobs.
-- **Outbound adapters:** Eloquent persistence and external providers.
-
-Dependencies point from adapters toward the application and domain. The architecture defines this direction. It does not require one interface, service, repository, or folder for every class.
-
-See [ADR-001](decisions/001-modular-monolith-and-hexagonal-architecture.md).
+| Concern                | Technology                                    |
+|------------------------|-----------------------------------------------|
+| Runtime                | PHP 8.4                                       |
+| Framework              | Laravel 13                                    |
+| UI                     | Blade + Livewire 4 + Alpine.js                |
+| Components             | Flux UI Free where suitable                   |
+| Styling                | Tailwind CSS 4                                |
+| Database               | PostgreSQL 16                                 |
+| Authentication         | Laravel Starter Kit / Fortify foundation      |
+| Testing                | Pest / PHPUnit + selected Playwright journeys |
+| Development            | Docker + Laravel Sail                         |
+| Customer pass provider | Google Wallet                                 |
 
 ## System context
 
 ```mermaid
-flowchart TB
-    VISITOR["Visitor browser and Google Wallet"] --> APP["Laravel application"]
-    ORGANIZER["Organizer browser"] --> APP
-    BUSINESS["Business browser"] --> APP
-    APP --> DB[("PostgreSQL")]
-    APP --> PROVIDERS["Wallet, mail, maps, storage, OAuth, monitoring"]
+flowchart LR
+    C[Customer browser / Google Wallet] --> A[FidelitoPass Laravel application]
+    B[Business browser] --> A
+    A --> P[(PostgreSQL)]
+    A --> G[Google Wallet API]
 ```
 
-The Laravel application owns all product decisions. Providers deliver identity, messages, maps, media, or card projections.
+FidelitoPass owns all business decisions. Google Wallet displays customer state and carries the validation token.
 
-## Modules
+## Application responsibilities
 
-| Module | Responsibility |
-|---|---|
-| Organizer Identity | Fortify identity, Socialite linking, organizer profile, and session. |
-| Experience | Experience lifecycle, participants, goal, benefit definition, and publication readiness. |
-| Business Access | Invitation, device activation, PIN access, permission scope, and revocation. |
-| Discovery | Public search, experience projection, participant cards, map data, and acquisition source. |
-| Participation | Anonymous participation, private credentials, private view, and card projection. |
-| Visit and Progress | Confirmation eligibility, visit events, total visits, distinct progress, and goal transition. |
-| Benefit | Capacity reservation, entitlement, expiry, and redemption. |
-| Reporting and Audit | Product measures, business-own summary, audit events, and platform operations. |
-| Integrations | Wallet, mail, maps, storage, OAuth, and monitoring adapters. |
+| Responsibility       | Owns                                                                                                                                    |
+|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| Public product       | Landing page and Business join page.                                                                                                    |
+| Business account     | Authentication and Business ownership.                                                                                                  |
+| Business profile     | Name, branding, timezone, acquisition identity.                                                                                         |
+| Promotion management | Editable drafts, atomic publication of a frozen configuration (including Reward and Puntos extra), sequential scheduling, cancellation. |
+| Promotion evaluation | Sum immutable points awarded by accepted Visits against one target.                                                                     |
+| Customer pass        | Anonymous persistent Business/customer relationship.                                                                                    |
+| Visit validation     | One scanner-first identification/confirmation/result dialog with visible manual fallback; point award resolution and idempotency.       |
+| Reward               | Unlock and one-time redemption.                                                                                                         |
+| Wallet integration   | Business class/object mapping, issuance, synchronization, retry.                                                                        |
+| Logging              | Request correlation and structured application/security events.                                                                         |
 
-Modules own their tables and domain behavior. Cross-module access occurs through application services, explicit queries, or domain events inside the same process. Do not query another module's tables from presentation code.
+## Domain model
 
-## Design principles
+```mermaid
+erDiagram
+    USERS ||--|| BUSINESSES: owns
+    BUSINESSES ||--o{ PROMOTIONS: publishes
+    BUSINESSES ||--o{ CUSTOMER_PASSES: issues
+    CUSTOMER_PASSES ||--o{ VISITS: records
+    PROMOTIONS ||--o{ VISITS: contextualizes
+    CUSTOMER_PASSES ||--o{ REWARD_ENTITLEMENTS: earns
+    PROMOTIONS ||--o{ REWARD_ENTITLEMENTS: unlocks
+```
 
-The project uses design principles as decision tools. It does not use them as abstraction targets.
+A separate Redemption table is not required in MVP. Redemption finality is represented by
+`reward_entitlements.redeemed_at` and `redeemed_by_user_id`.
 
-| Principle | Project application |
-|---|---|
-| KISS | Choose the smallest design that keeps the current behavior clear, correct, and testable. |
-| YAGNI | Do not add extension points, generic layers, or provider options for unapproved future work. |
-| DRY | Extract one stable business rule or repeated source of knowledge. Keep incidental code similarity when extraction would hide intent. |
-| SOLID | Apply each principle where a real responsibility, substitution, interface, or dependency boundary exists. Do not measure compliance by the number of classes. |
+## Command boundaries
 
-For SOLID, use one reason to change as the main responsibility test. Use narrow ports at volatile boundaries. Use dependency inversion for domain code that must not know Laravel presentation types, Eloquent details, or provider SDKs. Apply substitution and open extension rules only where more than one implementation or a credible change exists.
+Use a focused Action when an operation owns a consequential transaction or external effect.
 
-## Service and Repository policy
+Expected Actions:
 
-| Pattern | Use | Do not use |
-|---|---|---|
-| Application Service | One named use case coordinates authorization, a transaction, domain behavior, and external work after commit. | A generic service that groups unrelated CRUD methods. |
-| Domain Service | A domain rule spans entities or value objects and has no natural entity owner. | Logic that belongs to an entity, value object, or application workflow. |
-| Repository | The domain or application needs an aggregate persistence boundary, a meaningful substitute, or isolated tests. | One repository per model, a generic base repository, or a wrapper around simple Eloquent CRUD. |
+```text
+PublishPromotionAction
+CancelPromotionAction
+IssueCustomerPassAction
+ValidateVisitAction
+RedeemRewardAction
+```
 
-Use Eloquent or the query builder inside an outbound adapter for simple persistence and read projections. Keep visit, progress, entitlement, and redemption rules independent from Eloquent. Add a port only when it protects a current business rule, a provider boundary, or a verified test need.
+Routine profile edits and ordinary reads remain conventional Eloquent/Livewire behaviour.
 
-## Dependency rules
+## Points and Promotion evaluation
 
-- HTTP and Livewire components call application use cases.
-- Application use cases coordinate transactions and domain behavior.
-- Domain code does not import Livewire, Eloquent, or provider SDK types.
-- Simple read models and routine persistence can use Eloquent in an adapter without a repository port.
-- Provider adapters implement narrow project-owned ports when provider coupling crosses into the application.
-- Modules do not depend on a cyclic chain.
+MVP uses one Promotion rule:
 
-Use architecture tests for dependency direction and module isolation. Do not create an interface only to wrap one stable Laravel class.
+```text
+progress_points = sum(points_awarded for accepted Visits of this Promotion)
+completed = progress_points >= promotion.target_points
+```
 
-## Core transactions
+Every regular Visit awards one point. A Promotion may own weekly recurring Puntos extra rules with x2, x3 or x5
+multipliers: each local weekday has a whole-day rule or disjoint half-open timed windows, never both. Touching endpoints
+are allowed; overnight windows must be split across weekdays. Exactly one rule applies at a time, never stacked; outside
+the windows the value is x1. No Business-global or previous-Promotion schedule is inherited. At validation, derive the
+local weekday and time from the post-lock operation instant and the active published Promotion's frozen timezone and
+schedule. Store the awarded points on the Visit; later drafts, Business timezone changes and Promotions cannot rewrite
+them.
 
-| Use case | Transaction boundary | External effect |
-|---|---|---|
-| Publish experience | Validate readiness and change state. | Queue invitations and public projection work. |
-| Activate business | Consume invitation and register device access. | Record audit evidence. |
-| Activate participation | Create participation and credentials. | Create Wallet object after commit. |
-| Confirm visit | Create visit, update progress, and create entitlement when required. | Queue Wallet update after commit. |
-| Redeem benefit | Lock entitlement and record one redemption. | Queue Wallet update after commit. |
+There is no Promotion strategy hierarchy, dynamic rule engine, condition tree, or expression language in MVP.
 
-External calls never occur inside the transaction that decides a visit or redemption. A retry uses an idempotency key and returns the prior domain result.
+## Time model
 
-## Data model baseline
+### Storage
 
-The initial relational model contains these concepts:
+- Application timezone stays UTC.
+- PostgreSQL session/default timezone stays UTC.
+- Rule-relevant instants use `timestamptz`.
+- Mutating operations set `visited_at`, `redeemed_at`, and related domain/audit-event timestamps from one post-lock
+  PostgreSQL `clock_timestamp()` value named `operation_at`.
+- Field `starts_at` is inclusive.
+- Field `ends_at` is exclusive.
 
-- organizers and social identities;
-- experiences and participants;
-- participant invitations and business device access;
-- participations and hashed credentials;
-- visits and progress projection;
-- benefits, capacity, entitlements, and redemptions;
-- Wallet mappings and synchronization attempts;
-- audit events and acquisition sources.
+### Business calendar
 
-PostgreSQL constraints and transactions enforce uniqueness and concurrency-sensitive rules. Application validation provides user-facing feedback but does not replace database integrity.
+The Business stores an IANA timezone such as `America/La_Paz`.
 
-Use opaque public identifiers. Do not expose sequential database keys. Store a credential hash when the workflow does not require recovery of its original value.
+Draft dates and preview display the current Business timezone, with no independent draft timezone selector. If the
+Business timezone changes after draft review, require refreshed review and reconfirmation before publication; never
+silently reinterpret the dates. When a Promotion is published:
 
-## Access model
+1. Copy the confirmed Business timezone to the Promotion timezone snapshot.
+2. Convert the local start date at `00:00` to `starts_at`.
+3. Convert the local day after the selected end date at `00:00` to exclusive `ends_at`.
+4. Freeze the entire published aggregate, including original local dates and UTC window, goal, Reward title and optional
+   description, timezone and all Puntos extra weekdays, times and multipliers, even if scheduled.
 
-### Organizer
+Drafts remain editable. Cancellation is a separate transition; neither it nor later Business settings rewrite the
+published snapshot.
 
-Fortify provides conventional session authentication. Socialite adds Google login. Application policies authorize ownership and platform operations.
+### Local calendar and occupancy
 
-### Participating business
+Use PostgreSQL conversion when Business-local calendar meaning matters. For a Visit, derive the local weekday and time
+from the single post-lock `operation_at` and the published Promotion timezone snapshot (not a stored local-date Visit
+field):
 
-A business is not a Laravel user in MVP01. It uses one experience-scoped device token plus PIN verification. Middleware restores the access context; policies still authorize each operation.
+```sql
+operation_at
+AT TIME ZONE promotion_timezone
+```
 
-### Visitor
+Use that local weekday and time to select at most one frozen half-open multiplier window. Published Promotions occupy
+`[starts_at, ends_at)`; cancellation truncates effective occupancy at `cancelled_at`, leaving an empty interval if
+cancelled before start. Publication and cancellation serialize on the Business row lock and recompute occupancy after
+locking. Reject intersecting effective intervals, allow touching endpoints, and keep at most one effectively active
+Promotion. After intraday cancellation, a date-only replacement cannot start before the next Business-local midnight;
+original publication instants remain unchanged.
 
-A visitor has no account. One credential opens the private view. A different credential can be presented for validation. Possessing that credential cannot create a visit without business confirmation.
+For read-only scheduled/active/ended phase queries, use an explicitly current PostgreSQL wall-clock instant:
 
-See [ADR-003](decisions/003-scoped-non-account-access.md) and the [security architecture](security.md).
+```sql
+clock_timestamp
+()
+```
 
-## Google Wallet
+For mutating decisions, acquire the relevant row locks first, capture `clock_timestamp()` exactly once as
+`operation_at`, and reuse it for every deadline check, occupancy decision, Business-local calculation and related
+domain/audit timestamps. Do not use transaction-start `CURRENT_TIMESTAMP` for lock-sensitive validity: a lock wait can
+make it stale.
 
-The Participation module owns card state. A Wallet port receives project data and maps it to Google Wallet classes, objects, signed links, and updates.
+## Visit validation transaction
 
-The adapter must support:
+`ValidateVisitAction` owns the complete authoritative operation.
 
-- create or resolve the experience card class;
-- create one object per participation;
-- generate the Add to Google Wallet action;
-- update progress and benefit state;
-- expose the validation QR and private-view link;
-- classify retryable and terminal provider errors.
+Conceptual flow:
 
-The private web view remains fully usable when Wallet delivery fails. See [ADR-002](decisions/002-google-wallet-delivery-adapter.md).
+```text
+begin transaction
+  resolve authenticated Business
+  lock relevant Customer pass and Promotion rows
+  capture clock_timestamp() exactly once as operation_at
+  validate pass belongs to Business
+  check published Promotion is active and not cancelled using operation_at
+  resolve one frozen Promotion-owned multiplier using operation_at in its timezone
+  enforce idempotency for the validation operation
+  insert Visit with visited_at = operation_at and points_awarded
+  sum awarded points for the active Promotion
+  create Reward entitlement if target points are reached
+commit
+dispatch Wallet synchronization after commit
+```
 
-## Other integrations
+The public acquisition QR identifies a join page, never a validation credential. The Wallet barcode contains a private
+high-entropy validation token; a short Business-scoped manual code is a lookup fallback, not equivalent authority. Both
+paths identify without mutation in the same scanner-first dialog; the authenticated owner explicitly confirms, then
+server-side ownership and validity are rechecked in the transaction. Locking the Customer pass serializes concurrent
+state changes for that pass. Legitimate repeat Visits on the same day are allowed; idempotency prevents technical
+retries from duplicating one validation operation.
 
-| Integration | MVP01 rule |
-|---|---|
-| Mail | Queue invitations and recovery messages; keep resend idempotent. |
-| Maps | Use Leaflet, stored coordinates, and an approved OpenStreetMap-compatible tile service. Do not call a geocoder on every page view. |
-| Media | Validate upload type, size, dimensions, and decode success. Keep storage behind Laravel Filesystem. |
-| OAuth | Use Socialite with fixed callback configuration and safe account linking. |
-| Monitoring | Capture structured application errors and release context without private credentials. |
+## Redemption transaction
 
-Queue work can start with the database driver. Introduce Redis only after measured contention, throughput, or provider needs justify it.
+`RedeemRewardAction`:
 
-## Runtime and deployment
+```text
+begin transaction
+  resolve authenticated Business
+  lock relevant entitlement and Promotion rows
+  capture clock_timestamp() exactly once as operation_at
+  validate Promotion active and not cancelled using operation_at
+  validate not redeemed
+  set redeemed_at = operation_at
+  set redeemed_by_user_id
+commit
+dispatch Wallet synchronization after commit
+```
 
-### Development runtime
+## Google Wallet model
 
-Laravel Sail is the mandatory local runtime. Docker Desktop groups the stack as `deturistaando`, with the project-prefixed services `deturistaando-laravel-app`, `deturistaando-postgres-db`, and `deturistaando-mailpit-dev`. The application image is `sail-deturistaando:dev`. Developers run Artisan, Composer, npm, tests, formatting, static analysis, and browser tests through Sail. Docker is the only required host dependency.
+Use Google Wallet loyalty Class/Object semantics:
 
-Developers copy the versioned `.env.dev.example` contract to the ignored `.env`. Production deployments use `.env.example` as a separate template and inject all secrets through the runtime environment; no `.env.dev` file exists.
+- One Business-level Loyalty Class for shared Business presentation where practical.
+- One Loyalty Object per Customer pass.
+- Progress/barcode/text modules mapped deterministically.
+- The same Object is updated across Promotions.
 
-The Wave 0 application baseline installs Socialite and defines the Google OAuth environment contract without committing credentials. The organizer login callback and safe identity-linking workflow remain part of the Wave 3 Organizer Identity slice.
+The application does not use Wallet state as a source of truth.
 
-### Production runtime
+## Background work
 
-Production uses an independent `Dockerfile` at the repository root rather than the Sail development image. MVP01 uses:
+Wallet synchronization is the main asynchronous/retryable responsibility.
 
-- One web process.
-- One queue worker and scheduler process when the hosting provider supports them.
-- Managed PostgreSQL.
-- External object storage when local disk is ephemeral.
-- HTTPS termination and environment-managed secrets.
-- One versioned Docker image promoted through environments.
+Use a Laravel job dispatched after commit when synchronization is not required to complete the counter interaction.
 
-The selected free-tier provider must support the visit flow reliably, background work, database backups, and required credentials. Provider selection requires a technical spike before it becomes an ADR.
+Jobs:
 
-The production image pins PHP 8.4, Composer 2, and Node.js 24 build stages by version and digest. Its final Alpine runtime pins nginx and Supervisor, runs as `www-data`, serves the `/up` health check on port `8080`, writes logs to standard streams, and contains neither build tools nor embedded environment files. Transitive Alpine libraries remain within the pinned Alpine release so compatible security patches are not blocked. Laravel is optimized at container startup, but migrations remain an explicit deployment operation.
+- Reload current authoritative state.
+- Tolerate duplicate execution.
+- Avoid changing domain eligibility.
+- Log provider failures with request/domain correlation.
+- Retry according to queue configuration.
 
-The runtime baseline targets medium traffic: nginx limits request bodies to 10 MB, compresses and caches only versioned Vite assets, and sends requests exclusively through `public/index.php`; PHP-FPM recycles workers and caps long requests. An explicit hash-aware location routes Livewire 4 endpoints to Laravel instead of treating them as static files, while Flux continues through the same front-controller fallback. Livewire and Flux control the cache headers for their own versioned scripts; interactive update and upload endpoints remain dynamic. Nginx reaches PHP-FPM through a private Unix socket owned by `www-data`, avoiding a same-container TCP listener without retaining idle FastCGI connections. Dedicated Nginx buffering directories are created for and owned by the rootless runtime user so disk spill remains available under sustained load. Baseline OWASP response headers are emitted by nginx while `.well-known` remains available for passkeys. TLS and HSTS belong to the deployment edge, where HTTPS is actually terminated. These capacity values are starting points and must be adjusted from production measurements rather than treated as universal limits.
+## Public web surfaces
 
-CI runs tests and quality checks in containers. Wiring the root production `Dockerfile` build and scan into GitHub Actions remains part of the dedicated CI delivery item. See [ADR-005](decisions/005-sail-development-and-production-container.md).
+MVP surfaces:
 
-## Environments and observability
+```text
+/
+  Product landing
 
-Use local, test, staging, and production configuration. Staging can share provider sandbox resources but must not share production credentials or visitor data.
+/join/{business}
+  Business join / Add to Google Wallet
 
-Production reports:
+Authenticated Business
+  Dashboard
+  Promotion draft/edit/preview/publish/cancel
+  Acquisition QR
+  Validate visit (one scanner/manual fallback dialog)
+  Business settings
+```
 
-- health and queue state;
-- unhandled errors with release and correlation context;
-- validation latency and result rate;
-- Wallet synchronization failures;
-- audit evidence for sensitive operations.
+No customer profile portal is required.
 
-Do not add a full metrics platform before the chosen hosting environment and incident needs justify it.
+## Deployment shape
 
-## Non-goals
+The production unit is the Laravel web application plus PostgreSQL.
 
-MVP01 does not use microservices, Kubernetes, event sourcing, CQRS infrastructure, Redis as a required dependency, a public API, a data warehouse, or multi-region deployment.
+If Wallet synchronization uses queued jobs in production, the deployment also runs a queue worker using the same
+code/image.
 
-## Decisions
+TLS, secret injection, database hosting, backups, and process supervision belong to the deployment environment.
 
-- [ADR-001: Modular monolith with hexagonal architecture](decisions/001-modular-monolith-and-hexagonal-architecture.md).
-- [ADR-002: Google Wallet outside the core domain](decisions/002-google-wallet-delivery-adapter.md).
-- [ADR-003: Organizer accounts and scoped non-account access](decisions/003-scoped-non-account-access.md).
-- [ADR-004: Official Laravel Livewire application stack](decisions/004-laravel-livewire-application-stack.md).
-- [ADR-005: Laravel Sail for development and an independent production image](decisions/005-sail-development-and-production-container.md).
+## Architectural constraints
+
+- No customer account model.
+- No generic loyalty rule engine.
+- No second customer pass UI parallel to Google Wallet.
+- No stored progress as the primary truth.
+- No browser/app-server clock for domain validity.
+- No duplicated local-date Visit column in MVP.
+- No general audit table linked from every row.
+- No analytics subsystem.
