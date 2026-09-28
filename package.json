@@ -3,8 +3,8 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "vp dev",
-        "build": "vp build",
+        "dev": "vite dev",
+        "build": "vite build",
         "format": "vp fmt resources/js scripts/quality playwright.config.js vite.config.js --write",
         "check:format": "vp fmt resources/js scripts/quality playwright.config.js vite.config.js --check",
         "check:lint": "vp lint resources/js scripts/quality playwright.config.js vite.config.js",
