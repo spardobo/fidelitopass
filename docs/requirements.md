@@ -1,6 +1,6 @@
 # FidelitoPass Requirements
 
-This document defines observable MVP behaviour.
+This document defines observable MVP behaviour, not implementation status. The stable CHL prefix in `REQ-CHL-001`–`005` is historical; it does not name or rename the Promotion product.
 
 ## Summary
 
@@ -18,25 +18,25 @@ This document defines observable MVP behaviour.
 | 2 | REQ-BIZ-002 | Must | Business | Functional | Configure Business profile and IANA timezone. |
 | 3 | REQ-PUB-001 | Must | Public | Functional | Present a product landing page. |
 | 4 | REQ-PUB-002 | Must | Public | Functional | Present the Business join page from the permanent QR. |
-| 5 | REQ-CHL-001 | Must | Challenge | Functional | Create instances of one points-based Challenge mechanic. |
-| 6 | REQ-CHL-002 | Must | Challenge | Functional | Configure deterministic point earning. |
-| 7 | REQ-CHL-003 | Must | Challenge | Functional | Publish local dates as an immutable UTC window. |
-| 8 | REQ-CHL-004 | Must | Challenge | Functional | Reject overlapping published Challenge windows. |
-| 9 | REQ-CHL-005 | Must | Challenge | Functional | Lock published Challenge terms and support cancellation. |
+| 5 | REQ-CHL-001 | Must | Promotion | Functional | Create editable draft points-based Promotions. |
+| 6 | REQ-CHL-002 | Must | Promotion | Functional | Configure Promotion-owned Puntos extra. |
+| 7 | REQ-CHL-003 | Must | Promotion | Functional | Publish local dates and immutable Promotion terms. |
+| 8 | REQ-CHL-004 | Must | Promotion | Functional | Reject overlapping published Promotion windows. |
+| 9 | REQ-CHL-005 | Must | Promotion | Functional | Lock published Promotion terms and support cancellation. |
 | 10 | REQ-PAS-001 | Must | Pass | Functional | Provide one permanent acquisition QR per Business. |
 | 11 | REQ-PAS-002 | Must | Pass | Functional | Create an anonymous Customer pass without registration. |
-| 12 | REQ-PAS-003 | Must | Wallet | Functional | Reuse one persistent Google Wallet pass across Challenges. |
+| 12 | REQ-PAS-003 | Must | Wallet | Functional | Reuse one persistent Google Wallet pass across Promotions. |
 | 13 | REQ-VIS-001 | Must | Validation | Functional | Identify a Customer pass by scanner or manual code. |
 | 14 | REQ-VIS-002 | Must | Validation | Functional | Restrict validation and redemption to the owning Business. |
 | 15 | REQ-VIS-003 | Must | Visit | Quality/technical | Timestamp accepted Visits from PostgreSQL time. |
 | 16 | REQ-VIS-004 | Must | Visit | Functional | Accept legitimate repeat Visits while remaining retry-safe. |
 | 17 | REQ-EVL-001 | Must | Evaluation | Functional | Award points for every accepted Visit. |
 | 18 | REQ-EVL-002 | Must | Evaluation | Functional | Apply recurring weekday multiplier windows. |
-| 19 | REQ-EVL-003 | Must | Evaluation | Functional | Evaluate Challenge completion from earned points. |
+| 19 | REQ-EVL-003 | Must | Evaluation | Functional | Evaluate Promotion completion from earned points. |
 | 20 | REQ-EVL-004 | Must | Evaluation | Quality/technical | Preserve awarded points as immutable Visit outcomes. |
 | 21 | REQ-REW-001 | Must | Reward | Functional | Unlock one Reward entitlement on completion. |
 | 22 | REQ-REW-002 | Must | Reward | Functional | Redeem one available Reward exactly once. |
-| 23 | REQ-REW-003 | Must | Reward | Functional | Reject Reward use after Challenge expiry or cancellation. |
+| 23 | REQ-REW-003 | Must | Reward | Functional | Reject Reward use after Promotion expiry or cancellation. |
 | 24 | REQ-WAL-001 | Must | Wallet | Functional | Present deterministic Wallet content for every customer state. |
 | 25 | REQ-WAL-002 | Must | Wallet | Quality/technical | Synchronize Wallet after commit and recover safely from provider failure. |
 | 26 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
@@ -60,7 +60,7 @@ This document defines observable MVP behaviour.
 **Type:** Functional
 **Module:** Business
 
-As a Business owner, I want a protected account so that only I can configure my loyalty Challenges and validate customer activity.
+As a Business owner, I want a protected account so that only I can configure my loyalty Promotions and validate customer activity.
 
 **Acceptance Criteria**
 
@@ -76,6 +76,12 @@ As a Business owner, I want a protected account so that only I can configure my 
 - **When** a protected Business route is requested.
 - **Then** authentication is required.
 
+**Scenario: Registration and authenticated navigation**
+
+- **Given** a new owner registering or an existing owner without a Business.
+- **When** registration supplies Owner authentication fields, a Business name, and an explicitly selected server-validated IANA timezone.
+- **Then** Owner and Business are created atomically without a guessed timezone; an existing owner can complete compatible setup. After authentication and email verification, normal web destination handling applies rather than a required first stop or forced redirect to Summary. Summary is the ordinary authenticated application home; when setup is incomplete, its CTA points to the same Pase route as navigation, without a forced wizard. Profile and logout remain accessible. A scheduled Promotion completes setup but does not permit Visits before its start.
+
 **Verification:** Laravel authentication and route-boundary feature tests.
 
 #### REQ-BIZ-002 — Configure Business profile and timezone
@@ -84,7 +90,7 @@ As a Business owner, I want a protected account so that only I can configure my 
 **Type:** Functional
 **Module:** Business
 
-As a Business owner, I want FidelitoPass to know my local timezone so that Challenge dates and special point windows match the calendar my customers understand.
+As a Business owner, I want FidelitoPass to know my local timezone so that Promotion dates and special point windows match the calendar my customers understand.
 
 **Acceptance Criteria**
 
@@ -92,13 +98,13 @@ As a Business owner, I want FidelitoPass to know my local timezone so that Chall
 
 - **Given** an authenticated owner.
 - **When** a valid Business name and IANA timezone are saved.
-- **Then** the profile becomes the source for public branding and future Challenge publication.
+- **Then** the profile becomes the source for public branding and future Promotion publication.
 
 **Scenario: Change timezone**
 
-- **Given** existing historical Challenges.
+- **Given** existing historical Promotions.
 - **When** the Business timezone changes.
-- **Then** previously published Challenges keep their stored timezone and only future publication uses the new Business timezone.
+- **Then** previously published Promotions keep their stored timezone and only future publication uses the new Business timezone.
 
 **Verification:** Feature and persistence tests.
 
@@ -110,7 +116,7 @@ As a Business owner, I want FidelitoPass to know my local timezone so that Chall
 **Type:** Functional
 **Module:** Public
 
-As a Business owner discovering FidelitoPass, I want to understand the product in a few moments so that I can decide whether to create my first Challenge.
+As a Business owner discovering FidelitoPass, I want to understand the product in a few moments so that I can decide whether to create my first Promotion.
 
 **Acceptance Criteria**
 
@@ -118,7 +124,7 @@ As a Business owner discovering FidelitoPass, I want to understand the product i
 
 - **Given** an anonymous visitor.
 - **When** the landing page is opened.
-- **Then** the page explains what FidelitoPass does, how the customer flow works, the points-based Challenge flow, and how to start as a Business.
+- **Then** the page explains what FidelitoPass does, how the customer flow works, the points-based Promotion flow, and how to start as a Business.
 
 **Verification:** Public-page feature test and browser review.
 
@@ -128,41 +134,41 @@ As a Business owner discovering FidelitoPass, I want to understand the product i
 **Type:** Functional
 **Module:** Public
 
-As a customer in a Business, I want a clear joining page so that I can understand the current Challenge before saving the pass.
+As a customer in a Business, I want a clear joining page so that I can understand the current Promotion before saving the pass.
 
 **Acceptance Criteria**
 
-**Scenario: Active Challenge**
+**Scenario: Active Promotion**
 
-- **Given** a Business with an Active Challenge.
+- **Given** a Business with an Active Promotion.
 - **When** its acquisition QR page is opened.
-- **Then** the customer sees the generated Challenge description, Reward, validity, and Add to Google Wallet action.
+- **Then** the customer sees the generated Promotion description, Reward, validity, and Add to Google Wallet action.
 
-**Scenario: No Active Challenge**
+**Scenario: No Active Promotion**
 
-- **Given** a Business with no Active Challenge.
+- **Given** a Business with no Active Promotion.
 - **When** its acquisition QR page is opened.
-- **Then** the customer can still save the persistent Business pass and sees a waiting-for-next-Challenge message.
+- **Then** the customer can still save the persistent Business pass and sees a waiting-for-next-Promotion message.
 
 **Verification:** Public Livewire/feature tests.
 
-### Challenge
+### Promotion
 
-#### REQ-CHL-001 — Create points-based Challenge instances
+#### REQ-CHL-001 — Create points-based Promotion instances
 
 **Priority:** Must
 **Type:** Functional
-**Module:** Challenge
+**Module:** Promotion
 
 As a Business owner, I want to create a simple points target so that customers always understand what they need to achieve for the Reward.
 
 **Acceptance Criteria**
 
-**Scenario: Create a Challenge**
+**Scenario: Create a Promotion**
 
-- **Given** the Challenge creation page.
-- **When** the owner provides the start date, end date, target points, and Reward.
-- **Then** FidelitoPass presents a deterministic preview using points as the progress unit; the Business may retain multiple drafts and future scheduled instances of this one mechanic.
+- **Given** the Pase page and a new Promotion editor with general and Puntos extra tabs.
+- **When** the owner provides start and end dates, target points, Reward title and description, and optional owned Puntos extra rules.
+- **Then** FidelitoPass previews points as progress and saves the complete editable draft atomically; multiple drafts and future scheduled Promotions of this one mechanic may coexist.
 
 **Verification:** Livewire component tests.
 
@@ -170,7 +176,7 @@ As a Business owner, I want to create a simple points target so that customers a
 
 **Priority:** Must
 **Type:** Functional
-**Module:** Challenge
+**Module:** Promotion
 
 As a Business owner, I want a small point configuration so that I can make selected visits more valuable without designing custom rules.
 
@@ -178,14 +184,14 @@ As a Business owner, I want a small point configuration so that I can make selec
 
 **Scenario: Configure recurring multiplier windows**
 
-- **Given** the Business point configuration with a fixed regular Visit value of one point.
-- **When** the owner adds any number of weekly recurring rules with integer multiplier `N >= 2`, each covering a Business-local weekday either all day or a half-open `[start, end)` time window within that day.
+- **Given** a draft Promotion with its own Puntos extra rules and a fixed regular Visit value of one point; no Business-global or previous-Promotion rules are inherited.
+- **When** the owner adds weekly recurring rules with multiplier x2, x3, or x5, each covering a Business-local weekday either all day or a half-open `[start, end)` time window within that day.
 - **Then** the preview shows the applicable multiplier and resulting points (x1 = 1 outside rules, x2 = 2, x5 = 5); rules affect future accepted Visits only.
 
 **Scenario: Reject conflicting or invalid windows**
 
 - **Given** existing rules for a weekday.
-- **When** the owner submits overlapping timed windows, a whole-day rule alongside timed windows on that day, a midnight-crossing window, or a non-integer or below-x2 multiplier.
+- **When** the owner submits overlapping timed windows, a whole-day rule alongside timed windows on that day, an unsplit midnight-crossing window, or a multiplier other than x2, x3, or x5.
 - **Then** validation rejects the change without altering the current configuration; touching timed endpoints are allowed, and overnight promotions require separate weekday rules.
 
 **Scenario: Multiple distinct windows**
@@ -200,21 +206,21 @@ As a Business owner, I want a small point configuration so that I can make selec
 
 **Priority:** Must
 **Type:** Functional
-**Module:** Challenge
+**Module:** Promotion
 
-As a Business owner, I want Challenge dates to behave according to my local calendar so that customers are never affected by application-server timezone differences.
+As a Business owner, I want Promotion dates to behave according to my local calendar so that customers are never affected by application-server timezone differences.
 
 **Acceptance Criteria**
 
 **Scenario: Publish local date window**
 
 - **Given** valid local start and end dates and a Business timezone.
-- **When** the Challenge is published.
-- **Then** `starts_at`, exclusive `ends_at`, and the Challenge timezone snapshot are persisted consistently and cannot be changed after publication, even on cancellation.
+- **When** the Promotion is published.
+- **Then** `starts_at`, exclusive `ends_at`, and the Promotion timezone snapshot are persisted consistently. Drafts display the current Business timezone without an independent selector; publication copies it and freezes the entire scheduled or active aggregate, including goal, Reward title and description, dates, timezone and Puntos extra schedule. If the Business timezone changed since review, refreshed review and renewed confirmation are required before publication; dates cannot be silently reinterpreted.
 
 **Scenario: Evaluate current phase**
 
-- **Given** a published Challenge.
+- **Given** a published Promotion.
 - **When** its phase is queried.
 - **Then** phase decisions use an explicitly current PostgreSQL wall-clock instant against the stored UTC window, not transaction-start `CURRENT_TIMESTAMP`.
 
@@ -224,9 +230,9 @@ As a Business owner, I want Challenge dates to behave according to my local cale
 
 **Priority:** Must
 **Type:** Functional
-**Module:** Challenge
+**Module:** Promotion
 
-As a Business owner, I want only one Challenge to be active at a time so that customers always have one clear current goal.
+As a Business owner, I want only one Promotion to be active at a time so that customers always have one clear current goal.
 
 **Acceptance Criteria**
 
@@ -234,7 +240,7 @@ As a Business owner, I want only one Challenge to be active at a time so that cu
 
 - **Given** published instances for one Business, each occupying `[starts_at, min(ends_at, cancelled_at))` when cancelled, or `[starts_at, ends_at)` otherwise (empty if cancelled before start).
 - **When** a draft is published with a window intersecting any occupied interval.
-- **Then** publication is rejected without partial state change; touching endpoints are allowed and at most one Challenge is effective Active at an instant.
+- **Then** publication is rejected without partial state change; touching endpoints are allowed and at most one Promotion is effective Active at an instant.
 
 **Scenario: Concurrent publish and cancellation**
 
@@ -244,41 +250,43 @@ As a Business owner, I want only one Challenge to be active at a time so that cu
 
 **Scenario: Replacement after intraday cancellation**
 
-- **Given** an Active Challenge cancelled during a Business-local day.
+- **Given** an Active Promotion cancelled during a Business-local day.
 - **When** a replacement is published using local start and end dates.
-- **Then** its earliest valid start is the next local midnight, not an immediate same-day start; the cancelled Challenge retains its original UTC window.
+- **Then** its earliest valid start is the next local midnight, not an immediate same-day start; the cancelled Promotion retains its original UTC window.
 
 **Verification:** Transactional feature tests.
 
-#### REQ-CHL-005 — Lock published Challenge terms and support cancellation
+#### REQ-CHL-005 — Lock published Promotion terms and support cancellation
 
 **Priority:** Must
 **Type:** Functional
-**Module:** Challenge
+**Module:** Promotion
 
-As a customer, I want the Challenge rules to stay stable after play begins so that my progress cannot be redefined unexpectedly.
+As a customer, I want the Promotion rules to stay stable after play begins so that my progress cannot be redefined unexpectedly.
 
 **Acceptance Criteria**
 
 **Scenario: Edit published semantics**
 
-- **Given** a published scheduled, active, or ended Challenge (drafts remain editable).
-- **When** the owner attempts to change its target points, Reward, timezone, `starts_at`, or `ends_at`.
+- **Given** a published scheduled, active, or ended Promotion (drafts remain editable).
+- **When** the owner attempts to change its goal, Reward title or description, dates, timezone, `starts_at`, `ends_at`, or any Puntos extra rule.
 - **Then** the operation is rejected.
 
-**Scenario: Cancel scheduled or active Challenge**
+**Scenario: Cancel scheduled or active Promotion**
 
-- **Given** a scheduled or Active Challenge.
-- **When** the owner confirms cancellation under the Business row lock.
-- **Then** `cancelled_at` records the single post-lock PostgreSQL operation instant, effective progress and redemption stop immediately, remaining future occupancy is released, and Wallet presentation becomes cancelled/waiting; prior Visits and original publication window remain historical.
+- **Given** a scheduled or Active Promotion.
+- **When** the owner confirms cancellation under the Business row lock, retaining the published Promotion snapshot.
+- **Then** `cancelled_at` records the single post-lock PostgreSQL operation instant, effective progress and redemption stop immediately, remaining future occupancy is released, and Wallet presentation becomes cancelled/waiting; prior Visits, awarded points, original published terms and UTC window remain historical. Cancellation never rewrites the original dates.
 
-**Scenario: Ended Challenge**
+**Scenario: Ended Promotion**
 
-- **Given** a Challenge whose original window has ended.
+- **Given** a Promotion whose original window has ended.
 - **When** the owner requests cancellation.
 - **Then** it remains historical rather than being cancelled.
 
 **Verification:** Feature tests for transition and authorization.
+
+**Editor:** One modal with accessible general and Puntos extra tabs, an Add form, Remove list, and shared cancel/save draft/publish actions. Tabs retain unsaved values; save and publish persist the aggregate atomically, warn about incomplete unadded rules, reveal hidden-tab errors and confirm dirty close. Pass appearance is saved independently of Promotion terms.
 
 ### Customer pass and Wallet identity
 
@@ -288,14 +296,14 @@ As a customer, I want the Challenge rules to stay stable after play begins so th
 **Type:** Functional
 **Module:** Pass
 
-As a Business owner, I want to print one QR once so that I do not replace physical material for every Challenge.
+As a Business owner, I want to print one QR once so that I do not replace physical material for every Promotion.
 
 **Acceptance Criteria**
 
 **Scenario: Reuse public QR**
 
 - **Given** a Business with an existing acquisition QR.
-- **When** one Challenge ends and another begins.
+- **When** one Promotion ends and another begins.
 - **Then** the same QR opens the Business join page with the new current state.
 
 **Verification:** Route and persistence tests.
@@ -324,14 +332,14 @@ As a customer, I want to save the loyalty pass immediately so that registration 
 **Type:** Functional
 **Module:** Wallet
 
-As a customer, I want one card that changes with the Business Challenges so that my Wallet does not fill with expired cards.
+As a customer, I want one card that changes with the Business Promotions so that my Wallet does not fill with expired cards.
 
 **Acceptance Criteria**
 
-**Scenario: New Challenge on existing pass**
+**Scenario: New Promotion on existing pass**
 
-- **Given** an existing Customer pass from a previous Challenge.
-- **When** a new Challenge becomes relevant.
+- **Given** an existing Customer pass from a previous Promotion.
+- **When** a new Promotion becomes relevant.
 - **Then** FidelitoPass updates the same Wallet object instead of issuing another pass.
 
 **Verification:** Wallet integration state-transition tests.
@@ -352,13 +360,13 @@ As a Business owner serving a customer, I want scan and manual lookup in the sam
 
 - **Given** camera permission and a readable Wallet barcode.
 - **When** the code is scanned.
-- **Then** the Customer pass is loaded for confirmation.
+- **Then** lookup loads the Customer pass without mutation; explicit confirmation revalidates Business ownership, published terms, and database time server-side before accepting a Visit.
 
 **Scenario: Scanner unavailable**
 
 - **Given** denied/unavailable camera access.
 - **When** the page is shown.
-- **Then** the manual-code field remains immediately below the scanner area and can load the same Customer pass flow.
+- **Then** the manual-code field remains immediately below the camera in the same identification/confirmation/result dialog, including when scanning fails; either method loads the same flow. Camera and listeners are released on close or navigation.
 
 **Verification:** Feature tests plus representative browser coverage for scanner fallback layout.
 
@@ -386,7 +394,7 @@ As a Business owner, I want operations scoped to my Business so that another Bus
 **Type:** Quality/technical
 **Module:** Visit
 
-As a system operator, I want one authoritative clock for Visit facts so that challenge evaluation is consistent across environments.
+As a system operator, I want one authoritative clock for Visit facts so that Promotion evaluation is consistent across environments.
 
 **Acceptance Criteria**
 
@@ -434,9 +442,9 @@ As a customer, I want every accepted Visit to tell me how many points I earned s
 
 **Scenario: Regular Visit**
 
-- **Given** an Active Challenge and no applicable multiplier window.
+- **Given** an Active Promotion and no applicable multiplier window.
 - **When** a Visit is accepted.
-- **Then** the Visit stores exactly one `points_awarded` and Challenge progress increases by one; the regular value is not configurable.
+- **Then** the Visit stores exactly one `points_awarded` and Promotion progress increases by one; the regular value is not configurable.
 
 **Verification:** Domain/feature tests.
 
@@ -452,39 +460,39 @@ As a customer, I want FidelitoPass to show when my Visit is worth more points so
 
 **Scenario: Multiplier window applies**
 
-- **Given** multiple disjoint recurring rules and an Active published Challenge with a timezone snapshot.
+- **Given** multiple disjoint recurring rules and an Active published Promotion with a timezone snapshot.
 - **When** a Visit is accepted in one rule's local weekday and half-open time window using the single post-lock PostgreSQL operation instant.
-- **Then** exactly that rule's integer xN applies to the fixed one-point base; the Visit stores N immutable `points_awarded`, without stacking.
+- **Then** exactly that Promotion-owned rule's x2, x3, or x5 applies to the fixed one-point base; the Visit stores immutable `points_awarded`, without stacking.
 
 **Scenario: Outside and boundary**
 
 - **Given** recurring windows with touching endpoints or a local day that differs from the UTC day.
 - **When** a Visit is accepted outside every window, at a window endpoint, or across that UTC/local-day boundary.
-- **Then** the Challenge timezone snapshot determines the local weekday/time; only a window containing that instant applies, otherwise the Visit stores one point.
+- **Then** the published Promotion timezone snapshot and its frozen Puntos extra schedule determine the local weekday/time; only a window containing that instant applies, otherwise the Visit stores one point.
 
 **Scenario: Configuration changes**
 
 - **Given** an accepted Visit with stored `points_awarded`.
-- **When** the Business changes its multiplier rules.
-- **Then** only future accepted Visits use the new rules; historical awarded points and progress are not recalculated.
+- **When** a later draft Promotion has different rules or the Business timezone changes.
+- **Then** the published Promotion's own schedule stays frozen; only future published Promotions use their own rules, and historical awarded points and progress are not recalculated.
 
 **Verification:** PostgreSQL-backed local-time boundary tests.
 
-#### REQ-EVL-003 — Evaluate Challenge completion from earned points
+#### REQ-EVL-003 — Evaluate Promotion completion from earned points
 
 **Priority:** Must
 **Type:** Functional
 **Module:** Evaluation
 
-As a customer, I want one points target for the current Challenge so that I always know how close I am to the Reward.
+As a customer, I want one points target for the current Promotion so that I always know how close I am to the Reward.
 
 **Acceptance Criteria**
 
 **Scenario: Reach target points**
 
-- **Given** an Active Challenge with target `N` points.
+- **Given** an Active Promotion with target `N` points.
 - **When** accepted Visits bring the Customer pass progress to at least `N` points.
-- **Then** the Challenge is completed and one Reward entitlement becomes available.
+- **Then** the Promotion is completed and one Reward entitlement becomes available.
 
 **Verification:** Domain/feature tests.
 
@@ -494,14 +502,14 @@ As a customer, I want one points target for the current Challenge so that I alwa
 **Type:** Quality/technical
 **Module:** Evaluation
 
-As a system operator, I want each accepted Visit to preserve the points awarded at that moment so that later configuration changes never rewrite historical Challenge progress.
+As a system operator, I want each accepted Visit to preserve the points awarded at that moment so that later configuration changes never rewrite historical Promotion progress.
 
 **Acceptance Criteria**
 
 **Scenario: Point configuration changes later**
 
 - **Given** an accepted Visit with a stored awarded point value.
-- **When** the Business changes its point configuration afterward.
+- **When** a later Promotion is published with different Puntos extra rules.
 - **Then** the historical Visit keeps its original awarded points and completed progress is not recalculated using the new configuration.
 
 **Verification:** Persistence/domain tests.
@@ -512,7 +520,7 @@ As a system operator, I want each accepted Visit to preserve the points awarded 
 **Type:** Functional
 **Module:** Reward
 
-As a customer, I want the Reward to unlock immediately when I complete the Challenge so that the accomplishment feels clear.
+As a customer, I want the Reward to unlock immediately when I complete the Promotion so that the accomplishment feels clear.
 
 **Acceptance Criteria**
 
@@ -554,14 +562,14 @@ As a Business owner, I want one explicit final redemption action so that the Rew
 **Type:** Functional
 **Module:** Reward
 
-As a Business owner, I want Reward validity to match the published Challenge deadline so that terms are predictable.
+As a Business owner, I want Reward validity to match the published Promotion deadline so that terms are predictable.
 
 **Acceptance Criteria**
 
 **Scenario: Redemption after expiry**
 
 - **Given** an unredeemed entitlement.
-- **When** the relevant rows are locked and the operation's single PostgreSQL `clock_timestamp()` value is `>= challenge.ends_at`.
+- **When** the relevant rows are locked and the operation's single PostgreSQL `clock_timestamp()` value is at or after the published Promotion's exclusive deadline.
 - **Then** redemption is rejected as expired.
 
 **Verification:** Database-time feature tests.
@@ -574,13 +582,13 @@ As a Business owner, I want Reward validity to match the published Challenge dea
 **Type:** Functional
 **Module:** Wallet
 
-As a customer, I want the card to explain itself every time I open it so that I never have to remember Challenge rules.
+As a customer, I want the card to explain itself every time I open it so that I never have to remember Promotion rules.
 
 **Acceptance Criteria**
 
-**Scenario: Current Challenge state**
+**Scenario: Current Promotion state**
 
-- **Given** a Customer pass with a current Challenge state.
+- **Given** a Customer pass with a current Promotion state.
 - **When** its Wallet model is built.
 - **Then** the structural fields stay fixed while points, current Visit value, Reward, deadline, and state values update.
 

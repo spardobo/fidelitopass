@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. Partially superseded by [ADR-006](006-promotion-owned-extra-points.md) only for Business-global mutable point-rule ownership; the single points mechanic and immutable awarded Visits remain accepted.
 
 ## Context
 

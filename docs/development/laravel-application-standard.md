@@ -51,8 +51,8 @@ Use one focused `<Verb><Subject>Action::handle()` when a business command coordi
 Expected examples:
 
 ```text
-PublishChallengeAction
-CancelChallengeAction
+PublishPromotionAction
+CancelPromotionAction
 IssueCustomerPassAction
 ValidateVisitAction
 RedeemRewardAction
@@ -72,20 +72,21 @@ Do not add a second `__invoke()` entry point for project Actions.
 
 The Action that owns a transaction owns the whole transaction boundary. Callers and collaborators must not create partial competing transaction scopes.
 
-## Points and Challenge calculation
+## Points and Promotion calculation
 
-MVP has one Challenge mechanic: reach a target number of points before the Challenge ends.
+MVP has one Promotion mechanic: reach a target number of points before the Promotion ends.
 
 Keep the calculation direct and explicit. A separate Strategy hierarchy is not required.
 
 At Visit validation time:
 
-- Resolve the applicable point value from the Business point configuration and Business-local time.
+- After locking the relevant Customer pass and Promotion rows, capture one PostgreSQL `clock_timestamp()` operation instant. Use it for validity, point evaluation, and `visited_at`; do not use transaction-start time or a second clock reading.
+- Resolve the applicable point value from the active published Promotion's frozen weekly schedule using that instant in its stored IANA timezone. Regular Visits earn one point; a matching x2, x3 or x5 window awards 2, 3 or 5 points. Each weekday has either a whole-day rule or disjoint half-open timed windows, never both. Windows do not stack; outside them award one point. Do not inherit Business-global or previous-Promotion rules.
 - Persist that value as `points_awarded` on the accepted Visit.
-- Calculate Challenge progress from the sum of awarded points for that Customer pass and Challenge.
+- Calculate Promotion progress from the sum of awarded points for that Customer pass and Promotion.
 - Create the Reward entitlement when the target is reached.
 
-Do not create generic condition objects, expression languages, dynamic rule builders, or several interchangeable Challenge evaluators in MVP.
+Do not create generic condition objects, expression languages, dynamic rule builders, or several interchangeable Promotion evaluators in MVP.
 
 ## Time and date handling
 
@@ -95,7 +96,7 @@ Keep Laravel application timezone set to UTC.
 
 ### Domain validity
 
-Challenge phase, Visit acceptance, Reward expiry, and Redemption validity use PostgreSQL current time inside the owning query/transaction.
+Promotion phase, Visit acceptance, Reward expiry, and Redemption validity use PostgreSQL current time inside the owning query/transaction. For lock-sensitive mutations, capture one post-lock `clock_timestamp()` instant and reuse it throughout the operation.
 
 Do not use application `now()` as the authoritative clock for these decisions.
 
@@ -118,16 +119,16 @@ cancelled_at
 Use CarbonImmutable/framework date utilities for:
 
 - Parsing Business-local start/end dates.
-- Presenting local Challenge dates to users.
+- Presenting local Promotion dates to users.
 - Converting a local publication boundary into a UTC instant.
 
-Use the Challenge IANA timezone explicitly.
+Use the published Promotion IANA timezone explicitly for historical and active calendar rules; drafts display the current Business timezone.
 
 Do not infer calendar logic from PHP/server system timezone.
 
 ### Local-day queries
 
-When Business-local weekday or time determines a recurring multiplier window, keep the conversion in PostgreSQL using `AT TIME ZONE`.
+When the published Promotion's local weekday or time determines a recurring multiplier window, convert the post-lock operation instant in PostgreSQL using `AT TIME ZONE` with the Promotion timezone.
 
 Do not introduce a duplicated local-date column only to avoid the query.
 
@@ -168,7 +169,7 @@ Every pass operation is scoped through the authenticated Business before any pro
 
 Use Laravel/Livewire server-side validation.
 
-Use fixed schema/range validation for Challenge configurations.
+Use fixed schema/range validation for Promotion configurations, including disjoint same-day windows, whole-day/timed exclusivity, and allowed multipliers.
 
 Prefer:
 
@@ -207,7 +208,7 @@ Actions/evaluators own:
 - Prefer semantic HTML before custom JavaScript.
 - Use the dark-only Onest theme: shared Tailwind `@theme` tokens in `resources/css/app.css` define the black shell, charcoal canvas/surfaces, off-white ink, and lavender accent. `resources/views/partials/theme-default.blade.php` initializes dark appearance before Flux loads through the shared head; do not offer a light-mode toggle. Use Alpine only for small client-only interactions such as lightweight disclosure.
 - Keep camera/scanner JavaScript isolated to the validation component.
-- Never duplicate authoritative Challenge/Reward state in Alpine.
+- Never duplicate authoritative Promotion/Reward state in Alpine.
 - Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure. The current authentication wrapper `resources/views/layouts/auth.blade.php` renders `layouts::auth.card`; the application uses `resources/views/layouts/app/header.blade.php` as its header layout.
 - Use `wire:navigate` conservatively. Persist shared navigation only outside Livewire components when needed, and keep active-link styling dynamic after navigation.
 - Do not add a SPA framework for MVP.
@@ -236,7 +237,7 @@ It is responsible for:
 
 It is not responsible for:
 
-- Challenge eligibility.
+- Promotion eligibility.
 - Visit acceptance.
 - Reward completion.
 - Redemption authorization.
@@ -262,7 +263,7 @@ Use queue retry/backoff capabilities before custom retry infrastructure.
 Use PHP backed string enums for stable value sets such as:
 
 ```text
-ChallengeStatus
+PromotionStatus
 WalletPresentationState
 ```
 
@@ -281,7 +282,8 @@ Do not create enums for phases that are derived from timestamps.
 - Avoid vague class names such as `Manager`, `Helper`, `Handler`, or `Util` when a domain/capability name exists.
 - Keep Blade readable; do not hide normal markup inside PHP string builders. Separate semantic blocks with whitespace, group related attributes, and break attribute lines only when length impedes scanning; do not enforce one attribute per line.
 - Scoped Pint `--blade` needs the npm packages `prettier`, `prettier-plugin-blade`, and `prettier-plugin-tailwindcss`, which are not installed here. Its Blade check is not a passing validation or a required dependency; apply the manual conventions above without adding formatter tooling.
-- Keep code as a top-to-bottom narrative with whitespace between semantic blocks.
+- Keep code as a top-to-bottom narrative with whitespace between semantic blocks. In Livewire components, order meaningful properties, lifecycle hooks, component actions, optional private helpers, then listeners last. Do not add empty blocks merely to satisfy the order.
+- In Blade, use lowercase semantic HTML comments such as `<!-- form actions -->` where they clarify sections. Use blank lines and multiline attributes when needed for readability; do not compress PHP, Blade, or JavaScript into dense one-liners.
 
 ## PHPDoc and comments
 
@@ -308,13 +310,13 @@ Technical documentation, source identifiers, comments, enum values, and log even
 
 Use Laravel translations for:
 
-- Challenge generated copy.
+- Promotion generated copy.
 - Validation/error messages.
 - Accessibility labels.
 - Wallet presentation text.
 - Repeated operational text.
 
-Centralize Challenge copy so UI preview and Wallet mapping cannot drift.
+Centralize Promotion copy so UI preview and Wallet mapping cannot drift.
 
 ## Structured logging
 
@@ -338,7 +340,7 @@ request_id
 actor_type
 actor_id
 business_id
-challenge_id
+promotion_id
 customer_pass_id
 outcome
 reason
@@ -354,7 +356,7 @@ visit.replayed
 visit.rejected
 reward.unlocked
 reward.redeemed
-challenge.cancelled
+promotion.cancelled
 wallet.sync_failed
 auth.throttled
 ```

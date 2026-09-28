@@ -1,10 +1,10 @@
 # FidelitoPass Delivery Plan
 
-This document groups requirement IDs into rolling delivery waves. It does not redefine behaviour.
+This document offers illustrative outcome groups for rolling-wave planning; it does not assign requirements permanently to numbered waves or redefine behaviour. A wave is the current set of pending, related requirements selected by dependencies. Group requirements that can be addressed together into Kanban work items; regroup these candidates across current and next waves as readiness changes.
 
-Load only the current wave into detailed work. Keep later waves at this outcome level until dependencies are ready.
+Detail only the current wave. Keep the next wave coarse until dependencies are ready; do not schedule distant requirements by fixed wave number. The six groups below retain reference IDs and demonstrations, not a mandated sequence or one-to-one delivery allocation. The CHL identifier prefix in the listed requirements is historical; the product term is Promotion.
 
-## Wave 1 — Product entry and Business foundation
+## Candidate outcome — Product entry and Business foundation
 
 **Outcome:** FidelitoPass has a polished public entry point and an authenticated Business with correct local-time configuration.
 
@@ -24,9 +24,9 @@ Demonstration:
 - Business profile/timezone is configured.
 - Public, authentication, and application pages demonstrate the dark-only shell without a light-theme switch.
 
-## Wave 2 — Challenge authoring and publication
+## Candidate outcome — Promotion authoring and publication
 
-**Outcome:** the Business can configure recurring point multipliers and author, preview, schedule, publish, and cancel instances of one points-based Challenge mechanic.
+**Outcome:** the Business can configure Promotion-owned recurring Puntos extra and author, preview, schedule, publish, and cancel instances of one points-based Promotion mechanic.
 
 Requirements:
 
@@ -39,15 +39,15 @@ Requirements:
 
 Demonstration:
 
-- Fixed one-point regular Visit and multiple disjoint weekly xN multiplier windows (whole-day or timed).
-- Challenge dates + target points + Reward.
+- Fixed one-point regular Visit and multiple disjoint weekly x2/x3/x5 Puntos extra windows per Promotion (whole-day or timed).
+- Promotion dates + target points + Reward.
 - Deterministic preview.
 - Publication to immutable UTC windows with timezone snapshots; multiple drafts/future instances, at most one effective Active.
 - Serialized overlap/edit/cancel rules; cancellation releases remaining occupancy without changing publication history.
 
-Wave 2 does not validate Visits, issue Wallet passes, award points, or redeem Rewards. Its preview is conceptual and deterministic.
+This authoring candidate does not validate Visits, issue Wallet passes, award points, or redeem Rewards. Its preview is conceptual and deterministic; these exclusions apply whenever authoring is selected as an early wave.
 
-## Wave 3 — Acquisition and persistent Google Wallet pass
+## Candidate outcome — Acquisition and persistent Google Wallet pass
 
 **Outcome:** a customer can join anonymously and keep one persistent Business pass.
 
@@ -68,9 +68,9 @@ Demonstration:
 - Google Wallet issuance.
 - Deterministic waiting/active Wallet state.
 
-## Wave 4 — Visit validation and points calculation
+## Candidate outcome — Visit validation and points calculation
 
-**Outcome:** the Business can validate fast counter Visits, award the correct points, and update Challenge progress.
+**Outcome:** the Business can validate fast counter Visits, award the correct points, and update Promotion progress.
 
 Requirements:
 
@@ -93,12 +93,12 @@ Demonstration:
 - Legitimate same-day repeat Visits.
 - Idempotent validation retries.
 - Every accepted regular Visit awards exactly one point.
-- Applicable Business-local weekday/time xN multiplier awards N immutable points per accepted Visit, with no stacking; outside windows x1 applies.
-- Challenge completion from target points.
+- Applicable Promotion-owned, Business-local weekday/time x2/x3/x5 multiplier awards 2, 3, or 5 immutable points per accepted Visit, with no stacking; outside windows x1 applies.
+- Promotion completion from target points.
 
-## Wave 5 — Reward and Wallet synchronization
+## Candidate outcome — Reward and Wallet synchronization
 
-**Outcome:** Challenge completion unlocks a Reward that is redeemed once before expiry and reflected in Wallet.
+**Outcome:** Promotion completion unlocks a Reward that is redeemed once before expiry and reflected in Wallet.
 
 Requirements:
 
@@ -116,7 +116,7 @@ Demonstration:
 - Expired/cancelled rejection.
 - Provider failure does not corrupt local facts.
 
-## Wave 6 — Security, logging, and release hardening
+## Candidate outcome — Security, logging, and release hardening
 
 **Outcome:** the complete MVP is safe, diagnosable, responsive, and ready for production use.
 
