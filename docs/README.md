@@ -21,7 +21,7 @@ Documentation follows progressive disclosure. Read only the document required by
 13. Document `development/workflow.md` — delivery flow and documentation routing.
 14. Directory `architecture/decisions/` — durable cross-cutting decisions only.
 
-`documentation-standard.md` defines how these documents are written and maintained. ADR-006 supersedes only ADR-003's Business-global mutable extra-point rule ownership. ADR-003, ADR-004, and ADR-005 remain preserved decision history; historical CHL-prefixed requirement IDs remain stable. Read the relevant ADR only when revisiting that decision.
+`documentation-standard.md` defines how these documents are written and maintained. ADR-003 owns the single points mechanic and Promotion-owned extra-point rules; ADR-004 owns PostgreSQL time and calendar semantics. Historical CHL-prefixed requirement IDs remain stable. Read the relevant ADR only when revisiting that decision.
 
 ## Lazy-loading map
 
