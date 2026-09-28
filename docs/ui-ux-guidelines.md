@@ -8,7 +8,7 @@ This document defines the web interaction model, visual system, page intent, and
 2. Prefer recognition over memory.
 3. Keep operational Business flows short.
 4. Explain every Promoción in plain language.
-5. Keep Puntos extra weekday and hour choices compact and explicit.
+5. Keep extra-points weekday and hour choices compact and explicit.
 6. Keep one primary action per decision point.
 7. Show immediate feedback for every validation/redeem operation.
 8. Use text and iconography in addition to colour.
@@ -93,7 +93,7 @@ Explain one clear Promoción model:
 
 > Consigue puntos antes de una fecha y desbloquea una recompensa.
 
-Show a clearly labeled conceptual example and a Puntos extra moment when a Visit could be worth more points. Avoid configurator controls on the landing page.
+Show a clearly labeled conceptual example and an extra-points moment when a Visit could be worth more points. Avoid configurator controls on the landing page.
 
 ### Wallet section
 
@@ -183,7 +183,7 @@ State the fixed regular Visit value: 1 point. Keep an inline Add form stable whi
 
 ### Shared footer and preview
 
-Use **Cancelar**, **Guardar borrador**, **Publicar** when applicable. Preserve unsaved values across tabs, reveal errors in the hidden tab, warn about incomplete unadded entries and confirm closing a dirty editor. Save/publish the complete Promoción and its Puntos extra atomically; appearance saves separately. Server validation is authoritative. Show a deterministic compact preview with numeric points, regular or applicable Puntos extra Visit value and no dynamic stamp circles; it is not a native-device colour or issuance guarantee.
+Use **Cancelar**, **Guardar borrador**, **Publicar** when applicable. Preserve unsaved values across tabs, reveal errors in the hidden tab, warn about incomplete unadded entries and confirm closing a dirty editor. Save/publish the complete Promotion and its extra-points rules atomically; appearance saves separately. Server validation is authoritative. Show a deterministic compact preview with numeric points, regular or applicable extra-points Visit value and no dynamic stamp circles; it is not a native-device colour or issuance guarantee.
 
 ## Acquisition QR page
 

@@ -28,7 +28,7 @@ On publication:
 - Local `start_date 00:00` becomes inclusive `starts_at`.
 - Midnight immediately after `end_date` becomes exclusive `ends_at`.
 - The instants are stored as `timestamptz`.
-- The complete published configuration—original local dates and UTC window, timezone snapshot, target, Reward title and optional description, and weekly Puntos extra days, times and multipliers—remains immutable, including when scheduled or later cancelled. Drafts remain editable; cancellation is a separate transition.
+- The complete published configuration—original local dates and UTC window, timezone snapshot, target, Reward title and optional description, and weekly multiplier windows (weekdays, times and values)—remains immutable, including when scheduled or later cancelled. Drafts remain editable; cancellation is a separate transition.
 - Published effective windows for one Business never overlap; touching endpoints are allowed. Cancellation retains the original UTC window but truncates effective occupancy at the cancellation instant; cancelling before a scheduled start releases the entire future window. An intraday cancellation cannot be followed by a date-only replacement before the next Business-local midnight.
 
 ## Point earning
@@ -37,7 +37,7 @@ A Visit is the immutable business fact. Points are the progress awarded for that
 
 Each accepted Visit records the number of points awarded at validation time.
 
-Every accepted regular Visit awards exactly one point. Each Promotion may configure its own Puntos extra: any number of weekly recurring x2, x3 or x5 entries keyed by local weekday in its published timezone. No Business-global or previous-Promotion settings are inherited. An entry covers the whole day or a half-open `[start, end)` time window within that day. Several timed windows on one weekday must be distinct and nonoverlapping; touching endpoints are valid. Whole-day and timed entries cannot coexist on the same weekday. Split overnight periods into separate weekday entries.
+Every accepted regular Visit awards exactly one point. Each Promotion may configure its own extra points: any number of weekly recurring x2, x3 or x5 entries keyed by local weekday in its published timezone. No Business-global or previous-Promotion settings are inherited. An entry covers the whole day or a half-open `[start, end)` time window within that day. Several timed windows on one weekday must be distinct and nonoverlapping; touching endpoints are valid. Whole-day and timed entries cannot coexist on the same weekday. Split overnight periods into separate weekday entries.
 
 Exactly one multiplier applies at a time: x1 outside configured windows, x2, x3 or x5 within one window, with no stacking. There is no generic rule builder or condition tree.
 
@@ -75,7 +75,7 @@ progress = sum(points_awarded)
 completed = progress >= target_points
 ```
 
-Historical point values never change when a later Promotion has different Puntos extra.
+Historical point values never change when a later Promotion has different multiplier windows.
 
 ## Customer-facing copy
 

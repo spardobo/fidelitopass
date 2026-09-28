@@ -45,7 +45,7 @@ FidelitoPass owns all business decisions. Google Wallet displays customer state 
 | Public product       | Landing page and Business join page.                                                                                                    |
 | Business account     | Authentication and Business ownership.                                                                                                  |
 | Business profile     | Name, branding, timezone, acquisition identity.                                                                                         |
-| Promotion management | Editable drafts, atomic publication of a frozen configuration (including Reward and Puntos extra), sequential scheduling, cancellation. |
+| Promotion management | Editable drafts, atomic publication of a frozen configuration (including Reward and multiplier schedule), sequential scheduling, cancellation. |
 | Promotion evaluation | Sum immutable points awarded by accepted Visits against one target.                                                                     |
 | Customer pass        | Anonymous persistent Business/customer relationship.                                                                                    |
 | Visit validation     | One scanner-first identification/confirmation/result dialog with visible manual fallback; point award resolution and idempotency.       |
@@ -55,15 +55,21 @@ FidelitoPass owns all business decisions. Google Wallet displays customer state 
 
 ## Domain model
 
+This is a conceptual relationship map, not a table or foreign-key design. The Business controls shared pass configuration for appearance and the Promotion offering; each customer has a distinct persistent Customer pass represented by a Wallet pass. Promotions apply across customer passes and define their own multiplier windows. Whether shared configuration needs separate physical storage remains undecided.
+
 ```mermaid
-erDiagram
-    USERS ||--|| BUSINESSES: owns
-    BUSINESSES ||--o{ PROMOTIONS: publishes
-    BUSINESSES ||--o{ CUSTOMER_PASSES: issues
-    CUSTOMER_PASSES ||--o{ VISITS: records
-    PROMOTIONS ||--o{ VISITS: contextualizes
-    CUSTOMER_PASSES ||--o{ REWARD_ENTITLEMENTS: earns
-    PROMOTIONS ||--o{ REWARD_ENTITLEMENTS: unlocks
+flowchart TB
+    U[Business owner] --> B[Business]
+    B --> S[Shared pass configuration]
+    S -->|offers| C[Promotion]
+    B --> P[Customer pass]
+    S -.->|styles| P
+    C -->|defines| X[Multiplier window]
+    P --> V[Visit]
+    C --> V
+    P --> E[Reward entitlement]
+    C --> E
+    P --> W[Wallet pass]
 ```
 
 A separate Redemption table is not required in MVP. Redemption finality is represented by
@@ -94,7 +100,7 @@ progress_points = sum(points_awarded for accepted Visits of this Promotion)
 completed = progress_points >= promotion.target_points
 ```
 
-Every regular Visit awards one point. A Promotion may own weekly recurring Puntos extra rules with x2, x3 or x5
+Every regular Visit awards one point. A Promotion may own weekly recurring multiplier windows with x2, x3 or x5
 multipliers: each local weekday has a whole-day rule or disjoint half-open timed windows, never both. Touching endpoints
 are allowed; overnight windows must be split across weekdays. Exactly one rule applies at a time, never stacked; outside
 the windows the value is x1. No Business-global or previous-Promotion schedule is inherited. At validation, derive the
@@ -128,7 +134,7 @@ silently reinterpret the dates. When a Promotion is published:
 2. Convert the local start date at `00:00` to `starts_at`.
 3. Convert the local day after the selected end date at `00:00` to exclusive `ends_at`.
 4. Freeze the entire published aggregate, including original local dates and UTC window, goal, Reward title and optional
-   description, timezone and all Puntos extra weekdays, times and multipliers, even if scheduled.
+   description, timezone and all multiplier windows (weekdays, times and values), even if scheduled.
 
 Drafts remain editable. Cancellation is a separate transition; neither it nor later Business settings rewrite the
 published snapshot.
