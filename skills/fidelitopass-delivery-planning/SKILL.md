@@ -16,7 +16,7 @@ Use for delivery selection, scoping, board transitions and completion. Do not us
 - Inspect Kanban Active, Review and Verify work, dependencies and ownership before choosing a candidate. Prefer dependency-ready planned work when relevant; unplanned documentation, maintenance and defects need no plan row or product ID. Candidates are not commitments.
 - Read only bounded applicable requirement entries and relevant sources; selected criteria, not all criteria of linked requirements, define the item. Requirement ↔ item is N:N. Do not infer whole-requirement acceptance from item completion.
 - For UI-backed selection, inspect the bounded page/menu entry in `docs/ui-ux-guidelines.md`, parent relationship in `docs/conceptual-design.md`, intended persistence in `docs/development/database-standard.md`, and relevant current migrations. Distinguish conceptual parent from physical foreign key; never infer an entity, table or FK from a page name.
-- Board state owns progress, not requirement status or issue closure. Do not reopen completed items or invent historical transitions. Move Active → Review on bounded PR/outcome evidence ready for human review; Review → Verify only after integration and proportionate checks of the actual outcome; Verify → Done only on explicit product-owner acceptance with QA/developer evidence. Follow `references/delivery-details.md` for draft-first activation, issue/Project identity, PR readiness and safe post-merge branch retirement. Obtain authorization before repository-host actions.
+- Board state owns progress, not requirement status or issue closure. Do not reopen completed items or invent historical transitions. Move Active → Review on bounded PR/outcome evidence ready for human review; Review → Verify only after integration and proportionate checks of the actual outcome; Verify → Done on explicit product-owner acceptance with QA/developer evidence, or the draft-approved CI-gated path detailed in the reference. Follow `references/delivery-details.md` for draft-first activation, issue/Project identity, PR readiness and safe post-merge branch retirement. Obtain authorization before repository-host actions.
 
 ## Decision Gates
 
@@ -29,7 +29,7 @@ Use for delivery selection, scoping, board transitions and completion. Do not us
 | Defect in open issue scope | Keep fix and evidence in that issue. |
 | Defect or unmet criteria after closure | Keep predecessor Done; scope and approve a new Backlog draft linked to predecessor, then convert to a new issue. |
 | Product obligation changes | Propose a new requirement ID linked to its predecessor; do not repurpose the old ID. |
-| Marking Done | Require agreed item outcome, proportionate integrated checks and explicit product-owner acceptance with QA/developer evidence; issue auto-closure alone is insufficient. Do not infer whole-requirement completion. |
+| Marking Done | Require agreed item outcome and proportionate integrated checks. Use explicit owner acceptance, or the draft-approved CI-gated path only with complete named-check coverage and successful required CI on the exact merged main commit; otherwise stay Verify. Issue closure is insufficient; never infer whole-requirement completion. |
 
 ## Execution Steps
 
