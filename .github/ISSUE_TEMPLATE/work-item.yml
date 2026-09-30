@@ -1,9 +1,9 @@
 name: Work item
-description: Structure the repository issue converted from the approved Backlog Project draft item.
+description: Scope an approved issue for either planned deliverable conversion or bounded issue-only work.
 body:
   - type: markdown
     attributes:
-      value: This form supports issue content after conversion of the same approved Project draft item; do not start with a separate issue or add an existing one. Use an outcome-oriented title with at most one primary requirement ID, for example `[REQ-BIZ-001] Authenticate a Business owner`. Use original IDs from `docs/requirements.md` for product work. For non-product documentation or maintenance work, omit the ID from the title and explain the scope; never cite REQ-QLT-001 as evidence of product completion merely because documentation closed.
+      value: For planned product/roadmap deliverable increments, convert the same approved Backlog Project draft item to an issue. For bounded minor changes, hotfixes, small bugs or explicitly owner-approved exceptions, start with an approved issue without a Project item. New or expanded deliverables always use draft-first conversion. Use an outcome-oriented title with at most one primary requirement ID, for example `[REQ-BIZ-001] Authenticate a Business owner`. Use original IDs from `docs/requirements.md` for product work. For non-product documentation or maintenance work, omit the ID from the title and explain the scope; never cite REQ-QLT-001 as evidence of product completion merely because documentation closed.
   - type: input
     id: requirement-ids
     attributes:
@@ -16,14 +16,14 @@ body:
     id: outcome
     attributes:
       label: Outcome
-      description: State the observable outcome. This issue comes from conversion of the approved Backlog Project draft item in place; its Project item ID differs from this issue number. After conversion, apply status:approved, assign the moving actor on this issue and verify both issue assignees and Project Assignees display that actor before setting Active. If conversion, label, assignment, status or readback fails, stop without claiming activation; never assign the Project item independently.
+      description: State the route and observable outcome. For planned work, convert the approved draft in place (Project item ID differs from issue number), then apply status:approved and assign the moving actor on this issue before In Development. For issue-only work, record explicit owner approval, apply status:approved and assign the responsible actor on this issue before implementation; no Project fields or transitions apply. Issue assignees are the source of truth on either route; never independently assign the Project item. Stop if a required gate fails or remains uncertain.
     validations:
       required: true
   - type: textarea
     id: scope
     attributes:
       label: Scope and selected criteria
-      description: State what is included and excluded, identify selected canonical criteria for product work, or justify why non-product work has no requirement ID. Do not imply every linked requirement is satisfied.
+      description: State what is included and excluded, identify selected canonical criteria for product work, or justify why non-product work has no requirement ID. Explain why issue-only work is bounded rather than a new or expanded deliverable, if applicable. Do not imply every linked requirement is satisfied.
     validations:
       required: true
   - type: textarea
