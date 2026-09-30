@@ -4,7 +4,7 @@ const widths = [375, 768, 1024, 1280];
 const navigation = [
     ['#benefits', 'Beneficios'],
     ['#how-it-works', 'Cómo funciona'],
-    ['#challenges', 'Retos de puntos'],
+    ['#challenges', 'Promociones'],
     ['#pass', 'El pase'],
     ['#questions', 'Preguntas frecuentes'],
     ['#business', 'Empezar'],
@@ -36,18 +36,19 @@ test('public landing scales the approved sample and keeps every section reachabl
         await expect(page.getByRole('contentinfo')).toHaveCount(1);
         const pass = page.locator('[data-pass]');
         const thumbnail = page.locator('[data-thumbnail]');
-        await expect(pass).toHaveAttribute('aria-label', /pase de Google Wallet/);
+        await expect(pass).toHaveAttribute('aria-label', /Pase de muestra/);
         await expect(page).toHaveTitle('FidelitoPass - Dale a tus clientes una razón para volver. - FidelitoPass');
-        await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /Convierte cada visita en una razón para volver/);
+        await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /Conoce cómo las Promociones/);
         await expect(pass).toContainText('9 / 15 puntos');
         await expect(pass).toContainText('2 puntos');
         await expect(pass).toContainText('Hamburguesa gratis');
         await expect(pass).toContainText('30 SEP');
         await expect(pass).toContainText('48273');
-        await expect(page.getByText('QR y código de ejemplo.')).toBeVisible();
-        await expect(page.getByText('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 10 puntos antes del plazo, tu cliente obtiene un café.')).toBeVisible();
+        await expect(page.locator('main')).not.toContainText('QR y código de ejemplo.');
+        await expect(page.locator('main')).not.toContainText('El formulario de registro no solicita datos de pago.');
+        await expect(page.getByText('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene una hamburguesa.')).toBeVisible();
         await expect(page.locator('header nav a[href="#pass"]').first()).toHaveAttribute('href', '#pass');
-        await expect(page.getByRole('img', { name: 'QR de muestra con el texto FidelitoPass' })).toBeVisible();
+        await expect(page.getByRole('img', { name: 'QR de muestra no operativo' })).toBeVisible();
         await expect(page.locator('main')).not.toContainText(/landing\.[a-z_]+|tarjeta Wallet|Apple Wallet|tarjeta de sellos/);
         const geometry = await page.evaluate(() => {
             const box = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right, bottom: r.bottom }; };

@@ -131,9 +131,6 @@
                     </div>
                 </div>
 
-                <p class="mt-4 text-center text-sm text-[#E0E0E0] xl:text-left">
-                    {{ __('landing.hero.demo_note') }}
-                </p>
             </div>
         </section>
 
@@ -273,9 +270,6 @@
             <a href="{{ route('register') }}" class="landing-button mt-6 inline-flex rounded-full bg-[#181818] px-5 py-3 font-semibold text-white transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#303030] hover:text-white active:scale-[.98]">
                 {{ __('landing.actions.create_account') }}
             </a>
-            <p class="mt-4 text-sm">
-                {{ __('landing.business_cta.registration_note') }}
-            </p>
         </section>
     </main>
 
