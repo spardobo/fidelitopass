@@ -90,7 +90,7 @@
                                 <h2 class="text-xl font-bold">
                                     {{ __('landing.hero.sample.business') }}
                                 </h2>
-                                <img src="{{ asset('logo_icon.svg') }}" alt="" class="size-10 brightness-0" width="40" height="40">
+                                <img src="{{ asset('logo_icon.svg') }}" alt="" class="size-10" width="40" height="40">
                             </div>
 
                             <div class="grid grid-cols-[minmax(0,1fr)_144px] items-start gap-6 border-t border-[#181818]/25 pt-6">
