@@ -15,6 +15,102 @@ async function expectOrderedNavigation(nav) {
     expect(await nav.locator('a').evaluateAll(links => links.map(link => [link.getAttribute('href'), link.textContent.trim()]))).toEqual(navigation);
 }
 
+test('landing typography uses the loaded local Onest and responsive editorial roles', async ({ page }) => {
+    for (const width of widths) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/');
+        await page.evaluate(() => document.fonts.ready);
+        const roles = await page.evaluate(() => {
+            const style = selector => {
+                const computed = getComputedStyle(document.querySelector(selector));
+                return [computed.fontSize, computed.lineHeight, computed.fontWeight];
+            };
+            return {
+                loaded: document.fonts.check('600 44px "Onest Variable"'),
+                family: getComputedStyle(document.querySelector('#hero-title')).fontFamily,
+                hero: style('#hero-title'), section: style('#benefits-title'),
+                card: style('#benefits article h3'), body: style('#home p:not(.text-sm)'),
+                support: style('#home .landing-role-support'),
+            };
+        });
+        expect(roles.loaded).toBe(true);
+        expect(roles.family).toContain('Onest Variable');
+        expect(roles.hero).toEqual(width < 768 ? ['36px', '40px', '600'] : width < 1024 ? ['36px', '40px', '600'] : width < 1120 ? ['40px', '44px', '600'] : ['44px', '48px', '600']);
+        expect(roles.section).toEqual(width < 768 ? ['24px', '32px', '600'] : ['30px', '36px', '600']);
+        expect(roles.card).toEqual(['18px', '28px', '600']);
+        await expect(page.locator('#benefits article').first().locator('h3')).toHaveCSS('color', 'rgb(23, 19, 31)');
+        expect(roles.body).toEqual(['16px', '24px', '400']);
+        expect(roles.support).toEqual(['14px', '20px', '400']);
+    }
+});
+
+test('the light benefit card keeps dark ink across appearance preferences', async ({ page }) => {
+    await page.goto('/');
+    const card = page.locator('#benefits article').first();
+    const heading = card.locator('h3');
+    await expect(card).toHaveCSS('background-color', 'rgb(232, 232, 232)');
+    await expect(heading).toHaveCSS('color', 'rgb(23, 19, 31)');
+    await page.locator('html').evaluate(el => el.classList.remove('dark'));
+    await expect(heading).toHaveCSS('color', 'rgb(23, 19, 31)');
+});
+
+test('native Flux primitives preserve the public semantic hierarchy and real account links', async ({ page }) => {
+    await page.goto('/');
+    for (const [selector, level] of [['#hero-title', 'H1'], ['#benefits-title', 'H2'], ['#benefits article h3', 'H3']]) {
+        const heading = page.locator(selector).first();
+        await expect(heading).toHaveAttribute('data-flux-heading', '');
+        expect(await heading.evaluate(el => el.tagName)).toBe(level);
+    }
+    await expect(page.locator('#home p[data-flux-text]')).toHaveCount(1);
+    const actions = page.getByRole('link', { name: 'Crear mi cuenta' });
+    await expect(actions).toHaveCount(2);
+    for (const action of await actions.all()) {
+        await expect(action).toHaveAttribute('data-flux-button', 'data-flux-button');
+        await expect(action).toHaveAttribute('href', /\/register$/);
+    }
+});
+
+test('public palette, focus and responsive hero geometry follow the landing roles', async ({ page }) => {
+    for (const width of widths) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/');
+        const hero = page.locator('#home');
+        const primary = hero.locator('a.landing-button');
+        const sample = page.locator('[data-pass]');
+        await expect(hero).toHaveCSS('background-color', 'rgb(48, 48, 48)');
+        await expect(page.locator('.landing-world')).toHaveCSS('background-color', 'rgb(36, 36, 36)');
+        await expect(primary).toHaveCSS('background-color', 'rgb(167, 123, 255)');
+        await expect(primary).toHaveCSS('color', 'rgb(23, 19, 31)');
+        await expect(sample).toHaveCSS('background-color', 'rgb(167, 123, 255)');
+        await primary.focus();
+        expect(await primary.evaluate(el => getComputedStyle(el).outlineColor)).toBe('rgb(205, 176, 255)');
+        expect((await primary.boundingBox()).height).toBeGreaterThanOrEqual(44);
+        await primary.hover();
+        await expect(primary).toHaveCSS('background-color', 'rgb(184, 147, 255)');
+        await page.mouse.down();
+        await expect(primary).toHaveCSS('background-color', 'rgb(149, 102, 235)');
+        await page.mouse.move(0, 0);
+        await page.mouse.up();
+        if (width === 1280) {
+            const navLink = page.locator('header > div > nav a').first();
+            await navLink.hover();
+            await expect(navLink).toHaveCSS('color', 'rgb(205, 176, 255)');
+        }
+        const geometry = await hero.evaluate(el => {
+            const heroBox = el.getBoundingClientRect();
+            const copy = el.firstElementChild.getBoundingClientRect();
+            const pass = el.lastElementChild.getBoundingClientRect();
+            return { width: heroBox.width, gap: pass.left - copy.right, columns: [copy.width, pass.width], overflow: document.documentElement.scrollWidth > innerWidth };
+        });
+        expect(geometry.width).toBeLessThanOrEqual(1088);
+        expect(geometry.overflow).toBe(false);
+        if (width === 1280) {
+            expect(geometry.gap).toBeCloseTo(48, 0);
+            expect(geometry.columns[1] / geometry.columns[0]).toBeCloseTo(1.3 / .88, 1);
+        }
+    }
+});
+
 test('desktop navigation follows the visible section order without horizontal overflow', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');

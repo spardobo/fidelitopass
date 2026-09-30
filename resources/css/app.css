@@ -50,11 +50,11 @@
 
 @layer components {
     .landing-world { font-family: 'Onest Variable', sans-serif; background: #242424; overflow-x: clip; }
+    .landing-world { --landing-accent: #A77BFF; --landing-accent-hover: #B893FF; --landing-accent-pressed: #9566EB; --landing-accent-ink: #17131F; --landing-accent-text: #CDB0FF; }
     .landing-world h1, .landing-world h2, .landing-world h3 { text-wrap: balance; }
     .landing-world p { text-wrap: pretty; }
     html:has(.landing-world) { scroll-behavior: smooth; }
     .landing-world section[id] { scroll-margin-top: 2rem; }
-    .landing-world a:focus-visible, .landing-world summary:focus-visible { outline: 2px solid #B7ABE4; outline-offset: 4px; }
     .landing-world .tagline-word { color: #8C8C8C; transition: color 700ms cubic-bezier(0.32, 0.72, 0, 1); }
     .landing-world .tagline-word.is-lit { color: #F6F5F2; }
     .landing-world .landing-thumbnail { position: relative; width: 100%; max-width: 576px; aspect-ratio: 3 / 2; }
@@ -91,3 +91,50 @@ textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-surface;
 }
+
+/* Public typography roles override Flux and utilities without changing authenticated screens. */
+.landing-world .landing-role-hero { font-size: 2.25rem; line-height: 2.5rem; font-weight: 600; }
+.landing-world .landing-role-section { font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+.landing-world .landing-role-card { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; color: inherit; }
+.landing-world #benefits article:first-child [data-flux-heading] { color: var(--landing-accent-ink); }
+.landing-world .landing-role-body { font-size: 1rem; line-height: 1.5rem; font-weight: 400; }
+.landing-world .landing-role-support { font-size: .875rem; line-height: 1.25rem; font-weight: 400; }
+.landing-world .landing-role-action { font-size: 1rem; line-height: 1.5rem; font-weight: 500; }
+.landing-world [data-flux-button].landing-role-action { min-height: 2.75rem; height: auto; padding-block: .6875rem; white-space: normal; }
+.landing-world .landing-pass { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
+.landing-world #business { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
+.landing-world main { display: flow-root; --landing-main-base-gap: 2rem; --landing-section-space: 5rem; padding-top: var(--landing-main-base-gap); }
+.landing-world :is(#benefits, #how-it-works, #pass) { padding-block: var(--landing-section-space); }
+.landing-world #home { --landing-hero-cap: 44rem; grid-template-columns: minmax(0, 1fr); margin-top: var(--landing-hero-extra-gap, 0px); margin-bottom: calc(var(--landing-hero-base-gap, var(--landing-main-base-gap)) + var(--landing-hero-extra-gap, 0px)); }
+.landing-world[data-hero-measured] #home { min-height: min(var(--landing-hero-cap), max(0px, calc(100svh - var(--landing-header-bottom) - 2 * var(--landing-hero-base-gap, var(--landing-main-base-gap))))); }
+@media (min-width: 48rem) { .landing-world main { --landing-main-base-gap: 2.5rem; } }
+.landing-world #home > div { min-width: 0; }
+.landing-world #home :is(h1, p, a.landing-button) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.landing-world #home > div:first-child > span { border-color: var(--landing-accent); color: var(--landing-accent-text); }
+.landing-world #benefits > div:first-child > p:first-child,
+.landing-world #how-it-works > p:first-child,
+.landing-world #challenges > p:first-child,
+.landing-world #pass > p:first-child,
+.landing-world #how-it-works ol span,
+.landing-world #challenges > p:last-child { color: var(--landing-accent-text); }
+.landing-world :is(header, footer, #home, #questions) a:not(.landing-button):hover,
+.landing-world #questions summary:hover { color: var(--landing-accent-text); }
+.landing-world > a:first-child:focus { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
+.landing-world a:focus-visible, .landing-world summary:focus-visible { outline: 2px solid var(--landing-accent-text); outline-offset: 4px; }
+.landing-world [data-flux-button].landing-button-primary { --color-accent: var(--landing-accent); --color-accent-foreground: var(--landing-accent-ink); background-color: var(--landing-accent); color: var(--landing-accent-ink); }
+.landing-world [data-flux-button].landing-button-primary:hover { background-color: var(--landing-accent-hover); }
+.landing-world [data-flux-button].landing-button-primary:active { background-color: var(--landing-accent-pressed); }
+.landing-world [data-flux-button].landing-cta-button { background-color: var(--landing-accent-ink); color: white; }
+.landing-world [data-flux-button].landing-cta-button:hover { background-color: #303030; color: white; }
+@media (prefers-reduced-motion: no-preference) {
+    .landing-world[data-reveal-ready] main > section[data-reveal="pending"] { opacity: 0; transform: translateY(1.5rem); }
+    .landing-world main > section[data-reveal="shown"] { opacity: 1; transform: none; transition: opacity 500ms ease-out, transform 500ms ease-out; }
+    .landing-world[data-reveal-ready] :is(#benefits, #how-it-works)[data-reveal="pending"] .landing-info-card { opacity: 0; }
+    .landing-world :is(#benefits, #how-it-works)[data-reveal="shown"] .landing-info-card { opacity: 1; transition: opacity 500ms ease-out, transform 300ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1); }
+    .landing-world :is(#benefits, #how-it-works)[data-reveal="shown"] .landing-info-card:nth-child(2) { transition-delay: 150ms, 0ms, 0ms; }
+    .landing-world #how-it-works[data-reveal="shown"] .landing-info-card:nth-child(3) { transition-delay: 300ms, 0ms, 0ms; }
+}
+@media (min-width: 48rem) { .landing-world .landing-role-section { font-size: 1.875rem; line-height: 2.25rem; } }
+@media (min-width: 64rem) { .landing-world .landing-role-hero { font-size: 2.5rem; line-height: 2.75rem; } }
+@media (min-width: 70rem) { .landing-world .landing-role-hero { font-size: 2.75rem; line-height: 3rem; } }
+@media (min-width: 80rem) { .landing-world #home { grid-template-columns: minmax(0, .88fr) minmax(0, 1.3fr); column-gap: 3rem; padding: 3rem; } }

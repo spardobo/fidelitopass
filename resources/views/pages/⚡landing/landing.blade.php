@@ -9,7 +9,7 @@
 
     <!-- header and navigation -->
     <header class="border-b border-white/10">
-        <div class="mx-auto flex max-w-[1080px] items-center justify-between gap-4 px-6 py-6 md:px-8">
+        <div class="mx-auto flex max-w-[68rem] items-center justify-between gap-4 px-6 py-6 md:px-8">
             <a href="#page-top" aria-label="{{ __('landing.navigation.back_to_top_label') }}"><img src="{{ asset('logo-header.webp') }}" alt="{{ __('landing.navigation.logo_alt') }}" class="h-auto w-40 sm:w-48" width="480" height="105"></a>
 
             <nav class="hidden gap-5 text-sm xl:flex" aria-label="{{ __('landing.navigation.page_sections') }}">
@@ -62,24 +62,24 @@
     </header>
 
     <!-- main content -->
-    <main id="content" tabindex="-1" class="mx-auto max-w-[1080px] px-6 pt-8 md:px-8 md:pt-10">
+    <main id="content" tabindex="-1" class="mx-auto max-w-[68rem] px-6 md:px-8">
         <!-- hero and conceptual pass -->
         <section id="home" aria-labelledby="hero-title" class="grid items-center gap-12 rounded-3xl bg-[#303030] px-6 py-12 md:px-12 md:py-20 xl:grid-cols-[minmax(0,312px)_minmax(0,576px)] xl:gap-8">
             <div class="mx-auto flex w-full max-w-[576px] flex-col items-center gap-6 text-center xl:mx-0 xl:items-start xl:text-left">
                 <span class="rounded-full border border-[#B7ABE4] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[#D8CEF5]">
                     {{ __('landing.hero.eyebrow') }}
                 </span>
-                <h1 id="hero-title" class="max-w-[680px] text-4xl font-semibold tracking-tight md:text-5xl">
+                <flux:heading level="1" id="hero-title" class="landing-role-hero max-w-[680px] tracking-tight">
                     {{ __('landing.hero.heading') }}
-                </h1>
-                <p class="max-w-[680px] text-base text-[#C4C4C4] md:text-lg">
+                </flux:heading>
+                <flux:text size="lg" class="landing-role-body max-w-[680px] text-[#C4C4C4]">
                     {{ __('landing.hero.description') }}
-                </p>
-                <a href="{{ route('register') }}" class="landing-button rounded-full bg-[#B7ABE4] px-5 py-3 font-semibold text-[#181818] transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#D8CEF5] hover:text-[#181818] active:scale-[.98]">
+                </flux:text>
+                <flux:button variant="primary" href="{{ route('register') }}" class="landing-button landing-role-action landing-button-primary rounded-full transition-transform duration-300 hover:-translate-y-[3px] active:scale-[.98]">
                     {{ __('landing.actions.create_account') }}
-                </a>
+                </flux:button>
 
-                <p class="text-sm text-[#E0E0E0]">{{ __('landing.hero.sign_in_prompt') }} <a href="{{ route('login') }}" class="underline hover:text-[#D8CEF5]">{{ __('landing.hero.sign_in_link') }}</a></p>
+                <p class="landing-role-support text-[#E0E0E0]">{{ __('landing.hero.sign_in_prompt') }} <a href="{{ route('login') }}" class="underline hover:text-[#D8CEF5]">{{ __('landing.hero.sign_in_link') }}</a></p>
             </div>
 
             <div class="mx-auto w-full max-w-[576px] xl:mx-0">
@@ -140,9 +140,9 @@
                 <p class="mb-4 text-sm font-semibold text-[#D8CEF5]">
                     {{ __('landing.benefits.eyebrow') }}
                 </p>
-                <h2 id="benefits-title" class="text-3xl font-semibold md:text-4xl">
+                <flux:heading level="2" id="benefits-title" class="landing-role-section">
                     {{ __('landing.benefits.proposition_heading') }}
-                </h2>
+                </flux:heading>
                 <p class="mt-4 text-[#C4C4C4]">
                     {{ __('landing.benefits.problem') }}
                 </p>
@@ -151,9 +151,9 @@
             <div class="grid w-full gap-6 md:grid-cols-2">
                 <article class="landing-info-card rounded-3xl bg-[#E8E8E8] p-8 text-[#181818] transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]">
                     <img src="{{ asset('benefit-challenges.svg') }}" alt="" class="mb-6 size-16 brightness-0" width="64" height="64">
-                    <h3 class="text-xl font-semibold">
+                    <flux:heading level="3" class="landing-role-card">
                         {{ __('landing.benefits.challenge_heading') }}
-                    </h3>
+                    </flux:heading>
                     <p class="mt-3">
                         {{ __('landing.benefits.challenge_description') }}
                     </p>
@@ -161,9 +161,9 @@
 
                 <article class="landing-info-card rounded-3xl bg-[#313131] p-8 transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]">
                     <img src="{{ asset('benefit-points.svg') }}" alt="" class="mb-6 size-16" width="64" height="64">
-                    <h3 class="text-xl font-semibold">
+                    <flux:heading level="3" class="landing-role-card">
                         {{ __('landing.benefits.progress_heading') }}
-                    </h3>
+                    </flux:heading>
                     <p class="mt-3 text-[#E0E0E0]">
                         {{ __('landing.benefits.progress_description') }}
                     </p>
@@ -180,7 +180,7 @@
             <p class="text-sm font-semibold text-[#D8CEF5]">
                 {{ __('landing.steps.eyebrow') }}
             </p>
-            <h2 id="steps-title" class="mt-4 text-3xl font-semibold md:text-4xl">
+            <h2 id="steps-title" class="landing-role-section mt-4">
                 {{ __('landing.steps.heading') }}
             </h2>
             <p class="mt-4 max-w-[680px] text-[#C4C4C4]">
@@ -196,7 +196,7 @@
                         <span class="text-3xl text-[#D8CEF5]">
                             {{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}
                         </span>
-                        <h3 class="mt-8 text-xl font-semibold">
+                        <h3 class="landing-role-card mt-8">
                             {{ $heading }}
                         </h3>
                         <p class="mt-3 text-[#E0E0E0]">
@@ -211,7 +211,7 @@
             <p class="text-sm font-semibold text-[#D8CEF5]">
                 {{ __('landing.challenge.eyebrow') }}
             </p>
-            <h2 id="challenge-title" class="mt-4 text-3xl font-semibold md:text-4xl">
+            <h2 id="challenge-title" class="landing-role-section mt-4">
                 {{ __('landing.challenge.heading') }}
             </h2>
             <p class="mt-4 max-w-[680px] text-[#E0E0E0]">
@@ -229,7 +229,7 @@
             <p class="text-sm font-semibold text-[#D8CEF5]">
                 {{ __('landing.wallet.eyebrow') }}
             </p>
-            <h2 id="wallet-title" class="mt-4 text-3xl font-semibold md:text-4xl">
+            <h2 id="wallet-title" class="landing-role-section mt-4">
                 {{ __('landing.wallet.heading') }}
             </h2>
             <p class="mt-4 max-w-[680px] text-[#C4C4C4]">
@@ -242,7 +242,7 @@
 
         <!-- frequently asked questions -->
         <section id="questions" aria-labelledby="faq-title" class="pb-20">
-            <h2 id="faq-title" class="mb-8 text-3xl font-semibold md:text-4xl">
+            <h2 id="faq-title" class="landing-role-section mb-8">
                 {{ __('landing.faq.heading') }}
             </h2>
             <div class="grid gap-3">
@@ -261,20 +261,20 @@
 
         <!-- business call to action -->
         <section id="business" aria-labelledby="business-title" class="rounded-3xl bg-[#B7ABE4] p-8 text-[#181818] md:p-12">
-            <h2 id="business-title" class="text-3xl font-semibold md:text-4xl">
+            <h2 id="business-title" class="landing-role-section">
                 {{ __('landing.business_cta.heading') }}
             </h2>
             <p class="mt-4">
                 {{ __('landing.business_cta.description') }}
             </p>
-            <a href="{{ route('register') }}" class="landing-button mt-6 inline-flex rounded-full bg-[#181818] px-5 py-3 font-semibold text-white transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#303030] hover:text-white active:scale-[.98]">
+            <flux:button variant="primary" href="{{ route('register') }}" class="landing-button landing-role-action landing-cta-button mt-6 rounded-full text-white transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#303030] active:scale-[.98]">
                 {{ __('landing.actions.create_account') }}
-            </a>
+            </flux:button>
         </section>
     </main>
 
     <!-- footer -->
-    <footer class="mx-auto flex max-w-[1080px] flex-wrap items-center gap-6 px-6 py-12 text-sm text-[#E0E0E0] md:px-8">
+    <footer class="mx-auto flex max-w-[68rem] flex-wrap items-center gap-6 px-6 py-12 text-sm text-[#E0E0E0] md:px-8">
         <img src="{{ asset('logo-header.webp') }}" alt="{{ __('landing.navigation.logo_alt') }}" class="mr-auto w-32" width="480" height="105">
 
         <a href="{{ route('register') }}" class="hover:text-[#D8CEF5]">
