@@ -1,9 +1,14 @@
 ## Linked issue
 
-<!-- Replace N with the repository issue number, not the independent Project item ID. The issue must come from conversion of the same approved Backlog Project draft item; no direct-issue or add-existing route. Before Active, status:approved and the moving actor must be verified on both the issue assignees and Project Assignees display. Multiple PRs may reference this one issue. -->
+<!-- Replace N with the repository issue number. Planned product/roadmap deliverable increments use the same approved Backlog Project draft converted to an issue; bounded minor changes, hotfixes, small bugs and explicitly owner-approved exceptions use an approved issue without a Project item. A new or expanded deliverable is not an exception. On both routes require status:approved and the responsible actor assigned on the issue; issue assignees are the source of truth. Multiple PRs may reference one issue. -->
 
 - Intermediate pull request: `Refs #N` (or `Part of #N`); leave the issue open.
-- Final pull request: `Closes #N` closes repository issue #N only after the item's selected criteria and integrated evidence are accepted. The Project item moves to Done separately under board policy or configured built-in GitHub automation on issue closure; closure alone guarantees neither Done nor acceptance.
+- Final pull request: `Closes #N` closes repository issue #N only after the item's selected criteria and integrated evidence are accepted. For planned work, reconcile Project Done separately after required exact-main CI; issue-only work has no Project transition. Closure alone guarantees neither completion nor acceptance.
+
+## Delivery route
+
+- [ ] Planned product/roadmap deliverable: approved Backlog Project draft converted in place to this issue.
+- [ ] Bounded minor change, hotfix, small bug or explicit owner-approved exception: approved issue → branch → PR without a Project item (explain why this is not a new/expanded deliverable).
 
 ## Type
 
@@ -29,7 +34,7 @@
 
 ## Verification
 
-- [ ] Relevant focused tests pass.
+- [ ] Relevant focused tests pass (or explain why not applicable).
 - [ ] Required local quality gates pass.
 - [ ] Documentation is current when behavior or configuration changed.
 
@@ -47,7 +52,9 @@
 
 ## Contributor checklist
 
-- [ ] The linked repository issue has `status:approved`.
+- [ ] The linked repository issue has `status:approved` and its responsible actor assigned; Project assignment is not a separate gate.
+- [ ] The selected route above fits the scope; planned work has approved same-item draft conversion, while issue-only work records explicit approval without fake Project fields/transitions.
 - [ ] The branch follows the documented naming convention.
 - [ ] The pull request has exactly one `type:*` label.
 - [ ] Commits use Conventional Commits without attribution trailers.
+- [ ] Required PR checks and owner review precede explicit owner merge order; completion awaits required CI on the exact resulting main commit. Record failed gates and recovery on the issue/PR for issue-only work, not on a fictional board item.
