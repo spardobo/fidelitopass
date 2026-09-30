@@ -317,7 +317,7 @@ This is a reading aid, not a required template or naming scheme. Omit unused mac
 
 Split by responsibility, not by putting each entire feature into one oversized function. Named handlers and small calculations should expose intent instead of burying it in nested callbacks. Use whitespace between semantic steps and early returns for unsupported or inapplicable cases.
 
-Extract a utility only when it removes real duplication or makes a non-obvious operation clearer: for example, clamping an angle, setting a CSS variable, or scheduling tracked work. Avoid generic `helpers.js` collections, ornamental wrappers, class factories, and large comment banners that substitute for clear structure. Every abstraction must earn its reading cost.
+Extract a utility only when it removes real duplication or makes a non-obvious operation clearer: for example, clamping an angle, setting a CSS variable, or scheduling tracked work. Avoid generic `helpers.js` collections, ornamental wrappers, and class factories. Useful section/block comments complement named functions and whitespace; even a large comment banner cannot substitute for clear structure. Every abstraction must earn its reading cost.
 
 ### Lifecycle ownership and cleanup
 
@@ -359,7 +359,13 @@ Add English PHPDoc only when it communicates a contract not obvious from the sig
 
 Do not add routine docblocks to obvious constructors, accessors, or framework hooks.
 
-Comments explain **why a non-obvious constraint exists**, not what a line of code does.
+Use **lowercase English section/block headings** to group meaningful responsibilities in PHP and JavaScript, just as semantic region comments do in Blade. For example, a component script may mark `configuration`, `utilities`, `navigation`, `layout`, `pass interaction`, `reveal`, `lifecycle`, and `initialization` where those groups exist. Choose headings that fit the source; no fixed template, separator width, initializer names, or helper count is required.
+
+These comments are useful alongside well-named functions and whitespace, not a replacement for them. Separator lines may help scanning, but do not require huge ASCII banners or empty sections.
+
+Use **lowercase English internal comments** to explain intent and non-obvious constraints close to the relevant PHP or JavaScript operation. Explain why a constraint exists rather than restating each line. PHPDoc retains the contract-focused rules above.
+
+Review comment usefulness as human readability, separately from behaviour checks; do not add source assertions for comment wording, separators, or section placement.
 
 ## Localization
 
