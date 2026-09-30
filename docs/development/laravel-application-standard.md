@@ -285,6 +285,65 @@ Do not create enums for phases that are derived from timestamps.
 - Keep code as a top-to-bottom narrative with whitespace between semantic blocks. In Livewire components, order meaningful properties, lifecycle hooks, component actions, optional private helpers, then listeners last. Do not add empty blocks merely to satisfy the order.
 - In Blade, use lowercase semantic HTML comments such as `<!-- form actions -->` where they clarify sections. Use blank lines and multiline attributes when needed for readability; do not compress PHP, Blade, or JavaScript into dense one-liners.
 
+## Component-local JavaScript
+
+Apply the same cohesion, intent naming, early returns, and top-to-bottom narrative defined in [Source style](#source-style). Passing tests does not make dense or tangled source maintainable.
+
+### Readable structure
+
+Keep page-local UI behaviour in the component's `@script`. Scope DOM references to its Livewire root (`$wire.$el`); an IIFE can provide a clear local boundary without introducing globals. Use the configured Vite entry only for genuinely shared behaviour, not merely to move a long script elsewhere.
+
+Organize the script so a developer can follow its purpose, setup, execution, and destruction without tracing a maze of callbacks:
+
+- Group configuration once, with descriptive names and clear units for dimensions, angles, and delays.
+- Resolve stable DOM references together within the owning root. Re-resolve references when morphing replaces their nodes rather than retaining stale elements.
+- Keep lifecycle state and resource ownership explicit, separate from feature calculations.
+- Give each feature a named initializer, such as `initializeNavigation`, `initializeHeroLayout`, or `initializePassInteraction`, with a focused responsibility.
+- Keep initialization calls together in dependency order and make the destruction entry point easy to find.
+
+A conceptual reading order for a component script is:
+
+```text
+component root and duplicate-initialization guard
+configuration and DOM references
+lifecycle state and owned resources
+small utilities with meaningful purposes
+named feature initializers
+central destruction routine
+initialization calls and lifecycle wiring
+```
+
+This is a reading aid, not a required template or naming scheme. Omit unused machinery. A root-local initialization guard should prevent duplicate setup and be released appropriately when that instance is destroyed.
+
+Split by responsibility, not by putting each entire feature into one oversized function. Named handlers and small calculations should expose intent instead of burying it in nested callbacks. Use whitespace between semantic steps and early returns for unsupported or inapplicable cases.
+
+Extract a utility only when it removes real duplication or makes a non-obvious operation clearer: for example, clamping an angle, setting a CSS variable, or scheduling tracked work. Avoid generic `helpers.js` collections, ornamental wrappers, class factories, and large comment banners that substitute for clear structure. Every abstraction must earn its reading cost.
+
+### Lifecycle ownership and cleanup
+
+Every listener, observer, timer, and animation frame has one identifiable component owner and a cleanup path. Prefer an `AbortController` with signal-bound listeners where supported; track observers and pending timers/frames explicitly when the component owns several of them. Small scripts need only the bookkeeping their actual resources require.
+
+Use one centralized, idempotent destruction routine. Repeated teardown must be harmless, including when navigation and root removal overlap. Teardown must:
+
+- Mark the instance destroyed before cancelling work, so re-entrant callbacks cannot restart it.
+- Abort or remove listeners, disconnect observers, cancel queued timers and frames, and clear their registries.
+- Reset component-owned transient styles, including interaction transforms and pending reveal states; still-connected content must not remain hidden.
+- Release the instance's initialization guard without affecting a replacement instance.
+
+Remove completed timers and frames from tracking as well as cancelling pending ones. Guard delayed callbacks, observer callbacks, and continuations such as font readiness against both destruction and a detached or replaced root before reading or writing DOM or scheduling more work.
+
+Wire teardown to the actual component lifetime, including Livewire navigation and root removal, not just a page-level event. A root-removal `MutationObserver` is an option when needed, not a mandatory API; it too must be owned and disconnected. Keep lifecycle wiring separate from navigation, layout, interaction, and reveal responsibilities.
+
+### Behaviour and review
+
+Readable organization must preserve the component's actual DOM contract, not impose the shape of an example script. Keep semantic HTML and Flux-first composition, server-owned state, and the existing shared styling roles defined in [Blade, Flux, Alpine, and Tailwind](#blade-flux-alpine-and-tailwind).
+
+Preserve usable content without JavaScript or optional observer APIs, natural layout growth, keyboard and anchor access, touch behaviour, and reduced-motion preferences, including preference changes while work is pending. Cleanup must restore a safe visible state rather than strand partially animated content.
+
+Review human readability separately from objective behavioural verification. A reviewer should be able to explain each feature's responsibility, initialization order, resource owner, and destruction path by reading the source top to bottom.
+
+Tests protect observable geometry, fallbacks, interactions, keyboard access, reduced motion, duplicate initialization, and disposal. Do not assert initializer names, helper counts, source ordering, or formatting as if they were behaviour. Refactoring still requires the applicable tests and lifecycle checks; cleaner-looking source is not evidence that cleanup or accessibility works.
+
 ## PHPDoc and comments
 
 Use clear code and native types first.
