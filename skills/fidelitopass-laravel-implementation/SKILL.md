@@ -1,6 +1,6 @@
 ---
 name: fidelitopass-laravel-implementation
-description: "Trigger: FidelitoPass Laravel, PHP, Livewire, PostgreSQL, Google Wallet application-code changes. Apply project-specific implementation and domain constraints."
+description: "Trigger: FidelitoPass Laravel, PHP, Livewire, PostgreSQL, Google Wallet or project UI implementation. Route domain and presentation decisions to targeted project references."
 license: Apache-2.0
 metadata:
   author: FidelitoPass
@@ -9,7 +9,7 @@ metadata:
 
 ## Activation Contract
 
-Use for project-owned application changes. Framework skills/docs own APIs; this skill owns FidelitoPass constraints. Do not use for delivery-board planning alone.
+Use for project-owned application or UI changes. Framework skills and installed source own APIs; this skill routes project-specific constraints. Do not use for delivery-board planning alone.
 
 ## Hard Rules
 
@@ -18,6 +18,7 @@ Use for project-owned application changes. Framework skills/docs own APIs; this 
 - Store immutable Visit `points_awarded`; allow legitimate same-day repeats but make retries idempotent. PostgreSQL owns domain truth; no customer User account.
 - After relevant locks capture one PostgreSQL `clock_timestamp()` operation instant for validity, local point evaluation and timestamps; use published timezone, not host/browser time.
 - Keep Livewire component order: properties, lifecycle, actions, optional private helpers, **listeners last**. Use meaningful lowercase English Blade region comments; translate all visible UI strings (Pase, Promoción, Puntos extra).
+- For presentation, use the screen/state-specific sections of `docs/ui-ux-guidelines.md`; do not copy mockup assets or replace native Flux behaviour with guessed props. Owner-approved requirements govern; raise irreconcilable domain conflicts.
 
 ## Decision Gates
 
@@ -27,10 +28,12 @@ Use for project-owned application changes. Framework skills/docs own APIs; this 
 | Domain/time ambiguity | Read relevant section of `docs/promotion-model.md`, `docs/development/database-standard.md` and acceptance requirement. |
 | New vs existing Livewire UI | Prefer cohesive native multi-file component; preserve stable starter format. |
 | Provider failure | Preserve committed facts and retry after-commit synchronization. |
+| UI screen or component | Read only the relevant UI guide headings and acceptance clause; inspect installed Flux version/API, then compose native Flux, scoped Tailwind and only necessary shared CSS. |
+| Navigation or scanner | Use targeted UI guide navigation/mapping or scanner/availability sections; preserve focus, dirty drafts and server authority. |
 
 ## Execution Steps
 
-1. Read work item, affected code, nearby tests and relevant installed versions; load only needed sections via `references/implementation-details.md`.
+1. Read work item, affected code, nearby tests and relevant installed versions; use the routing table in `references/implementation-details.md` to load only necessary sections, not every referenced document.
 2. Implement smallest server-authoritative change, respecting persistence, presentation, localization and source-style constraints there.
 3. Verify at natural test layer; cover ownership, time boundaries, idempotency and provider failure when affected.
 
@@ -41,5 +44,6 @@ Report changed files, domain/security/time boundaries, observed checks, remainin
 ## References
 
 - `references/implementation-details.md` — detailed coding, logging, localization and testing conventions.
-- `docs/promotion-model.md` — Promotion and Puntos extra authority.
-- `docs/development/laravel-application-standard.md` — project Laravel conventions.
+- `docs/promotion-model.md` — Promotion and Puntos extra authority (repository-root path; open the affected section only).
+- `docs/ui-ux-guidelines.md` — canonical derived visual and interaction guidance (repository-root path; affected section only).
+- `docs/development/laravel-application-standard.md` — project Laravel conventions (repository-root path; affected section only).

@@ -126,13 +126,13 @@ Persistent instants use `timestamptz`. Business-local calendar meaning is derive
 
 The Business dashboard shows operational information only:
 
-- Current Promotion.
-- Passes issued.
-- Points earned in the current Promotion.
-- Rewards unlocked.
-- Rewards redeemed.
+- Current active Promotion, or an honest waiting/scheduled state when none is active.
+- Distinct Customer passes with an accepted Visit in that active Promotion (not passes issued).
+- Sum of stored points awarded for accepted Visits in that Promotion.
+- Reward entitlements unlocked in that Promotion, including redeemed ones.
+- Reward entitlements definitively redeemed in that Promotion.
 
-No advanced analytics are required.
+Known empty results for an active Promotion show zero; unavailable statistics show an unknown value with a local error, not zero, and do not by themselves gate authorized operations. Without an active Promotion show waiting rather than a grid of zeroes. No advanced analytics are required.
 
 ### Deterministic-UI rule
 
