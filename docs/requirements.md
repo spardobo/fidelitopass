@@ -166,7 +166,7 @@ As a Business owner, I want to create a simple points target so that customers a
 
 **Scenario: Create a Promotion**
 
-- **Given** the Pase page and a new Promotion editor with general and **Puntos extra** tabs.
+- **Given** the Pase page and a full-page Promotion editor with **Información general** and **Puntos extra** sections.
 - **When** the owner provides start and end dates, target points, Reward title and description, and optional owned multiplier windows.
 - **Then** FidelitoPass previews points as progress and saves the complete editable draft atomically; multiple drafts and future scheduled Promotions of this one mechanic may coexist.
 
@@ -286,7 +286,7 @@ As a customer, I want the Promotion rules to stay stable after play begins so th
 
 **Verification:** Feature tests for transition and authorization.
 
-**Editor:** One modal with accessible general and **Puntos extra** tabs, an Add form, Remove list, and shared cancel/save draft/publish actions. Tabs retain unsaved values; save and publish persist the aggregate atomically, warn about incomplete unadded rules, reveal hidden-tab errors and confirm dirty close. Pass appearance is saved independently of Promotion terms.
+**Editor:** One full-page editor with **Información general** and **Puntos extra** sections, an Add form, Remove list, and shared cancel/save draft/publish actions. Moving between sections retains unsaved values; save and publish persist the aggregate atomically, warn about incomplete unadded rules, show errors in the relevant section and confirm navigation away from a dirty editor. Pass appearance is saved independently of Promotion terms.
 
 ### Customer pass and Wallet identity
 
@@ -634,7 +634,7 @@ As a user, I want a consistent dark interface with a clear accent so that long o
 
 - **Given** a public, authentication, or application page.
 - **When** the page opens with no saved theme preference.
-- **Then** it uses a dark-only interface with locally served Onest and lavender `#B7ABE4` accents.
+- **Then** it uses a dark-only interface with locally served Onest and lavender `#A77BFF` accents.
 
 **Scenario: Saved or system light preference**
 
@@ -656,7 +656,7 @@ As a user, I want a consistent dark interface with a clear accent so that long o
 **Type:** Functional
 **Module:** UX
 
-As a Business owner serving customers quickly, I want the scanner and fallback code in one continuous flow so that validation takes as few interactions as possible.
+As a Business owner serving customers quickly, I want scanner and fallback identification followed by focused confirmation and result in one dialog so that validation takes as few interactions as possible.
 
 **Acceptance Criteria**
 
@@ -664,7 +664,7 @@ As a Business owner serving customers quickly, I want the scanner and fallback c
 
 - **Given** an authenticated owner.
 - **When** **Validate visit** opens.
-- **Then** the scanner is the primary content, the manual-code input is immediately below it, and the result/action card appears directly after those controls.
+- **Then** one dialog shows only identification: scanner first and manual-code input immediately below it, including on camera failure; lookup is read-only. Once a pass is identified, scanner and manual input hide together and a focused confirmation replaces them. Explicit confirmation is the sole primary action for the applicable visit or redemption; after commit, a result replaces confirmation. Returning to identification restores the reader and manual fallback; closing restores focus and the originating page without discarding unsaved edits.
 
 **Scenario: Reward available**
 
