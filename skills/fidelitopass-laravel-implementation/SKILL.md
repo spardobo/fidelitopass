@@ -17,7 +17,7 @@ Use for project-owned application or UI changes. Framework skills and installed 
 - One points-target Promotion: regular Visit = 1 point; Promotion-owned optional recurring x2/x3/x5 Puntos extra, never inherited or stacked. Freeze the **entire** published aggregate including Reward and schedule. Use `docs/promotion-model.md` for exact windows and lifecycle.
 - Store immutable Visit `points_awarded`; allow legitimate same-day repeats but make retries idempotent. PostgreSQL owns domain truth; no customer User account.
 - After relevant locks capture one PostgreSQL `clock_timestamp()` operation instant for validity, local point evaluation and timestamps; use published timezone, not host/browser time.
-- Keep Livewire component order: properties, lifecycle, actions, optional private helpers, **listeners last**. Use meaningful lowercase English Blade region comments; translate all visible UI strings (Pase, Promoción, Puntos extra).
+- Keep Livewire component order: properties, lifecycle, actions, optional private helpers, **listeners last**. Use useful lowercase English section/block and internal comments in PHP/JavaScript and semantic region comments in Blade; follow `references/implementation-details.md` for source style. Translate all visible UI strings (Pase, Promoción, Puntos extra).
 - For presentation, use the screen/state-specific sections of `docs/ui-ux-guidelines.md`; do not copy mockup assets or replace native Flux behaviour with guessed props. Owner-approved requirements govern; raise irreconcilable domain conflicts.
 
 ## Decision Gates

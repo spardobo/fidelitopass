@@ -8,6 +8,15 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Global application palette: edit these four canonical roles here. */
+@theme static {
+    --color-app-canvas: #242424;
+    --color-app-surface: #2E2E2E;
+    --color-app-emphasis: #3D2E55;
+    --color-app-accent: #A77BFF;
+}
+
+/* Unmigrated compatibility defaults, not the canonical application palette. */
 @theme {
     --font-sans: 'Onest Variable', system-ui, ui-sans-serif, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
@@ -23,9 +32,10 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
-    --color-canvas: #181818;
-    --color-shell: #000000;
-    --color-surface: #1F1F1F;
+    --color-canvas: #242424;
+    --color-shell: #242424;
+    --color-surface: #313131;
+    --color-surface-large: #303030;
     --color-ink: #F6F5F2;
     --color-outline: #414141;
 
@@ -36,10 +46,12 @@
 
 @layer theme {
     :root, .dark {
+        /* Preserve unmigrated screens independently of the application palette. */
         color-scheme: dark;
-        --color-canvas: #181818;
-        --color-shell: #000000;
-        --color-surface: #1F1F1F;
+        --color-canvas: #242424;
+        --color-shell: #242424;
+        --color-surface: #313131;
+        --color-surface-large: #303030;
         --color-ink: #F6F5F2;
         --color-outline: #414141;
         --color-accent: #B7ABE4;
@@ -49,14 +61,14 @@
 }
 
 @layer components {
-    .landing-world { font-family: 'Onest Variable', sans-serif; background: #242424; overflow-x: clip; }
+    .landing-world { font-family: 'Onest Variable', sans-serif; background: var(--color-canvas); overflow-x: clip; }
+    .landing-world { --color-canvas: var(--color-app-canvas); --color-shell: var(--color-canvas); --color-surface: var(--color-app-surface); --color-surface-large: var(--color-surface); --landing-accent: var(--color-app-accent); --landing-accent-hover: #B893FF; --landing-accent-pressed: #9566EB; --landing-accent-ink: #17131F; --landing-accent-text: #CDB0FF; --landing-neutral-surface: var(--color-surface); --landing-emphasis-surface: var(--color-app-emphasis); --landing-primary-ink: #F6F5F2; --landing-emphasis-ink: #E4D6FA; --landing-border: #525252; --landing-line: #484848; --landing-emphasis-border: #8465AC; --landing-soft-ink: #B0ACB8; }
     .landing-world h1, .landing-world h2, .landing-world h3 { text-wrap: balance; }
     .landing-world p { text-wrap: pretty; }
     html:has(.landing-world) { scroll-behavior: smooth; }
     .landing-world section[id] { scroll-margin-top: 2rem; }
-    .landing-world a:focus-visible, .landing-world summary:focus-visible { outline: 2px solid #B7ABE4; outline-offset: 4px; }
-    .landing-world .tagline-word { color: #8C8C8C; transition: color 700ms cubic-bezier(0.32, 0.72, 0, 1); }
-    .landing-world .tagline-word.is-lit { color: #F6F5F2; }
+    .landing-world .tagline-word { color: var(--landing-word-ink, var(--landing-primary-ink)); transition: color 700ms cubic-bezier(0.32, 0.72, 0, 1); }
+    .landing-world[data-landing-ready] .tagline-word:not(.is-lit) { color: #8C8C8C; }
     .landing-world .landing-thumbnail { position: relative; width: 100%; max-width: 576px; aspect-ratio: 3 / 2; }
     .landing-world .landing-pass-scale { position: absolute; top: 0; left: 0; width: 576px; height: 384px; transform: scale(var(--landing-scale, 1)); transform-origin: top left; }
     .landing-world .landing-pass { width: 576px; height: 384px; transform-origin: center center; isolation: isolate; background-image: linear-gradient(115deg, transparent 12%, rgb(255 255 255 / 24%) 34%, rgb(255 255 255 / 8%) 50%, transparent 72%); background-size: 160% 160%; background-position: var(--sheen-x, 50%) var(--sheen-y, 50%); }
@@ -65,7 +77,7 @@
     @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
         .landing-world .landing-info-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgb(0 0 0 / 18%); }
     }
-    @media (prefers-reduced-motion: reduce) { html:has(.landing-world) { scroll-behavior: auto; } .landing-world *, .landing-world *::before, .landing-world *::after { animation: none !important; transition: none !important; } .landing-world .tagline-word { color: #F6F5F2; } }
+    @media (prefers-reduced-motion: reduce) { html:has(.landing-world) { scroll-behavior: auto; } .landing-world *, .landing-world *::before, .landing-world *::after { animation: none !important; transition: none !important; } .landing-world[data-landing-ready] .tagline-word:not(.is-lit) { color: var(--landing-word-ink, var(--landing-primary-ink)); } }
 }
 
 @layer base {
@@ -91,3 +103,90 @@ textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-surface;
 }
+
+/* landing-scoped background aliases leave unmigrated screens unchanged. */
+.landing-world .landing-surface-neutral { background-color: var(--landing-neutral-surface); }
+.landing-world .landing-surface-large { background-color: var(--color-surface-large); }
+.landing-world .landing-surface-emphasis { background-color: var(--landing-emphasis-surface); color: var(--landing-primary-ink); }
+.landing-world .landing-surface-emphasis p:not(:first-child) { color: var(--landing-emphasis-ink); }
+.landing-world :is(#home, .landing-info-card, #challenges, #questions details) { border: 1px solid var(--landing-border); }
+.landing-world :is(.landing-surface-emphasis, #questions details[open]) { border-color: var(--landing-emphasis-border); }
+.landing-world #challenges > p:last-child { border-top: 1px solid var(--landing-emphasis-border); padding-top: 1.25rem; color: var(--landing-emphasis-ink); }
+.landing-world footer { border-top: 1px solid var(--landing-line); }
+
+/* editorial ink survives entrance, reduced motion, no javascript and teardown. */
+.landing-world .landing-role-statement { max-width: 48rem; font-size: 2.25rem; line-height: 1.222223; font-weight: 600; letter-spacing: -.025em; text-wrap: balance; }
+.landing-world .landing-statement-primary { --landing-word-ink: var(--landing-primary-ink); }
+.landing-world .landing-statement-reward { --landing-word-ink: var(--landing-accent-text); }
+.landing-world .landing-statement-secondary { --landing-word-ink: var(--landing-soft-ink); }
+@media (max-width: 50rem) { .landing-world .landing-role-statement { font-size: 1.875rem; line-height: 1.333334; } }
+@media (max-width: 40rem) { .landing-world .landing-role-statement { font-size: 1.75rem; line-height: 1.285715; } }
+
+/* native details owns disclosure; the icon is a decorative state affordance. */
+.landing-world #questions summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; list-style: none; }
+.landing-world #questions summary::-webkit-details-marker { display: none; }
+.landing-world #questions summary [data-flux-icon] { color: var(--landing-soft-ink); transition: transform 160ms ease; }
+.landing-world #questions details[open] summary { color: var(--landing-accent-text); }
+.landing-world #questions details[open] summary [data-flux-icon] { transform: rotate(180deg); color: var(--landing-accent-text); }
+.landing-world #questions details > p { border-top: 1px solid var(--landing-line); padding-top: 1rem; }
+
+/* public primitives keep contextual ink instead of flux's default dark text. */
+.landing-world [data-flux-text] { color: inherit; }
+.landing-world .landing-ink-muted { color: #C4C4C4; }
+.landing-world .landing-ink-secondary { color: #E0E0E0; }
+.landing-world .landing-ink-accent { color: var(--landing-accent-text); }
+.landing-world .landing-heading-context { color: inherit; }
+.landing-world .landing-role-pass-business { font-size: 1.25rem; line-height: 1.75rem; font-weight: 700; }
+.landing-world .landing-role-progress { font-size: 1.875rem; line-height: 2.25rem; font-weight: 700; }
+.landing-world .landing-role-reward, .landing-world .landing-role-label-strong { font-weight: 600; }
+
+/* public links retain native decoration, inherited ink and existing hit areas. */
+.landing-world .landing-link { color: inherit; font-weight: 400; text-decoration-line: none; text-decoration-color: currentColor; text-underline-offset: auto; }
+.landing-world .landing-link:hover { text-decoration-line: none; }
+.landing-world .landing-link-inline, .landing-world .landing-link-inline:hover { text-decoration-line: underline; }
+
+/* public typography roles override flux and utilities without changing authenticated screens. */
+.landing-world .landing-role-hero { font-size: 2.25rem; line-height: 2.5rem; font-weight: 600; }
+.landing-world .landing-role-section { font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+.landing-world .landing-role-card { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; color: inherit; }
+.landing-world .landing-surface-emphasis [data-flux-heading] { color: var(--landing-primary-ink); }
+.landing-world .landing-role-body { font-size: 1rem; line-height: 1.5rem; font-weight: 400; }
+.landing-world .landing-role-support { font-size: .875rem; line-height: 1.25rem; font-weight: 400; }
+.landing-world .landing-role-action { font-size: 1rem; line-height: 1.5rem; font-weight: 500; }
+.landing-world [data-flux-button].landing-role-action { min-height: 2.75rem; height: auto; padding-block: .6875rem; white-space: normal; }
+.landing-world .landing-pass { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
+.landing-world #business { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
+.landing-world main { display: flow-root; --landing-main-base-gap: 2rem; --landing-section-space: 5rem; padding-top: var(--landing-main-base-gap); padding-bottom: var(--landing-closing-gap, var(--landing-main-base-gap)); }
+.landing-world :is(#benefits, #how-it-works, #pass) { padding-block: var(--landing-section-space); }
+.landing-world #home { --landing-hero-cap: 44rem; grid-template-columns: minmax(0, 1fr); margin-top: var(--landing-hero-extra-gap, 0px); margin-bottom: calc(var(--landing-hero-base-gap, var(--landing-main-base-gap)) + var(--landing-hero-extra-gap, 0px)); }
+.landing-world[data-hero-measured] #home { min-height: min(var(--landing-hero-cap), max(0px, calc(100svh - var(--landing-header-bottom) - 2 * var(--landing-hero-base-gap, var(--landing-main-base-gap))))); }
+@media (min-width: 48rem) { .landing-world main { --landing-main-base-gap: 2.5rem; } }
+.landing-world #home > div { min-width: 0; }
+.landing-world #home :is(h1, p, a.landing-button) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.landing-world #home > div:first-child > span { border-color: var(--landing-accent); color: var(--landing-accent-text); }
+.landing-world #benefits > div:first-child > p:first-child,
+.landing-world #how-it-works > p:first-child,
+.landing-world #challenges > p:first-child,
+.landing-world #pass > p:first-child,
+.landing-world #how-it-works ol span { color: var(--landing-accent-text); }
+.landing-world :is(header, footer, #home, #questions) a:not(.landing-button):hover,
+.landing-world #questions summary:hover { color: var(--landing-accent-text); }
+.landing-world > a:first-child:focus { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
+.landing-world a:focus-visible, .landing-world summary:focus-visible { outline: 2px solid var(--landing-accent-text); outline-offset: 4px; }
+.landing-world [data-flux-button].landing-button-primary { --color-accent: var(--landing-accent); --color-accent-foreground: var(--landing-accent-ink); background-color: var(--landing-accent); color: var(--landing-accent-ink); }
+.landing-world [data-flux-button].landing-button-primary:hover { background-color: var(--landing-accent-hover); }
+.landing-world [data-flux-button].landing-button-primary:active { background-color: var(--landing-accent-pressed); }
+.landing-world [data-flux-button].landing-cta-button { background-color: var(--landing-accent-ink); color: white; }
+.landing-world [data-flux-button].landing-cta-button:hover { background-color: #303030; color: white; }
+@media (prefers-reduced-motion: no-preference) {
+    .landing-world[data-reveal-ready] main > section[data-reveal="pending"] { opacity: 0; transform: translateY(1.5rem); }
+    .landing-world main > section[data-reveal="shown"] { opacity: 1; transform: none; transition: opacity 500ms ease-out, transform 500ms ease-out; }
+    .landing-world[data-reveal-ready] :is(#benefits, #how-it-works)[data-reveal="pending"] .landing-info-card { opacity: 0; }
+    .landing-world :is(#benefits, #how-it-works)[data-reveal="shown"] .landing-info-card { opacity: 1; transition: opacity 500ms ease-out, transform 300ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1); }
+    .landing-world :is(#benefits, #how-it-works)[data-reveal="shown"] .landing-info-card:nth-child(2) { transition-delay: 150ms, 0ms, 0ms; }
+    .landing-world #how-it-works[data-reveal="shown"] .landing-info-card:nth-child(3) { transition-delay: 300ms, 0ms, 0ms; }
+}
+@media (min-width: 48rem) { .landing-world .landing-role-section { font-size: 1.875rem; line-height: 2.25rem; } }
+@media (min-width: 64rem) { .landing-world .landing-role-hero { font-size: 2.5rem; line-height: 2.75rem; } }
+@media (min-width: 70rem) { .landing-world .landing-role-hero { font-size: 2.75rem; line-height: 3rem; } }
+@media (min-width: 80rem) { .landing-world #home { grid-template-columns: minmax(0, .88fr) minmax(0, 1.3fr); column-gap: 3rem; padding: 3rem; } }

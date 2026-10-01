@@ -11,7 +11,7 @@
                 </a>
 
                 <div class="flex flex-col gap-6">
-                    <div class="rounded-2xl border border-[#414141] bg-[#272727] text-ink shadow-sm">
+                    <div class="rounded-2xl border border-[#414141] bg-surface text-ink shadow-sm">
                         <div class="px-6 py-8 sm:px-10">{{ $slot }}</div>
                     </div>
                 </div>

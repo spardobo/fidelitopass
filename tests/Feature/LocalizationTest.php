@@ -32,12 +32,12 @@ test('landing page translates its title, description and accessible navigation',
     $this->get(route('home'))
         ->assertOk()
         ->assertSee('FidelitoPass - Dale a tus clientes una razón para volver.')
-        ->assertSee('Convierte cada visita en una razón para volver con retos de puntos y un pase de Google Wallet para tu negocio.')
+        ->assertSee('Crea Promociones de puntos y ofrece a tus clientes un Pase para Google Wallet con su progreso y recompensas.')
         ->assertSee('aria-label="Secciones de la página"', false)
-        ->assertSee('Vista del pase de Google Wallet de CAFÉ CENTRAL')
-        ->assertSee('El pase')
+        ->assertSee('Pase de ejemplo de CAFÉ CENTRAL')
+        ->assertSee('El Pase')
         ->assertSee('Beneficios')
-        ->assertSee('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 10 puntos antes del plazo, tu cliente obtiene un café.')
+        ->assertSee('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene una hamburguesa.')
         ->assertDontSee('landing.hero.sample.business')
         ->assertDontSee('landing.hero.card_aria')
         ->assertDontSee('tarjeta Wallet');
@@ -51,9 +51,9 @@ test('project pages resolve grouped translations without leaking keys', function
     expect(__('landing.page_title'))->toBe('FidelitoPass - Dale a tus clientes una razón para volver.');
     $blade = file_get_contents(resource_path('views/pages/⚡landing/landing.blade.php'));
     expect($blade)->not->toMatch('/CAFÉ CENTRAL|RETO ACTUAL|Consigue 15 puntos|9 \/ 15 puntos|Hamburguesa gratis|Código manual|48273|Retos que se renuevan|Progreso en puntos|>\s*El pase\s*</u');
-    expect(__('landing.page_description'))->toStartWith('Convierte cada visita en una razón para volver con retos de puntos');
+    expect(__('landing.page_description'))->toStartWith('Crea Promociones de puntos y ofrece a tus clientes un Pase');
     expect(__('landing.navigation.page_sections'))->toBe('Secciones de la página');
-    expect(__('landing.hero.pass_aria'))->toContain('pase de Google Wallet');
+    expect(__('landing.hero.pass_aria'))->toContain('Pase de ejemplo');
     expect(array_intersect(['card_aria', 'card_caption', 'card_progress', 'card_detail', 'card_badge'], array_keys(__('landing.hero'))))->toBe([]);
     expect(__('business.profile_title'))->toBe('Perfil del negocio');
     expect(__('business.dashboard.page_title'))->toBe('Panel del negocio');
