@@ -34,12 +34,12 @@ Use for project-owned application or UI changes. Framework skills and installed 
 ## Execution Steps
 
 1. Read work item, affected code, nearby tests and relevant installed versions. Use [Documentation routing](../../AGENTS.md#documentation-routing) to select applicable owners and actually read the necessary sections before writing code; identify governing constraints and unresolved conflicts. Reading this skill alone is insufficient. If a required source is unavailable or material intent is unresolved, stop before the affected edit and report it. Use `references/implementation-details.md` for implementation constraints, not a second global map.
-2. Implement smallest server-authoritative change, respecting persistence, presentation, localization and source-style constraints there.
+2. Implement smallest server-authoritative change, respecting persistence, presentation and localization. For changed source, read and apply [Source readability acceptance](../../docs/development/laravel-application-standard.md#source-readability-acceptance); assess it separately from tests.
 3. Verify at natural test layer; cover ownership, time boundaries, idempotency and provider failure when affected.
 
 ## Output Contract
 
-Report changed files, selected owner sections and API evidence, relevant domain/security/time boundaries, observed checks and remaining risks. State material source-legibility decisions (including non-obvious Flux/native choices and lifecycle ownership when affected); do not report per helper or treat readability as a behaviour-test result.
+Report changed files, selected owner sections and API evidence, relevant domain/security/time boundaries, observed checks and remaining risks. Report material readability decisions against those canonical criteria, including non-obvious Flux/native choices and lifecycle ownership when affected; identify unmet criteria separately from observed tests, not per helper.
 
 ## References
 

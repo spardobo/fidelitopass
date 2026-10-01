@@ -291,6 +291,93 @@ Do not create enums for phases that are derived from timestamps.
 - Scoped Pint `--blade` needs the npm packages `prettier`, `prettier-plugin-blade`, and `prettier-plugin-tailwindcss`, which are not installed here. Its Blade check is not a passing validation or a required dependency; apply the manual conventions above without adding formatter tooling.
 - Keep code as a top-to-bottom narrative with whitespace between semantic blocks. In Livewire components, order meaningful properties, lifecycle hooks, component actions, optional private helpers, then listeners last. Do not add empty blocks merely to satisfy the order.
 - In Blade, use lowercase semantic HTML comments such as `<!-- form actions -->` where they clarify sections. Use blank lines and multiline attributes when needed for readability; do not compress PHP, Blade, or JavaScript into dense one-liners.
+- Put visible translated or interpolated Blade text on its own indented line inside tags, including Flux labels, headings, links, buttons and options. Short self-closing attribute-bound labels can stay on one line. Preserve required inline whitespace.
+
+### Source readability acceptance
+
+Review changed source as a human reading path, separately from passing tests or formatting checks. Accept it when a reader can:
+
+- Identify each meaningful responsibility from cohesive regions and intent-revealing names, without decoding dense expressions or generic wrappers.
+- Follow inputs, decisions and effects top to bottom. Where initialization and cleanup exist, explain their order and the owner of each listener, observer, timer or other resource.
+- Understand non-obvious constraints from local rationale, such as units, timing or whitespace requirements. Comments explain why; they do not repeat operations.
+- Scan Blade landmarks, content and actions as semantic groups. Recognize standalone translated/interpolated copy without losing inline spacing or changing rendered semantics.
+- Explain why each extracted helper or responsibility heading reduces reading effort. Omit empty groups and lifecycle machinery when there is nothing to own.
+
+More line breaks, helpers or headings alone do not satisfy these criteria. Tests protect observable behaviour; they do not certify that future developers can understand and safely change the source. Apply the general JavaScript criteria to Node scripts and tests too. Component lifetime rules apply only where the code owns those resources.
+
+The fictional examples below are self-contained reading aids, not runnable application integrations or required layouts. Names, function counts and headings are not templates. Preserve behaviour when applying their principles to real code.
+
+#### Blade example: content and actions
+
+Before: the semantic elements exist, but content, inline status and the action are buried in one scan line.
+
+```blade
+<section aria-labelledby="selection-title"><h2 id="selection-title">{{ __('Selección de archivos') }}</h2><p>{{ __('Hay :count archivos seleccionados.', ['count' => 3]) }}</p><p><span>{{ __('Estado:') }}</span> <strong>{{ __('Pendiente') }}</strong></p><a href="#guide">{{ __('Consultar la guía') }}</a></section>
+```
+
+After: content and the guide action have distinct reading regions; copy is easy to locate.
+
+```blade
+<section aria-labelledby="selection-title">
+    <!-- selection summary -->
+    <h2 id="selection-title">
+        {{ __('Selección de archivos') }}
+    </h2>
+
+    <p>
+        {{ __('Hay :count archivos seleccionados.', ['count' => 3]) }}
+    </p>
+
+    <p>
+        <span>
+            {{ __('Estado:') }}
+        </span>
+        <strong>
+            {{ __('Pendiente') }}
+        </strong>
+    </p>
+
+    <!-- guide action -->
+    <a href="#guide">
+        {{ __('Consultar la guía') }}
+    </a>
+</section>
+```
+
+Both versions keep the same tags, heading association, fragment target, translation calls and count. In normal HTML whitespace, the newline between `span` and `strong` preserves the original collapsed space between the status label and value. Do not apply this wrapping blindly to whitespace-sensitive content or inline punctuation. The regions help a later edit find content or navigation without changing either contract.
+
+#### JavaScript example: selection and calculation
+
+Both versions define a standalone function. Input is an array of records with a boolean `archived` and a finite non-negative `bytes` number. Output rounds the combined size of non-archived records up to whole KiB; an empty selection returns zero.
+
+Before: abbreviated names and a nested expression hide the selection rule and rounding boundary.
+
+```javascript
+function selectedSizeKiB(records) {
+    return Math.ceil(records.filter(r => !r.archived).reduce((n, r) => n + r.bytes, 0) / 1024);
+}
+```
+
+After: names and semantic steps expose which records count and when rounding occurs.
+
+```javascript
+// ---------------------------------------------------------------------
+// selected size calculation
+// ---------------------------------------------------------------------
+function selectedSizeKiB(records) {
+    const bytesPerKiB = 1024;
+    const selectedRecords = records.filter(record => !record.archived);
+    const totalBytes = selectedRecords.reduce(
+        (selectedBytes, record) => selectedBytes + record.bytes,
+        0,
+    );
+
+    // round once after summing so partial units do not inflate each record.
+    return Math.ceil(totalBytes / bytesPerKiB);
+}
+```
+
+Both versions filter and sum in the same order, use the same zero accumulator and round only the final quotient. The unit name and local rationale protect that boundary during future changes; merely expanding the expression would not explain it. No helper, initializer or destruction routine is needed: this calculation owns no external resources.
 
 ## Component-local JavaScript
 
