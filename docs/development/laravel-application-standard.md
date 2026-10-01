@@ -206,7 +206,7 @@ Actions/evaluators own:
 
 - Prefer Flux UI Free components where they fit the product behaviour.
 - Prefer semantic HTML before custom JavaScript.
-- Use the dark-only Onest theme: shared Tailwind `@theme` tokens in `resources/css/app.css` define the black shell, charcoal canvas/surfaces, off-white ink, and lavender accent. `resources/views/partials/theme-default.blade.php` initializes dark appearance before Flux loads through the shared head; do not offer a light-mode toggle. Use Alpine only for small client-only interactions such as lightweight disclosure.
+- Use the dark-only Onest theme: shared Tailwind `@theme` tokens in `resources/css/app.css` implement the semantic palette roles governed by the [canonical UI/UX guide](../ui-ux-guidelines.md#approved-dark-only-palette) and its reconciled current owner-approved decisions. `resources/views/partials/theme-default.blade.php` initializes dark appearance before Flux loads through the shared head; do not offer a light-mode toggle. Use Alpine only for small client-only interactions such as lightweight disclosure.
 - Keep camera/scanner JavaScript isolated to the validation component.
 - Never duplicate authoritative Promotion/Reward state in Alpine.
 - Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure. The current authentication wrapper `resources/views/layouts/auth.blade.php` renders `layouts::auth.card`; the application uses `resources/views/layouts/app/header.blade.php` as its header layout.
@@ -317,7 +317,7 @@ This is a reading aid, not a required template or naming scheme. Omit unused mac
 
 Split by responsibility, not by putting each entire feature into one oversized function. Named handlers and small calculations should expose intent instead of burying it in nested callbacks. Use whitespace between semantic steps and early returns for unsupported or inapplicable cases.
 
-Extract a utility only when it removes real duplication or makes a non-obvious operation clearer: for example, clamping an angle, setting a CSS variable, or scheduling tracked work. Avoid generic `helpers.js` collections, ornamental wrappers, and class factories. Useful section/block comments complement named functions and whitespace; even a large comment banner cannot substitute for clear structure. Every abstraction must earn its reading cost.
+Extract a utility only when it removes real duplication or makes a non-obvious operation clearer: for example, separating pointer presentation calculations from frame rendering, setting a CSS variable, or scheduling tracked work. Preserve when geometry is read, when DOM writes occur, and how pending work checks its owner and current nodes. Avoid generic `helpers.js` collections, ornamental wrappers, and class factories. Use the responsibility headings defined in [PHPDoc and comments](#phpdoc-and-comments) alongside named functions and whitespace, not instead of clear structure. Every abstraction must earn its reading cost.
 
 ### Lifecycle ownership and cleanup
 
@@ -361,7 +361,15 @@ Do not add routine docblocks to obvious constructors, accessors, or framework ho
 
 Use **lowercase English section/block headings** to group meaningful responsibilities in PHP and JavaScript, just as semantic region comments do in Blade. For example, a component script may mark `configuration`, `utilities`, `navigation`, `layout`, `pass interaction`, `reveal`, `lifecycle`, and `initialization` where those groups exist. Choose headings that fit the source; no fixed template, separator width, initializer names, or helper count is required.
 
-These comments are useful alongside well-named functions and whitespace, not a replacement for them. Separator lines may help scanning, but do not require huge ASCII banners or empty sections.
+For major cohesive JavaScript responsibilities, use uniform three-line `//` headings: matching separator lines around a short lowercase English label, indented with the surrounding code. Keep blank lines between responsibilities. For example:
+
+```javascript
+// ---------------------------------------------------------------------
+// pass interaction
+// ---------------------------------------------------------------------
+```
+
+These useful separators complement well-named functions and whitespace; they are not ornamental banners. Do not add a heading per helper, narrate every line, or impose empty sections, a fixed helper order, or a class architecture. A small configuration group may use a plain `// configuration` comment when it does not need a major heading. Keep long explanations out of headings; place the actual non-obvious rationale near the constrained operation.
 
 Use **lowercase English internal comments** to explain intent and non-obvious constraints close to the relevant PHP or JavaScript operation. Explain why a constraint exists rather than restating each line. PHPDoc retains the contract-focused rules above.
 
