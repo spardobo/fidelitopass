@@ -130,6 +130,21 @@ select:focus[data-flux-control] {
 .landing-world #questions details[open] summary [data-flux-icon] { transform: rotate(180deg); color: var(--landing-accent-text); }
 .landing-world #questions details > p { border-top: 1px solid var(--landing-line); padding-top: 1rem; }
 
+/* public primitives keep contextual ink instead of flux's default dark text. */
+.landing-world [data-flux-text] { color: inherit; }
+.landing-world .landing-ink-muted { color: #C4C4C4; }
+.landing-world .landing-ink-secondary { color: #E0E0E0; }
+.landing-world .landing-ink-accent { color: var(--landing-accent-text); }
+.landing-world .landing-heading-context { color: inherit; }
+.landing-world .landing-role-pass-business { font-size: 1.25rem; line-height: 1.75rem; font-weight: 700; }
+.landing-world .landing-role-progress { font-size: 1.875rem; line-height: 2.25rem; font-weight: 700; }
+.landing-world .landing-role-reward, .landing-world .landing-role-label-strong { font-weight: 600; }
+
+/* public links retain native decoration, inherited ink and existing hit areas. */
+.landing-world .landing-link { color: inherit; font-weight: 400; text-decoration-line: none; text-decoration-color: currentColor; text-underline-offset: auto; }
+.landing-world .landing-link:hover { text-decoration-line: none; }
+.landing-world .landing-link-inline, .landing-world .landing-link-inline:hover { text-decoration-line: underline; }
+
 /* public typography roles override flux and utilities without changing authenticated screens. */
 .landing-world .landing-role-hero { font-size: 2.25rem; line-height: 2.5rem; font-weight: 600; }
 .landing-world .landing-role-section { font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
