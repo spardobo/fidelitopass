@@ -2,7 +2,7 @@
 
 This directory is the technical source of truth for FidelitoPass.
 
-Documentation follows progressive disclosure. Read only the document required by the current decision. Do not load the full documentation set into an implementation context by default.
+This is the sole canonical documentation map. It indexes knowledge owners without defining their domain rules. Documentation follows progressive disclosure: read only the document required by the current decision, not the full set by default.
 
 ## Design order
 
@@ -18,10 +18,15 @@ Documentation follows progressive disclosure. Read only the document required by
 10. Document `development/laravel-application-standard.md` — Laravel, Livewire, and application-code conventions.
 11. Document `quality-strategy.md` — proportionate verification strategy.
 12. Document `delivery-plan.md` — candidate work items and scoped requirement links.
-13. Document `development/workflow.md` — delivery flow and documentation routing.
-14. Directory `architecture/decisions/` — durable cross-cutting decisions only.
+13. Document `development/workflow.md` — work-item flow, owner approvals and delivery completion gates.
 
-`documentation-standard.md` defines how these documents are written and maintained. ADR-003 owns the single points mechanic and Promotion-owned extra-point rules; ADR-004 owns PostgreSQL time and calendar semantics. Historical CHL-prefixed requirement IDs remain stable. Read the relevant ADR only when revisiting that decision.
+The following owners support this progression rather than form later domain specializations:
+
+- `documentation-standard.md` — documentation language, ownership, structure and maintenance conventions.
+- `architecture/decisions/` — durable cross-cutting decisions, rationale and consequences. Accepted ADR authority is preserved: ADR-003 establishes the single points mechanic and Promotion-owned extra-point rules; ADR-004 establishes PostgreSQL time and calendar semantics. Domain owners specialize those decisions without replacing them. Related-decision and supersession links are exempt from the substantive dependency order.
+- Root `README.md` — Spanish public product/engineering entry point.
+
+Historical CHL-prefixed requirement IDs remain stable. Read the relevant ADR only when the current decision requires it.
 
 ## Lazy-loading map
 
@@ -41,11 +46,12 @@ Documentation follows progressive disclosure. Read only the document required by
 | Select or load delivery work | relevant section of `delivery-plan.md` |
 | Interpret the project delivery flow | `development/workflow.md` |
 | Revisit a costly cross-cutting decision | only the relevant ADR |
+| Write or maintain documentation | `documentation-standard.md` |
 
 ## Documentation boundaries
 
 - Each rule has one primary home.
 - Internal links are exceptional and specific.
 - Documents do not narrate source-control history, temporary work, or implementation sessions.
-- Product and engineering policy remain repository-host independent.
+- Domain rules do not depend on provider command syntax; delivery policy retains its explicit GitHub issue/Project semantics.
 - The root `README.md` is the Spanish public entry point.

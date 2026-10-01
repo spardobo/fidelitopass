@@ -32,23 +32,9 @@ Technical documents use controlled English inspired by ASD-STE100. The project d
 
 ## Knowledge ownership
 
-| Document | Owns |
-|---|---|
-| `conceptual-design.md` | Product model, actors, lifecycles, invariants, workflows. |
-| `product-scope.md` | MVP boundary and non-goals. |
-| `promotion-model.md` | Promotion-owned x2/x3/x5 extra-point rules, point earning, progress, and generated customer copy. |
-| `requirements.md` | Observable behaviour and Given-When-Then acceptance. |
-| `wallet-presentation.md` | Google Wallet information hierarchy and deterministic states. |
-| `ui-ux-guidelines.md` | Web visual/interactions/accessibility/page intent. |
-| `architecture/overview.md` | System boundaries, domain responsibilities, transaction/integration shape. |
-| `architecture/security.md` | Threat boundaries, credentials, authorization, rate limiting, secret/log policy. |
-| `development/database-standard.md` | PostgreSQL schema/time/index/concurrency conventions. |
-| `development/laravel-application-standard.md` | Laravel/Livewire/source conventions. |
-| `quality-strategy.md` | Verification depth and quality evidence. |
-| `delivery-plan.md` | Candidate work items and scoped requirement links, not a fixed sequence. |
-| `development/workflow.md` | Work-item flow and documentation routing. |
-| `architecture/decisions/*` | One durable cross-cutting choice and consequences. |
-| root `README.md` | Spanish public product/engineering entry point. |
+Each knowledge domain has one primary home. Use the canonical [documentation map](README.md) to select that owner; do not maintain parallel routing tables.
+
+Navigation, documentation standards and agent contracts index domain owners without defining their rules. ADRs retain accepted decision authority, rationale and consequences; domain documents apply that decision in their own scope.
 
 ## Progressive disclosure
 
@@ -65,7 +51,16 @@ Concept
  -> Quality / Delivery
 ```
 
-Architecture responds to agreed product behaviour. It does not invent product requirements to justify a preferred technical pattern. The concept document originates domain meaning without outbound links. Each document owns its domain; links do not transfer ownership or require automatic traversal.
+Architecture responds to agreed product behaviour. It does not invent product requirements to justify a preferred technical pattern. The concept document originates domain meaning without outbound links. Later documents specialize earlier knowledge instead of copying independent definitions. Earlier substantive documents must remain applicable without depending on later specializations. ADR links for related decisions and supersession are exempt from this dependency rule. Navigation and meta documents may index every domain. Links do not transfer ownership or require automatic traversal.
+
+### New-project sequence
+
+1. Define the concept and vocabulary, then the scope and applicable domain semantics.
+2. State observable requirements, then the needed UX and presentation contracts.
+3. Define architecture and security, then implementation conventions and verification/delivery rules.
+4. Add ADRs for qualifying decisions and index each owner in one documentation map.
+
+Create only documents needed by agreed knowledge; this sequence is not a mandatory file scaffold.
 
 ## Internal references
 
@@ -144,7 +139,7 @@ Do not copy large source excerpts.
 
 ## Lean maintenance
 
-Update only the document whose knowledge changed.
+Update only the document whose knowledge changed. An incidental code refactor does not require a documentation change when the owned contract remains unchanged.
 
 Examples:
 
