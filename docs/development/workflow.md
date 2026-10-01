@@ -27,7 +27,7 @@ The board, not planning documents or requirement columns, owns progress for plan
 1. Inspect the selected item's scope and relevant dependencies or overlaps; if none is selected, choose from bounded candidates. Create **one GitHub Projects draft item in Backlog** for a new planned deliverable outcome; it may have neither assignee nor repository issue.
 2. Obtain human approval for the scoped work while it remains a draft. On activation, use **Convert to issue → repository** on that same Project item; its distinct item identifier/ID is not the new repository issue number #N. Confirm there is one linked issue on the same Project item, without a duplicate card or body to synchronize. The issue form, if available, supports converted issue content.
 3. Apply `status:approved` to the linked issue to reflect the earlier approval. Assign the person moving the item to In Development on the repository issue. The linked issue is the assignee source of truth; do not independently assign the Project item or invent a separate Project assignee requirement. Do not assume GitHub dynamically assigns the moving actor.
-4. Only after confirmed conversion, label, and issue assignment, set the same item to In Development. Trust successful `gh` mutation output for the entity and result it actually confirms; do not issue an immediate duplicate GET. Query only missing or uncertain results, potentially stale critical state before merge, or asynchronous main CI. If an outcome remains uncertain or fails, stop and do not claim activation. Then use PRs referencing the linked issue. Obtain separate authorization before repository-host actions.
+4. Only after confirmed conversion, label, and issue assignment, set the same item to In Development. If an outcome remains uncertain or fails, stop and do not claim activation. Provider mutation/readback procedure belongs in `skills/fidelitopass-delivery-planning/references/delivery-details.md`. Then use PRs referencing the linked issue. Obtain separate authorization before repository-host actions.
 
 For bounded minor changes, hotfixes, small bugs, or an explicitly owner-approved exception, use an approved repository issue → branch → PR without a Project item. Record the outcome, scope and exclusions, dependencies, risks and verification evidence on the issue. This route is not a size-based shortcut for a new or expanded product/roadmap deliverable increment: that work uses the draft-first Project route. Assign the responsible actor on the issue; issue assignees are the source of truth on either route. Require `status:approved` before implementation, focused tests and required CI, owner PR review and explicit merge order, and required CI on the exact resulting main commit before claiming completion. For a failed gate, record the cause and recovery on the issue/PR; pending checks are not failures. Do not invent Project statuses, transitions, or fields for issue-only work. The owner may explicitly authorize a current issue-only bootstrap before this policy change merges.
 
@@ -41,25 +41,7 @@ Prefer small demonstrable outcomes: public entry separate from Business auth/pro
 
 ## Documentation routing
 
-Load only the source needed for the current decision.
-
-| Question | Read |
-|---|---|
-| What is the domain meaning? | relevant section of `docs/conceptual-design.md` |
-| Is it in MVP? | `docs/product-scope.md` |
-| How do points or Promotion progress work? | relevant section of `docs/promotion-model.md` and ADR-003 when ownership/freeze matters |
-| What behaviour must pass? | relevant requirement in `docs/requirements.md` |
-| What must Wallet display? | relevant state in `docs/wallet-presentation.md` |
-| What should the page look/behave like? | relevant section of `docs/ui-ux-guidelines.md` |
-| Does it change system boundaries? | relevant section of `docs/architecture/overview.md` |
-| Does it touch auth/tokens/rate limits/logging? | relevant section of `docs/architecture/security.md` |
-| Does it change schema/time/indexes? | relevant section of `docs/development/database-standard.md` |
-| Does it need a Laravel project convention? | relevant section of `docs/development/laravel-application-standard.md` |
-| What tests/evidence are appropriate? | relevant section of `docs/quality-strategy.md` |
-| What comes next? | Kanban dependencies and relevant candidate work item in `docs/delivery-plan.md` |
-| Is a durable decision being challenged? | only the relevant ADR |
-
-Do not follow links/references automatically.
+Use [Documentation routing](../../AGENTS.md#documentation-routing) to select and consult only the owner sections needed before implementation. The [documentation index](../README.md) explains design order and owner roles. For next-work selection, start with Kanban dependencies and the relevant candidate work item in `docs/delivery-plan.md`. Do not follow links/references automatically.
 
 ## Documentation maintenance
 

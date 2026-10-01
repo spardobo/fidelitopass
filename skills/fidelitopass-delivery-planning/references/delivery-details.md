@@ -4,21 +4,7 @@ Start with the selected planned work item or bounded issue-only change and its i
 
 For planned product/roadmap deliverable increments, read only the relevant plan row, affected source/nearby tests and bounded detailed requirement entries for its applicable IDs among the 35 original IDs in `docs/requirements.md`. Unplanned documentation or maintenance, including repairs to active authoritative instructions, needs neither a mandatory plan row nor a product requirement ID. Documentation governance repairs may stand alone without either. Locate the exact `#### REQ-... —` heading and read until the next detail heading; consult its register row only if needed. Do not load the whole master, use a coverage/status table, or traverse links automatically. A work item can cover selected criteria of multiple requirements, and one requirement can recur across work items. Link canonical criteria rather than copying definitions. The plan is not evidence of implementation and issue closure is not proof of a whole requirement.
 
-| Need | Read only the relevant section |
-| --- | --- |
-| Next candidate and dependencies | Kanban item evidence, then candidate row in `docs/delivery-plan.md` |
-| MVP inclusion | `docs/product-scope.md` |
-| Domain lifecycle | `docs/conceptual-design.md` |
-| Points/Promotion progress | `docs/promotion-model.md` |
-| Acceptance | Bounded detailed entry for each selected ID in `docs/requirements.md` |
-| Wallet copy/state | `docs/wallet-presentation.md` |
-| UX/layout | `docs/ui-ux-guidelines.md` |
-| Architecture | `docs/architecture/overview.md` |
-| Auth/tokens/rate limits/logging | `docs/architecture/security.md` |
-| Schema/time/concurrency | `docs/development/database-standard.md` |
-| Laravel convention | `docs/development/laravel-application-standard.md` |
-| Verification depth | `docs/quality-strategy.md` |
-| Durable decision | Only the relevant ADR |
+For other domain knowledge, use [Documentation routing](../../../AGENTS.md#documentation-routing) to select and actually consult applicable owner sections before implementation or delivery decisions. Identify governing constraints; stop before the affected action if a required source is unavailable or material intent is unresolved. Report any additional necessary owner load without expanding scope. The [documentation index](../../../docs/README.md) explains design order and roles. Do not reproduce the routing table here.
 
 Record one checkable outcome, applicable selected IDs and criteria (or a justified `None` for non-product work), scope/exclusions, Given-When-Then examples, dependencies and material security/data/time risks. Inspect the selected item's scope and relevant overlaps first. For a new planned product/roadmap deliverable increment not already represented there, create exactly one GitHub Projects draft item in Backlog, possibly without assignee or issue; obtain human approval of scoped work before activation. Convert that same draft in place via Convert to issue → repository: its distinct Project item ID remains independent of new issue #N. Confirm one linked issue on the same Project item without duplicate card or body. An issue form may also support the bounded issue-only route described below. Apply `status:approved` on the issue reflecting earlier approval; assign the moving actor on the issue. Issue assignees are the source of truth; never independently assign the Project item, invent a separate Project assignee requirement, or assume dynamic moving-actor assignment. Set In Development only after conversion, label and issue assignment are confirmed; if an outcome fails or remains uncertain, stop without claiming activation. Link one or more PRs to that issue: intermediate PRs use `Refs #N`, and the final delivery-ready PR uses `Closes #N` once its pre-merge evidence is review-ready; #N identifies the repository issue, not the Project item. Its closing keyword does not pre-accept the item: a CI-gated Done decision waits for the merged main commit's checks. Reconcile the Project item separately against its evidence; issue auto-closure alone cannot establish Done or acceptance. Activated work cannot bypass its issue with a direct PR. Repository-host actions need separate human authorization. Preserve historical issues and cards unchanged when reassessing current work.
 

@@ -13,36 +13,40 @@ Use for delivery selection, scoping, board transitions and completion. Do not us
 
 ## Hard Rules
 
-- Read only the selected work item first; consult dependencies and overlapping work when relevant. If none is selected, choose from bounded candidates rather than scanning the whole board; inspection does not activate Backlog work. Prefer dependency-ready planned work when relevant; unplanned documentation, maintenance and defects need no plan row or product ID. Candidates are not commitments.
-- Read only bounded applicable requirement entries and relevant sources; selected criteria, not all criteria of linked requirements, define the item. Requirement ↔ item is N:N. Do not infer whole-requirement acceptance from item completion.
-- For UI-backed selection, inspect the bounded page/menu entry in `docs/ui-ux-guidelines.md`, parent relationship in `docs/conceptual-design.md`, intended persistence in `docs/development/database-standard.md`, and relevant current migrations. Distinguish conceptual parent from physical foreign key; never infer an entity, table or FK from a page name.
-- Board state owns planned deliverable progress, not requirement status or issue closure. Bounded minor changes, hotfixes, small bugs and explicitly owner-approved exceptions use an approved issue → branch → PR without a Project item; never use this route for a new or expanded product/roadmap deliverable increment. Issue assignees are the source of truth on both routes. Record issue-only failed gates and recovery on the issue/PR, not in invented board states. Do not reopen completed items or invent historical transitions. For planned work, move In Development → In Review for a review-ready PR; after required PR checks and owner review, require an explicit owner merge order. Guard the latest PR head, checks and unresolved threads before agent squash merge; move to In Verification after integration, and to Done only on successful required CI for the exact resulting main commit, without second consent. For planned work, failed gates move to Blocked with reason/link and recovery stage, never pending checks. Follow `references/delivery-details.md` for draft-first activation, issue/Project identity, PR readiness and safe post-merge branch retirement. Obtain authorization before repository-host actions.
+- Load the selected item and relevant dependencies/overlaps, or bounded dependency-ready candidates. Inspection does not activate Backlog. Unplanned documentation, maintenance and defects need no plan row or product ID.
+- Select bounded requirement criteria, not every criterion of linked requirements. Requirement ↔ item is N:N; item completion never accepts a whole requirement.
+- For UI-backed selection, inspect the page/menu in `docs/ui-ux-guidelines.md`, parent in `docs/conceptual-design.md`, persistence in `docs/development/database-standard.md` and current migrations. Never infer a table/FK from a page name; conceptual parent is not physical FK.
+- Board state owns planned progress, not requirements or issue closure. Issue assignees own responsibility on both routes. Preserve history; never invent transitions or issue-only board states.
+- Require human scope approval before activation and authorization before host actions. Require owner review and explicit merge order after required PR checks; guard current PR identity/head, policy checks, unresolved threads and mergeability before squash merge.
+- Completion requires agreed outcome and green required CI on the exact resulting main commit, without second consent after that merge order.
+- Load `references/delivery-details.md` before activation, host actions, recovery or branch retirement for identity, labels/assignment, mutation evidence and cleanup procedures.
 
 ## Decision Gates
 
 | Situation | Action |
 | --- | --- |
-| Choosing work | Read the selected item and relevant dependencies/overlaps; if none is selected, choose among bounded candidates without duplicating work. |
-| UI, domain and implemented schema disagree | Choose the missing parent/setup prerequisite first; if the intended relationship is ambiguous, ask one focused product question before activation. Record page/menu, conceptual parent and migration evidence. |
-| Acceptance uncertain | Read only the relevant product section and bounded canonical requirement entry; select criteria in the item. |
-| New planned product/roadmap deliverable increment | Create one Project draft in Backlog, get human scope approval, then convert that same draft in place to one issue before In Development; follow reference activation checks. |
-| Bounded minor change, hotfix, small bug or owner-approved exception | Scope outcome, exclusions, dependencies and risks in a new approved issue; assign its responsible actor, then branch and PR without a Project item. If it is a new or expanded deliverable, use the draft-first route instead. |
-| Defect in open issue scope | Keep fix and evidence in that issue. |
-| New defect after delivery | Keep predecessor Done; open a new approved issue linked to predecessor for a bounded bug, without rewriting Done history. New or expanded deliverables require a new Backlog draft and conversion. |
-| Product obligation changes | Propose a new requirement ID linked to its predecessor; do not repurpose the old ID. |
-| Failed pre-merge gate | For planned work move to Blocked; for issue-only work record blocked cause and recovery on issue/PR. Preserve actionable evidence; fix the existing PR where possible, rerun checks and obtain renewed owner review and merge order. |
-| Failed exact-main CI | For planned work move to Blocked; for issue-only work record failure and recovery on issue/PR. Preserve run link; reopen the same issue, use a corrective PR with `Closes #N`, and repeat owner review, guarded merge and exact-main CI. Never rewrite the merged PR or revert automatically. |
-| Marking completion | Require agreed outcome and green required CI on the exact resulting main commit; no second owner consent after explicit PR merge order. Only planned work moves to Project Done; pending/unknown checks do not establish completion. Issue closure is insufficient; never infer whole-requirement completion. |
+| UI/domain/schema disagree | Prioritize missing parent/setup; ask before activation only if the intended relationship is ambiguous. |
+| Acceptance uncertain | Load relevant owner section and canonical requirement entry; select criteria. |
+| New/expanded product or roadmap increment | One Backlog Project draft → human scope approval → convert the same draft in place to one issue → reference activation gates → In Development. |
+| Bounded minor change, hotfix, small bug or explicit owner exception | Approved issue with outcome/exclusions/dependencies/risks → issue assignment → branch/PR; no Project item. Never use for a new/expanded deliverable. |
+| Defect in open issue scope | Keep fix/evidence there. |
+| New defect after delivery | Keep predecessor Done; new approved linked issue. New/expanded deliverables instead need a Backlog draft. |
+| Product obligation changes | New requirement ID linked to predecessor; never repurpose IDs. |
+| Review-ready planned PR | Move In Development → In Review; after guarded integration move to In Verification while exact-main CI runs. |
+| Failed gate | Planned → Blocked with reason/link/recovery stage; issue-only → issue/PR recovery evidence. Follow reference recovery; renew owner review/order. |
+| Failed exact-main CI | Reopen same issue; corrective `Closes #N` PR; repeat guarded merge and exact-main gate. Preserve merged history; never revert automatically. |
+| Pending/unknown checks | After integration keep planned In Verification, issue-only incomplete; pending is not Blocked. |
+| Completion | Exact-main gate above → planned Done or issue-only complete. Issue closure alone is insufficient. |
 
 ## Execution Steps
 
-1. Read the selected item and relevant dependencies/overlaps, or make a bounded selection; define criteria/IDs, exclusions, risks and a checkable outcome.
-2. Use `references/delivery-details.md` for bounded source routing, planned draft activation or the issue-only exception, and issue/PR evidence.
-3. Advance board state only for planned work on observed evidence; report issue-only gate failures on issue/PR and remaining requirement criteria.
+1. Bound selection, criteria/IDs, exclusions, risks and checkable outcome.
+2. Apply the reference's selected route and evidence procedures.
+3. Advance planned board state only on observed evidence; report remaining criteria and issue-only failures on issue/PR.
 
 ## Output Contract
 
-Report board state for planned work only; otherwise report the issue-only route. Include selected outcome and criteria/IDs, issue/PR evidence and checks, remaining gaps, risks/blockers and next decision only if required. For UI-backed work, state page/menu entry, conceptual parent and whether its schema exists today.
+Report planned board state or issue-only route, outcome/criteria/IDs, loaded sections, issue/PR identity and observed gates, gaps/risks and any required decision. For UI-backed work include page/menu, conceptual parent and current schema evidence.
 
 ## References
 
