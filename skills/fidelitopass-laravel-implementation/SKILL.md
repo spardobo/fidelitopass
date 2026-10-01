@@ -17,7 +17,7 @@ Use for project-owned application or UI changes. Framework skills and installed 
 - One points-target Promotion: regular Visit = 1 point; Promotion-owned optional recurring x2/x3/x5 Puntos extra, never inherited or stacked. Freeze the **entire** published aggregate including Reward and schedule. Use `docs/promotion-model.md` for exact windows and lifecycle.
 - Store immutable Visit `points_awarded`; allow legitimate same-day repeats but make retries idempotent. PostgreSQL owns domain truth; no customer User account.
 - After relevant locks capture one PostgreSQL `clock_timestamp()` operation instant for validity, local point evaluation and timestamps; use published timezone, not host/browser time.
-- Keep Livewire component order: properties, lifecycle, actions, optional private helpers, **listeners last**. Use useful lowercase English section/block and internal comments in PHP/JavaScript and semantic region comments in Blade; follow `references/implementation-details.md` for source style. Translate all visible UI strings (Pase, Promoción, Puntos extra).
+- Keep Livewire component order: properties, lifecycle, actions, optional private helpers, **listeners last**. Apply canonical [Source style](../../docs/development/laravel-application-standard.md#source-style) and [PHPDoc and comments](../../docs/development/laravel-application-standard.md#phpdoc-and-comments) to affected source; use `references/implementation-details.md` for targeted constraints. Translate all visible UI strings (Pase, Promoción, Puntos extra).
 - For presentation, use the screen/state-specific sections of `docs/ui-ux-guidelines.md`; do not copy mockup assets or replace native Flux behaviour with guessed props. Owner-approved requirements govern; raise irreconcilable domain conflicts.
 
 ## Decision Gates
@@ -34,12 +34,12 @@ Use for project-owned application or UI changes. Framework skills and installed 
 ## Execution Steps
 
 1. Read work item, affected code, nearby tests and relevant installed versions. Use [Documentation routing](../../AGENTS.md#documentation-routing) to select applicable owners and actually read the necessary sections before writing code; identify governing constraints and unresolved conflicts. Reading this skill alone is insufficient. If a required source is unavailable or material intent is unresolved, stop before the affected edit and report it. Use `references/implementation-details.md` for implementation constraints, not a second global map.
-2. Implement smallest server-authoritative change, respecting persistence, presentation and localization. For changed source, read and apply [Source readability acceptance](../../docs/development/laravel-application-standard.md#source-readability-acceptance); assess it separately from tests.
+2. Implement smallest server-authoritative change, respecting persistence, presentation and localization. For changed Blade, PHP and JavaScript (including scripts/tests), read and apply [Source readability acceptance](../../docs/development/laravel-application-standard.md#source-readability-acceptance) and its efficient-design criteria; assess independently of tests and apply the rules, not an example's shape.
 3. Verify at natural test layer; cover ownership, time boundaries, idempotency and provider failure when affected.
 
 ## Output Contract
 
-Report changed files, selected owner sections and API evidence, relevant domain/security/time boundaries, observed checks and remaining risks. Report material readability decisions against those canonical criteria, including non-obvious Flux/native choices and lifecycle ownership when affected; identify unmet criteria separately from observed tests, not per helper.
+Report changed files, selected owner sections and API evidence, relevant domain/security/time boundaries, observed checks and remaining risks. Report material readability and efficient-design decisions against canonical criteria, including comment purpose, non-obvious Flux/native choices and lifecycle ownership when affected. Identify unmet criteria and limits of performance evidence separately from observed tests, not per helper.
 
 ## References
 

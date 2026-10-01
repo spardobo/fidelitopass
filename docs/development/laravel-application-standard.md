@@ -297,15 +297,24 @@ Do not create enums for phases that are derived from timestamps.
 
 Review changed source as a human reading path, separately from passing tests or formatting checks. Accept it when a reader can:
 
-- Identify each meaningful responsibility from cohesive regions and intent-revealing names, without decoding dense expressions or generic wrappers.
-- Follow inputs, decisions and effects top to bottom. Where initialization and cleanup exist, explain their order and the owner of each listener, observer, timer or other resource.
-- Understand non-obvious constraints from local rationale, such as units, timing or whitespace requirements. Comments explain why; they do not repeat operations.
-- Scan Blade landmarks, content and actions as semantic groups. Recognize standalone translated/interpolated copy without losing inline spacing or changing rendered semantics.
-- Explain why each extracted helper or responsibility heading reduces reading effort. Omit empty groups and lifecycle machinery when there is nothing to own.
+- Identify responsibilities from cohesive regions and descriptive names, without decoding dense expressions or generic wrappers.
+- Follow inputs, decisions, data flow and side effects top to bottom. Where setup and cleanup exist, identify their order and the owner of each resource.
+- Understand non-obvious contracts and constraints from the targeted comments defined in [PHPDoc and comments](#phpdoc-and-comments), after names, types and structure have made the code as clear as possible.
+- Explain why each abstraction or heading reduces reading effort. Prefer the smallest conventional solution; reject arbitrary helper fragmentation, empty groups and machinery with nothing to own.
 
-More line breaks, helpers or headings alone do not satisfy these criteria. Tests protect observable behaviour; they do not certify that future developers can understand and safely change the source. Apply the general JavaScript criteria to Node scripts and tests too. Component lifetime rules apply only where the code owns those resources.
+Apply these language-specific reading checks:
 
-The fictional examples below are self-contained reading aids, not runnable application integrations or required layouts. Names, function counts and headings are not templates. Preserve behaviour when applying their principles to real code.
+| Source | Human-review criteria |
+| --- | --- |
+| Blade | Group semantic content and actions so landmarks, nested directives and visible copy are easy to locate. Preserve standalone translated/interpolated text, inline spacing and rendered semantics; attribute wrapping serves scanning, not a one-attribute-per-line rule. |
+| PHP | Keep methods cohesive, use descriptive names and native types, and expose branches, data access and side effects. Preserve the existing Livewire lifecycle order and document only contracts that remain unclear. |
+| JavaScript | Keep calculations and handlers cohesive, name intent and units, and expose execution flow instead of dense callback tangles. Make resource ownership and setup/cleanup order visible only when the code owns those resources. |
+
+These general criteria apply to scripts and tests too. More line breaks, helpers or headings alone do not satisfy them. Tests protect observable behaviour; they do not certify that future developers can understand and safely change the source.
+
+Efficient design includes avoiding demonstrably unnecessary work: redundant lookups, traversals, provider calls or resources. Use conventional framework primitives first and preserve behaviour when removing such work. Do not introduce premature optimization or manual caching layers by default. Support performance-gain claims with relevant tests or measurements, not cleaner-looking source.
+
+The fictional examples below illustrate these rules, which remain authoritative without the examples. They are self-contained reading aids, not runnable application integrations or required architectures. Names, function counts and heading shapes are not templates. Preserve behaviour when applying the principles to real code.
 
 #### Blade example: content and actions
 
@@ -323,11 +332,9 @@ After: content and the guide action have distinct reading regions; copy is easy 
     <h2 id="selection-title">
         {{ __('Selección de archivos') }}
     </h2>
-
     <p>
         {{ __('Hay :count archivos seleccionados.', ['count' => 3]) }}
     </p>
-
     <p>
         <span>
             {{ __('Estado:') }}
@@ -361,9 +368,6 @@ function selectedSizeKiB(records) {
 After: names and semantic steps expose which records count and when rounding occurs.
 
 ```javascript
-// ---------------------------------------------------------------------
-// selected size calculation
-// ---------------------------------------------------------------------
 function selectedSizeKiB(records) {
     const bytesPerKiB = 1024;
     const selectedRecords = records.filter(record => !record.archived);
@@ -377,7 +381,7 @@ function selectedSizeKiB(records) {
 }
 ```
 
-Both versions filter and sum in the same order, use the same zero accumulator and round only the final quotient. The unit name and local rationale protect that boundary during future changes; merely expanding the expression would not explain it. No helper, initializer or destruction routine is needed: this calculation owns no external resources.
+Both versions filter and sum in the same order, use the same zero accumulator and round only the final quotient. The unit name and local rationale protect that boundary during future changes; merely expanding the expression would not explain it. The standalone function needs no section box or routine JSDoc. It owns no external resources, so it needs no initializer or destruction routine. This readability example makes no performance-gain claim.
 
 ## Component-local JavaScript
 
@@ -440,34 +444,19 @@ Tests protect observable geometry, fallbacks, interactions, keyboard access, red
 
 ## PHPDoc and comments
 
-Use clear code and native types first.
+Prefer clearer names, native types, signatures and cohesive code before adding explanatory comments. Distinguish three purposes in PHP and JavaScript:
 
-Add English PHPDoc only when it communicates a contract not obvious from the signature:
+| Purpose | Use when | Do not use for |
+| --- | --- | --- |
+| Responsibility heading | Multiple related elements share a responsibility or collaborate: functions, state, handlers or configuration. A lowercase English label helps the reader locate that group. | Commentary above one isolated function, a heading per helper, empty sections or decorative banners. |
+| Function contract | Relevant information remains insufficiently apparent from good names, types, signature and code. Use English PHPDoc/JSDoc docblocks for that contract. | Routine function descriptions or blanket `@param`/`@return` tags that duplicate the signature. |
+| Internal rationale | A semantically cohesive step has an unclear intent or constraint: why, required order, an edge condition or units. Put a lowercase English comment near that step. | Narration per operation, restating code or compensating for avoidably unclear structure. |
 
-- Generic/array shape.
-- Domain invariant.
-- Unit/timezone assumption.
-- Concurrency/idempotency guarantee.
-- Side effect/provider timing.
-- Exception guarantee.
+Non-obvious contracts include generic/array shapes, domain invariants, preconditions, units/timezones, concurrency/idempotency guarantees, side effects/provider timing and exception guarantees. Preserve useful existing PHPDoc contracts. Obvious constructors, accessors and framework hooks need no routine docblock; when a function comment is needed, use a docblock, not a section box.
 
-Do not add routine docblocks to obvious constructors, accessors, or framework hooks.
+For major cohesive JavaScript groups, retain uniform three-line `//` headings with matching separator lines around a short lowercase English label, indented with the surrounding code. The group must contain multiple related elements; a standalone function needs no box. A small configuration group can use a plain lowercase comment. The same grouping principle applies in PHP, without requiring a banner or new separator syntax for every method or group. Blade semantic region comments locate useful content/action regions, not every element.
 
-Use **lowercase English section/block headings** to group meaningful responsibilities in PHP and JavaScript, just as semantic region comments do in Blade. For example, a component script may mark `configuration`, `utilities`, `navigation`, `layout`, `pass interaction`, `reveal`, `lifecycle`, and `initialization` where those groups exist. Choose headings that fit the source; no fixed template, separator width, initializer names, or helper count is required.
-
-For major cohesive JavaScript responsibilities, use uniform three-line `//` headings: matching separator lines around a short lowercase English label, indented with the surrounding code. Keep blank lines between responsibilities. For example:
-
-```javascript
-// ---------------------------------------------------------------------
-// pass interaction
-// ---------------------------------------------------------------------
-```
-
-These useful separators complement well-named functions and whitespace; they are not ornamental banners. Do not add a heading per helper, narrate every line, or impose empty sections, a fixed helper order, or a class architecture. A small configuration group may use a plain `// configuration` comment when it does not need a major heading. Keep long explanations out of headings; place the actual non-obvious rationale near the constrained operation.
-
-Use **lowercase English internal comments** to explain intent and non-obvious constraints close to the relevant PHP or JavaScript operation. Explain why a constraint exists rather than restating each line. PHPDoc retains the contract-focused rules above.
-
-Review comment usefulness as human readability, separately from behaviour checks; do not add source assertions for comment wording, separators, or section placement.
+Headings complement names and whitespace; they do not impose an architecture, helper count, fixed label set or separator width. Keep explanations out of headings and put contract or rationale information in its appropriate form. Review usefulness separately from behaviour checks; do not add source assertions for comment wording, separators or placement.
 
 ## Localization
 
