@@ -204,7 +204,6 @@ Actions/evaluators own:
 
 ## Blade, Flux, Alpine, and Tailwind
 
-- Prefer Flux UI Free components where they fit the product behaviour.
 - Prefer semantic HTML before custom JavaScript.
 - Use the dark-only Onest theme: shared Tailwind `@theme` tokens in `resources/css/app.css` implement the semantic palette roles governed by the [canonical UI/UX guide](../ui-ux-guidelines.md#approved-dark-only-palette) and its reconciled current owner-approved decisions. `resources/views/partials/theme-default.blade.php` initializes dark appearance before Flux loads through the shared head; do not offer a light-mode toggle. Use Alpine only for small client-only interactions such as lightweight disclosure.
 - Keep camera/scanner JavaScript isolated to the validation component.
@@ -212,6 +211,14 @@ Actions/evaluators own:
 - Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure. The current authentication wrapper `resources/views/layouts/auth.blade.php` renders `layouts::auth.card`; the application uses `resources/views/layouts/app/header.blade.php` as its header layout.
 - Use `wire:navigate` conservatively. Persist shared navigation only outside Livewire components when needed, and keep active-link styling dynamic after navigation.
 - Do not add a SPA framework for MVP.
+
+### Flux-first component decisions
+
+Before choosing native HTML or a custom Blade component, evaluate an appropriate installed Flux UI Free equivalent first. Verify its actual installed API, rendered semantics and defaults rather than assuming equivalence. Use it when it preserves product behaviour, semantic HTML, accessibility, keyboard access and progressive/no-JavaScript behaviour. Use native HTML when no appropriate Free equivalent exists or conversion would harm those contracts; give a brief intent rationale where the fallback is non-obvious.
+
+Flux-first does not mean Flux-every-tag: do not require conversion of landmarks, `details`/`summary`, spans, images or wrappers, or add wrappers merely to remove native HTML. Preserve heading levels, native link semantics and inline whitespace, contextual computed typography, ink, focus and geometry, and existing interactivity and lifecycle ownership.
+
+Scoped presentation adaptation may preserve an approved visual role; it does not authorize palette changes or rollout to other screens. Keep the shared theme and canonical palette authority above.
 
 ## Scanner implementation
 

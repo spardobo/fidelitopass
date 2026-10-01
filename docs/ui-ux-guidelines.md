@@ -19,20 +19,20 @@ This document defines the web interaction model, visual system, page intent, and
 
 ### Approved dark-only palette
 
-The application shell is black; content uses layered charcoal surfaces. Use dark ink on lavender controls and verify contrast for every state.
+The application shell follows the dark-gray page canvas; all neutral cards, including the hero, share one neutral surface. Use dark ink on lavender controls and verify contrast for every state.
 
-These are distinct **roles**, not a near-colour palette to consolidate. Provenance is the supplied 3.2 `DECISIONES-UI-UX.md` (Paleta conservada), `design-tokens.json` (colors), and accepted R00 `DESIGN.md` (Components) / `design.json` (interpreted components); these are local evidence basenames, not required committed links. CSS-specific overrides below follow source order.
+These are distinct **roles**, not a near-colour palette to consolidate, except where the owner explicitly assigns the same value to neutral and large-neutral cards. Provenance is the supplied 3.2 `DECISIONES-UI-UX.md` (Paleta conservada), `design-tokens.json` (colors), and accepted R00 `DESIGN.md` (Components) / `design.json` (interpreted components); these are local evidence basenames, not required committed links. The latest owner-approved L22 decision defines one application-wide palette, as listed below. The canonical definition is globally available; current adoption is landing only. The supplied dark-violet preview is qualitative evidence; this exact owner table governs, not sampled image pixels. Current implementation adoption is **landing only**. This supersedes the earlier R02 global mapping of original public backgrounds `#242424` / `#313131` / `#303030`, which already existed in the MVP; the original public header/footer were transparent over the page canvas. Historical shared tokens `#181818` / `#1F1F1F` / `#000000` did not describe every visible panel (active private/auth panels hardcoded `#272727`), and are not the current global target. The owner decision also overrides mockup canvas `#191919` / neutral `#2C2C2C` without reinterpreting that extraction. Keep all other roles/state distinctions; do not restore historical light benefits or lavender accents.
 
 | Role | Exact value | Context / state | Source basename / section |
 | --- | --- | --- | --- |
-| Shell; canvas | `#101010`; `#191919` | Authenticated header; authenticated page, not landing | `DECISIONES-UI-UX.md` / Paleta conservada |
-| Neutral surface; raised surface | `#2C2C2C`; `#363636` | Metric/preparation cards; menus | `design-tokens.json` / colors |
+| Shell; canvas | `#242424`; `#242424` | Page-colored shell/header/footer and canvas; global target, currently adopted only on landing | Latest owner-approved L22 global palette |
+| Neutral surface; large neutral; raised surface | `#2E2E2E`; `#2E2E2E`; `#363636` | All neutral cards/FAQ/auth panels and hero/large neutral panels share one target; retain the distinct raised role | Latest owner-approved L22 global palette; `design-tokens.json` / raised color |
 | Border; line; panel border | `#525252`; `#484848`; `#525252` | Neutral boundary; panel line; panel-specific boundary (retain separate tokens) | `design-tokens.json` / colors |
-| Priority surface; border; ink | `#382B4B`; `#8465AC`; `#E4D6FA` | Active Promotion and general-information card | `design-tokens.json` / colors |
+| Priority surface; border; ink | `#3D2E55`; `#8465AC`; `#E4D6FA` | Active Promotion and general-information card | Latest owner-approved L22 global palette; `design-tokens.json` / border and ink |
 | Control surface; border | `#222222`; `#7D7D7D` | Inputs inside cards; recognizable field outline | `DECISIONES-UI-UX.md` / Paleta conservada |
 | Secondary button; border; hover | `#383838`; `#828282`; `#444444` | Neutral action and its hover, not primary lavender | `design-tokens.json` / colors; R00 `DESIGN.md` / Components |
 | Primary; secondary; help ink | `#F6F5F2`; `#C7C4CE`; `#B0ACB8` | Reading hierarchy | `DECISIONES-UI-UX.md` / Paleta conservada |
-| Accent; hover; pressed | `#A77BFF`; `#B893FF`; `#9566EB` | Primary action state | `design-tokens.json` / colors; R00 `DESIGN.md` / Components |
+| Accent; hover; pressed | `#A77BFF`; `#B893FF`; `#9566EB` | Primary action state | Latest owner-approved L22 global palette; `design-tokens.json` / states; R00 `DESIGN.md` / Components |
 | Ink on accent; accent text / general focus | `#17131F`; `#CDB0FF` | Primary button text; readable link / general focus-visible outline | `design-tokens.json` / colors; R00 `DESIGN.md` / Components |
 | Success ink; surface; border | `#BCE7C9`; `#263D2E`; `#507F5E` | Confirmed operation and completed preparation, with text/icon | `design-tokens.json` / colors |
 | Warning ink; surface; border | `#E6D4AB`; `#3A3326`; `#736248` | Draft / pending badge, with label | `design-tokens.json` / colors |
@@ -42,18 +42,18 @@ These are distinct **roles**, not a near-colour palette to consolidate. Provenan
 
 Focus is context-dependent: within `#main`, the more-specific input/select/textarea `:focus-visible` rule retains a `2px` **`#A77BFF`** outline with `3px` offset and accent border; the later generic focus-visible rule uses a `2px` **`#CDB0FF`** outline with `3px` offset outside that context absent a stronger selector. Do not claim one universal focus colour or copy those mockup selectors into Flux. Source: R00 `DESIGN.md` / Components (`fidelitopass-menu-ajustado.css` 1807–1814, 2371–2373); verify actual installed DOM and focus in browser.
 
-The public landing's canvas (`#242424`) and neutral panels (`#303030`, including neutral benefits, steps and FAQ) are the inherited public exception to raw mockup canvas/surface values (`#191919` / `#2C2C2C`), not authenticated-token evidence. Its header may remain transparent over the public canvas; authenticated shell `#101010` is not mandatory there. Preserve layout and motion when the owning implementation changes.
+The table above is the single normative palette for the whole application, including future authentication and private screens; neither old shared literals nor historical mockups authorize an alternate palette. Marketing composition and editorial typography may still differ from forms and workspaces. **L22 defines the global palette but implements landing consumption only**, not an auth/private rollout or a permanent public exception. The single editable source is the **Global application palette** block (`@theme static`) in `resources/css/app.css`: `--color-app-canvas`, `--color-app-surface`, `--color-app-emphasis` and `--color-app-accent`, one definition per role. Static emission keeps all four properties available on the global root even before every utility is used. New screens must consume these app tokens (for example, `bg-app-canvas`, `bg-app-surface`, `bg-app-emphasis`, `bg-app-accent`), not unmigrated generic utilities. Within `.landing-world`, canvas/shell consume `var(--color-app-canvas)`, neutral/large surfaces consume `var(--color-app-surface)`, emphasis consumes `var(--color-app-emphasis)` and the sample Pase/primary actions consume `var(--color-app-accent)` through local role aliases. Landing owns no canonical palette literals. The public header and transparent footer follow the application canvas, not a separate black bar. Editing this global block updates those public roles without propagating to unmigrated auth/private screens. Shared `@theme`, `:root` and `.dark` defaults remain unmigrated at canvas/shell `#242424`, surface `#313131`, large surface `#303030` and accent `#B7ABE4`; this accent is implementation debt, not a second approved global accent. The active auth card still consumes `bg-surface`, rendering body `#242424` and panel `#313131`. Current private panel coverage is explicitly deferred: `resources/views/dashboard.blade.php`, `resources/views/pages/business/⚡profile/profile.blade.php` and `resources/views/pages/settings/layout.blade.php` still hardcode `#272727`. Their `tests/Browser/business-onboarding.spec.js` expectation remains `rgb(39, 39, 39)` for those unchanged panels. Alternate unused auth simple/split layouts retain legacy white/neutral-gradient backgrounds and are not part of this change. These unmigrated contexts are implementation debt, not alternate approved palette rules; global definitions do not certify every runtime surface. Future screen implementation must consume the canonical app tokens and follow the normative table, through its owning authorized work item. Do not recolor auth/private screens indirectly or introduce a header on login.
 
-An emphasized benefit uses the existing priority surface `#382B4B`, with suitable on-dark text from the canonical reading/priority ink roles above; do not use a light neutral panel or force ink-on-accent `#17131F` onto purple. Primary CTAs and the illustrative pass retain accent `#A77BFF` with ink-on-accent `#17131F`. Verify computed roles and contrast, including the cascade over older lavender classes, rather than assuming a class proves the rendered colour. These are role expectations, not a claim that current source already matches.
+The first emphasized benefit and the mechanics (La mecánica) panel both consume the canonical app emphasis surface and priority border `#8465AC`, with suitable on-dark text from the canonical reading/priority ink roles above; do not use a light neutral panel or force ink-on-accent `#17131F` onto purple. Primary CTAs and the illustrative pass retain accent `#A77BFF` with ink-on-accent `#17131F`. Verify computed roles and contrast, including the cascade over older lavender classes, rather than assuming a class proves the rendered colour. These are role expectations, not a claim that current source already matches.
 
 Keep semantic success, warning and danger surfaces, borders and text separate from the brand accent; success is not a new brand colour. Preserve the current landing layout and motion, including reduced-motion handling; change only the approved accent role across public, authentication and app surfaces when those screens are implemented. Do not globally override landing CSS or recolour a Business's saved pass. A sample pass's lavender fallback is not evidence of a saved appearance.
 
 ### Shape and spacing
 
-- Page containers use generous whitespace.
+- Page containers use generous whitespace. The owner-approved R02 exterior-gap rule supersedes bottom-equals-sides: match the header-to-hero opening gap with the last-CTA-to-footer closing gap. Keep landing main left/right padding `24px` / `32px` from `48rem` and top `32px` / `40px`. Reuse the hero's calculated base plus residual, capped at the existing `80px` rhythm, for end-of-main padding without reducing hero viewport availability. Without JavaScript or after teardown, closing padding falls back to the natural `32px` / `40px` base; dynamic capped fitting requires JavaScript. Header content row and footer use equal internal vertical padding (`24px` top/bottom), distinct from these exterior gaps. Preserve widths, hero margins and independent section spacing.
 - Use a maximum authenticated workspace width of `68rem`, about `20px` card radius and `11px` control radius; controls and operational targets should be at least `2.75rem` high.
 - Avoid sharp rectangular panels.
-- Borders are subtle; shadows are light and sparse.
+- Borders are subtle; shadows are light and sparse. Public hero, benefit, step and FAQ panels retain a `1px` neutral boundary `#525252`; emphasized benefit and mechanics panels use `#8465AC`. The mechanics example uses a priority divider; FAQ answers and the footer use the line role `#484848`. Decorative framing does not replace the essential interactive focus outline.
 - Prefer breathing room over dense dashboards.
 
 ### Approved asset inventory
@@ -91,7 +91,7 @@ The landing page introduces the product, not the dashboard. When landing content
 
 ### Header
 
-- FidelitoPass wordmark/logo on the left.
+- FidelitoPass wordmark/logo on the left, with the page-colored shell consuming `--color-app-canvas`; preserve the existing header height and composition.
 - Navigation order: **Beneficios → Cómo funciona → Promociones → El pase → Preguntas frecuentes → Empezar**.
 - No header registration button or theme toggle. The header links to page sections; the hero and final section carry the same registration action.
 
@@ -100,6 +100,16 @@ On small screens, keep navigation accessible without adding a competing registra
 ### Hero
 
 Use the current marketing copy in `lang/es/landing.php`; do not replace it with a speculative draft. The hero and final CTA both link to registration; sign-in remains subordinate. Show the illustrative Pase and Promoción as conceptual product visuals, not proof of issued Wallet credentials or operational Visit validation. The mock QR is not independently decoded or functional. Do not present conceptual visuals as usable credentials.
+
+### FAQ disclosure
+
+Retain native `details` / `summary` keyboard and focus semantics. Hide the browser's left marker and place an aria-hidden chevron on the right of the question, rotating it for the open state without a duplicate JavaScript toggle. Reduced motion disables the icon transition; the visible question remains the accessible label.
+
+### Editorial statement
+
+Keep the approved locale-owned word sequence intact. Group its primary proposition, reward and secondary relationship clause through presentation metadata, not duplicated translated phrases or word matching in Blade. Use persistent primary ink `#F6F5F2`, readable reward accent `#CDB0FF` (not the filled-control accent), and secondary ink `#B0ACB8`. Entrance animation may temporarily dim words, but its final state, reduced motion, no-JavaScript fallback and teardown must retain these distinct roles.
+
+The public editorial role is `2.25rem` / approximately `1.222223`, weight 600, with a `48rem` maximum line length. Adapt to `1.875rem` below `50rem` and `1.75rem` below `40rem` for mobile legibility. This is not the authenticated H1 role; longer approved copy may naturally wrap onto additional lines rather than being shortened or given forced breaks.
 
 ### How it works
 
