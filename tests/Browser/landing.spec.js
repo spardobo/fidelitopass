@@ -90,6 +90,94 @@ test('landing typography uses the loaded local Onest and responsive editorial ro
     }
 });
 
+test('public copy preserves sample pass typography and contextual paragraph ink', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/');
+        await page.evaluate(() => document.fonts.ready);
+        const sample = await page.locator('[data-pass]').evaluate(pass => {
+            const typography = element => {
+                const style = getComputedStyle(element);
+                return [style.fontSize, style.lineHeight, style.fontWeight, style.color];
+            };
+            return [...pass.querySelectorAll('h2, h3, p, p span')].map(typography);
+        });
+        console.log('public-copy-sample', width, JSON.stringify(sample));
+        const ink = 'rgb(23, 19, 31)';
+        expect(sample).toEqual([
+            ['20px', '28px', '700', ink], ['18px', '28px', '600', ink],
+            ['14px', '20px', '400', ink], ['30px', '36px', '700', ink],
+            ['14px', '20px', '400', ink], ['16px', '24px', '600', ink],
+            ['14px', '20px', '400', ink], ['14px', '20px', '600', ink],
+            ['20px', '28px', '600', ink],
+        ]);
+        for (const [selector, color] of [
+            ['#benefits > div:first-child > p:last-child, #how-it-works > p:nth-of-type(2), #pass > p:nth-of-type(2)', 'rgb(196, 196, 196)'],
+            ['#benefits article:last-child p, #how-it-works li p, #pass > p:last-child, #questions details > p', 'rgb(224, 224, 224)'],
+            ['#business > p', ink],
+        ]) {
+            for (const paragraph of await page.locator(selector).all()) {
+                await expect(paragraph).toHaveCSS('font-size', '16px');
+                await expect(paragraph).toHaveCSS('line-height', '24px');
+                await expect(paragraph).toHaveCSS('font-weight', '400');
+                await expect(paragraph).toHaveCSS('color', color);
+            }
+        }
+        for (const heading of await page.locator('#steps-title, #challenge-title, #wallet-title, #faq-title').all()) {
+            await expect(heading).toHaveCSS('color', 'rgb(246, 245, 242)');
+        }
+        await expect(page.locator('#business-title')).toHaveCSS('color', ink);
+    }
+});
+
+test('public links preserve inherited ink weight decoration and keyboard focus', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/');
+        await page.mouse.move(0, 0);
+        if (width < 1280) await page.locator('.landing-menu summary').click();
+        const nav = page.locator(width < 1280 ? '.landing-menu nav' : 'header > div > nav');
+        await expectOrderedNavigation(nav);
+        for (const [links, ink, decoration, size] of [
+            [nav.locator('a'), 'rgb(246, 245, 242)', 'none', width < 1280 ? '16px' : '14px'],
+            [page.locator('footer a'), 'rgb(224, 224, 224)', 'none', '14px'],
+            [page.locator('#home .landing-role-support a'), 'rgb(224, 224, 224)', 'underline', '14px'],
+        ]) {
+            for (const link of await links.all()) {
+                await expect(link).toHaveCSS('font-size', size);
+                await expect(link).toHaveCSS('font-weight', '400');
+                await expect(link).toHaveCSS('color', ink);
+                await expect(link).toHaveCSS('text-decoration-line', decoration);
+                await expect(link).toHaveCSS('text-underline-offset', 'auto');
+                await link.hover();
+                await expect(link).toHaveCSS('color', 'rgb(205, 176, 255)');
+                await expect(link).toHaveCSS('text-decoration-line', decoration);
+                await page.keyboard.press('Tab');
+                await link.focus();
+                await expect(link).toBeFocused();
+                await expect(link).toHaveCSS('outline-color', 'rgb(205, 176, 255)');
+                await expect(link).toHaveCSS('outline-offset', '4px');
+                await page.mouse.move(0, 0);
+            }
+        }
+        await expect(page.locator('#home .landing-role-support')).toHaveText(/\? Inicia sesión$/);
+        const logo = page.locator('header a[href="#page-top"]');
+        await expect(logo).toHaveAttribute('aria-label', /\S/);
+        await expect(logo.locator('img')).toHaveAttribute('width', '480');
+        await expect(logo.locator('img')).toHaveAttribute('height', '105');
+        await page.reload();
+        await page.keyboard.press('Tab');
+        const skip = page.getByRole('link', { name: 'Ir al contenido' });
+        await expect(skip).toBeFocused();
+        await expect(skip).toHaveCSS('color', 'rgb(23, 19, 31)');
+        await expect(skip).toHaveCSS('text-decoration-line', 'none');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('main')).toBeFocused();
+    }
+});
+
 test('hero outer gaps are bounded by the existing major section rhythm', async ({ page }) => {
     for (const height of [1200, 1600]) {
         await page.setViewportSize({ width: 1280, height });
@@ -798,7 +886,7 @@ test('native Flux primitives preserve the public semantic hierarchy and real acc
         await expect(heading).toHaveAttribute('data-flux-heading', '');
         expect(await heading.evaluate(el => el.tagName)).toBe(level);
     }
-    await expect(page.locator('#home p[data-flux-text]')).toHaveCount(1);
+    await expect(page.locator('#home > div:first-child > p')).toHaveCount(2);
     const actions = page.getByRole('link', { name: 'Crear mi cuenta' });
     await expect(actions).toHaveCount(2);
     for (const action of await actions.all()) {
@@ -918,7 +1006,7 @@ test('public landing scales the approved sample and keeps every section reachabl
         await expect(pass).toHaveCSS('transform', 'none');
         await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
         await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
-        console.log('stable-app-capture', JSON.stringify(await page.evaluate(() => ({ viewport: [innerWidth, innerHeight], deviceScaleFactor: devicePixelRatio, reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches, fonts: document.fonts.status, onest: document.fonts.check('600 36px "Onest Variable"') }))));
+        console.log('stable-app-capture', JSON.stringify(await page.evaluate(() => ({ viewport: [innerWidth, innerHeight], deviceScaleFactor: devicePixelRatio, reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches, fonts: document.fonts.status, onest: document.fonts.check('600 36px "Onest Variable"'), stylesheets: [...document.querySelectorAll('link[rel="stylesheet"]')].map(link => link.href) }))));
         await page.screenshot({ path: testInfo.outputPath(`public-${width}.png`), fullPage: true });
     }
 });
