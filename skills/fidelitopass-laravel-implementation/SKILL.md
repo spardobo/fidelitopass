@@ -33,7 +33,7 @@ Use for project-owned application or UI changes. Framework skills and installed 
 
 ## Execution Steps
 
-1. Read work item, affected code, nearby tests and relevant installed versions; select knowledge owners through `docs/README.md` and load only necessary sections. Use `references/implementation-details.md` for implementation constraints, not a second global map.
+1. Read work item, affected code, nearby tests and relevant installed versions. Use [Documentation routing](../../AGENTS.md#documentation-routing) to select applicable owners and actually read the necessary sections before writing code; identify governing constraints and unresolved conflicts. Reading this skill alone is insufficient. If a required source is unavailable or material intent is unresolved, stop before the affected edit and report it. Use `references/implementation-details.md` for implementation constraints, not a second global map.
 2. Implement smallest server-authoritative change, respecting persistence, presentation, localization and source-style constraints there.
 3. Verify at natural test layer; cover ownership, time boundaries, idempotency and provider failure when affected.
 

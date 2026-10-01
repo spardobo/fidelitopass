@@ -32,7 +32,7 @@ Technical documents use controlled English inspired by ASD-STE100. The project d
 
 ## Knowledge ownership
 
-Each knowledge domain has one primary home. Use the canonical [documentation map](README.md) to select that owner; do not maintain parallel routing tables.
+Each knowledge domain has one primary home. Use [Documentation routing](../AGENTS.md#documentation-routing) to select that owner; do not maintain parallel routing tables. The [documentation index](README.md) explains the design order and owner roles.
 
 Navigation, documentation standards and agent contracts index domain owners without defining their rules. ADRs retain accepted decision authority, rationale and consequences; domain documents apply that decision in their own scope.
 
@@ -58,7 +58,7 @@ Architecture responds to agreed product behaviour. It does not invent product re
 1. Define the concept and vocabulary, then the scope and applicable domain semantics.
 2. State observable requirements, then the needed UX and presentation contracts.
 3. Define architecture and security, then implementation conventions and verification/delivery rules.
-4. Add ADRs for qualifying decisions and index each owner in one documentation map.
+4. Add ADRs for qualifying decisions, describe owner roles in the documentation index, and maintain the sole intent-to-document route table in the project contract.
 
 Create only documents needed by agreed knowledge; this sequence is not a mandatory file scaffold.
 

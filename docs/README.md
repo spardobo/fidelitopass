@@ -2,7 +2,7 @@
 
 This directory is the technical source of truth for FidelitoPass.
 
-This is the sole canonical documentation map. It indexes knowledge owners without defining their domain rules. Documentation follows progressive disclosure: read only the document required by the current decision, not the full set by default.
+This index explains the design order and knowledge owners without defining their domain rules. The sole intent-to-document route table is [Documentation routing in the project contract](../AGENTS.md#documentation-routing). Documentation follows progressive disclosure: read only the sections required by the current decision, not the full set by default.
 
 ## Design order
 
@@ -27,26 +27,6 @@ The following owners support this progression rather than form later domain spec
 - Root `README.md` — Spanish public product/engineering entry point.
 
 Historical CHL-prefixed requirement IDs remain stable. Read the relevant ADR only when the current decision requires it.
-
-## Lazy-loading map
-
-| Need | Read |
-|---|---|
-| Understand the product or a domain term | `conceptual-design.md` |
-| Decide whether something belongs in MVP | `product-scope.md` |
-| Configure/evaluate Promotion-owned x2/x3/x5 points or progress | relevant section of `promotion-model.md` |
-| Confirm user-visible behaviour | relevant requirement in `requirements.md` |
-| Map a customer state to Google Wallet | relevant section of `wallet-presentation.md` |
-| Design a page or interaction | relevant section of `ui-ux-guidelines.md` |
-| Change system boundaries or integration ownership | relevant section of `architecture/overview.md` |
-| Change authentication, authorization, tokens, rate limits, or security logging | relevant section of `architecture/security.md` |
-| Add or alter persistent data | relevant section of `development/database-standard.md` |
-| Implement Laravel, Livewire, Actions, jobs, or integrations | relevant section of `development/laravel-application-standard.md` |
-| Decide what verification is sufficient | relevant section of `quality-strategy.md` |
-| Select or load delivery work | relevant section of `delivery-plan.md` |
-| Interpret the project delivery flow | `development/workflow.md` |
-| Revisit a costly cross-cutting decision | only the relevant ADR |
-| Write or maintain documentation | `documentation-standard.md` |
 
 ## Documentation boundaries
 

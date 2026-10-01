@@ -27,7 +27,32 @@ Check only the skill matching the request. Paths below are exact repository-rela
 | Integrate a page, layout or navigation into the Livewire starter | `skills/laravel-livewire-starter-integration/SKILL.md` |
 | Select or scope delivery work, change board state, or establish completion | `skills/fidelitopass-delivery-planning/SKILL.md` |
 
-For documentation work, load `docs/documentation-standard.md`. Use `docs/README.md` as the sole canonical global documentation map; select the relevant knowledge owner and section, not every document or linked reference. Skills route decisions without becoming independent domain specifications.
+Skills route decisions without becoming independent domain specifications. Select documentation through the routing table below; `docs/README.md` explains the design order and each owner's role.
+
+## Documentation routing
+
+Paths below are repository-relative. Before implementation, select and read the owner sections applicable to the request; cross-cutting work may require multiple sources. Do not load the full set or follow every reference automatically. For documentation changes, read `docs/documentation-standard.md` first. Consult the root `README.md` only when the request concerns the human-facing public introduction.
+
+| Need | Read |
+| --- | --- |
+| Understand the product or a domain term | `docs/conceptual-design.md` |
+| Decide whether something belongs in MVP | `docs/product-scope.md` |
+| Configure/evaluate Promotion-owned x2/x3/x5 points or progress | relevant section of `docs/promotion-model.md` |
+| Confirm user-visible behaviour | relevant requirement in `docs/requirements.md` |
+| Map a customer state to Google Wallet | relevant section of `docs/wallet-presentation.md` |
+| Design a page or interaction | relevant section of `docs/ui-ux-guidelines.md` |
+| Change system boundaries or integration ownership | relevant section of `docs/architecture/overview.md` |
+| Change authentication, authorization, tokens, rate limits, or security logging | relevant section of `docs/architecture/security.md` |
+| Add or alter persistent data | relevant section of `docs/development/database-standard.md` |
+| Implement Laravel, Livewire, Actions, jobs, or integrations | relevant section of `docs/development/laravel-application-standard.md` |
+| Decide what verification is sufficient | relevant section of `docs/quality-strategy.md` |
+| Select or load delivery work | relevant section of `docs/delivery-plan.md` |
+| Interpret the project delivery flow | relevant section of `docs/development/workflow.md` |
+| Revisit a costly cross-cutting decision | only the relevant ADR in `docs/architecture/decisions/`; for a qualifying new ADR, use the ADR policy in `docs/documentation-standard.md` and `docs/architecture/decisions/template.md` |
+| Write or maintain documentation | `docs/documentation-standard.md` |
+| Write or revise the human-facing public introduction | root `README.md` |
+
+This table routes knowledge; it does not redefine domain rules or require reading every ADR.
 
 ## Intent, source and readability
 
@@ -39,7 +64,11 @@ For documentation work, load `docs/documentation-standard.md`. Use `docs/README.
 
 ## Delegated context and evidence
 
-The parent passes exact skill paths under `## Skills to load before work`, plus selected sources/sections, scope, exclusions and acceptance criteria. Workers read every injected path before work; context is not assumed inherited. Return actual `skill_resolution` and loading evidence, including unreadable paths, selected sources, observed checks and unresolved limits. These repository obligations remain applicable regardless of harness initialization.
+The parent selects applicable owner documents and sections from the request and the routing table, including multiple sources when needed. It passes those selections alongside exact skill paths under `## Skills to load before work`, scope, exclusions and acceptance criteria.
+
+Workers read every injected skill before work and actually consult the selected documentation sections before implementation; reading skills alone is not sufficient. Identify the governing constraints and any unresolved conflicts before the affected edit. If a necessary source is missing or unreadable, or material intent remains unresolved, stop before that edit and report the required source or exact conflict rather than guessing. A worker may identify another necessary owner from the table or consulted sections; report the additional load needed without automatically traversing all references or widening product or edit scope. Do not ask the owner to repeat resolved decisions.
+
+Return concise actual paths/headings, relevant constraints, output, observed checks and unresolved limits, with actual `skill_resolution`; do not quote full documents or produce a report per file/helper. These obligations apply to inline and delegated implementation without adding a separate ceremony to every tiny edit, and remain applicable regardless of harness initialization.
 
 ## Verification
 

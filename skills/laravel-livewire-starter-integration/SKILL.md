@@ -30,7 +30,7 @@ Use for UI integration in a Laravel + Livewire starter. Do not use for domain-on
 
 ## Execution Steps
 
-1. Trace the route through the page, layout slots, navigation, assets, and authentication boundary; verify version-sensitive APIs against installed source/configuration and targeted official documentation.
+1. Trace the route through the page, layout slots, navigation, assets, and authentication boundary; verify version-sensitive APIs against installed source/configuration and targeted official documentation. For FidelitoPass, select applicable owners through [Documentation routing](../../AGENTS.md#documentation-routing) and actually read the affected owner/style sections before writing code; loading skills alone is insufficient. Identify constraints and stop before the affected edit if a necessary source is unavailable or material intent is unresolved.
 2. Implement the smallest native extension, using Laravel translations for user-facing copy and Flux/Tailwind for presentation.
 3. Exercise authorized and unauthorized behavior, navigation state, and relevant responsive flows with the project's native test runner.
 
