@@ -33,13 +33,13 @@ Use for project-owned application or UI changes. Framework skills and installed 
 
 ## Execution Steps
 
-1. Read work item, affected code, nearby tests and relevant installed versions; use the routing table in `references/implementation-details.md` to load only necessary sections, not every referenced document.
+1. Read work item, affected code, nearby tests and relevant installed versions; select knowledge owners through `docs/README.md` and load only necessary sections. Use `references/implementation-details.md` for implementation constraints, not a second global map.
 2. Implement smallest server-authoritative change, respecting persistence, presentation, localization and source-style constraints there.
 3. Verify at natural test layer; cover ownership, time boundaries, idempotency and provider failure when affected.
 
 ## Output Contract
 
-Report changed files, domain/security/time boundaries, observed checks, remaining risks or trade-offs.
+Report changed files, selected owner sections and API evidence, relevant domain/security/time boundaries, observed checks and remaining risks. State material source-legibility decisions (including non-obvious Flux/native choices and lifecycle ownership when affected); do not report per helper or treat readability as a behaviour-test result.
 
 ## References
 
