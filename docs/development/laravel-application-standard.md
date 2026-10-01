@@ -204,14 +204,21 @@ Actions/evaluators own:
 
 ## Blade, Flux, Alpine, and Tailwind
 
-- Prefer Flux UI Free components where they fit the product behaviour.
 - Prefer semantic HTML before custom JavaScript.
-- Use the dark-only Onest theme: shared Tailwind `@theme` tokens in `resources/css/app.css` define the black shell, charcoal canvas/surfaces, off-white ink, and lavender accent. `resources/views/partials/theme-default.blade.php` initializes dark appearance before Flux loads through the shared head; do not offer a light-mode toggle. Use Alpine only for small client-only interactions such as lightweight disclosure.
+- Use the dark-only Onest theme: shared Tailwind `@theme` tokens in `resources/css/app.css` implement the semantic palette roles governed by the [canonical UI/UX guide](../ui-ux-guidelines.md#approved-dark-only-palette) and its reconciled current owner-approved decisions. `resources/views/partials/theme-default.blade.php` initializes dark appearance before Flux loads through the shared head; do not offer a light-mode toggle. Use Alpine only for small client-only interactions such as lightweight disclosure.
 - Keep camera/scanner JavaScript isolated to the validation component.
 - Never duplicate authoritative Promotion/Reward state in Alpine.
 - Use the starter's shared Flux, Tailwind, and Vite pipeline; do not duplicate asset or theme infrastructure. The current authentication wrapper `resources/views/layouts/auth.blade.php` renders `layouts::auth.card`; the application uses `resources/views/layouts/app/header.blade.php` as its header layout.
 - Use `wire:navigate` conservatively. Persist shared navigation only outside Livewire components when needed, and keep active-link styling dynamic after navigation.
 - Do not add a SPA framework for MVP.
+
+### Flux-first component decisions
+
+Before choosing native HTML or a custom Blade component, evaluate an appropriate installed Flux UI Free equivalent first. Verify its actual installed API, rendered semantics and defaults rather than assuming equivalence. Use it when it preserves product behaviour, semantic HTML, accessibility, keyboard access and progressive/no-JavaScript behaviour. Use native HTML when no appropriate Free equivalent exists or conversion would harm those contracts; give a brief intent rationale where the fallback is non-obvious.
+
+Flux-first does not mean Flux-every-tag: do not require conversion of landmarks, `details`/`summary`, spans, images or wrappers, or add wrappers merely to remove native HTML. Preserve heading levels, native link semantics and inline whitespace, contextual computed typography, ink, focus and geometry, and existing interactivity and lifecycle ownership.
+
+Scoped presentation adaptation may preserve an approved visual role; it does not authorize palette changes or rollout to other screens. Keep the shared theme and canonical palette authority above.
 
 ## Scanner implementation
 
@@ -285,6 +292,65 @@ Do not create enums for phases that are derived from timestamps.
 - Keep code as a top-to-bottom narrative with whitespace between semantic blocks. In Livewire components, order meaningful properties, lifecycle hooks, component actions, optional private helpers, then listeners last. Do not add empty blocks merely to satisfy the order.
 - In Blade, use lowercase semantic HTML comments such as `<!-- form actions -->` where they clarify sections. Use blank lines and multiline attributes when needed for readability; do not compress PHP, Blade, or JavaScript into dense one-liners.
 
+## Component-local JavaScript
+
+Apply the same cohesion, intent naming, early returns, and top-to-bottom narrative defined in [Source style](#source-style). Passing tests does not make dense or tangled source maintainable.
+
+### Readable structure
+
+Keep page-local UI behaviour in the component's `@script`. Scope DOM references to its Livewire root (`$wire.$el`); an IIFE can provide a clear local boundary without introducing globals. Use the configured Vite entry only for genuinely shared behaviour, not merely to move a long script elsewhere.
+
+Organize the script so a developer can follow its purpose, setup, execution, and destruction without tracing a maze of callbacks:
+
+- Group configuration once, with descriptive names and clear units for dimensions, angles, and delays.
+- Resolve stable DOM references together within the owning root. Re-resolve references when morphing replaces their nodes rather than retaining stale elements.
+- Keep lifecycle state and resource ownership explicit, separate from feature calculations.
+- Give each feature a named initializer, such as `initializeNavigation`, `initializeHeroLayout`, or `initializePassInteraction`, with a focused responsibility.
+- Keep initialization calls together in dependency order and make the destruction entry point easy to find.
+
+A conceptual reading order for a component script is:
+
+```text
+component root and duplicate-initialization guard
+configuration and DOM references
+lifecycle state and owned resources
+small utilities with meaningful purposes
+named feature initializers
+central destruction routine
+initialization calls and lifecycle wiring
+```
+
+This is a reading aid, not a required template or naming scheme. Omit unused machinery. A root-local initialization guard should prevent duplicate setup and be released appropriately when that instance is destroyed.
+
+Split by responsibility, not by putting each entire feature into one oversized function. Named handlers and small calculations should expose intent instead of burying it in nested callbacks. Use whitespace between semantic steps and early returns for unsupported or inapplicable cases.
+
+Extract a utility only when it removes real duplication or makes a non-obvious operation clearer: for example, separating pointer presentation calculations from frame rendering, setting a CSS variable, or scheduling tracked work. Preserve when geometry is read, when DOM writes occur, and how pending work checks its owner and current nodes. Avoid generic `helpers.js` collections, ornamental wrappers, and class factories. Use the responsibility headings defined in [PHPDoc and comments](#phpdoc-and-comments) alongside named functions and whitespace, not instead of clear structure. Every abstraction must earn its reading cost.
+
+### Lifecycle ownership and cleanup
+
+Every listener, observer, timer, and animation frame has one identifiable component owner and a cleanup path. Prefer an `AbortController` with signal-bound listeners where supported; track observers and pending timers/frames explicitly when the component owns several of them. Small scripts need only the bookkeeping their actual resources require.
+
+Use one centralized, idempotent destruction routine. Repeated teardown must be harmless, including when navigation and root removal overlap. Teardown must:
+
+- Mark the instance destroyed before cancelling work, so re-entrant callbacks cannot restart it.
+- Abort or remove listeners, disconnect observers, cancel queued timers and frames, and clear their registries.
+- Reset component-owned transient styles, including interaction transforms and pending reveal states; still-connected content must not remain hidden.
+- Release the instance's initialization guard without affecting a replacement instance.
+
+Remove completed timers and frames from tracking as well as cancelling pending ones. Guard delayed callbacks, observer callbacks, and continuations such as font readiness against both destruction and a detached or replaced root before reading or writing DOM or scheduling more work.
+
+Wire teardown to the actual component lifetime, including Livewire navigation and root removal, not just a page-level event. A root-removal `MutationObserver` is an option when needed, not a mandatory API; it too must be owned and disconnected. Keep lifecycle wiring separate from navigation, layout, interaction, and reveal responsibilities.
+
+### Behaviour and review
+
+Readable organization must preserve the component's actual DOM contract, not impose the shape of an example script. Keep semantic HTML and Flux-first composition, server-owned state, and the existing shared styling roles defined in [Blade, Flux, Alpine, and Tailwind](#blade-flux-alpine-and-tailwind).
+
+Preserve usable content without JavaScript or optional observer APIs, natural layout growth, keyboard and anchor access, touch behaviour, and reduced-motion preferences, including preference changes while work is pending. Cleanup must restore a safe visible state rather than strand partially animated content.
+
+Review human readability separately from objective behavioural verification. A reviewer should be able to explain each feature's responsibility, initialization order, resource owner, and destruction path by reading the source top to bottom.
+
+Tests protect observable geometry, fallbacks, interactions, keyboard access, reduced motion, duplicate initialization, and disposal. Do not assert initializer names, helper counts, source ordering, or formatting as if they were behaviour. Refactoring still requires the applicable tests and lifecycle checks; cleaner-looking source is not evidence that cleanup or accessibility works.
+
 ## PHPDoc and comments
 
 Use clear code and native types first.
@@ -300,7 +366,21 @@ Add English PHPDoc only when it communicates a contract not obvious from the sig
 
 Do not add routine docblocks to obvious constructors, accessors, or framework hooks.
 
-Comments explain **why a non-obvious constraint exists**, not what a line of code does.
+Use **lowercase English section/block headings** to group meaningful responsibilities in PHP and JavaScript, just as semantic region comments do in Blade. For example, a component script may mark `configuration`, `utilities`, `navigation`, `layout`, `pass interaction`, `reveal`, `lifecycle`, and `initialization` where those groups exist. Choose headings that fit the source; no fixed template, separator width, initializer names, or helper count is required.
+
+For major cohesive JavaScript responsibilities, use uniform three-line `//` headings: matching separator lines around a short lowercase English label, indented with the surrounding code. Keep blank lines between responsibilities. For example:
+
+```javascript
+// ---------------------------------------------------------------------
+// pass interaction
+// ---------------------------------------------------------------------
+```
+
+These useful separators complement well-named functions and whitespace; they are not ornamental banners. Do not add a heading per helper, narrate every line, or impose empty sections, a fixed helper order, or a class architecture. A small configuration group may use a plain `// configuration` comment when it does not need a major heading. Keep long explanations out of headings; place the actual non-obvious rationale near the constrained operation.
+
+Use **lowercase English internal comments** to explain intent and non-obvious constraints close to the relevant PHP or JavaScript operation. Explain why a constraint exists rather than restating each line. PHPDoc retains the contract-focused rules above.
+
+Review comment usefulness as human readability, separately from behaviour checks; do not add source assertions for comment wording, separators, or section placement.
 
 ## Localization
 
