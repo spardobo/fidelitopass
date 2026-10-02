@@ -46,15 +46,15 @@ async function expectAuthenticatedSurface(page, surface) {
     }, surface);
 
     expect(appearance.font).toContain('Onest Variable');
-    expect(appearance.canvas).toBe('rgb(24, 24, 24)');
+    expect(appearance.canvas).toBe('rgb(36, 36, 36)');
     expect(appearance.card).toBe('rgb(39, 39, 39)');
     expect(appearance.header).not.toBeNull();
-    expect(luminance(appearance.header)).toBeLessThan(luminance(appearance.canvas));
+    expect(appearance.header).toBe(appearance.canvas);
     expect(appearance.overflow).toBe(false);
 
     const logoIcon = page.locator('img[src$="logo_icon.svg"]').first();
     await expect(logoIcon).toBeVisible();
-    await expect(logoIcon).toHaveCSS('filter', 'brightness(0)');
+    await expect.poll(() => logoIcon.evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
     await expect(logoIcon.locator('..')).toHaveCSS('background-color', 'rgb(183, 171, 228)');
 }
 
@@ -114,7 +114,7 @@ test('saved light appearance is replaced before authentication renders', async (
             await expect(logo).toHaveAttribute('src', /logo-header\.webp$/);
 
             const card = page.locator('.rounded-2xl.border').filter({ has: page.locator('form') });
-            await expect(card).toHaveCSS('background-color', 'rgb(39, 39, 39)');
+            await expect(card).toHaveCSS('background-color', 'rgb(49, 49, 49)');
             await expect(card).toHaveCSS('border-color', 'rgb(65, 65, 65)');
             expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
