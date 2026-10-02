@@ -129,8 +129,37 @@ test("saved light appearance is replaced before authentication renders", async (
             await expect(logo).toHaveAttribute("src", /logo-header\.webp$/);
 
             const card = page.locator(".rounded-2xl.border").filter({ has: page.locator("form") });
-            await expect(card).toHaveCSS("background-color", "rgb(49, 49, 49)");
-            await expect(card).toHaveCSS("border-color", "rgb(65, 65, 65)");
+            await expect(card).toHaveCSS("background-color", "rgb(46, 46, 46)");
+            await expect(card).toHaveCSS("border-color", "rgb(82, 82, 82)");
+            expect((await card.boundingBox()).width).toBe(width === 375 ? 327 : 448);
+            await page.evaluate(() => document.fonts.ready);
+            expect(
+                await page.evaluate(() => document.fonts.check('600 24px "Onest Variable"')),
+            ).toBe(true);
+            await expect(page.locator("body")).toHaveCSS("background-color", "rgb(36, 36, 36)");
+            await expect(page.locator("body")).toHaveCSS("font-family", /Onest Variable/);
+            const title = page.getByRole("heading", { name: heading });
+            await expect(title).toHaveCSS("font-size", width < 768 ? "24px" : "30px");
+            await expect(title).toHaveCSS("line-height", width < 768 ? "32px" : "36px");
+            await expect(title).toHaveCSS("font-weight", "600");
+            await expect(title).toHaveCSS("color", "rgb(246, 245, 242)");
+            const description = card.locator("[data-flux-subheading]");
+            await expect(description).toHaveCSS("font-size", "16px");
+            await expect(description).toHaveCSS("line-height", "24px");
+            await expect(description).toHaveCSS("color", "rgb(199, 196, 206)");
+            for (const label of await card.locator("[data-flux-label]").all()) {
+                await expect(label).toHaveCSS("font-size", "16px");
+                await expect(label).toHaveCSS("line-height", "24px");
+                await expect(label).toHaveCSS("font-weight", "500");
+            }
+            await page.getByRole("link", { name: "FidelitoPass" }).focus();
+            for (const input of await card.locator("input[data-flux-control]").all()) {
+                await expect(input).toHaveCSS("font-size", "16px");
+                await expect(input).toHaveCSS("line-height", "24px");
+                await expect(input).toHaveCSS("background-color", "rgb(34, 34, 34)");
+                await expect(input).toHaveCSS("border-color", "rgb(125, 125, 125)");
+                expect((await input.boundingBox()).height).toBeGreaterThanOrEqual(44);
+            }
             expect(
                 await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
             ).toBe(true);
@@ -138,7 +167,17 @@ test("saved light appearance is replaced before authentication renders", async (
             const primary = page.getByRole("button", {
                 name: path === "/login" ? "Iniciar sesión" : "Crear cuenta",
             });
-            await expect(primary).toHaveCSS("background-color", "rgb(183, 171, 228)");
+            await expect(primary).toHaveCSS("background-color", "rgb(167, 123, 255)");
+            await expect(primary).toHaveCSS("color", "rgb(23, 19, 31)");
+            await expect(primary).toHaveCSS("font-size", "16px");
+            await expect(primary).toHaveCSS("line-height", "24px");
+            expect((await primary.boundingBox()).height).toBeGreaterThanOrEqual(44);
+            await primary.hover();
+            await expect(primary).toHaveCSS("background-color", "rgb(184, 147, 255)");
+            await page.mouse.down();
+            await expect(primary).toHaveCSS("background-color", "rgb(149, 102, 235)");
+            await page.mouse.move(0, 0);
+            await page.mouse.up();
             const buttonColors = await primary.evaluate((element) => ({
                 foreground: getComputedStyle(element).color,
                 background: getComputedStyle(element).backgroundColor,
@@ -147,15 +186,53 @@ test("saved light appearance is replaced before authentication renders", async (
                 contrast(buttonColors.foreground, buttonColors.background),
             ).toBeGreaterThanOrEqual(4.5);
 
+            // shared tokens change real consumers, then restore the ordinary fixture.
+            const overrides = {
+                "--color-app-ink-secondary": "#D4D0DC",
+                "--color-app-accent-hover": "#C09FFF",
+                "--spacing-app-control": "3.25rem",
+            };
+            await page.evaluate((values) => {
+                for (const [name, value] of Object.entries(values)) {
+                    document.documentElement.style.setProperty(name, value);
+                }
+            }, overrides);
+            try {
+                await expect(description).toHaveCSS("color", "rgb(212, 208, 220)");
+                await expect(
+                    card.getByRole("button", { name: "Mostrar u ocultar contraseña" }).first(),
+                ).toHaveCSS("color", "rgb(212, 208, 220)");
+                for (const input of await card.locator("input[data-flux-control]").all()) {
+                    expect((await input.boundingBox()).height).toBe(52);
+                }
+                expect((await primary.boundingBox()).height).toBe(52);
+                await primary.hover();
+                await expect(primary).toHaveCSS("background-color", "rgb(192, 159, 255)");
+            } finally {
+                await page.evaluate((names) => {
+                    for (const name of names) document.documentElement.style.removeProperty(name);
+                }, Object.keys(overrides));
+                await page.mouse.move(0, 0);
+            }
+            await expect(description).toHaveCSS("color", "rgb(199, 196, 206)");
+            await expect(primary).toHaveCSS("background-color", "rgb(167, 123, 255)");
+
             const logoLink = page.getByRole("link", { name: "FidelitoPass" });
             await logoLink.focus();
             await page.keyboard.press("Shift+Tab");
             await page.keyboard.press("Tab");
             await expect(logoLink).toBeFocused();
             await expect(logoLink).toHaveCSS("outline-style", "solid");
-            await expect(logoLink).toHaveCSS("outline-color", "rgb(183, 171, 228)");
+            await expect(logoLink).toHaveCSS("outline-color", "rgb(205, 176, 255)");
+            await expect(logoLink).toHaveCSS("outline-offset", "3px");
             await page.keyboard.press("Tab");
-            await expect(page.locator("input[autofocus]")).toBeFocused();
+            const firstInput = page.locator("input[autofocus]");
+            await expect(firstInput).toBeFocused();
+            await expect(firstInput).toHaveCSS("outline-style", "solid");
+            await expect(firstInput).toHaveCSS("outline-width", "2px");
+            await expect(firstInput).toHaveCSS("outline-color", "rgb(167, 123, 255)");
+            await expect(firstInput).toHaveCSS("outline-offset", "3px");
+            await expect(firstInput).toHaveCSS("border-color", "rgb(167, 123, 255)");
             await page.screenshot({
                 path: testInfo.outputPath(`auth-${path.slice(1)}-${width}.png`),
                 fullPage: true,

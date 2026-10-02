@@ -36,7 +36,7 @@
             </nav>
 
             <details class="landing-menu relative xl:hidden">
-                <summary class="cursor-pointer rounded-full border border-white/40 px-4 py-2 text-sm">
+                <summary class="app-focus cursor-pointer rounded-full border border-white/40 px-4 py-2 text-sm">
                     {{ __('landing.navigation.menu') }}
                 </summary>
                 <nav class="absolute right-0 top-full z-50 mt-3 flex w-56 flex-col gap-4 rounded-2xl landing-surface-neutral p-6 shadow-xl" aria-label="{{ __('landing.navigation.page_sections') }}">
@@ -74,14 +74,14 @@
                 <flux:heading level="1" id="hero-title" class="landing-role-hero max-w-[680px] tracking-tight">
                     {{ __('landing.hero.heading') }}
                 </flux:heading>
-                <flux:text size="lg" class="landing-role-body landing-ink-muted max-w-[680px] text-[#C4C4C4]">
+                <flux:text size="lg" class="app-role-body landing-ink-muted max-w-[680px] text-[#C4C4C4]">
                     {{ __('landing.hero.description') }}
                 </flux:text>
-                <flux:button variant="primary" href="{{ route('register') }}" class="landing-button landing-role-action landing-button-primary rounded-full transition-transform duration-300 hover:-translate-y-[3px] active:scale-[.98]">
+                <flux:button variant="primary" href="{{ route('register') }}" class="landing-button app-role-action app-primary-colors app-focus landing-button-primary rounded-full transition-transform duration-300 hover:-translate-y-[3px] active:scale-[.98]">
                     {{ __('landing.actions.create_account') }}
                 </flux:button>
 
-                <flux:text class="landing-role-support landing-ink-secondary">
+                <flux:text class="app-role-support landing-role-support landing-ink-secondary">
                     {{ __('landing.hero.sign_in_prompt') }} <flux:link href="{{ route('login') }}" :accent="false" class="landing-link landing-link-inline hover:text-[#D8CEF5]">
                         {{ __('landing.hero.sign_in_link') }}
                     </flux:link>
@@ -264,7 +264,7 @@
             <div class="grid gap-3">
                 @foreach (__('landing.faq.items') as $item)
                     <details class="landing-surface-neutral rounded-2xl p-6">
-                        <summary class="cursor-pointer rounded-sm font-semibold transition-colors duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-[#D8CEF5] focus-visible:text-[#D8CEF5]">
+                        <summary class="app-focus cursor-pointer rounded-sm font-semibold transition-colors duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-[#D8CEF5] focus-visible:text-[#D8CEF5]">
                             <span>
                                 {{ $item['question'] }}
                             </span>
@@ -286,7 +286,7 @@
             <flux:text size="lg" class="mt-4">
                 {{ __('landing.business_cta.description') }}
             </flux:text>
-            <flux:button variant="primary" href="{{ route('register') }}" class="landing-button landing-role-action landing-cta-button mt-6 rounded-full text-white transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#303030] active:scale-[.98]">
+            <flux:button variant="primary" href="{{ route('register') }}" class="landing-button app-role-action app-focus landing-cta-button mt-6 rounded-full text-white transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#303030] active:scale-[.98]">
                 {{ __('landing.actions.create_account') }}
             </flux:button>
         </section>

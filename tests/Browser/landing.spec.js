@@ -856,9 +856,7 @@ test("shared palette and matching exterior gaps preserve public geometry", async
     await expect(page.locator("body")).toHaveCSS("background-color", "rgb(36, 36, 36)");
 });
 
-test("active auth panels retain unmigrated shared backgrounds and accent despite saved appearance", async ({
-    browser,
-}) => {
+test("active auth panels consume approved roles despite saved appearance", async ({ browser }) => {
     for (const appearance of [null, "light", "system"]) {
         const context = await browser.newContext({
             viewport: { width: 375, height: 900 },
@@ -902,8 +900,8 @@ test("active auth panels retain unmigrated shared backgrounds and accent despite
             });
             console.log("auth-backgrounds", appearance, route, JSON.stringify(colors));
             expect.soft(colors.canvas).toBe("rgb(36, 36, 36)");
-            expect.soft(colors.panel).toBe("rgb(49, 49, 49)");
-            expect.soft(colors.accent).toBe("rgb(183, 171, 228)");
+            expect.soft(colors.panel).toBe("rgb(46, 46, 46)");
+            expect.soft(colors.accent).toBe("rgb(167, 123, 255)");
             expect(colors.contrast).toBeGreaterThanOrEqual(4.5);
             await expect(page.locator("html")).toHaveClass(/\bdark\b/);
             const input = page.locator('input[name="email"]');
@@ -915,9 +913,7 @@ test("active auth panels retain unmigrated shared backgrounds and accent despite
     }
 });
 
-test("global application palette edits propagate to public roles without migrating auth", async ({
-    page,
-}) => {
+test("global application palette edits propagate to public and auth roles", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await page.mouse.move(0, 0);
@@ -985,11 +981,11 @@ test("global application palette edits propagate to public roles without migrati
         await applyOverrides();
         try {
             const panel = page.locator("div.rounded-2xl").filter({ has: page.locator("form") });
-            await expect(page.locator("body")).toHaveCSS("background-color", "rgb(36, 36, 36)");
-            await expect(panel).toHaveCSS("background-color", "rgb(49, 49, 49)");
+            await expect(page.locator("body")).toHaveCSS("background-color", "rgb(32, 40, 48)");
+            await expect(panel).toHaveCSS("background-color", "rgb(52, 64, 76)");
             await expect(panel.locator('button[type="submit"]')).toHaveCSS(
                 "background-color",
-                "rgb(183, 171, 228)",
+                "rgb(192, 144, 240)",
             );
         } finally {
             await resetOverrides();
