@@ -13,7 +13,9 @@ it('allows a verified owner to create only before a business exists', function (
     $this->actingAs($user);
 
     expect(Gate::allows('create', Business::class))->toBeTrue();
+
     Business::factory()->for($user)->create();
+
     expect(Gate::allows('create', Business::class))->toBeFalse();
 });
 
@@ -44,9 +46,14 @@ it('denies direct Livewire save by an unverified owner even with valid fields', 
 it('authorizes direct save against the current session and current ownership', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
-    $form = Livewire::test('pages::business.profile')->set('name', 'Primer negocio')->set('timezone', 'UTC');
+
+    $form = Livewire::test('pages::business.profile')
+        ->set('name', 'Primer negocio')
+        ->set('timezone', 'UTC');
+
     Business::factory()->for($user)->create(['name' => 'Actual']);
 
     $form->call('save')->assertRedirect(route('dashboard'));
+
     expect($user->business()->firstOrFail()->name)->toBe('Primer negocio');
 });

@@ -28,9 +28,9 @@ it('creates the sole business for the verified session owner', function () {
 });
 
 it('edits the current owners existing business without creating another', function () {
-    $mine = Business::factory()->create();
-    $other = Business::factory()->create(['name' => 'Intocable', 'timezone' => 'UTC']);
-    $this->actingAs($mine->user);
+    $ownedBusiness = Business::factory()->create();
+    $foreignBusiness = Business::factory()->create(['name' => 'Intocable', 'timezone' => 'UTC']);
+    $this->actingAs($ownedBusiness->user);
 
     Livewire::test('pages::business.profile')
         ->set('name', 'Nuevo nombre')
@@ -38,11 +38,13 @@ it('edits the current owners existing business without creating another', functi
         ->call('save')
         ->assertRedirect(route('dashboard'));
 
-    expect($mine->fresh()->name)->toBe('Nuevo nombre')
-        ->and($mine->fresh()->timezone)->toBe('Europe/Madrid')
-        ->and($other->fresh()->name)->toBe('Intocable')
-        ->and($other->fresh()->timezone)->toBe('UTC')
-        ->and(Business::count())->toBe(2);
+    expect($ownedBusiness->fresh()->name)->toBe('Nuevo nombre')
+        ->and($ownedBusiness->fresh()->timezone)->toBe('Europe/Madrid');
+
+    expect($foreignBusiness->fresh()->name)->toBe('Intocable')
+        ->and($foreignBusiness->fresh()->timezone)->toBe('UTC');
+
+    expect(Business::count())->toBe(2);
 });
 
 it('rejects invalid names and non IANA timezones without saving', function ($name, $timezone, $field) {
