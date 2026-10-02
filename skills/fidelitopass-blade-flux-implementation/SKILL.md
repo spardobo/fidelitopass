@@ -23,8 +23,8 @@ Use for project presentation and mixed Livewire markup; exclude server policy, s
 
 | Situation | Action |
 | --- | --- |
-| Mixed component | Consult the [PHP owner](../fidelitopass-laravel-implementation/SKILL.md) for server code. |
-| Interaction needed | Prefer Livewire, then Alpine for local transient state; justify bespoke JavaScript. |
+| Mixed component | Consult the [PHP owner](../fidelitopass-laravel-livewire-implementation/SKILL.md) for server code. |
+| Client behavior affected | Load the [JavaScript skill](../fidelitopass-javascript-alpine-implementation/SKILL.md); prefer Livewire, then transient Alpine before bespoke behavior. |
 | Missing source or conflicting intent | Stop before editing; report the exact gap. |
 
 ## Execution Steps
@@ -39,5 +39,8 @@ Report paths, consulted sections/API evidence, checks, fallback/readability deci
 
 ## References
 
-- [Shared quality](../fidelitopass-laravel-implementation/references/code-quality.md).
+- [Shared quality](../shared/code-quality.md).
 - [Presentation implementation](references/implementation-details.md).
+
+- [Readable markup examples](references/readability-examples.md) — optional paragraph/text/attribute calibration; preserve whitespace and rendered contracts.
+- [Existing project integration](references/project-integration.md) — load only for shared palette/assets or landing fit changes; verify source locations.

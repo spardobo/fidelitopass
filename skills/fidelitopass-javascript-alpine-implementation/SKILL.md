@@ -1,5 +1,5 @@
 ---
-name: fidelitopass-javascript-implementation
+name: fidelitopass-javascript-alpine-implementation
 description: "Trigger: FidelitoPass JavaScript, Alpine, component-local browser behavior or JS tests/scripts. Apply native behavior, readable source and resource ownership."
 license: Apache-2.0
 metadata:
@@ -22,7 +22,7 @@ Use for project JavaScript/Alpine, browser behavior and JS tests/scripts; exclud
 
 | Situation | Action |
 | --- | --- |
-| Mixed component | Consult linked PHP and Blade owners. |
+| Mixed component | Load the [PHP skill](../fidelitopass-laravel-livewire-implementation/SKILL.md) for affected server logic and [Blade/Flux skill](../fidelitopass-blade-flux-implementation/SKILL.md) for affected markup. |
 | Custom behavior | Establish the native gap and actual DOM/lifetime contract. |
 | Missing source or conflicting intent | Stop before editing; report the exact gap. |
 
@@ -38,5 +38,7 @@ Report paths, owners/API evidence, checks, resource/readability decisions and ri
 
 ## References
 
-- [Shared quality](../fidelitopass-laravel-implementation/references/code-quality.md).
+- [Shared quality](../shared/code-quality.md).
 - [JavaScript implementation](references/implementation-details.md).
+
+- [Readable JavaScript examples](references/readability-examples.md) — optional names/paragraph/resource calibration; no mandatory controller or request framework.

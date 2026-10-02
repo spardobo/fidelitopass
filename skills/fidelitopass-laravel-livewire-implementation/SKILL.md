@@ -1,5 +1,5 @@
 ---
-name: fidelitopass-laravel-implementation
+name: fidelitopass-laravel-livewire-implementation
 description: "Trigger: FidelitoPass Laravel, PHP, Livewire, Eloquent, Actions or Jobs implementation. Apply PHP conventions and route domain decisions to their owners."
 license: Apache-2.0
 metadata:
@@ -13,18 +13,18 @@ Use for project Laravel/Livewire/PHP changes, including mixed components; exclud
 
 ## Hard Rules
 
-- Apply both references below; assess readability independently of tests.
+- Apply the shared quality and PHP implementation references; assess readability independently of tests.
 - Prefer conventional Laravel/Eloquent, concrete injection and cohesive native Livewire components; preserve stable starter formats and server authority.
 - Keep domain, data, security, time and presentation policy with document owners.
-- Require useful IDE class and every-public-method PHPDoc on services/Actions/Jobs/repository-like classes, even when typed; avoid artificial classes and tautological tags.
+- Document reusable public/domain boundaries and non-obvious contracts for IDE use. Prefer names, types and structure over narration; preserve useful generics, shapes, errors and side-effect guarantees.
 
 ## Decision Gates
 
 | Situation | Action |
 | --- | --- |
 | Consequential command | Use one focused Action for its complete boundary; keep routine edits direct. |
-| Abstraction | Apply shared interface/complexity gates. |
-| Mixed component | Own PHP here; consult affected presentation/client owners through project routing. |
+| Abstraction | Apply architecture's pragmatic design principles and the shared efficiency gate. |
+| Mixed component | Own PHP here; load the [Blade/Flux skill](../fidelitopass-blade-flux-implementation/SKILL.md) and/or [JavaScript skill](../fidelitopass-javascript-alpine-implementation/SKILL.md) when those responsibilities are affected. |
 | Missing source or unresolved intent | Stop before editing; report the exact conflict. |
 
 ## Execution Steps
@@ -39,5 +39,8 @@ Report paths, consulted owner sections/API evidence, observed checks, material d
 
 ## References
 
-- [Shared code quality](references/code-quality.md) — reusable cross-language gates.
+- [Shared code quality](../shared/code-quality.md) — reusable cross-language gates.
 - [PHP implementation](references/implementation-details.md) — PHP/Livewire conventions and targeted owners.
+
+- [Project recipes](references/project-recipes.md) — read only the relevant implementation example for data, authoritative operations, Wallet or credential retirement; inspect current source first.
+- [Readable PHP example](references/readability-examples.md) — optional calibration for names, paragraphs and useful contracts, not a class template.

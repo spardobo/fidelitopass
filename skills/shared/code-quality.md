@@ -6,18 +6,12 @@ Apply this shared, reusable cross-language contract to affected PHP, Blade and J
 
 - Make responsibilities discoverable through descriptive names, cohesive regions and whitespace. Keep technical identifiers and documentation in English; use translated professional, neutral Spanish for visible UI copy, including accessibility text.
 - Expose inputs, decisions, data flow and side effects as a top-to-bottom narrative. Make actual resource setup, ownership and cleanup order visible.
-- Keep methods and handlers cohesive; split by responsibility, not line counts. Prefer early returns when they clarify branches. Avoid dense expressions, callback tangles, generic wrappers and arbitrary helper fragmentation.
+- Use one blank line between logical paragraphs, keeping steps of one idea together. Keep methods and handlers cohesive; split by responsibility, not line counts. Prefer early returns when they clarify branches. Avoid dense expressions, callback tangles, generic wrappers and arbitrary helper fragmentation.
 - Assess the human reading path independently of tests and formatting. Require every abstraction, heading and extraction to reduce reading effort; passing behavior tests does not certify readability.
 
-## Pragmatic design gates
+## Design authority
 
-- Apply KISS: choose the simplest correct conventional solution, not the shortest source or fewest functions. Keep a multi-step operation together when it has one responsibility.
-- Apply YAGNI: implement current requirements, not hypothetical providers, rule engines, base classes or extension points. Do not excuse missing security, applicable tests or readable source as future work.
-- Apply DRY to shared knowledge that must change together, not merely similar-looking lines. Prefer local duplication over an abstraction with unrelated branches or flags.
-- Apply SRP to cohesive reasons to change; do not split one operation into competing boundary owners. Apply OCP only to real variation. Preserve caller contracts, preconditions, results, exceptions and side effects under LSP. Under ISP, expose only the contract a consumer needs. Under DIP, isolate external details only at a demonstrated boundary.
-- Default to concrete dependency injection and framework resolution. Add an interface only for current interchangeable implementations or meaningful external/testing isolation that concrete injection and framework-native fakes cannot reasonably provide. State what needs isolation and why existing tools are insufficient. Mock convenience, slogans and future replacement alone do not qualify.
-- When an interface qualifies, keep its consumer contract focused and verify substitutions. Do not add unused implementations, artificial repositories or a layer per collaborator.
-- Keep abstraction, control-flow complexity, state and side effects proportionate to the actual responsibility. Avoid empty scaffolding and speculative defensive machinery.
+Apply [architecture's design principles](../../docs/architecture/overview.md#pragmatic-design-principles). This reference owns source readability and editorial conventions, not an independent architecture policy.
 
 ## Framework-first gate
 
@@ -40,6 +34,12 @@ Use names, types and structure first; distinguish these purposes instead of subs
 | API/function contract | Explain public use or information not expressed by signatures; apply the language owner's documentation scope. |
 | Internal rationale | Explain a non-obvious constraint, required order, edge condition or units near the affected step. |
 
-For useful major PHP/JavaScript responsibility groups, use a three-line `//` box with matching dashed separator lines around a short lowercase English label, indented with surrounding code. Do not box each helper, one isolated function or an empty decorative section. Small configuration groups may use a plain lowercase comment. Do not impose fixed labels, separator widths, helper counts or universal templates.
+For useful major PHP/JavaScript responsibility groups outside function, method, closure and callback bodies, use a three-line `//` box with matching dashed separator lines around a short lowercase English label, indented with surrounding code. Leave one blank line before and after the box. Inside bodies, use logical paragraphs and only necessary rationale comments. Keep each docblock immediately attached to its declaration, with declaration attributes permitted in PHP; never put a box between them. Do not box each helper, one isolated function or an empty decorative section. Small configuration groups may use a plain lowercase comment. Do not impose fixed labels, separator widths, helper counts or universal templates.
 
 Use lowercase English semantic region comments in Blade only where they locate useful content/action regions, not every element. Keep explanations out of headings and place contracts in docblocks. Preserve meaningful existing contracts; avoid narration per operation and comments that restate code. Do not use source assertions for comment wording, boxes or placement as behavioral evidence.
+
+## Scoped review
+
+Keep changed behavior distinguishable from a readability refactor. Preserve existing public contracts, exceptions, permission checks, ordering and lifecycle effects. Review the complete changed reading path after formatting: names identify intent, related steps stay together, important effects are visible, and any extraction reduces the context needed to understand the caller.
+
+Treat length, nesting and repeated syntax as review signals, not automatic limits. Do not add helpers, comments, defensive guards, layers or tests merely to satisfy a visual template. Useful type annotations and real framework contracts take precedence over editorial preferences.

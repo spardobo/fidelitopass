@@ -32,7 +32,9 @@ Technical documents use controlled English inspired by ASD-STE100. The project d
 
 ## Knowledge ownership
 
-Each knowledge domain has one primary home. Use [Documentation routing](../AGENTS.md#documentation-routing) to select that owner; do not maintain parallel routing tables. The [documentation index](README.md) explains the design order and owner roles.
+Each knowledge domain has one primary home. A summary in a dependent document is not another authority: requirements make domain rules testable, presentation applies them, and acceptance evidence does not redefine them. Documents own product/domain meaning, observable outcomes, architecture, security, data, presentation contracts and quality/delivery policy. Architecture owns the contextual application of principles, patterns and boundaries. Implementation skills own coding HOW: framework recipes, source readability, formatting, comments, API documentation and client lifecycle handling. Their shared code-quality reference is the sole cross-language convention owner.
+
+Use [Documentation routing](../AGENTS.md#documentation-routing) for document owners and [Intent routing](../AGENTS.md#intent-routing) for matching skills; do not maintain parallel routing tables.
 
 Navigation, documentation standards and agent contracts index domain owners without defining their rules. ADRs retain accepted decision authority, rationale and consequences; domain documents apply that decision in their own scope.
 
@@ -47,17 +49,17 @@ Concept
  -> Requirements
  -> UX / Wallet contract
  -> Architecture / Security
- -> Implementation standards
+ -> Application contracts / Implementation skills
  -> Quality / Delivery
 ```
 
-Architecture responds to agreed product behaviour. It does not invent product requirements to justify a preferred technical pattern. The concept document originates domain meaning without outbound links. Later documents specialize earlier knowledge instead of copying independent definitions. Earlier substantive documents must remain applicable without depending on later specializations. ADR links for related decisions and supersession are exempt from this dependency rule. Navigation and meta documents may index every domain. Links do not transfer ownership or require automatic traversal.
+Architecture responds to agreed product behaviour. It does not invent product requirements to justify a preferred technical pattern. The concept document originates domain meaning without outbound links. Later documents specialize earlier knowledge instead of copying independent definitions. Earlier substantive documents must remain applicable without depending on later specializations. ADR links for related decisions and supersession are exempt from this dependency rule. Place this standard before substantive documents and the index after them. Meta status does not exempt references from the dependency order; an ADR may require reconciliation of earlier owners. Links do not transfer ownership or require automatic traversal.
 
 ### New-project sequence
 
 1. Define the concept and vocabulary, then the scope and applicable domain semantics.
 2. State observable requirements, then the needed UX and presentation contracts.
-3. Define architecture and security, then implementation conventions and verification/delivery rules.
+3. Define architecture, security and data/application contracts, then coding conventions in skills and verification/delivery policy in their documents.
 4. Add ADRs for qualifying decisions, describe owner roles in the documentation index, and maintain the sole intent-to-document route table in the project contract.
 
 Create only documents needed by agreed knowledge; this sequence is not a mandatory file scaffold.
@@ -86,7 +88,7 @@ Version control owns historical delivery context.
 
 ## Requirement format
 
-Start `requirements.md` with:
+Start the requirements owner with:
 
 - Total count.
 - MoSCoW distribution.
@@ -139,14 +141,15 @@ Do not copy large source excerpts.
 
 ## Lean maintenance
 
-Update only the document whose knowledge changed. An incidental code refactor does not require a documentation change when the owned contract remains unchanged.
+Update only the owner whose knowledge changed: a document for outcomes/contracts, or a skill/reference for coding HOW. An incidental code refactor does not require a policy-document change when its contract remains unchanged. Move a convention rather than copy it into both homes; update consumers instead of keeping deprecated heading stubs.
 
 Examples:
 
-- Promotion-owned x2/x3/x5 point rule change -> `promotion-model.md` + affected requirement/presentation.
+- Promotion-owned x2/x3/x5 point rule change -> Promotion owner + affected acceptance/presentation.
 - Time model change -> conceptual/database/ADR + affected tests.
 - New page interaction -> UX + affected requirement.
-- New framework convention -> application standard.
+- New framework or readable-code convention -> matching implementation skill/reference; shared editorial guidance -> shared code-quality reference; architectural principles -> architecture.
+- Changed provider timing or application integrity guarantee -> application/architecture contract.
 - Changed test depth -> quality strategy.
 
 Do not update every document for every feature.
@@ -157,7 +160,9 @@ Before accepting documentation changes:
 
 - Verify document language.
 - Verify requirement IDs/register/detail.
-- Verify internal relative links.
+- Verify internal relative links and heading targets.
+- Verify references, including plain path mentions, point backward in the design sequence except ADR references.
+- Keep source snippets, schema catalogs and API recipes in source or implementation references; preserve their underlying contract here.
 - Search for obsolete product names.
 - Search for external attribution that does not belong.
 - Verify Mermaid syntax where used.

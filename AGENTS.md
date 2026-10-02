@@ -19,15 +19,17 @@ Do not substitute host PHP, Composer, Artisan or npm when Sail is unavailable; r
 
 ## Intent routing
 
-Check only the skill matching the request. Paths below are exact repository-relative paths, not a global skill inventory.
+Load the implementation skills matching the affected responsibilities. Mixed Livewire work may require PHP, Blade and JavaScript owners together; presentation-only or client-only work does not automatically load the PHP skill. Paths below are exact repository-relative paths, not a global skill inventory.
 
 | User intent | Skill to check |
 | --- | --- |
-| Implement project Laravel, PHP, Livewire, database, Wallet or UI behaviour | `skills/fidelitopass-laravel-implementation/SKILL.md` |
+| Implement Laravel/PHP, Livewire server logic, Eloquent, Actions, Jobs, database access or Wallet integration | `skills/fidelitopass-laravel-livewire-implementation/SKILL.md` |
+| Implement Blade/Flux/Tailwind views, layouts, forms or presentation markup | `skills/fidelitopass-blade-flux-implementation/SKILL.md` |
+| Implement JavaScript/Alpine, component-local browser behavior or JS tests/scripts | `skills/fidelitopass-javascript-alpine-implementation/SKILL.md` |
 | Integrate a page, layout or navigation into the Livewire starter | `skills/laravel-livewire-starter-integration/SKILL.md` |
 | Select or scope delivery work, change board state, or establish completion | `skills/fidelitopass-delivery-planning/SKILL.md` |
 
-Skills route decisions without becoming independent domain specifications. Select documentation through the routing table below; `docs/README.md` explains the design order and each owner's role.
+Implementation skills own coding HOW; architecture owns design principles and their shared code-quality reference owns cross-language readability conventions. They do not redefine product or risk policy. Select outcome/contract documents through the routing table below; `docs/README.md` explains the design order and each owner's role.
 
 ## Documentation routing
 
@@ -44,7 +46,7 @@ Paths below are repository-relative. Before implementation, select and read the 
 | Change system boundaries or integration ownership | relevant section of `docs/architecture/overview.md` |
 | Change authentication, authorization, tokens, rate limits, or security logging | relevant section of `docs/architecture/security.md` |
 | Add or alter persistent data | relevant section of `docs/development/database-standard.md` |
-| Implement Laravel, Livewire, Actions, jobs, or integrations | relevant section of `docs/development/laravel-application-standard.md` |
+| Confirm application integrity, provider effects, operational logging or retired credential persistence | relevant section of `docs/development/laravel-application-standard.md` |
 | Decide what verification is sufficient | relevant section of `docs/quality-strategy.md` |
 | Select or load delivery work | relevant section of `docs/delivery-plan.md` |
 | Interpret the project delivery flow | relevant section of `docs/development/workflow.md` |
@@ -59,14 +61,14 @@ This table routes knowledge; it does not redefine domain rules or require readin
 - Owner-approved requirements and the relevant domain/presentation owners define intended behaviour. Accepted ADRs retain decision authority. Source, migrations, installed dependencies and observed checks establish what is implemented and which APIs exist; neither plans nor documentation prove rollout.
 - Global domain and visual rules apply to new scoped work; they do not expand the authorized rollout or establish application-wide compliance. Preserve unrelated screens and historical evidence.
 - Reconcile apparent contradictions against the relevant owner and current evidence. Correct a clear scoped implementation mismatch without inventing a product decision. If intent is genuinely unresolved or reconciliation needs an unauthorized policy change, stop and ask with the exact conflict. Never rewrite policy to justify incidental code.
-- Treat readable source as a separate acceptance concern from passing behaviour tests. Apply the relevant source-style, PHPDoc/comment and component-local JavaScript sections of `docs/development/laravel-application-standard.md`, routed by the implementation skill. Preserve lowercase English internal comments, useful three-line JavaScript responsibility groups, Livewire listeners last, owned lifecycle cleanup and server authority; avoid empty sections or reports per helper.
-- Keep technical artifacts in English and visible UI copy in translated professional Spanish. Documentation changes follow their owner's standard rather than narrating implementation sessions.
+- Apply the matching implementation skills and their shared [code-quality contract](skills/shared/code-quality.md#readability-and-cohesion) for readable-code conventions and acceptance independently of behavior tests. Consult the affected language reference for formatting, API documentation and lifecycle HOW; do not maintain parallel rules here.
+- Documentation changes follow `docs/documentation-standard.md`; product and presentation owners retain visible-copy requirements.
 
 ## Delegated context and evidence
 
-The parent selects applicable owner documents and sections from the request and the routing table, including multiple sources when needed. It passes those selections alongside exact skill paths under `## Skills to load before work`, scope, exclusions and acceptance criteria.
+The parent selects matching implementation skills and necessary outcome/contract owner sections from the request and the routing tables, including multiple responsibilities when needed. It passes those selections alongside exact skill paths under `## Skills to load before work`, scope, exclusions and acceptance criteria.
 
-Workers read every injected skill before work and actually consult the selected documentation sections before implementation; reading skills alone is not sufficient. Identify the governing constraints and any unresolved conflicts before the affected edit. If a necessary source is missing or unreadable, or material intent remains unresolved, stop before that edit and report the required source or exact conflict rather than guessing. A worker may identify another necessary owner from the table or consulted sections; report the additional load needed without automatically traversing all references or widening product or edit scope. Do not ask the owner to repeat resolved decisions.
+Workers read every injected skill and its required references before work, then actually consult the selected document owner sections before implementation; reading skills alone is not sufficient. Identify the governing constraints and any unresolved conflicts before the affected edit. If a necessary source is missing or unreadable, or material intent remains unresolved, stop before that edit and report the required source or exact conflict rather than guessing. A worker may identify another necessary owner from the table or consulted sections; report the additional load needed without automatically traversing all references or widening product or edit scope. Do not ask the owner to repeat resolved decisions.
 
 Return concise actual paths/headings, relevant constraints, output, observed checks and unresolved limits, with actual `skill_resolution`; do not quote full documents or produce a report per file/helper. These obligations apply to inline and delegated implementation without adding a separate ceremony to every tiny edit, and remain applicable regardless of harness initialization.
 
@@ -81,3 +83,5 @@ git diff --check
 ```
 
 The documentation validator covers root README, docs and skills, not this file or Markdown anchors. Manually verify all paths and heading targets in this file and changed skills, including local references resolved relative to each skill. Report failed, skipped and pending checks separately from verified results.
+
+For implementation, make one final human-reading pass after formatting: inspect names, logical paragraphs, visible effects and cohesion. Useful examples are optional calibration, not required templates. Report material choices and actual checks without a per-helper documentation ceremony.
