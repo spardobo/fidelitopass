@@ -13,9 +13,15 @@ class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const RETIRED_TWO_FACTOR_COLUMNS = [
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
+    ];
+
     public function test_users_table_cannot_store_two_factor_credentials(): void
     {
-        foreach (['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at'] as $column) {
+        foreach (self::RETIRED_TWO_FACTOR_COLUMNS as $column) {
             $this->assertFalse(Schema::hasColumn('users', $column), "Unexpected users column: {$column}");
         }
     }
@@ -27,7 +33,7 @@ class AuthenticationTest extends TestCase
         $migration->up();
         $migration->down();
 
-        foreach (['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at'] as $column) {
+        foreach (self::RETIRED_TWO_FACTOR_COLUMNS as $column) {
             $this->assertFalse(Schema::hasColumn('users', $column), "Unexpected users column after rollback: {$column}");
         }
     }
@@ -42,7 +48,7 @@ class AuthenticationTest extends TestCase
         $migration->up();
         $migration->down();
 
-        foreach (['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at'] as $column) {
+        foreach (self::RETIRED_TWO_FACTOR_COLUMNS as $column) {
             $this->assertFalse(Schema::hasColumn('users', $column), "Unexpected users column after rollback: {$column}");
         }
     }
@@ -86,7 +92,18 @@ class AuthenticationTest extends TestCase
 
     public function test_disabled_two_factor_passkey_and_discovery_routes_are_unavailable(): void
     {
-        foreach (['two-factor.login', 'two-factor.enable', 'passkey.login-options', 'passkey.login', 'passkey.confirm-options', 'passkey.confirm', 'passkey.registration-options', 'passkey.store', 'passkey.destroy', 'well-known.passkeys'] as $name) {
+        foreach ([
+            'two-factor.login',
+            'two-factor.enable',
+            'passkey.login-options',
+            'passkey.login',
+            'passkey.confirm-options',
+            'passkey.confirm',
+            'passkey.registration-options',
+            'passkey.store',
+            'passkey.destroy',
+            'well-known.passkeys',
+        ] as $name) {
             $this->assertFalse(Route::has($name), "Unexpected route: {$name}");
         }
 
