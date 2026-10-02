@@ -1,8 +1,8 @@
 # Browser journeys
 
-Add Playwright specifications here only when an owned, complete user journey exists. The initial harness intentionally contains no placeholder product test.
+Playwright specifications cover the public landing and business onboarding journeys. Add specifications here only when an owned, complete user journey exists.
 
-After the first product specification exists, run the suite through the pinned browser container:
+Run the suite through the pinned browser container:
 
 ```bash
 ./scripts/quality/browser/run-playwright.sh test:e2e

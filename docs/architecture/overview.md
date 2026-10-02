@@ -11,6 +11,18 @@ uses one points-based rule, so no strategy hierarchy is required in MVP.
 
 Do not introduce microservices, generic repositories, CQRS, event sourcing, or a generic rules engine in MVP.
 
+## Pragmatic design principles
+
+- Apply KISS: choose the simplest correct conventional solution, not the shortest source or fewest functions. Keep a multi-step operation together when it has one responsibility.
+- Apply YAGNI: implement current requirements, not hypothetical providers, rule engines, base classes or extension points. Do not excuse missing security, applicable tests or readable source as future work.
+- Apply DRY to shared knowledge that must change together, not merely similar-looking lines. Prefer local duplication over an abstraction with unrelated branches or flags.
+- Apply SRP to cohesive reasons to change; do not split one operation into competing boundary owners. Apply OCP only to real variation. Preserve caller contracts, preconditions, results, exceptions and side effects under LSP. Under ISP, expose only the contract a consumer needs. Under DIP, isolate external details only at a demonstrated boundary.
+- Default to concrete dependency injection and framework resolution. Add an interface only for current interchangeable implementations or meaningful external/testing isolation that concrete injection and framework-native fakes cannot reasonably provide. State what needs isolation and why existing tools are insufficient. Mock convenience, slogans and future replacement alone do not qualify.
+- When an interface qualifies, keep its consumer contract focused and verify substitutions. Do not add unused implementations, artificial repositories or a layer per collaborator.
+- Keep abstraction, control-flow complexity, state and side effects proportionate to the actual responsibility. Avoid empty scaffolding and speculative defensive machinery.
+
+Formal Clean/hexagonal architecture is not a project-wide default. Use it only at a demonstrated boundary where isolation or real variation justifies the added indirection. These principles guide judgment; they do not prescribe a number of classes, helpers, methods or lines.
+
 ## Technology baseline
 
 | Concern                | Technology                                    |
@@ -73,21 +85,11 @@ flowchart TB
 ```
 
 A separate Redemption table is not required in MVP. Redemption finality is represented by
-`reward_entitlements.redeemed_at` and `redeemed_by_user_id`.
+the entitlement's final redemption instant and confirming owner.
 
 ## Command boundaries
 
 Use a focused Action when an operation owns a consequential transaction or external effect.
-
-Expected Actions:
-
-```text
-PublishPromotionAction
-CancelPromotionAction
-IssueCustomerPassAction
-ValidateVisitAction
-RedeemRewardAction
-```
 
 Routine profile edits and ordinary reads remain conventional Eloquent/Livewire behaviour.
 
@@ -117,10 +119,10 @@ There is no Promotion strategy hierarchy, dynamic rule engine, condition tree, o
 - Application timezone stays UTC.
 - PostgreSQL session/default timezone stays UTC.
 - Rule-relevant instants use `timestamptz`.
-- Mutating operations set `visited_at`, `redeemed_at`, and related domain/audit-event timestamps from one post-lock
-  PostgreSQL `clock_timestamp()` value named `operation_at`.
-- Field `starts_at` is inclusive.
-- Field `ends_at` is exclusive.
+- Mutating operations set the Visit instant, the redemption instant, and related domain/audit-event timestamps from one current post-lock
+  PostgreSQL wall-clock instant.
+- The start instant is inclusive.
+- The end instant is exclusive.
 
 ### Business calendar
 
@@ -131,10 +133,11 @@ Business timezone changes after draft review, require refreshed review and recon
 silently reinterpret the dates. When a Promotion is published:
 
 1. Copy the confirmed Business timezone to the Promotion timezone snapshot.
-2. Convert the local start date at `00:00` to `starts_at`.
-3. Convert the local day after the selected end date at `00:00` to exclusive `ends_at`.
-4. Freeze the entire published aggregate, including original local dates and UTC window, goal, Reward title and optional
-   description, timezone and all multiplier windows (weekdays, times and values), even if scheduled.
+2. Convert the local start date at `00:00` to the inclusive start instant.
+3. Convert the local day after the selected end date at `00:00` to the exclusive end instant.
+4. Freeze the entire published aggregate, including the UTC window and timezone snapshot representing the original
+   local-date terms, goal, Reward title and optional description, and all multiplier windows (weekdays, times and values),
+   even if scheduled.
 
 Drafts remain editable. Cancellation is a separate transition; neither it nor later Business settings rewrite the
 published snapshot.
@@ -142,78 +145,48 @@ published snapshot.
 ### Local calendar and occupancy
 
 Use PostgreSQL conversion when Business-local calendar meaning matters. For a Visit, derive the local weekday and time
-from the single post-lock `operation_at` and the published Promotion timezone snapshot (not a stored local-date Visit
-field):
-
-```sql
-operation_at
-AT TIME ZONE promotion_timezone
-```
+from the single post-lock operation instant and the published Promotion timezone snapshot (not a stored local-date Visit
+field).
 
 Use that local weekday and time to select at most one frozen half-open multiplier window. Published Promotions occupy
-`[starts_at, ends_at)`; cancellation truncates effective occupancy at `cancelled_at`, leaving an empty interval if
+the original inclusive-start/exclusive-end interval; cancellation truncates effective occupancy at the cancellation instant, leaving an empty interval if
 cancelled before start. Publication and cancellation serialize on the Business row lock and recompute occupancy after
 locking. Reject intersecting effective intervals, allow touching endpoints, and keep at most one effectively active
 Promotion. After intraday cancellation, a date-only replacement cannot start before the next Business-local midnight;
 original publication instants remain unchanged.
 
-For read-only scheduled/active/ended phase queries, use an explicitly current PostgreSQL wall-clock instant:
+For read-only scheduled/active/ended phase queries, use an explicitly current PostgreSQL wall-clock instant.
 
-```sql
-clock_timestamp
-()
-```
-
-For mutating decisions, acquire the relevant row locks first, capture `clock_timestamp()` exactly once as
-`operation_at`, and reuse it for every deadline check, occupancy decision, Business-local calculation and related
-domain/audit timestamps. Do not use transaction-start `CURRENT_TIMESTAMP` for lock-sensitive validity: a lock wait can
+For mutating decisions, acquire the relevant row locks first, capture one current database wall-clock instant, and reuse it for every deadline check, occupancy decision, Business-local calculation and related
+domain/audit timestamps. Do not use a transaction-start timestamp for lock-sensitive validity: a lock wait can
 make it stale.
 
 ## Visit validation transaction
 
-`ValidateVisitAction` owns the complete authoritative operation.
+One focused Visit-validation command owns the complete authoritative operation.
 
-Conceptual flow:
-
-```text
-begin transaction
-  resolve authenticated Business
-  lock relevant Customer pass and Promotion rows
-  capture clock_timestamp() exactly once as operation_at
-  validate pass belongs to Business
-  check published Promotion is active and not cancelled using operation_at
-  resolve one frozen Promotion-owned multiplier using operation_at in its timezone
-  enforce idempotency for the validation operation
-  insert Visit with visited_at = operation_at and points_awarded
-  sum awarded points for the active Promotion
-  create Reward entitlement if target points are reached
-commit
-dispatch Wallet synchronization after commit
-```
+For a new mutation, authorization, eligibility, the domain fact and its related state changes commit atomically. Provider synchronization follows commit.
 
 The public acquisition QR identifies a join page, never a validation credential. The Wallet barcode contains a private
 high-entropy validation token; a short Business-scoped manual code is a lookup fallback, not equivalent authority. Both
 paths identify without mutation in the same scanner-first dialog; the authenticated owner explicitly confirms, then
 server-side ownership and validity are rechecked in the transaction. Locking the Customer pass serializes concurrent
 state changes for that pass. Legitimate repeat Visits on the same day are allowed; idempotency prevents technical
-retries from duplicating one validation operation.
+retries from duplicating one validation operation. An authorized replay returns the committed result even if the
+Promotion has since ended or been cancelled; current mutation eligibility cannot retroactively veto that result.
+Replay still requires ownership, valid credentials or the authorized manual fallback, and matching operation identity.
+An invalid or retired validation token never gains authority from an idempotency key. A replay creates no new Visit,
+points or entitlement; database uniqueness remains the barrier against new duplicates.
 
 ## Redemption transaction
 
-`RedeemRewardAction`:
+One focused redemption command owns the complete authoritative operation.
 
-```text
-begin transaction
-  resolve authenticated Business
-  lock relevant entitlement and Promotion rows
-  capture clock_timestamp() exactly once as operation_at
-  validate Promotion active and not cancelled using operation_at
-  validate not redeemed
-  set redeemed_at = operation_at
-  set redeemed_by_user_id
-commit
-dispatch Wallet synchronization after commit
-```
+A new redemption records its final instant and confirming owner atomically after current eligibility checks. Provider synchronization follows commit.
+
+An authorized repeat for the same entitlement returns its final redeemed state without a second redemption. Expiry or
+cancellation prevents a new redemption, not replay of the committed result. Ownership and credential checks still apply
+before returning that state.
 
 ## Google Wallet model
 
@@ -244,20 +217,7 @@ Jobs:
 
 MVP surfaces:
 
-```text
-/
-  Product landing
-
-/join/{business}
-  Business join / Add to Google Wallet
-
-Authenticated Business
-  Dashboard
-  Promotion draft/edit/preview/publish/cancel
-  Acquisition QR
-  Validate visit (one scanner/manual fallback dialog)
-  Business settings
-```
+Public product landing and Business acquisition; authenticated Summary, Pase/Promotion management, invitation, Visit confirmation and settings. Route names and paths belong to source.
 
 No customer profile portal is required.
 

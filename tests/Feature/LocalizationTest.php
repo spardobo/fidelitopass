@@ -49,8 +49,10 @@ test('design preview is unavailable in every environment', function (): void {
 
 test('project pages resolve grouped translations without leaking keys', function (): void {
     expect(__('landing.page_title'))->toBe('FidelitoPass - Dale a tus clientes una razón para volver.');
+
     $blade = file_get_contents(resource_path('views/pages/⚡landing/landing.blade.php'));
     expect($blade)->not->toMatch('/CAFÉ CENTRAL|RETO ACTUAL|Consigue 15 puntos|9 \/ 15 puntos|Hamburguesa gratis|Código manual|48273|Retos que se renuevan|Progreso en puntos|>\s*El pase\s*</u');
+
     expect(__('landing.page_description'))->toStartWith('Crea Promociones de puntos y ofrece a tus clientes un Pase');
     expect(__('landing.navigation.page_sections'))->toBe('Secciones de la página');
     expect(__('landing.hero.pass_aria'))->toContain('Pase de ejemplo');
@@ -66,6 +68,7 @@ test('project pages resolve grouped translations without leaking keys', function
 
     $user = User::factory()->create();
     $this->actingAs($user);
+
     $this->get(route('business.create'))
         ->assertSee('Perfil del negocio - '.config('app.name'))
         ->assertSeeText('Configura tu negocio')
@@ -94,6 +97,7 @@ test('starter validation uses Spanish field names and messages', function (): vo
     expect($errors->first('name'))->toBe('El campo nombre es obligatorio.');
     expect($errors->first('email'))->toBe('El campo correo electrónico no es un correo válido.');
     expect($errors->first('password'))->toBe('El campo contraseña debe contener al menos 8 caracteres.');
+
     expect(__('auth.failed'))->toBe('Estas credenciales no coinciden con nuestros registros.');
     expect(__('passwords.sent'))->toBe('Le hemos enviado por correo electrónico el enlace para restablecer su contraseña.');
 });
@@ -113,6 +117,7 @@ test('authentication rejection shows a Spanish message', function (): void {
 
 test('password reset and verification mail render Spanish actions and copy', function (): void {
     $user = User::factory()->make(['id' => 1]);
+
     $reset = (new ResetPassword('test-token'))->toMail($user);
     $verification = (new VerifyEmail)->toMail($user);
 

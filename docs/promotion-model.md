@@ -1,6 +1,6 @@
 # FidelitoPass Promotion Model
 
-This document defines the single Promotion model used by the MVP and the point-earning rules that feed it.
+This document owns detailed Promotion configuration, earning, progress and completion semantics. Earlier concept/scope summaries remain general; requirements express acceptance. Customer copy is a later presentation specialization, not a second calculation authority.
 
 ## Product rule
 
@@ -12,23 +12,24 @@ The Business does not choose between different Promotion algorithms. It may keep
 
 ## Promotion configuration
 
-Every Promotion has:
+Every Promotion has the following configuration inputs. Local start and final dates are input and display values,
+not independently persisted published date columns. Drafts use the current Business timezone.
 
 | Field | Rule |
 |---|---|
-| `start_date` | Business-local start date. |
-| `end_date` | Business-local final date. |
-| `target_points` | Positive integer required to complete the Promotion. |
-| `reward_title` | Required concise customer-facing benefit. |
-| `reward_description` | Optional short clarification. |
+| Local start date | Business-local start date. |
+| Final local date | Business-local final date. |
+| Point target | Positive integer required to complete the Promotion. |
+| Reward title | Required concise customer-facing benefit. |
+| Reward description | Optional short clarification. |
 
 On publication:
 
 - The Business IANA timezone is copied to the Promotion timezone snapshot; a change since draft review requires renewed confirmation before publication.
-- Local `start_date 00:00` becomes inclusive `starts_at`.
-- Midnight immediately after `end_date` becomes exclusive `ends_at`.
-- The instants are stored as `timestamptz`.
-- The complete published configuration—original local dates and UTC window, timezone snapshot, target, Reward title and optional description, and weekly multiplier windows (weekdays, times and values)—remains immutable, including when scheduled or later cancelled. Drafts remain editable; cancellation is a separate transition.
+- Midnight on the local start date is converted to the inclusive UTC start instant.
+- Local midnight immediately after the final local date is converted to the exclusive UTC end instant.
+- The instants are stored as `timestamptz`; the frozen UTC window and timezone snapshot represent the original local-date terms without separate date storage.
+- The complete published configuration—UTC window and timezone snapshot representing the original local-date terms, target, Reward title and optional description, and weekly multiplier windows (weekdays, times and values)—remains immutable, including when scheduled or later cancelled. Drafts remain editable; cancellation is a separate transition.
 - Published effective windows for one Business never overlap; touching endpoints are allowed. Cancellation retains the original UTC window but truncates effective occupancy at the cancellation instant; cancelling before a scheduled start releases the entire future window. An intraday cancellation cannot be followed by a date-only replacement before the next Business-local midnight.
 
 ## Point earning
@@ -56,7 +57,7 @@ Friday all day: x5 = 5 points.
 Outside those windows: x1 = 1 point.
 ```
 
-For future Visit acceptance, the application derives local weekday/time from the active published Promotion's timezone snapshot and the single post-lock PostgreSQL operation instant. Preview shows the multiplier and resulting points; later drafts never rewrite recorded `points_awarded` or a published schedule.
+For future Visit acceptance, the application derives local weekday/time from the active published Promotion's timezone snapshot and the single post-lock PostgreSQL operation instant. Preview shows the multiplier and resulting points; later drafts never rewrite recorded awarded points or a published schedule.
 
 ## Multiple Visits on the same day
 
@@ -77,73 +78,9 @@ completed = progress >= target_points
 
 Historical point values never change when a later Promotion has different multiplier windows.
 
-## Customer-facing copy
-
-Promotion title:
-
-> 🎯 PROMOCIÓN ACTUAL
-
-Description:
-
-> Consigue {target_points} puntos antes del {end_date}.
-
-Progress:
-
-> {progress} / {target_points} puntos
-
-Next action:
-
-> Te faltan {remaining_points} puntos.
-
-Current Visit value:
-
-> Tu visita ahora vale {current_visit_points} punto(s).
-
-When a multiplier window is currently active:
-
-> ⚡ Ahora tu visita vale {current_visit_points} puntos.
-
-Reward:
-
-> 🎁 {reward_title}
-
 ## Completion and Reward
 
-When progress first reaches the target:
-
-```text
-🎉 PROMOCIÓN COMPLETADA
-
-{progress} / {target_points} puntos
-
-🎁 {reward_title}
-
-Canjéalo antes del {end_date}.
-```
-
-Completion creates at most one Reward entitlement per Customer pass and Promotion. The Reward is redeemable exactly once, only while the Promotion remains active and before its exclusive end; cancellation also stops redemption. The same Customer pass persists for later Promotions.
-
-After Redemption:
-
-```text
-✅ RECOMPENSA CANJEADA
-
-Gracias por volver.
-
-Tu Pase seguirá listo
-para la próxima promoción.
-```
-
-After Promotion expiry without Redemption:
-
-```text
-⌛ PROMOCIÓN FINALIZADA
-
-La recompensa ya no está disponible.
-
-Tu Pase seguirá listo
-para la próxima promoción.
-```
+When progress first reaches the target, completion creates at most one Reward entitlement per Customer pass and Promotion. The Reward is redeemable exactly once, only while the Promotion remains active and before its exclusive end; cancellation also stops redemption. The same Customer pass persists for later Promotions.
 
 ## MVP exclusions
 

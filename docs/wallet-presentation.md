@@ -22,7 +22,7 @@ CAFÉ CENTRAL
 
 🎯 PROMOCIÓN ACTUAL
 
-Consigue 15 puntos antes del 30 SEP.
+Consigue 15 puntos hasta el 30 SEP.
 
 9 / 15 puntos
 
@@ -41,13 +41,56 @@ Código del Pase: 482731
 |---|---|---|
 | Business name | `CAFÉ CENTRAL` | Business. |
 | Promotion title | `🎯 PROMOCIÓN ACTUAL` | Platform-generated. |
-| Promotion description | `Consigue 15 puntos antes del 30 SEP.` | Platform-generated from Promotion values. |
+| Promotion description | `Consigue 15 puntos hasta el 30 SEP.` | Platform-generated from Promotion values. |
 | Progress | `9 / 15 puntos` | PostgreSQL-authoritative Promotion progress. |
 | Current Visit value | `Ahora tu visita vale 2 puntos.` | Applicable extra points on the fixed one-point base, evaluated in the active published Promotion timezone. |
 | Reward | `🎁 Hamburguesa gratis` | Business-owned Reward value. |
 | Deadline | `Válido hasta 30 SEP` | Derived from Promotion local end date. |
 | Barcode | QR/private value | Private validation token. |
 | Manual code | `482731` | Short Business-scoped lookup code. |
+
+## State selection
+
+- When a Promotion is active, show its current state for this Customer pass.
+- When none is active, retain the applicable terminal result from the last relevant Customer pass–Promotion relationship: redeemed, ended without Reward, Reward expired or cancelled. Show that result together with the waiting message for the next Promotion.
+- When none is active and no applicable terminal result exists, show only the waiting state.
+- The next active Promotion replaces the prior result in the same persistent pass. A scheduled Promotion alone does not replace it.
+
+These are presentation choices, not new stored domain statuses. Historical Visits and entitlement facts remain unchanged.
+Use success language only for genuine success, such as redemption; expiry and cancellation are neutral outcomes, not congratulations.
+Selection describes the intended content; provider synchronization after commit may lag.
+
+## Generated active-Promotion copy
+
+Promotion title:
+
+> 🎯 PROMOCIÓN ACTUAL
+
+Description:
+
+> Consigue {target_points} puntos hasta el {end_date}.
+
+Progress:
+
+> {progress} / {target_points} puntos
+
+Next action:
+
+> Te faltan {remaining_points} puntos.
+
+Current Visit value:
+
+> Tu visita ahora vale {current_visit_points} punto(s).
+
+When a multiplier window is currently active:
+
+> ⚡ Ahora tu visita vale {current_visit_points} puntos.
+
+Reward:
+
+> 🎁 {reward_title}
+
+The displayed final local date is inclusive. Use **hasta el {end_date}** in earning and redemption copy; the exclusive server deadline is the next local midnight. The web preview uses the same generated wording and values, not a second copy contract.
 
 ## State 1 — Waiting for a Promotion
 
@@ -63,7 +106,9 @@ Aquí aparecerá la próxima promoción del negocio.
 Código del Pase: 482731
 ```
 
-Use this state when no Promotion is currently active, including a scheduled Promotion awaiting its start.
+Use this state alone when no Promotion is active and this Customer pass has no applicable prior terminal result,
+including when a scheduled Promotion awaits its start. Otherwise retain the applicable result in states 4–7 together
+with its waiting message.
 
 ## State 2 — Promotion in progress
 
@@ -72,7 +117,7 @@ CAFÉ CENTRAL
 
 🎯 PROMOCIÓN ACTUAL
 
-Consigue 15 puntos antes del 30 SEP.
+Consigue 15 puntos hasta el 30 SEP.
 
 9 / 15 puntos
 
@@ -106,7 +151,7 @@ CAFÉ CENTRAL
 
 🎁 Hamburguesa gratis
 
-Canjéala antes del 30 SEP.
+Canjea tu recompensa hasta el 30 SEP.
 
 [barcode]
 Código del Pase: 482731
@@ -193,17 +238,6 @@ Código del Pase: 482731
 - The barcode contains the private high-entropy validation token; the manual code is a separate Business-scoped lookup identifier.
 - Wallet content is a presentation of PostgreSQL state, never an independent business-rule authority.
 
-The public acquisition QR is not the private barcode or the separate manual lookup code. A provider update is eventually synchronized after database commit; failures do not roll back an accepted Visit and must not cause a second commercial action. The web preview is illustrative, not an issued credential. Google Wallet accepts a configured background colour (`hexBackgroundColor`), but native text colour is provider-controlled and cannot be guaranteed; ensure legible web previews independently.
+The public acquisition QR is not the private barcode or the separate manual lookup code. A provider update is eventually synchronized after database commit; failures do not roll back an accepted Visit and must not cause a second commercial action. The web preview is illustrative, not an issued credential. Google Wallet accepts a configured background colour (through its provider-supported background setting), but native text colour is provider-controlled and cannot be guaranteed; ensure legible web previews independently.
 
-## Google Wallet structure
-
-Use the Google Wallet loyalty Class/Object model:
-
-- One shared Business loyalty class for Business-level identity/presentation.
-- One loyalty object per Customer pass.
-- Field `loyaltyPoints` or equivalent structured field for numeric Promotion progress where useful.
-- Text modules for Promotion description, current Visit point value, Reward, and validity.
-- Barcode for the validation token.
-- Alternate barcode text/manual code for quick fallback where suitable.
-
-Avoid custom dynamic progress images in MVP. Numeric progress keeps the presentation stable and easy to synchronize.
+Avoid custom dynamic progress images in MVP. Numeric progress keeps presentation stable and easy to synchronize. Provider payload fields belong to the integration; presentation semantics remain defined here.

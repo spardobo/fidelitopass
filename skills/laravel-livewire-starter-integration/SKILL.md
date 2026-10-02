@@ -17,7 +17,7 @@ Use for UI integration in a Laravel + Livewire starter. Do not use for domain-on
 - Preserve stock authentication/settings screens and their component format; never convert stable SFCs just for uniformity.
 - Keep authorization and validation server-side, including policy checks on Livewire actions. Never treat hidden fields or UI visibility as access control.
 - Reuse the shared Flux, Tailwind, and Vite pipeline; avoid duplicate stylesheets, theme systems, or JavaScript navigation frameworks.
-- For FidelitoPass, load `skills/fidelitopass-laravel-implementation/SKILL.md` from the repository root for owner constraints. Apply the relevant Source style, PHPDoc and comments, and Component-local JavaScript sections of `docs/development/laravel-application-standard.md`; do not copy domain rules into this skill or guess installed APIs.
+- For FidelitoPass, load the linked implementation skills for affected responsibilities: PHP server logic, Blade/Flux markup and/or JavaScript client behavior. Apply their required references, including shared code quality; presentation-only integration does not automatically load PHP. Document owners retain outcome/risk policy; do not copy it here or guess installed APIs.
 
 ## Decision Gates
 
@@ -30,15 +30,18 @@ Use for UI integration in a Laravel + Livewire starter. Do not use for domain-on
 
 ## Execution Steps
 
-1. Trace the route through the page, layout slots, navigation, assets, and authentication boundary; verify version-sensitive APIs against installed source/configuration and targeted official documentation. For FidelitoPass, select applicable owners through [Documentation routing](../../AGENTS.md#documentation-routing) and actually read the affected owner/style sections before writing code; loading skills alone is insufficient. Identify constraints and stop before the affected edit if a necessary source is unavailable or material intent is unresolved.
+1. Trace route, page, layout slots, navigation, assets and auth. Verify uncertain APIs against installed source/configuration or targeted official guidance. Read affected skill references and owners selected through [Documentation routing](../../AGENTS.md#documentation-routing). Stop before editing for a missing source or unresolved intent; skill loading alone is insufficient.
 2. Implement the smallest native extension, using Laravel translations for user-facing copy and Flux/Tailwind for presentation.
 3. Exercise authorized and unauthorized behavior, navigation state, and relevant responsive flows with the project's native test runner.
 
 ## Output Contract
 
-Report changed files, selected owner/style sections and API evidence, actual checks, material presentation/lifecycle choices, unresolved risks, and whether a skill-registry refresh is needed. Keep the handoff scoped, not a per-helper checklist.
+Report paths, consulted sections/API evidence, actual checks, material presentation/lifecycle choices, risks and registry-refresh needs. Keep the handoff scoped, not per helper.
 
 ## References
 
-- [Project implementation skill](../fidelitopass-laravel-implementation/SKILL.md) — owner constraints; the inline path above resolves from the repository root.
-- [Laravel application standard](../../docs/development/laravel-application-standard.md#source-style) — source-style owner; load only relevant sections.
+- [PHP/Livewire skill](../fidelitopass-laravel-livewire-implementation/SKILL.md) / [component integration](../fidelitopass-laravel-livewire-implementation/references/implementation-details.md#livewire-structure-and-authority).
+- [Blade/Flux skill](../fidelitopass-blade-flux-implementation/SKILL.md) / [composition](../fidelitopass-blade-flux-implementation/references/implementation-details.md#composition-and-framework-gates).
+- [JavaScript skill](../fidelitopass-javascript-alpine-implementation/SKILL.md) / [lifecycle](../fidelitopass-javascript-alpine-implementation/references/implementation-details.md#resource-ownership-and-disposal).
+- [Shared code quality](../shared/code-quality.md) — cross-language conventions.
+- [UI outcomes](../../docs/ui-ux-guidelines.md) and [application contracts](../../docs/development/laravel-application-standard.md) — select affected sections only.

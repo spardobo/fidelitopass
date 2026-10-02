@@ -78,7 +78,7 @@ Core-flow baseline requires responsive layouts, keyboard-visible focus, semantic
 
 - Structure focused tests with Arrange, Act, Assert.
 - Test observable behaviour and domain outcomes, not private methods.
-- Use real PostgreSQL when behaviour depends on transactions, constraints, `timestamptz`, `AT TIME ZONE`, or row locks; assert that mutations capture one post-lock PostgreSQL `operation_at` for deadline checks, local award evaluation, and domain timestamps.
+- Use real PostgreSQL when behaviour depends on transactions, constraints, `timestamptz`, `AT TIME ZONE`, or row locks; assert that mutations capture one post-lock PostgreSQL operation instant for deadline checks, local award evaluation, and domain timestamps.
 - Fake Google Wallet at the provider boundary for deterministic automated tests.
 - Keep one real-device Wallet verification checklist for release confidence.
 - Fix or remove flaky required tests; do not normalize retry-until-green.
@@ -158,6 +158,10 @@ Required core-flow checks:
 
 Progressive WCAG AA targets: contrast and controls usable at touch sizes near 44×44px. Automated accessibility checks cover only part of the problem. Perform a short manual keyboard/contrast review of the core flows.
 
+## Human readability review
+
+Review names, cohesive code paragraphs, control flow, visible side effects and resource ownership separately from behavior tests, formatting and static analysis. A maintainer must be able to locate the changed rule and understand its inputs, effects and failure paths without tracing needless helpers. Implementation skills own editorial details; no source-format assertion replaces this review.
+
 ## Static analysis and formatting
 
 Keep the existing project tools as canonical:
@@ -218,7 +222,7 @@ Before a production release:
 - Dependency/secret scans pass; any critical/high dependency finding is resolved or has an explicit reviewed exception.
 - Production build succeeds.
 - Applicable new schema migrations are checked against the target PostgreSQL migration state, with proportionate PostgreSQL-backed tests for constraints, safe forward changes, and preservation of existing data where relevant.
-- Promotion UTC/local and DST boundary cases, scheduled snapshot freeze, post-lock `operation_at`, and cancellation/occupancy cases pass.
+- Promotion UTC/local and DST boundary cases, scheduled snapshot freeze, post-lock operation instant, and cancellation/occupancy cases pass.
 - Scan/manual validation works.
 - Reward can be unlocked and redeemed once.
 - Google Wallet can be issued and updated on a real supported device.

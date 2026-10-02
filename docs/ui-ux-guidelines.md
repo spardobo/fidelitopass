@@ -42,7 +42,7 @@ These are distinct **roles**, not a near-colour palette to consolidate, except w
 
 Focus is context-dependent: main-content inputs/selects/textareas use a `2px` **`#A77BFF`** outline with `3px` offset and accent border; general focus uses a `2px` **`#CDB0FF`** outline with `3px` offset outside that context absent a stronger component rule. Do not claim one universal focus colour or copy mockup selectors into Flux. Verify actual installed DOM and focus in browser.
 
-The table is the single normative palette, including authentication and private screens; legacy literals do not authorize an alternate palette. Marketing composition and editorial typography may differ from forms and workspaces. The single editable source for canvas, neutral surface, emphasis and accent is the **Global application palette** block (`@theme static`) in `resources/css/app.css`: `--color-app-canvas`, `--color-app-surface`, `--color-app-emphasis` and `--color-app-accent`, one definition per role. Static emission keeps all four properties available on the global root even before every utility is used. New screens must consume these app tokens (for example, `bg-app-canvas`, `bg-app-surface`, `bg-app-emphasis`, `bg-app-accent`), not unmigrated generic utilities. Landing may use local role aliases but owns no canonical palette literals. The public header and transparent footer follow the application canvas, not a separate black bar.
+The table is the single normative palette, including authentication and private screens; legacy literals do not authorize an alternate palette. Marketing composition and editorial typography may differ from forms and workspaces. Keep one shared application mapping for canvas, neutral surface, emphasis and accent, with one definition per role. Screens and landing aliases consume that mapping without competing palette literals. Token names and emission mechanisms belong to source. The public header and transparent footer follow the application canvas, not a separate black bar.
 
 Unmigrated authentication/private surfaces require their own authorized work item; global token availability is not proof of complete rollout. Do not recolor those screens indirectly or introduce a header on login.
 
@@ -52,17 +52,15 @@ Keep semantic success, warning and danger surfaces, borders and text separate fr
 
 ### Shape and spacing
 
-- Page containers use generous whitespace. Match the header-to-hero opening gap with the last-CTA-to-footer closing gap; do not substitute a bottom-equals-sides rule. Keep landing main left/right padding `24px` / `32px` from `48rem` and top `32px` / `40px`. Reuse the hero's calculated base plus residual, capped at the existing `80px` rhythm, for end-of-main padding without reducing hero viewport availability. Without JavaScript or after teardown, closing padding falls back to the natural `32px` / `40px` base; dynamic capped fitting requires JavaScript. Header content row and footer use equal internal vertical padding (`24px` top/bottom), distinct from these exterior gaps. Preserve widths, hero margins and independent section spacing.
+- Page containers use generous whitespace. Match the header-to-hero opening gap with the last-CTA-to-footer closing gap. Keep landing main left/right padding `24px` / `32px` from `48rem` and top `32px` / `40px`, with the existing capped `80px` rhythm. Preserve hero viewport availability, widths, margins and independent section spacing. Without JavaScript or after teardown, use the natural `32px` / `40px` base. Header content row and footer use equal internal vertical padding (`24px` top/bottom), distinct from exterior gaps. Exact fitting calculations belong to source.
 - Use a maximum authenticated workspace width of `68rem`, about `20px` card radius and `11px` control radius; controls and operational targets should be at least `2.75rem` high.
 - Avoid sharp rectangular panels.
 - Borders are subtle; shadows are light and sparse. Public hero, benefit, step and FAQ panels retain a `1px` neutral boundary `#525252`; emphasized benefit and mechanics panels use `#8465AC`. The mechanics example uses a priority divider; FAQ answers and the footer use the line role `#484848`. Decorative framing does not replace the essential interactive focus outline.
 - Prefer breathing room over dense dashboards.
 
-### Approved asset inventory
+### Approved brand assets
 
-- `public/logo.png`: source artwork; `public/logo-header.webp`: optimized header/footer wordmark.
-- `public/logo_icon.svg`: standalone isotipo, including the decorative mark in the landing pass visual.
-- `resources/views/partials/head.blade.php`: favicon links to `public/favicon.ico`, `public/favicon.svg`, PNG favicon sizes, and Apple touch icon; `public/site.webmanifest` lists Android icons. Keep the shared head partial as the single integration point.
+Reuse the approved wordmark, isotipo and favicon family. Keep shared page metadata as the single integration boundary; source owns asset paths and optimized formats.
 
 ## Typography
 
@@ -81,9 +79,9 @@ Use locally served Onest as the intended rendered font via the existing applicat
 
 Treat the typography table as a role contract, not a list of values to repeat in individual screens. Page titles, section headings, card headings, body/control text, supporting text and metrics must consume one project-owned, reusable role mapping. Keep font size, line height, weight and responsive changes together in that mapping so a global title-size change updates one shared definition rather than many templates. Do not collapse distinct roles into a single heading size.
 
-For each role, prefer the component's default size or a supported native Flux size variant when it matches or closely approximates the extracted UI/UX specification without compromising hierarchy, readability or accessible target sizes. Inspect each installed component: size names and their rendered values are not universal. Where native variants cannot satisfy the role, define the smallest necessary adjustment once in the shared role mapping; do not scatter fixed pixel values, arbitrary utilities or repeated size props across screens. Centralization does not require overriding every Flux component or changing the root font size.
-
-Implement the mapping through existing project composition where possible; introduce a thin shared Blade wrapper or centralized styling only when needed to provide the role consistently. Choose the concrete implementation in the owning UI work item, not in this documentation-only standard. Shared changes must be checked across affected roles, screen sizes and states before acceptance.
+The mapping must preserve hierarchy, readability and accessible target sizes without changing the root font size.
+Check shared role changes across affected roles, screen sizes and states before acceptance. The authorized UI work item
+chooses the implementation; this contract does not require overriding every component.
 
 Use sentence case for headings, buttons and labels; preserve proper names, acronyms and Business-authored copy. Do not fade essential pending-state explanations. On initial setup, preparation cards use body scale, not tiny secondary text. Short Wallet-specific uppercase labels may remain where the Wallet presentation contract requires them.
 
@@ -93,7 +91,7 @@ The landing page introduces the product, not the dashboard. When landing content
 
 ### Header
 
-- FidelitoPass wordmark/logo on the left, with the page-colored shell consuming `--color-app-canvas`; preserve the existing header height and composition.
+- FidelitoPass wordmark/logo on the left, with the page-colored shell; preserve the existing header height and composition.
 - Navigation order: **Beneficios → Cómo funciona → Promociones → El pase → Preguntas frecuentes → Empezar**.
 - No header registration button or theme toggle. The header links to page sections; the hero and final section carry the same registration action.
 
@@ -101,7 +99,7 @@ On small screens, keep navigation accessible without adding a competing registra
 
 ### Hero
 
-Use the current marketing copy in `lang/es/landing.php`; do not replace it with a speculative draft. The hero and final CTA both link to registration; sign-in remains subordinate. Show the illustrative Pase and Promoción as conceptual product visuals, not proof of issued Wallet credentials or operational Visit validation. The mock QR is not independently decoded or functional. Do not present conceptual visuals as usable credentials.
+Use the approved localized marketing copy; do not replace it with a speculative draft. The hero and final CTA both link to registration; sign-in remains subordinate. Show the illustrative Pase and Promoción as conceptual product visuals, not proof of issued Wallet credentials or operational Visit validation. The mock QR is not independently decoded or functional. Do not present conceptual visuals as usable credentials.
 
 ### FAQ disclosure
 
@@ -133,7 +131,7 @@ Describe a persistent **Pase para Google Wallet**, not a new pass per Promoción
 
 ### Final CTA
 
-Repeat the hero registration action and label from `lang/es/landing.php`.
+Repeat the hero registration action and label from the approved marketing copy.
 
 ### Footer
 
@@ -144,25 +142,20 @@ Keep minimal:
 - Privacy/legal links when available.
 - Sign-in/register links.
 
-## Implementation mapping (Flux Free)
+## Integration and visual fidelity check
 
-Use `composer.lock` for the installed `livewire/flux` version; component APIs are not promises about other releases. Inspect the installed component API, rendered DOM and existing starter usage before selecting props or selectors. Prefer native Flux composition first, scoped Tailwind utilities second, and central project CSS only for a necessary shared exception; never edit vendor or copy the mockup adapter wholesale.
+Before accepting a screen, consult its relevant section here, its acceptance requirement and affected domain doc.
+`composer.lock` records the resolved dependency version, not proof of the installed runtime; use installed source and
+configuration to establish the actual Flux version and API behavior. Confirm locally served Onest loads. Compare against
+the applicable owner-approved design reference at the **same viewport, state and fixture**: layout geometry, spacing,
+computed role colours, actual font, focus order and narrow-screen reflow. Record intentional deviations and obtain owner
+approval for material differences. The normative palette above takes precedence over raw mockup backgrounds; acceptance
+does not require a 100% pixel copy. Fallback-font screenshots are not pixel goldens. A document or source-level check
+cannot establish browser/pixel fidelity.
 
-| Visual element / state | Starting component / integration | Boundary to check |
-| --- | --- | --- |
-| Header and active destination | `flux:navbar` / `flux:navbar.item` or existing starter navigation | Keep semantic link, accessible current page, full hit area and focus; intrinsic icon + label underline `0.25rem` below line box, `0.125rem` thick, on desktop/mobile. Avoid duplicated native underline. |
-| Resumen facts and preparation | Semantic `article` / `section`, Flux heading/text where suitable | No clickable preparation cards or disabled faux buttons; emphasis only for active Promotion. |
-| Primary, secondary, danger actions | `flux:button` with supported variant/size | Match semantic state roles; do not assume Flux `sm` equals mockup 16/24 type or 44px targets. |
-| Labels, text, code and date entry | `flux:field`, `flux:label`, `flux:input`, `flux:error`; native date/colour where appropriate | Verify installed props/DOM, associated error and focus; no presumed Pro picker. |
-| Extra-point weekday/multiplier | `flux:select` or native semantic select | Preserve half-open window text, keyboard and error semantics; no Pro-only control. |
-| Promotion status | `flux:badge` plus visible label/icon | Distinguish scheduled, draft, cancelled, active and completed beyond colour. |
-| Account navigation | Existing starter `flux:dropdown` and `flux:menu` | Profile/security/logout continue to work; do not model demo account dialog as authentication. |
-| Operational scanner | `flux:modal` for one dialog; semantic stage content and Livewire action | Focus/return and camera lifecycle require inspection; no tabs or simultaneous scanner/result stack. |
-| Invitation QR and illustrative pass | Project-owned semantic content; Flux text/button where useful | Actual QR needs permanent public identity, quiet zone and recovery; preview is not an issued Wallet credential. |
-
-### Integration and visual fidelity check
-
-Before writing a screen, read only its relevant section here, its acceptance requirement and affected domain doc. Inspect the installed Flux version, actual rendered markup/props and starter composition; confirm locally served Onest loads. Compare against the applicable owner-approved design reference at the **same viewport, state and fixture**: layout geometry, spacing, computed role colours, actual font, focus order and narrow-screen reflow. Record intentional deviations and obtain owner approval for material differences. Adapt the extracted lineament through existing framework composition rather than requiring a 100% pixel copy; the normative palette above takes precedence over raw mockup backgrounds. Fallback-font screenshots are not pixel goldens. A document or source-level check cannot establish browser/pixel fidelity. Do not copy mockup HTML/CSS/JS, demo selectors, fixed clock, sample codes, scenario toolbar/reset, `sessionStorage`, fake QR/stats/permissions or intercepted preview login/register links into production.
+Mockup adapters and demo behavior are not production contracts. Do not transfer demo selectors, fixed clock, sample
+codes, scenario toolbar/reset, `sessionStorage`, fake QR/stats/permissions or intercepted preview login/register links
+into production. A demo account dialog does not replace authentication.
 
 ## Authentication pages
 
@@ -245,6 +238,7 @@ Business view:
 
 - Business identity.
 - Permanent public QR with adequate print contrast and quiet zone; avoid promising an unverified physical size.
+- QR-generation failures remain recoverable without changing the permanent public identity.
 - Short copy explaining what customers do.
 - Download/print action.
 
@@ -283,7 +277,7 @@ During identification only, keep manual entry visible directly beneath the scann
 
 Keep the scanner region in place and show:
 
-> No se pudo acceder a la cámara. Revisá los permisos o ingresá el código del Pase.
+> No se pudo acceder a la cámara. Revisa los permisos o ingresa el código del Pase.
 
 The manual field remains immediately below.
 
@@ -348,7 +342,7 @@ Core pages should target WCAG AA interaction expectations:
 
 - Semantic HTML controls.
 - Visible focus.
-- Associated labels.
+- Associated labels and field errors.
 - Sufficient contrast.
 - Minimum touch targets near 44×44px.
 - Status text that does not rely on colour alone.

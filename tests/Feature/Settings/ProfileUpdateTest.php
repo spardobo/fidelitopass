@@ -13,7 +13,7 @@ class ProfileUpdateTest extends TestCase
 
     public function test_profile_page_is_displayed(): void
     {
-        $this->actingAs($user = User::factory()->create());
+        $this->actingAs(User::factory()->create());
 
         $this->get(route('profile.edit'))->assertOk();
     }

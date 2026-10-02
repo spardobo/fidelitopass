@@ -41,7 +41,7 @@ Prefer small demonstrable outcomes: public entry separate from Business auth/pro
 
 ## Documentation routing
 
-Use [Documentation routing](../../AGENTS.md#documentation-routing) to select and consult only the owner sections needed before implementation. The [documentation index](../README.md) explains design order and owner roles. For next-work selection, start with Kanban dependencies and the relevant candidate work item in `docs/delivery-plan.md`. Do not follow links/references automatically.
+Use [Documentation routing](../../AGENTS.md#documentation-routing) to select and consult only the owner sections needed before implementation. For next-work selection, start with Kanban dependencies and the relevant candidate work item in `docs/delivery-plan.md`. Do not follow links/references automatically.
 
 ## Documentation maintenance
 
