@@ -127,13 +127,15 @@ Client-side validation may improve UX but never replaces server validation.
 
 ### Visit
 
-`ValidateVisitAction`:
+The Visit-validation command:
 
 - Requires authenticated Business ownership.
 - Locks the Customer pass.
 - Uses database time.
-- Enforces an active, uncancelled published Promotion using its frozen terms and exclusive UTC end.
-- After acquiring relevant locks, captures one PostgreSQL `clock_timestamp()` as `operation_at` and reuses it for validity, Promotion-local weekday/time evaluation, Visit and related event timestamps.
+- Verifies Business-scoped pass/Promotion ownership, credential authority and matching operation identity before returning any prior accepted result.
+- Returns that result for an authorized retry of the same committed operation without creating another Visit, points or entitlement; later Promotion expiry/cancellation does not invalidate replay.
+- For a new Visit, enforces an active, uncancelled published Promotion using its frozen terms and exclusive UTC end.
+- For a new mutation, after acquiring relevant locks, captures one current PostgreSQL wall-clock instant as the operation instant and reuses it for validity, Promotion-local weekday/time evaluation, Visit and related event timestamps.
 - Awards the fixed one-point base or exactly one applicable frozen Promotion-owned x2, x3, or x5 multiplier in the published Promotion timezone; new Promotions inherit no Business-global point rules.
 - Enforces idempotency so one technical validation operation creates at most one Visit.
 - Allows legitimate repeat Visits when the Business intentionally validates a new customer visit.
@@ -141,13 +143,18 @@ Client-side validation may improve UX but never replaces server validation.
 
 ### Reward
 
-`RedeemRewardAction`:
+The redemption command:
 
 - Requires authenticated Business ownership.
 - Locks the entitlement.
-- Captures the same single post-lock PostgreSQL `operation_at` pattern to check Promotion expiry/cancellation and record final redemption.
-- Rejects already-redeemed state.
-- Records one final `redeemed_at`.
+- Verifies Business-scoped entitlement/pass/Promotion ownership and credential authority before returning state for the requested entitlement.
+- Returns the final redeemed state for an authorized repeated submission of the same entitlement without a second redemption, even after Promotion expiry/cancellation.
+- For a new redemption, captures the same single post-lock PostgreSQL operation instant pattern to check Promotion expiry/cancellation and record final redemption.
+- Records one final redemption instant.
+
+Replay does not bypass authentication, authorization or credential checks. An invalid or retired validation token is not
+authorized by a prior operation; the authenticated, Business-scoped manual fallback retains its separate authority.
+Database integrity still prevents duplicate Visit facts, entitlements and redemption effects.
 
 Button disabling and browser state are UX only, not integrity controls.
 

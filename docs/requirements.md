@@ -216,13 +216,13 @@ As a Business owner, I want Promotion dates to behave according to my local cale
 
 - **Given** valid local start and end dates and a Business timezone.
 - **When** the Promotion is published.
-- **Then** `starts_at`, exclusive `ends_at`, and the Promotion timezone snapshot are persisted consistently. Drafts display the current Business timezone without an independent selector; publication copies it and freezes the entire scheduled or active aggregate, including goal, Reward title and description, dates, timezone and multiplier schedule. If the Business timezone changed since review, refreshed review and renewed confirmation are required before publication; dates cannot be silently reinterpreted.
+- **Then** the inclusive start instant, the exclusive end instant, and the Promotion timezone snapshot are persisted consistently, without independent published local-date columns. They represent the original local-date terms. Drafts display the current Business timezone without an independent selector; publication copies it and freezes the entire scheduled or active aggregate, including goal, Reward title and description, dates, timezone and multiplier schedule. If the Business timezone changed since review, refreshed review and renewed confirmation are required before publication; dates cannot be silently reinterpreted.
 
 **Scenario: Evaluate current phase**
 
 - **Given** a published Promotion.
 - **When** its phase is queried.
-- **Then** phase decisions use an explicitly current PostgreSQL wall-clock instant against the stored UTC window, not transaction-start `CURRENT_TIMESTAMP`.
+- **Then** phase decisions use an explicitly current PostgreSQL wall-clock instant against the stored UTC window, not a transaction-start timestamp.
 
 **Verification:** PostgreSQL-backed timezone tests including a UTC/local-date boundary.
 
@@ -238,7 +238,7 @@ As a Business owner, I want only one Promotion to be active at a time so that cu
 
 **Scenario: Effective window overlap**
 
-- **Given** published instances for one Business, each occupying `[starts_at, min(ends_at, cancelled_at))` when cancelled, or `[starts_at, ends_at)` otherwise (empty if cancelled before start).
+- **Given** published instances for one Business, each occupying its original inclusive-start/exclusive-end interval, truncated at cancellation when earlier than its end (empty if cancelled before start).
 - **When** a draft is published with a window intersecting any occupied interval.
 - **Then** publication is rejected without partial state change; touching endpoints are allowed and at most one Promotion is effective Active at an instant.
 
@@ -246,7 +246,7 @@ As a Business owner, I want only one Promotion to be active at a time so that cu
 
 - **Given** competing publications or a cancellation and publication for the same Business.
 - **When** both operations request the Business row lock.
-- **Then** each recomputes overlap after acquiring that lock using its single post-lock PostgreSQL `clock_timestamp()` instant; only a nonoverlapping result commits, regardless of lock order.
+- **Then** each recomputes overlap after acquiring that lock using its single post-lock PostgreSQL operation instant; only a nonoverlapping result commits, regardless of lock order.
 
 **Scenario: Replacement after intraday cancellation**
 
@@ -269,14 +269,14 @@ As a customer, I want the Promotion rules to stay stable after play begins so th
 **Scenario: Edit published semantics**
 
 - **Given** a published scheduled, active, or ended Promotion (drafts remain editable).
-- **When** the owner attempts to change its goal, Reward title or description, dates, timezone, `starts_at`, `ends_at`, or any multiplier-window rule.
+- **When** the owner attempts to change its goal, Reward title or description, dates, timezone, the inclusive start instant, the exclusive end instant, or any multiplier-window rule.
 - **Then** the operation is rejected.
 
 **Scenario: Cancel scheduled or active Promotion**
 
 - **Given** a scheduled or Active Promotion.
 - **When** the owner confirms cancellation under the Business row lock, retaining the published Promotion snapshot.
-- **Then** `cancelled_at` records the single post-lock PostgreSQL operation instant, effective progress and redemption stop immediately, remaining future occupancy is released, and Wallet presentation becomes cancelled/waiting; prior Visits, awarded points, original published terms and UTC window remain historical. Cancellation never rewrites the original dates.
+- **Then** the cancellation instant is recorded at the single post-lock PostgreSQL operation instant, effective progress and redemption stop immediately, remaining future occupancy is released, and Wallet presentation becomes cancelled/waiting; prior Visits, awarded points, original published terms and UTC window remain historical. Cancellation never rewrites the original local-date terms represented by the frozen UTC window and timezone snapshot.
 
 **Scenario: Ended Promotion**
 
@@ -402,7 +402,7 @@ As a system operator, I want one authoritative clock for Visit facts so that Pro
 
 - **Given** a valid Visit confirmation.
 - **When** the Visit is inserted.
-- **Then** relevant rows are locked before PostgreSQL `clock_timestamp()` is captured exactly once as `operation_at`; `visited_at` uses that instant, and no duplicated local-date Visit field is persisted.
+- **Then** relevant rows are locked before one current PostgreSQL wall-clock instant is captured as the operation instant; the accepted Visit uses that same instant, and no duplicated local-date Visit field is persisted.
 
 **Verification:** PostgreSQL-backed persistence test.
 
@@ -444,7 +444,7 @@ As a customer, I want every accepted Visit to tell me how many points I earned s
 
 - **Given** an Active Promotion and no applicable multiplier window.
 - **When** a Visit is accepted.
-- **Then** the Visit stores exactly one `points_awarded` and Promotion progress increases by one; the regular value is not configurable.
+- **Then** the Visit stores exactly one awarded point and Promotion progress increases by one; the regular value is not configurable.
 
 **Verification:** Domain/feature tests.
 
@@ -462,7 +462,7 @@ As a customer, I want FidelitoPass to show when my Visit is worth more points so
 
 - **Given** multiple disjoint recurring rules and an Active published Promotion with a timezone snapshot.
 - **When** a Visit is accepted in one rule's local weekday and half-open time window using the single post-lock PostgreSQL operation instant.
-- **Then** exactly that Promotion-owned rule's x2, x3, or x5 applies to the fixed one-point base; the Visit stores immutable `points_awarded`, without stacking.
+- **Then** exactly that Promotion-owned rule's x2, x3, or x5 applies to the fixed one-point base; the Visit stores immutable awarded points, without stacking.
 
 **Scenario: Outside and boundary**
 
@@ -472,7 +472,7 @@ As a customer, I want FidelitoPass to show when my Visit is worth more points so
 
 **Scenario: Configuration changes**
 
-- **Given** an accepted Visit with stored `points_awarded`.
+- **Given** an accepted Visit with stored awarded points.
 - **When** a later draft Promotion has different rules or the Business timezone changes.
 - **Then** the published Promotion's own schedule stays frozen; only future published Promotions use their own rules, and historical awarded points and progress are not recalculated.
 
@@ -528,7 +528,7 @@ As a customer, I want the Reward to unlock immediately when I complete the Promo
 
 - **Given** progress immediately below completion.
 - **When** the completing Visit commits.
-- **Then** one entitlement is created and Wallet state becomes Reward available.
+- **Then** one entitlement is created in committed domain state and its Reward-available Wallet update is requested; provider delay cannot reverse the entitlement.
 
 **Verification:** Transaction and uniqueness tests.
 
@@ -544,9 +544,9 @@ As a Business owner, I want one explicit final redemption action so that the Rew
 
 **Scenario: Successful redemption**
 
-- **Given** an available entitlement before `ends_at`.
+- **Given** an available entitlement before the exclusive end instant.
 - **When** the owner confirms **Redeem reward**.
-- **Then** `redeemed_at` and the redeeming owner are recorded once.
+- **Then** the redemption instant and the redeeming owner are recorded once.
 
 **Scenario: Repeated redemption**
 
@@ -566,11 +566,11 @@ As a Business owner, I want Reward validity to match the published Promotion dea
 
 **Acceptance Criteria**
 
-**Scenario: Redemption after expiry**
+**Scenario: Redemption after expiry or cancellation**
 
 - **Given** an unredeemed entitlement.
-- **When** the relevant rows are locked and the operation's single PostgreSQL `clock_timestamp()` value is at or after the published Promotion's exclusive deadline.
-- **Then** redemption is rejected as expired.
+- **When** the relevant rows are locked and the operation's single current PostgreSQL wall-clock instant is at or after the published Promotion's exclusive deadline, or the Promotion has been cancelled.
+- **Then** new redemption is rejected with the appropriate expired or cancelled outcome.
 
 **Verification:** Database-time feature tests.
 

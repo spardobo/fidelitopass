@@ -121,21 +121,31 @@ Rules:
 
 ## Customer pass lifecycle
 
-One Customer pass persists across Promotions.
+One Customer pass persists across Promotions. The diagram describes its presentation, not stored Customer pass statuses.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Issued
-    Issued --> Waiting: no active Promotion
+    Issued --> Waiting: no active Promotion and no prior result
+    Issued --> Playing: Promotion active
     Waiting --> Playing: Promotion becomes active
     Playing --> RewardAvailable: Promotion completed
     RewardAvailable --> Redeemed: reward redeemed
-    Playing --> Waiting: Promotion ends
-    RewardAvailable --> Waiting: Promotion ends unredeemed
-    Redeemed --> Waiting: next Promotion
+    Playing --> EndedWithoutReward: Promotion ends
+    RewardAvailable --> Expired: Promotion ends unredeemed
+    Playing --> Cancelled: Promotion cancelled
+    RewardAvailable --> Cancelled: Promotion cancelled
+    EndedWithoutReward --> Playing: next Promotion becomes active
+    Expired --> Playing: next Promotion becomes active
+    Cancelled --> Playing: next Promotion becomes active
+    Redeemed --> Playing: next Promotion becomes active
 ```
 
-The Customer pass is not recreated for each Promotion.
+An active Promotion supplies the current state. Without one, the applicable terminal result from the last relevant
+Customer pass–Promotion relationship remains visible with a waiting message; without such a result, only waiting is
+shown. A scheduled Promotion alone does not replace the prior result. The next active Promotion replaces its displayed
+content, not its history or pass identity. Redemption can convey success; expiry and cancellation remain neutral.
+The Customer pass is not recreated for each Promotion. Reuse applies to a known anonymous pass identity; without customer identity, separate acquisition on another device cannot be guaranteed to recognize the same person. Such duplicate anonymous passes are an accepted MVP limitation.
 
 ## Visit model
 
@@ -231,7 +241,8 @@ When the Promotion reaches its exclusive end:
 - Unredeemed entitlements become unusable.
 - Redemption is disabled.
 - Customer passes stay installed.
-- Wallet shows a deterministic waiting state until a future Promotion becomes relevant.
+- Without another active Promotion, Wallet retains the applicable terminal result from the last relevant Customer pass–Promotion relationship together with a waiting message; with no applicable result, it shows waiting alone.
+- A scheduled Promotion alone does not replace that result. The next active Promotion supplies the current state in the same pass without deleting history.
 
 ## Invariants
 

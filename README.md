@@ -53,7 +53,7 @@ Ejemplo conceptual:
 ```text
 🎯 PROMOCIÓN ACTUAL
 
-Consigue 15 puntos antes del 30 SEP.
+Consigue 15 puntos hasta el 30 SEP.
 
 9 / 15 puntos
 
@@ -93,7 +93,7 @@ Cuando una Promoción termina o se cancela:
 - Muestra el estado final o la espera de una nueva Promoción.
 - La siguiente Promoción reutiliza el mismo Pase sin borrar el historial.
 
-Los estados previstos incluyen espera, progreso, recompensa disponible, recompensa canjeada, Promoción finalizada, recompensa vencida y Promoción cancelada. Completar la meta genera como máximo una recompensa por Pase y Promoción; el canje es final, una sola vez, antes del fin exclusivo y nunca después de una cancelación. No se reinicia el progreso para obtener otra recompensa en la misma Promoción.
+Los estados previstos incluyen espera, progreso, recompensa disponible, recompensa canjeada, Promoción finalizada, recompensa vencida y Promoción cancelada. Completar la meta genera como máximo una recompensa por Pase y Promoción; el canje es final, una sola vez, hasta el fin exclusivo y nunca después de una cancelación. No se reinicia el progreso para obtener otra recompensa en la misma Promoción.
 
 ## Experiencia del cliente
 
@@ -114,7 +114,7 @@ CAFÉ CENTRAL
 
 🎯 PROMOCIÓN ACTUAL
 
-Consigue 15 puntos antes del 30 SEP.
+Consigue 15 puntos hasta el 30 SEP.
 
 9 / 15 puntos
 
@@ -140,13 +140,13 @@ La aplicación prevista prioriza operaciones rápidas y simples.
 Resumen muestra únicamente:
 
 - Promoción actual o programada y siguiente acción pertinente.
-- Pases emitidos (no instalaciones ni personas únicas).
+- Pases con actividad: Pases distintos con al menos una visita aceptada en la Promoción activa (no Pases emitidos ni personas únicas).
 - Puntos obtenidos en la Promoción actual.
 - Recompensas desbloqueadas.
 - Recompensas canjeadas.
 - Accesos rápidos a **Registrar visita**, **Pase** e **Invitar clientes**.
 
-**Pase** reúne una vista previa compacta, apariencia guardada independientemente y una lista de Promociones en borrador, programadas, activas, terminadas o canceladas. El editor utiliza un solo modal con dos pestañas: **Información general** (fechas locales, meta y una recompensa con descripción opcional) y **Puntos extra** (días, horas y multiplicadores). Las pestañas conservan los datos sin guardar; guardar un borrador o publicar persiste la Promoción completa y sus ventanas de forma atómica. La apariencia del Pase se guarda por separado.
+**Pase** reúne una vista previa compacta, apariencia guardada independientemente y una lista de Promociones en borrador, programadas, activas, terminadas o canceladas. El editor ocupa una página completa dentro de **Pase**, sin modal ni pestañas, con las secciones **Información general** (fechas locales, meta y una recompensa con descripción opcional) y **Puntos extra** (días, horas y multiplicadores). Cambiar de sección o revisar conserva los datos sin guardar; guardar un borrador o publicar persiste la Promoción completa y sus ventanas de forma atómica. La apariencia del Pase se guarda por separado.
 
 Los borradores son editables. La publicación congela **todos** los términos incluso si está programada: fechas locales e instantes UTC, zona horaria copiada del negocio, meta, título y descripción de recompensa, y días, horas y valores de Puntos extra. Si la zona horaria del negocio cambió después de revisar el borrador, hay que revisar y confirmar de nuevo antes de publicar; no se reinterpretan fechas silenciosamente. Las Promociones publicadas ocupan ventanas efectivas secuenciales sin solapamiento, aunque pueden tocarse en los extremos. Cancelar una Promoción programada o activa detiene progreso y canje sin reescribir sus términos ni su historial; libera solamente la ocupación futura. Una cancelación durante un día local no permite iniciar ese mismo día un reemplazo configurado por fechas: el siguiente inicio posible es la siguiente medianoche local.
 
@@ -198,14 +198,13 @@ El Pase y el QR de muestra en la landing son ilustraciones: no son credenciales 
 
 ## Diseño visual
 
-FidelitoPass utiliza una interfaz limpia, redondeada y **exclusivamente oscura**, tanto en páginas públicas como en autenticación y aplicación.
+El diseño aprobado de FidelitoPass define una interfaz limpia, redondeada y **exclusivamente oscura**, tanto en páginas públicas como en autenticación y aplicación.
 
 ### Tema oscuro único
 
 - Tipografía Onest Variable servida localmente.
-- Shell negro `#000000`, lienzo carbón `#181818` y superficies `#1F1F1F` y `#272727`.
-- Texto blanco cálido `#F6F5F2`, bordes `#414141` y acento lavanda `#B7ABE4` (hover `#D8CEF5`).
-- Landing carbón `#242424` con paneles `#303030`.
+- Lienzo y shell gris oscuro, superficies neutras y acento lavanda, con roles de lectura, estado y foco diferenciados.
+- La [paleta aprobada](docs/ui-ux-guidelines.md#approved-dark-only-palette) es la única autoridad para valores y contraste; su definición no certifica la adopción en todas las pantallas.
 - Sin selector de tema ni variante clara; una preferencia previa o del sistema no debe producir un destello claro.
 
 Los estados de éxito, advertencia y error utilizan color + icono + texto. El color por sí solo nunca transmite el significado. La vista previa web puede controlar el contraste de texto; Google Wallet controla la representación nativa del texto y no garantiza un color elegido para él.
@@ -238,7 +237,7 @@ Ejemplo ilustrativo:
 2026-09-22 05:00 UTC -> 2026-09-22 01:00 America/La_Paz
 ```
 
-Aunque ambos instantes pertenecen al 22 de septiembre en UTC, corresponden a días locales diferentes. La expresión SQL para derivar la fecha está en [`docs/development/database-standard.md`](docs/development/database-standard.md).
+Aunque ambos instantes pertenecen al 22 de septiembre en UTC, corresponden a días locales diferentes. El [contrato de datos](docs/development/database-standard.md) define esta representación; la expresión SQL pertenece a la implementación.
 
 Las decisiones de vigencia utilizan el reloj de PostgreSQL, no el del navegador ni el del servidor PHP. En una mutación se bloquean primero las filas pertinentes y se captura **una sola vez** `clock_timestamp()`; el mismo instante rige plazos, Puntos extra, visita y marcas de auditoría relacionadas. Las consultas de estado utilizan una lectura explícitamente actual del reloj de PostgreSQL, no el inicio de una transacción que pudo esperar un bloqueo.
 
@@ -345,7 +344,7 @@ docker run --rm \
 ./vendor/bin/sail composer setup
 ```
 
-El script `setup` instala dependencias, genera la clave, ejecuta migraciones y compila assets; revisá el entorno antes de ejecutarlo. La aplicación estará disponible normalmente en:
+El script `setup` instala dependencias, genera la clave, ejecuta migraciones y compila assets; revisa el entorno antes de ejecutarlo. La aplicación estará disponible normalmente en:
 
 ```text
 http://localhost:8000
