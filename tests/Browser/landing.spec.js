@@ -1112,11 +1112,13 @@ test("public surface roles retain readable contextual ink across responsive view
                             const ink = [r, g, b].map(
                                 (channel, index) => channel * alpha + behind[index] * (1 - alpha),
                             );
-                            const a = luminance(ink),
-                                bLum = luminance(behind);
+                            const inkLuminance = luminance(ink),
+                                backgroundLuminance = luminance(behind);
                             return {
                                 color,
-                                contrast: (Math.max(a, bLum) + 0.05) / (Math.min(a, bLum) + 0.05),
+                                contrast:
+                                    (Math.max(inkLuminance, backgroundLuminance) + 0.05) /
+                                    (Math.min(inkLuminance, backgroundLuminance) + 0.05),
                             };
                         }),
                     ),
@@ -1410,7 +1412,6 @@ test("public landing scales the approved sample and keeps every section reachabl
         await expect(page.getByRole("main")).toHaveCount(1);
         await expect(page.getByRole("contentinfo")).toHaveCount(1);
         const pass = page.locator("[data-pass]");
-        const thumbnail = page.locator("[data-thumbnail]");
         await expect(pass).toHaveAttribute("aria-label", /Pase de ejemplo/);
         await expect(page).toHaveTitle(
             "FidelitoPass - Dale a tus clientes una razón para volver. - FidelitoPass",
