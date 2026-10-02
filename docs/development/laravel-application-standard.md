@@ -10,6 +10,63 @@ Prefer the smallest conventional Laravel design that protects the current domain
 
 Do not introduce architecture layers for pattern compliance.
 
+## Pragmatic design principles
+
+Choose the smallest conventional solution that protects domain behaviour and makes the change readable and verifiable. Apply KISS, YAGNI, DRY and SOLID as decision criteria, not quotas for layers, interfaces, classes or helpers.
+
+### KISS: simplest correct solution
+
+Prefer Eloquent, Policies, validation, transactions and Jobs before custom machinery. Simple CRUD does not need a controller-to-Service-to-repository pipeline.
+
+Keep a consequential operation in one cohesive Action when it needs the boundaries defined in [Actions](#actions). A multi-step operation can remain one responsibility; neither the shortest code nor the fewest functions defines simplicity.
+
+### YAGNI: current need, not hypothetical capacity
+
+Do not build hypothetical Wallet provider support, a generic Promotion rules engine, speculative Strategies or base classes. Add variation only when a current requirement demonstrates its value.
+
+Security, applicable tests, readability and behaviour-preserving refactoring are not speculative capacity. Do not defer them under YAGNI or preserve confusing code merely because its behaviour already passes tests.
+
+### DRY: shared knowledge, not similar shape
+
+Centralize authoritative knowledge when its copies express the same rule and must change together. Similar-looking forms, tests or workflows do not by themselves prove shared meaning.
+
+Prefer local duplication to an abstraction filled with flags or unrelated branches. Extract shared code when its common responsibility and contract are established, not merely to remove matching lines.
+
+### SOLID: cohesive responsibilities and justified boundaries
+
+| Principle | Project decision |
+| --- | --- |
+| Single responsibility (SRP) | Group code by a cohesive responsibility and reason to change. An Action can coordinate several steps and own a complete transaction for one consequential operation; do not split it into competing transaction owners. |
+| Open/closed (OCP) | Introduce extension points for real variation. Changing a stable concrete class for a current requirement is legitimate; do not prebuild extension machinery to avoid every future edit. |
+| Liskov substitution (LSP) | Existing substitutions and inheritance must preserve caller-visible contracts, including preconditions, results, exceptions and side effects. Do not introduce inheritance merely to reuse lines. |
+| Interface segregation (ISP) | When an interface is justified, define the focused contract its consumers need. Do not require one interface per class or expose unrelated operations to every consumer. |
+| Dependency inversion (DIP) | Protect important rules from external details where an actual boundary needs it. Do not wrap Eloquent or every dependency by default; apply the [interface decision gate](#concrete-dependencies-and-interface-gate). |
+
+### Concrete dependencies and interface gate
+
+Default to concrete Laravel dependency type hints and container resolution. Dependency injection does not require an interface.
+
+Before adding an interface, establish at least one present need:
+
+- Current interchangeable implementations must satisfy the same consumer contract.
+- A meaningful external isolation or testing boundary cannot reasonably be provided by concrete injection or framework-native fakes.
+
+For the second case, identify what must be isolated and why the existing tools are insufficient. Testing isolation can justify a contract even if the provider will never be replaced. Mock convenience alone, a DIP slogan or hypothetical future replacement is not sufficient.
+
+If neither need exists, keep the concrete dependency. If a need exists, define only the consumer's required contract and verify substitutions against it. Do not add unused implementations or a layer for every collaborator.
+
+For the single Google Wallet integration, start with one concrete Integration that confines SDK/HTTP details. Add a contract only when this gate is met; isolation does not transfer domain decisions to the provider. Preserve [Google Wallet integration](#google-wallet-integration) ownership and [Transactions and external effects](#transactions-and-external-effects): PostgreSQL owns domain truth and provider calls occur after commit.
+
+### Review dimensions
+
+Review a change across three distinct dimensions:
+
+- **Design:** responsibilities and abstractions meet a current need; any interface satisfies the gate above.
+- **Readability:** the reading path meets [Source readability acceptance](#source-readability-acceptance), without microclass or helper quotas.
+- **Behaviour and efficiency:** applicable tests protect observable behaviour; avoid demonstrably redundant work and support performance claims with evidence under the existing efficient-design criteria.
+
+Passing one dimension does not establish the others. These criteria define intended design; they do not claim that existing application code has adopted it.
+
 ## Framework-first structure
 
 Use Laravel conventional roots:
@@ -249,7 +306,7 @@ It is not responsible for:
 - Reward completion.
 - Redemption authorization.
 
-Do not add a provider interface while only one provider exists unless a real test/substitution boundary requires it.
+While only one provider exists, add a provider interface only for a demonstrated testing/isolation need under [Concrete dependencies and interface gate](#concrete-dependencies-and-interface-gate). Otherwise retain the concrete Integration.
 
 ## Jobs
 
@@ -292,6 +349,7 @@ Do not create enums for phases that are derived from timestamps.
 - Keep code as a top-to-bottom narrative with whitespace between semantic blocks. In Livewire components, order meaningful properties, lifecycle hooks, component actions, optional private helpers, then listeners last. Do not add empty blocks merely to satisfy the order.
 - In Blade, use lowercase semantic HTML comments such as `<!-- form actions -->` where they clarify sections. Use blank lines and multiline attributes when needed for readability; do not compress PHP, Blade, or JavaScript into dense one-liners.
 - Put visible translated or interpolated Blade text on its own indented line inside tags, including Flux labels, headings, links, buttons and options. Short self-closing attribute-bound labels can stay on one line. Preserve required inline whitespace.
+- Do not wrap whitespace-sensitive content or inline punctuation blindly; preserve rendered spacing and semantics.
 
 ### Source readability acceptance
 
@@ -310,78 +368,9 @@ Apply these language-specific reading checks:
 | PHP | Keep methods cohesive, use descriptive names and native types, and expose branches, data access and side effects. Preserve the existing Livewire lifecycle order and document only contracts that remain unclear. |
 | JavaScript | Keep calculations and handlers cohesive, name intent and units, and expose execution flow instead of dense callback tangles. Make resource ownership and setup/cleanup order visible only when the code owns those resources. |
 
-These general criteria apply to scripts and tests too. More line breaks, helpers or headings alone do not satisfy them. Tests protect observable behaviour; they do not certify that future developers can understand and safely change the source.
+These general criteria apply to scripts and tests too. Structure follows actual responsibilities and context, not a universal template. More line breaks, helpers or headings alone do not satisfy them. Tests protect observable behaviour; they do not certify that future developers can understand and safely change the source.
 
 Efficient design includes avoiding demonstrably unnecessary work: redundant lookups, traversals, provider calls or resources. Use conventional framework primitives first and preserve behaviour when removing such work. Do not introduce premature optimization or manual caching layers by default. Support performance-gain claims with relevant tests or measurements, not cleaner-looking source.
-
-The fictional examples below illustrate these rules, which remain authoritative without the examples. They are self-contained reading aids, not runnable application integrations or required architectures. Names, function counts and heading shapes are not templates. Preserve behaviour when applying the principles to real code.
-
-#### Blade example: content and actions
-
-Before: the semantic elements exist, but content, inline status and the action are buried in one scan line.
-
-```blade
-<section aria-labelledby="selection-title"><h2 id="selection-title">{{ __('Selección de archivos') }}</h2><p>{{ __('Hay :count archivos seleccionados.', ['count' => 3]) }}</p><p><span>{{ __('Estado:') }}</span> <strong>{{ __('Pendiente') }}</strong></p><a href="#guide">{{ __('Consultar la guía') }}</a></section>
-```
-
-After: content and the guide action have distinct reading regions; copy is easy to locate.
-
-```blade
-<section aria-labelledby="selection-title">
-    <!-- selection summary -->
-    <h2 id="selection-title">
-        {{ __('Selección de archivos') }}
-    </h2>
-    <p>
-        {{ __('Hay :count archivos seleccionados.', ['count' => 3]) }}
-    </p>
-    <p>
-        <span>
-            {{ __('Estado:') }}
-        </span>
-        <strong>
-            {{ __('Pendiente') }}
-        </strong>
-    </p>
-
-    <!-- guide action -->
-    <a href="#guide">
-        {{ __('Consultar la guía') }}
-    </a>
-</section>
-```
-
-Both versions keep the same tags, heading association, fragment target, translation calls and count. In normal HTML whitespace, the newline between `span` and `strong` preserves the original collapsed space between the status label and value. Do not apply this wrapping blindly to whitespace-sensitive content or inline punctuation. The regions help a later edit find content or navigation without changing either contract.
-
-#### JavaScript example: selection and calculation
-
-Both versions define a standalone function. Input is an array of records with a boolean `archived` and a finite non-negative `bytes` number. Output rounds the combined size of non-archived records up to whole KiB; an empty selection returns zero.
-
-Before: abbreviated names and a nested expression hide the selection rule and rounding boundary.
-
-```javascript
-function selectedSizeKiB(records) {
-    return Math.ceil(records.filter(r => !r.archived).reduce((n, r) => n + r.bytes, 0) / 1024);
-}
-```
-
-After: names and semantic steps expose which records count and when rounding occurs.
-
-```javascript
-function selectedSizeKiB(records) {
-    const bytesPerKiB = 1024;
-    const selectedRecords = records.filter(record => !record.archived);
-    const totalBytes = selectedRecords.reduce(
-        (selectedBytes, record) => selectedBytes + record.bytes,
-        0,
-    );
-
-    // round once after summing so partial units do not inflate each record.
-    return Math.ceil(totalBytes / bytesPerKiB);
-}
-```
-
-Both versions filter and sum in the same order, use the same zero accumulator and round only the final quotient. The unit name and local rationale protect that boundary during future changes; merely expanding the expression would not explain it. The standalone function needs no section box or routine JSDoc. It owns no external resources, so it needs no initializer or destruction routine. This readability example makes no performance-gain claim.
 
 ## Component-local JavaScript
 

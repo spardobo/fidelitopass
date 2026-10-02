@@ -25,6 +25,7 @@ Use for project-owned application or UI changes. Framework skills and installed 
 | Situation | Action |
 | --- | --- |
 | Routine CRUD vs consequential transition | Keep routine changes direct; use one Action for transaction/concurrency/side effects. |
+| Abstraction or dependency contract | Apply [Pragmatic design principles](../../docs/development/laravel-application-standard.md#pragmatic-design-principles); retain concrete injection unless the [interface gate](../../docs/development/laravel-application-standard.md#concrete-dependencies-and-interface-gate) is met. |
 | Domain/time ambiguity | Read relevant section of `docs/promotion-model.md`, `docs/development/database-standard.md` and acceptance requirement. |
 | New vs existing Livewire UI | Prefer cohesive native multi-file component; preserve stable starter format. |
 | Provider failure | Preserve committed facts and retry after-commit synchronization. |
@@ -34,12 +35,12 @@ Use for project-owned application or UI changes. Framework skills and installed 
 ## Execution Steps
 
 1. Read work item, affected code, nearby tests and relevant installed versions. Use [Documentation routing](../../AGENTS.md#documentation-routing) to select applicable owners and actually read the necessary sections before writing code; identify governing constraints and unresolved conflicts. Reading this skill alone is insufficient. If a required source is unavailable or material intent is unresolved, stop before the affected edit and report it. Use `references/implementation-details.md` for implementation constraints, not a second global map.
-2. Implement smallest server-authoritative change, respecting persistence, presentation and localization. For changed Blade, PHP and JavaScript (including scripts/tests), read and apply [Source readability acceptance](../../docs/development/laravel-application-standard.md#source-readability-acceptance) and its efficient-design criteria; assess independently of tests and apply the rules, not an example's shape.
+2. Apply the design principles and interface gate above before adding layers or contracts. Implement smallest server-authoritative change, respecting persistence, presentation and localization. For changed Blade, PHP and JavaScript (including scripts/tests), read and apply [Source readability acceptance](../../docs/development/laravel-application-standard.md#source-readability-acceptance) and its efficient-design criteria; assess independently of tests and organize by actual responsibilities, not a universal template.
 3. Verify at natural test layer; cover ownership, time boundaries, idempotency and provider failure when affected.
 
 ## Output Contract
 
-Report changed files, selected owner sections and API evidence, relevant domain/security/time boundaries, observed checks and remaining risks. Report material readability and efficient-design decisions against canonical criteria, including comment purpose, non-obvious Flux/native choices and lifecycle ownership when affected. Identify unmet criteria and limits of performance evidence separately from observed tests, not per helper.
+Report changed files, selected owner sections and API evidence, relevant domain/security/time boundaries, observed checks and remaining risks. Report material design, readability and efficiency decisions against canonical criteria, including demonstrated interface need, comment purpose, non-obvious Flux/native choices and lifecycle ownership when affected. Identify unmet criteria and limits of performance evidence separately from observed tests, not per helper.
 
 ## References
 
