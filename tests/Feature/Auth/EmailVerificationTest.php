@@ -4,8 +4,10 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 use Laravel\Fortify\Features;
 use Tests\TestCase;
@@ -28,6 +30,23 @@ class EmailVerificationTest extends TestCase
         $response = $this->actingAs($user)->get(route('verification.notice'));
 
         $response->assertOk();
+    }
+
+    public function test_resending_verification_displays_status_without_verifying_the_user(): void
+    {
+        $user = User::factory()->unverified()->create();
+        Notification::fake();
+
+        $response = $this->actingAs($user)->from(route('verification.notice'))
+            ->post(route('verification.send'));
+
+        $response->assertRedirect(route('verification.notice'))
+            ->assertSessionHas('status', 'verification-link-sent');
+        Notification::assertSentTo($user, VerifyEmail::class);
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
+        $this->get(route('verification.notice'))->assertSee(__(
+            'A new verification link has been sent to the email address you provided during registration.'
+        ));
     }
 
     public function test_email_can_be_verified(): void

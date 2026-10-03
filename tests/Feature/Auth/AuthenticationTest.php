@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -80,14 +81,50 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->post(route('login.store'), [
+        $response = $this->from(route('login'))->post(route('login.store'), [
             'email' => $user->email,
             'password' => 'wrong-password',
         ]);
 
-        $response->assertSessionHasErrorsIn('email');
+        $response->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['email' => __('auth.failed')])
+            ->assertSessionHasInput('email', $user->email);
+
+        // HTTP tests do not automatically carry the POST session cookie into the redirected GET.
+        $session = app('session.store');
+        $this->withCookie($session->getName(), $session->getId())
+            ->get(route('login'))->assertSee(__('auth.failed'));
 
         $this->assertGuest();
+    }
+
+    public function test_remembered_login_issues_a_persistent_cookie(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+            'remember' => 'on',
+        ]);
+
+        $response->assertSessionHasNoErrors()
+            ->assertCookie(Auth::guard('web')->getRecallerName());
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_login_without_remember_does_not_issue_a_persistent_cookie(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $response->assertSessionHasNoErrors()
+            ->assertCookieMissing(Auth::guard('web')->getRecallerName());
+        $this->assertAuthenticatedAs($user);
     }
 
     public function test_disabled_two_factor_passkey_and_discovery_routes_are_unavailable(): void
