@@ -62,7 +62,7 @@
             </div>
 
             <!-- remember me -->
-            <flux:field variant="inline" class="app-choice-field">
+            <flux:field variant="inline" class="min-h-app-control items-center">
                 <flux:checkbox name="remember" :checked="old('remember')" class="app-focus" />
                 <flux:label class="app-label">
                     {{ __('Remember me') }}

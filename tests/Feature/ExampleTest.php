@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use DOMDocument;
+use DOMXPath;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -69,7 +71,6 @@ class ExampleTest extends TestCase
             ->assertSee('href="'.route('register').'"', false)
             ->assertSee('href="'.route('login').'"', false)
             ->assertSee('Crear mi cuenta')
-            ->assertSee('id="content" tabindex="-1"', false)
             ->assertDontSee('href="#contenido"', false)
             ->assertSee('Inicia sesión')
             ->assertDontSee('aria-label="Modo oscuro"', false)
@@ -83,5 +84,12 @@ class ExampleTest extends TestCase
             ->assertSee('href="#pass"', false)
             ->assertSee('href="#questions"', false)
             ->assertDontSee('Compartir un QR · En desarrollo');
+
+        $document = new DOMDocument;
+        $this->assertTrue($document->loadHTML($response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET));
+
+        $mainElements = (new DOMXPath($document))->query('//main[@id="content"]');
+        $this->assertCount(1, $mainElements);
+        $this->assertSame('-1', $mainElements->item(0)->getAttribute('tabindex'));
     }
 }
