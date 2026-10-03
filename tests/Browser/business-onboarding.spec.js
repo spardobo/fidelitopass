@@ -83,29 +83,66 @@ async function verificationLink(request, recipient) {
     return link.replace(/&amp;/g, "&");
 }
 
-async function registerAndVerifyOwner(page, request, width, recipient) {
-    await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/login(?:\?|$)/);
+async function registerAndVerifyOwner(page, request, width, recipient, business) {
+    if (width === 1280) {
+        await page.goto("/settings/appearance");
+        await expect(page).toHaveURL(/\/login(?:\?|$)/);
+    }
     await page.goto("/register");
     await expect(page.getByRole("heading", { name: "Crear una cuenta" })).toBeVisible();
     await expectReadable(page);
     expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches)).toBe(
         true,
     );
-    await page
-        .getByRole("textbox", { name: /nombre/i })
-        .first()
-        .fill(`Owner ${width}`);
+    await page.getByRole("textbox", { name: "Nombre", exact: true }).fill(`Owner ${width}`);
     await page.getByRole("textbox", { name: /correo/i }).fill(recipient);
+    await page.getByRole("textbox", { name: "Nombre del negocio", exact: true }).fill(business);
+    const timezone = page.getByRole("combobox", { name: "Zona horaria", exact: true });
+    await expect(timezone).toHaveValue("");
+    await timezone.selectOption("America/Argentina/Buenos_Aires");
     await page.locator('input[name="password"]').fill("ValidPassword84!strong");
     await page.locator('input[name="password_confirmation"]').fill("ValidPassword84!strong");
-    await page.getByRole("button", { name: "Crear cuenta" }).click();
 
-    await expect(page).toHaveURL(/\/email\/verify(?:\?|$)/);
-    await page.goto("/dashboard");
+    if (width === 1280) {
+        // A tampered option reaches Fortify; the server, not the select list, owns validity.
+        await timezone.evaluate((select) => {
+            select.add(new Option("Invalid/Timezone", "Invalid/Timezone"));
+            select.value = "Invalid/Timezone";
+        });
+        const rejected = page.waitForResponse(
+            (response) =>
+                response.request().method() === "POST" &&
+                new URL(response.url()).pathname === "/register",
+        );
+        await page.getByRole("button", { name: "Crear cuenta" }).click();
+        expect((await rejected).status()).toBe(302);
+        await expect(page).toHaveURL(/\/register(?:\?|$)/);
+        await expect(
+            page.getByText("El campo zona horaria no está en la lista de valores permitidos.", {
+                exact: true,
+            }),
+        ).toBeVisible();
+        await expect(page.getByLabel("Correo electrónico", { exact: true })).toHaveValue(recipient);
+        await expect(page.getByLabel("Nombre del negocio", { exact: true })).toHaveValue(business);
+        await timezone.selectOption("America/Argentina/Buenos_Aires");
+        await page.locator('input[name="password"]').fill("ValidPassword84!strong");
+        await page.locator('input[name="password_confirmation"]').fill("ValidPassword84!strong");
+    }
+
+    const registered = page.waitForResponse(
+        (response) =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname === "/register",
+    );
+    await page.getByRole("button", { name: "Crear cuenta" }).click();
+    expect((await registered).status()).toBe(302);
+    console.info(`Created browser fixture owner: ${recipient}`);
     await expect(page).toHaveURL(/\/email\/verify(?:\?|$)/);
     await page.goto(await verificationLink(request, recipient));
-    await expect(page).toHaveURL(/\/business\/onboarding(?:\?|$)/);
+    await expect(page).toHaveURL(
+        width === 1280 ? /\/settings\/appearance(?:\?|$)/ : /\/dashboard(?:\?|$)/,
+    );
+    await page.goto("/dashboard");
 }
 
 test("saved light appearance is replaced before authentication renders", async ({
@@ -153,7 +190,9 @@ test("saved light appearance is replaced before authentication renders", async (
                 await expect(label).toHaveCSS("font-weight", "500");
             }
             await page.getByRole("link", { name: "FidelitoPass" }).focus();
-            for (const input of await card.locator("input[data-flux-control]").all()) {
+            for (const input of await card
+                .locator("input[data-flux-control], select[data-flux-control]")
+                .all()) {
                 await expect(input).toHaveCSS("font-size", "16px");
                 await expect(input).toHaveCSS("line-height", "24px");
                 await expect(input).toHaveCSS("background-color", "rgb(34, 34, 34)");
@@ -202,7 +241,9 @@ test("saved light appearance is replaced before authentication renders", async (
                 await expect(
                     card.getByRole("button", { name: "Mostrar u ocultar contraseña" }).first(),
                 ).toHaveCSS("color", "rgb(212, 208, 220)");
-                for (const input of await card.locator("input[data-flux-control]").all()) {
+                for (const input of await card
+                    .locator("input[data-flux-control], select[data-flux-control]")
+                    .all()) {
                     expect((await input.boundingBox()).height).toBe(52);
                 }
                 expect((await primary.boundingBox()).height).toBe(52);
@@ -242,7 +283,7 @@ test("saved light appearance is replaced before authentication renders", async (
 });
 
 for (const width of [1280, 375]) {
-    test(`verified owner completes onboarding and edits business at ${width}px`, async ({
+    test(`registration creates a business and verified owner edits it at ${width}px`, async ({
         page,
         request,
     }, testInfo) => {
@@ -251,19 +292,9 @@ for (const width of [1280, 375]) {
         const recipient = `onboarding-${width}-${crypto.randomUUID()}@example.test`;
         const business = `Negocio ${width} ${crypto.randomUUID()}`;
 
-        await registerAndVerifyOwner(page, request, width, recipient);
-        await expect(page.getByRole("heading", { name: "Configura tu negocio" })).toBeVisible();
-        await expectReadable(page);
-
-        const name = page.getByRole("textbox", { name: "Nombre del negocio" });
-        await name.focus();
-        await expect(name).toBeFocused();
-        await page.keyboard.press("Tab");
-        await expect(page.getByLabel("Zona horaria")).toBeFocused();
-        await name.fill(business);
-        await page.getByLabel("Zona horaria").selectOption("America/Argentina/Buenos_Aires");
-        await page.getByRole("button", { name: "Guardar negocio" }).click();
+        await registerAndVerifyOwner(page, request, width, recipient, business);
         await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+        await expect(page.getByRole("heading", { name: "Resumen", exact: true })).toBeVisible();
         await expect(page.getByRole("heading", { name: business })).toBeVisible();
         await expectReadable(page);
         await page.reload();
@@ -334,6 +365,22 @@ for (const width of [1280, 375]) {
             path: testInfo.outputPath(`app-header-profile-${width}.png`),
             fullPage: true,
         });
+
+        const editedBusiness = `Negocio actualizado ${width}`;
+        const name = page.getByRole("textbox", { name: "Nombre del negocio", exact: true });
+        await name.focus();
+        await expect(name).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(page.getByLabel("Zona horaria")).toBeFocused();
+        await name.fill(editedBusiness);
+        await page.getByLabel("Zona horaria").selectOption("Europe/Madrid");
+        await page.getByRole("button", { name: "Guardar negocio" }).click();
+        await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+        await page.reload();
+        await expect(
+            page.getByRole("heading", { name: editedBusiness, exact: true }),
+        ).toBeVisible();
+        await expect(page.getByText("Zona horaria: Europe/Madrid", { exact: true })).toBeVisible();
 
         await menuButton.click();
         await expect(page.getByRole("menuitem", { name: "Cerrar sesión" })).toBeVisible();

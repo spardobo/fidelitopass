@@ -165,19 +165,20 @@ Use the Starter Kit/Fortify flows with the FidelitoPass visual tokens.
 - Labels remain visible.
 - Validation appears close to the field.
 - Do not add decorative side panels that distract from authentication.
-- Registration collects Business name and a visible, confirmable, server-validated IANA timezone alongside owner credentials in one atomic operation; no logo or Promoción configuration is required.
+- Registration collects Business name and an explicitly selected, visible, server-validated IANA timezone alongside owner credentials in one atomic operation; no logo or Promoción configuration is required. Do not guess or automatically select the timezone.
+- Preserve email verification and normal intended destinations after authentication. **Resumen** is the ordinary authenticated application home, not a required first stop.
 
 ## Authenticated navigation
 
 The desktop header offers **Resumen**, **Pase**, **Invitar clientes**, a global **Registrar visita** action and account access; account menu retains Business, Profile, Security and logout destinations. Mobile rearranges visible navigation without shrinking operational text or hiding the action without an accessible alternative. Keep exactly one active link with `aria-current="page"`; appearance editing, Promotion editing/review/detail keep Pase selected. Anchor the active lavender line to the intrinsic icon + label group with `0.25rem` gap and `0.125rem` thickness, not to the bottom of the whole header link; preserve the link rectangle and independent keyboard focus. If the icon hides on mobile, the line tracks the label width. Saving/cancelling appearance or Promotion returns to Pase, not Resumen; dirty editor navigation requests confirmation.
 
-## Business onboarding
+## Business profile
 
-For an existing owner without a Business, offer compatible setup with only Business name and visible, server-validated IANA timezone. A logo is optional, not a publication prerequisite. **Resumen** is the ordinary authenticated application home, not a required first stop after sign-in. Keep Profile and logout available; its incomplete-setup CTA uses the same **Pase** route as navigation, not a forced wizard.
+The Business is created with the owner at registration. The Business destination edits the owner's existing Business name and IANA timezone. A logo is optional, not a publication prerequisite. Keep Profile and logout available.
 
 Timezone selection should:
 
-- Preselect a browser-suggested timezone when available.
+- Require explicit selection at registration; display the saved timezone when editing the Business.
 - Display the IANA name in a searchable/selectable control.
 - Remain editable in settings.
 - Explain briefly that it controls Promoción days and deadlines.
@@ -186,7 +187,7 @@ Do not expose UTC offsets as the stored Business identity because offsets can ch
 
 ## Dashboard
 
-**Resumen** is a read-only status view, not an editor or setup wizard. Its preparation cards are informational articles, not disabled clickable controls or checkboxes; the only setup link, **Ir a Pase**, goes to the Pase workspace. Never remember a setup origin to redirect there after saving. Distinguish missing setup, scheduled, active, ended and cancelled Promociones; a scheduled Promoción completes preparation but cannot accept visits yet. Show truthful waiting states rather than fabricated activity.
+**Resumen** is a read-only status view, not an editor or setup wizard. Its preparation cards are informational articles, not disabled clickable controls or checkboxes; the only setup link, **Ir a Pase**, goes to the Pase workspace for pass appearance and Promoción preparation. Never remember a setup origin to redirect there after saving. Distinguish incomplete Promoción preparation, scheduled, active, ended and cancelled Promociones; a scheduled Promoción completes preparation but cannot accept visits yet. Show truthful waiting states rather than fabricated activity.
 
 ### Top section
 

@@ -3,57 +3,51 @@
 use App\Models\Business;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-it('allows a verified owner to create only before a business exists', function () {
-    $user = User::factory()->create();
-    $this->actingAs($user);
-
-    expect(Gate::allows('create', Business::class))->toBeTrue();
-
-    Business::factory()->for($user)->create();
-
-    expect(Gate::allows('create', Business::class))->toBeFalse();
-});
-
 it('denies another owner and an unverified owner from updating', function () {
     $business = Business::factory()->create();
-    $other = User::factory()->create();
+    $otherBusiness = Business::factory()->create();
     $unverified = User::factory()->unverified()->create();
+    $unverifiedBusiness = Business::factory()->for($unverified)->create();
 
-    expect($other->can('update', $business))->toBeFalse()
-        ->and($unverified->can('update', $business))->toBeFalse()
-        ->and($unverified->can('create', Business::class))->toBeFalse()
+    expect($otherBusiness->user->can('update', $business))->toBeFalse()
+        ->and($unverified->can('update', $unverifiedBusiness))->toBeFalse()
         ->and($business->user->can('update', $business))->toBeTrue();
 });
 
-it('denies direct Livewire save by an unverified owner even with valid fields', function () {
-    $user = User::factory()->unverified()->create();
+it('denies direct Livewire save after the owners verification is revoked', function () {
+    $business = Business::factory()->create(['name' => 'Original', 'timezone' => 'UTC']);
+    $user = $business->user;
     $this->actingAs($user);
+    $form = Livewire::test('pages::business.profile');
+    $user->forceFill(['email_verified_at' => null])->save();
 
-    Livewire::test('pages::business.profile')
-        ->set('name', 'Negocio no verificado')
-        ->set('timezone', 'UTC')
+    $form->set('name', 'Negocio no verificado')
+        ->set('timezone', 'Europe/Madrid')
         ->call('save')
         ->assertForbidden();
 
-    expect($user->business()->exists())->toBeFalse();
+    expect($business->fresh()->name)->toBe('Original')
+        ->and($business->fresh()->timezone)->toBe('UTC');
 });
 
 it('authorizes direct save against the current session and current ownership', function () {
-    $user = User::factory()->create();
-    $this->actingAs($user);
-
+    $business = Business::factory()->create(['name' => 'Original', 'timezone' => 'UTC']);
+    $otherBusiness = Business::factory()->create(['name' => 'Otro negocio', 'timezone' => 'UTC']);
+    $this->actingAs($business->user);
     $form = Livewire::test('pages::business.profile')
-        ->set('name', 'Primer negocio')
-        ->set('timezone', 'UTC');
+        ->set('name', 'Nombre actualizado')
+        ->set('timezone', 'Europe/Madrid');
 
-    Business::factory()->for($user)->create(['name' => 'Actual']);
-
+    $this->actingAs($otherBusiness->user);
     $form->call('save')->assertRedirect(route('dashboard'));
 
-    expect($user->business()->firstOrFail()->name)->toBe('Primer negocio');
+    expect($business->fresh()->name)->toBe('Original')
+        ->and($business->fresh()->timezone)->toBe('UTC');
+    expect($otherBusiness->fresh()->name)->toBe('Nombre actualizado')
+        ->and($otherBusiness->fresh()->timezone)->toBe('Europe/Madrid');
+    expect(Business::count())->toBe(2);
 });

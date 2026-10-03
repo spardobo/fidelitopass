@@ -2,12 +2,14 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Business;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -75,6 +77,55 @@ class AuthenticationTest extends TestCase
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
+    }
+
+    public function test_business_owner_login_keeps_the_intended_destination(): void
+    {
+        $business = Business::factory()->create();
+        $user = $business->user;
+        $destination = route('profile.edit');
+
+        $this->withSession(['url.intended' => $destination])->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertSessionHasNoErrors()->assertRedirect($destination);
+
+        $this->get($destination)->assertOk();
+        $this->assertAuthenticatedAs($user);
+        $this->assertModelExists($business);
+    }
+
+    public function test_business_owner_default_login_reaches_dashboard(): void
+    {
+        $business = Business::factory()->create();
+        $user = $business->user;
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->get(route('dashboard'))->assertOk();
+        $this->assertModelExists($business);
+    }
+
+    public function test_business_owner_verification_preserves_the_intended_dashboard(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $business = Business::factory()->for($user)->create();
+        $destination = route('dashboard');
+        $verificationUrl = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1($user->email)],
+        );
+
+        $this->actingAs($user)->get($destination)->assertRedirect(route('verification.notice'));
+        $this->get($verificationUrl)->assertRedirect($destination);
+
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+        $this->get($destination)->assertOk();
+        $this->assertModelExists($business);
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void
