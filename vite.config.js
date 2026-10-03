@@ -12,6 +12,7 @@ export default defineConfig({
         laravel({
             input: [
                 "resources/css/app.css",
+                "resources/js/native-validation.js",
                 /* @chisel-passkeys */
                 "resources/js/passkeys.js",
                 /* @end-chisel-passkeys */

@@ -14,4 +14,9 @@
 @include('partials.theme-default')
 @fluxAppearance
 
-@vite('resources/css/app.css')
+@php
+    $nativeValidationMessages = __('validation.native', [], app()->getLocale());
+@endphp
+<meta name="native-validation" content='@json($nativeValidationMessages)' />
+
+@vite(['resources/css/app.css', 'resources/js/native-validation.js'])
