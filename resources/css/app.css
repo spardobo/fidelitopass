@@ -8,12 +8,35 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Global application palette: edit these four canonical roles here. */
+/* shared semantic roles; equal values do not merge distinct responsibilities. */
 @theme static {
     --color-app-canvas: #242424;
     --color-app-surface: #2E2E2E;
     --color-app-emphasis: #3D2E55;
     --color-app-accent: #A77BFF;
+    --color-app-accent-hover: #B893FF;
+    --color-app-accent-pressed: #9566EB;
+    --color-app-on-accent: #17131F;
+    --color-app-accent-text: #CDB0FF;
+
+    --color-app-ink: #F6F5F2;
+    --color-app-ink-secondary: #C7C4CE;
+    --color-app-ink-help: #B0ACB8;
+    --color-app-ink-priority: #E4D6FA;
+    --color-app-border: #525252;
+    --color-app-panel-border: #525252;
+    --color-app-line: #484848;
+    --color-app-priority-border: #8465AC;
+    --color-app-control: #222222;
+    --color-app-control-border: #7D7D7D;
+    --color-app-danger-ink: #FFB4BE;
+    --color-app-success-ink: #BCE7C9;
+
+    --spacing-app-control: 2.75rem;
+    --radius-app-control: .6875rem;
+    --leading-app-body: 1.5rem;
+    --app-focus-width: 2px;
+    --app-focus-offset: 3px;
 }
 
 /* Unmigrated compatibility defaults, not the canonical application palette. */
@@ -62,7 +85,24 @@
 
 @layer components {
     .landing-world { font-family: 'Onest Variable', sans-serif; background: var(--color-canvas); overflow-x: clip; }
-    .landing-world { --color-canvas: var(--color-app-canvas); --color-shell: var(--color-canvas); --color-surface: var(--color-app-surface); --color-surface-large: var(--color-surface); --landing-accent: var(--color-app-accent); --landing-accent-hover: #B893FF; --landing-accent-pressed: #9566EB; --landing-accent-ink: #17131F; --landing-accent-text: #CDB0FF; --landing-neutral-surface: var(--color-surface); --landing-emphasis-surface: var(--color-app-emphasis); --landing-primary-ink: #F6F5F2; --landing-emphasis-ink: #E4D6FA; --landing-border: #525252; --landing-line: #484848; --landing-emphasis-border: #8465AC; --landing-soft-ink: #B0ACB8; }
+    .landing-world {
+        --color-canvas: var(--color-app-canvas);
+        --color-shell: var(--color-canvas);
+        --color-surface: var(--color-app-surface);
+        --color-surface-large: var(--color-surface);
+        --landing-accent: var(--color-app-accent);
+        --landing-accent-ink: var(--color-app-on-accent);
+        --landing-accent-text: var(--color-app-accent-text);
+        --landing-neutral-surface: var(--color-surface);
+        --landing-emphasis-surface: var(--color-app-emphasis);
+        --landing-primary-ink: var(--color-app-ink);
+        --landing-emphasis-ink: var(--color-app-ink-priority);
+        --landing-border: var(--color-app-border);
+        --landing-line: var(--color-app-line);
+        --landing-emphasis-border: var(--color-app-priority-border);
+        --landing-soft-ink: var(--color-app-ink-help);
+        --app-focus-offset: 4px;
+    }
     .landing-world h1, .landing-world h2, .landing-world h3 { text-wrap: balance; }
     .landing-world p { text-wrap: pretty; }
     html:has(.landing-world) { scroll-behavior: smooth; }
@@ -104,6 +144,77 @@ select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-surface;
 }
 
+/* shared Tailwind roles; consumers opt in through public component classes. */
+@utility app-role-title {
+    @apply text-2xl leading-8 font-semibold md:text-3xl md:leading-9;
+}
+@utility app-role-body {
+    @apply text-base leading-app-body font-normal;
+}
+@utility app-role-action {
+    @apply app-role-body font-medium;
+}
+@utility app-role-support {
+    @apply text-sm leading-5 font-normal;
+}
+
+/* only Flux's public accent tokens are inherited; no descendant restyling. */
+@utility app-theme {
+    --color-accent: var(--color-app-accent);
+    --color-accent-content: var(--color-app-accent-text);
+    --color-accent-foreground: var(--color-app-on-accent);
+    @apply app-role-body text-app-ink;
+}
+@utility app-heading {
+    @apply app-role-title! text-app-ink!;
+}
+@utility app-description {
+    @apply app-role-body! text-app-ink-secondary!;
+}
+@utility app-label {
+    /* important also supersedes the starter's global leading-tight. */
+    @apply app-role-action! text-app-ink!;
+}
+@utility app-text-secondary {
+    @apply text-app-ink-secondary!;
+}
+@utility app-status-success {
+    @apply app-role-support! text-app-success-ink!;
+}
+@utility app-error {
+    @apply app-role-support! text-app-danger-ink!;
+}
+
+/* general focus and field focus deliberately retain distinct contexts. */
+@utility app-focus {
+    @apply focus-visible:outline-solid focus-visible:outline-[length:var(--app-focus-width)] focus-visible:outline-app-accent-text focus-visible:outline-offset-[var(--app-focus-offset)];
+}
+@utility app-control {
+    @apply min-h-app-control h-auto rounded-app-control;
+}
+@utility app-input {
+    @apply app-control! app-role-body! bg-app-control! border-app-control-border! text-app-ink! placeholder:text-app-ink-help! data-[invalid]:border-app-danger-ink!;
+    @apply focus:outline-solid! focus:outline-[length:var(--app-focus-width)]! focus:outline-app-accent! focus:outline-offset-[var(--app-focus-offset)]! focus:border-app-accent! focus:shadow-none!;
+}
+@utility app-input-password {
+    @apply app-input! pe-[calc(var(--spacing-app-control)+.5rem)]!;
+}
+@utility app-button {
+    @apply app-control! app-role-action! app-focus! whitespace-normal!;
+}
+@utility app-button-toggle {
+    @apply app-button! min-w-app-control! text-app-ink-secondary!;
+}
+@utility app-choice-field {
+    @apply min-h-app-control items-center;
+}
+@utility app-primary-colors {
+    @apply bg-app-accent! text-app-on-accent! hover:bg-app-accent-hover! active:bg-app-accent-pressed!;
+}
+@utility app-button-primary {
+    @apply app-button app-primary-colors;
+}
+
 /* landing-scoped background aliases leave unmigrated screens unchanged. */
 .landing-world .landing-surface-neutral { background-color: var(--landing-neutral-surface); }
 .landing-world .landing-surface-large { background-color: var(--color-surface-large); }
@@ -141,7 +252,7 @@ select:focus[data-flux-control] {
 .landing-world .landing-role-reward, .landing-world .landing-role-label-strong { font-weight: 600; }
 
 /* public links retain native decoration, inherited ink and existing hit areas. */
-.landing-world .landing-link { color: inherit; font-weight: 400; text-decoration-line: none; text-decoration-color: currentColor; text-underline-offset: auto; }
+.landing-world .landing-link { @apply app-focus; color: inherit; font-weight: 400; text-decoration-line: none; text-decoration-color: currentColor; text-underline-offset: auto; }
 .landing-world .landing-link:hover { text-decoration-line: none; }
 .landing-world .landing-link-inline, .landing-world .landing-link-inline:hover { text-decoration-line: underline; }
 
@@ -150,10 +261,7 @@ select:focus[data-flux-control] {
 .landing-world .landing-role-section { font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
 .landing-world .landing-role-card { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; color: inherit; }
 .landing-world .landing-surface-emphasis [data-flux-heading] { color: var(--landing-primary-ink); }
-.landing-world .landing-role-body { font-size: 1rem; line-height: 1.5rem; font-weight: 400; }
-.landing-world .landing-role-support { font-size: .875rem; line-height: 1.25rem; font-weight: 400; }
-.landing-world .landing-role-action { font-size: 1rem; line-height: 1.5rem; font-weight: 500; }
-.landing-world [data-flux-button].landing-role-action { min-height: 2.75rem; height: auto; padding-block: .6875rem; white-space: normal; }
+.landing-world [data-flux-button].app-role-action { @apply min-h-app-control h-auto whitespace-normal; padding-block: .6875rem; }
 .landing-world .landing-pass { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
 .landing-world #business { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
 .landing-world main { display: flow-root; --landing-main-base-gap: 2rem; --landing-section-space: 5rem; padding-top: var(--landing-main-base-gap); padding-bottom: var(--landing-closing-gap, var(--landing-main-base-gap)); }
@@ -172,10 +280,6 @@ select:focus[data-flux-control] {
 .landing-world :is(header, footer, #home, #questions) a:not(.landing-button):hover,
 .landing-world #questions summary:hover { color: var(--landing-accent-text); }
 .landing-world > a:first-child:focus { background-color: var(--landing-accent); color: var(--landing-accent-ink); }
-.landing-world a:focus-visible, .landing-world summary:focus-visible { outline: 2px solid var(--landing-accent-text); outline-offset: 4px; }
-.landing-world [data-flux-button].landing-button-primary { --color-accent: var(--landing-accent); --color-accent-foreground: var(--landing-accent-ink); background-color: var(--landing-accent); color: var(--landing-accent-ink); }
-.landing-world [data-flux-button].landing-button-primary:hover { background-color: var(--landing-accent-hover); }
-.landing-world [data-flux-button].landing-button-primary:active { background-color: var(--landing-accent-pressed); }
 .landing-world [data-flux-button].landing-cta-button { background-color: var(--landing-accent-ink); color: white; }
 .landing-world [data-flux-button].landing-cta-button:hover { background-color: #303030; color: white; }
 @media (prefers-reduced-motion: no-preference) {

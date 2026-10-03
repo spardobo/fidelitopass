@@ -1,9 +1,16 @@
 <x-layouts::auth :title="__('Log in')">
     <div class="flex flex-col gap-6">
-        <x-auth-header :title="__('Log in to your account')" :description="__('Enter your email and password below to log in')" />
+        <div class="flex w-full flex-col text-center">
+            <flux:heading size="xl" level="1" class="app-heading">
+                {{ __('Log in to your account') }}
+            </flux:heading>
+            <flux:subheading class="app-description">
+                {{ __('Enter your email and password below to log in') }}
+            </flux:subheading>
+        </div>
 
         <!-- session status -->
-        <x-auth-session-status class="text-center" :status="session('status')" />
+        <x-auth-session-status class="app-status-success text-center" :status="session('status')" />
 
         {{-- @chisel-passkeys --}}
         @if (\Laravel\Fortify\Features::enabled(\Laravel\Fortify\Features::passkeys()))
@@ -24,6 +31,9 @@
                 autofocus
                 autocomplete="email"
                 placeholder="email@example.com"
+                class:input="app-input"
+                label:class="app-label"
+                error:class="app-error"
             />
 
             <!-- password -->
@@ -35,30 +45,42 @@
                     required
                     autocomplete="current-password"
                     :placeholder="__('Password')"
-                    viewable
-                />
+                    class:input="app-input-password"
+                    label:class="app-label"
+                    error:class="app-error"
+                >
+                    <x-slot name="iconTrailing">
+                        <flux:input.viewable class="app-button-toggle" />
+                    </x-slot>
+                </flux:input>
 
                 @if (Route::has('password.request'))
-                    <flux:link class="absolute top-0 text-sm end-0" :href="route('password.request')" wire:navigate>
+                    <flux:link class="app-focus absolute top-0 text-sm end-0" :href="route('password.request')" wire:navigate>
                         {{ __('Forgot your password?') }}
                     </flux:link>
                 @endif
             </div>
 
             <!-- remember me -->
-            <flux:checkbox name="remember" :label="__('Remember me')" :checked="old('remember')" />
+            <flux:field variant="inline" class="app-choice-field">
+                <flux:checkbox name="remember" :checked="old('remember')" class="app-focus" />
+                <flux:label class="app-label">
+                    {{ __('Remember me') }}
+                </flux:label>
+                <flux:error name="remember" class="app-error" />
+            </flux:field>
 
             <div class="flex items-center justify-end">
-                <flux:button variant="primary" type="submit" class="w-full" data-test="login-button">
+                <flux:button variant="primary" type="submit" class="app-button-primary w-full" data-test="login-button">
                     {{ __('Log in') }}
                 </flux:button>
             </div>
         </form>
 
         {{-- @chisel-registration --}}
-        <div class="space-x-1 text-sm text-center rtl:space-x-reverse text-zinc-300">
+        <div class="app-role-support app-text-secondary space-x-1 text-center rtl:space-x-reverse">
             <span>{{ __('Don\'t have an account?') }}</span>
-            <flux:link :href="route('register')" wire:navigate>{{ __('Sign up') }}</flux:link>
+            <flux:link :href="route('register')" wire:navigate class="app-focus">{{ __('Sign up') }}</flux:link>
         </div>
         {{-- @end-chisel-registration --}}
     </div>

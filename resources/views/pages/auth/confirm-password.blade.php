@@ -1,11 +1,15 @@
 <x-layouts::auth :title="__('Confirm password')">
     <div class="flex flex-col gap-6">
-        <x-auth-header
-            :title="__('Confirm password')"
-            :description="__('This is a secure area of the application. Please confirm your password before continuing.')"
-        />
+        <div class="flex w-full flex-col text-center">
+            <flux:heading size="xl" level="1" class="app-heading">
+                {{ __('Confirm password') }}
+            </flux:heading>
+            <flux:subheading class="app-description">
+                {{ __('This is a secure area of the application. Please confirm your password before continuing.') }}
+            </flux:subheading>
+        </div>
 
-        <x-auth-session-status class="text-center" :status="session('status')" />
+        <x-auth-session-status class="app-status-success text-center" :status="session('status')" />
 
         {{-- @chisel-passkeys --}}
         @if (\Laravel\Fortify\Features::enabled(\Laravel\Fortify\Features::passkeys()))
@@ -29,10 +33,16 @@
                 required
                 autocomplete="current-password"
                 :placeholder="__('Password')"
-                viewable
-            />
+                class:input="app-input-password"
+                label:class="app-label"
+                error:class="app-error"
+            >
+                <x-slot name="iconTrailing">
+                    <flux:input.viewable class="app-button-toggle" />
+                </x-slot>
+            </flux:input>
 
-            <flux:button variant="primary" type="submit" class="w-full" data-test="confirm-password-button">
+            <flux:button variant="primary" type="submit" class="app-button-primary w-full" data-test="confirm-password-button">
                 {{ __('Confirm') }}
             </flux:button>
         </form>
