@@ -5,7 +5,7 @@
                 {{ __('Create an account') }}
             </flux:heading>
             <flux:subheading class="app-description">
-                {{ __('Enter your details below to create your account') }}
+                {{ __('auth.registration.description') }}
             </flux:subheading>
         </div>
 
@@ -42,6 +42,40 @@
                 label:class="app-label"
                 error:class="app-error"
             />
+
+            {{-- business details --}}
+            <flux:input
+                name="business_name"
+                type="text"
+                :label="__('business.fields.business_name')"
+                :value="old('business_name')"
+                required
+                autocomplete="organization"
+                maxlength="255"
+                class:input="app-input"
+                label:class="app-label"
+                error:class="app-error"
+            />
+
+            <flux:select
+                name="timezone"
+                :label="__('business.fields.time_zone')"
+                :description:trailing="__('auth.registration.timezone_help')"
+                required
+                class="app-input"
+                label:class="app-label"
+                description:class="app-role-support! text-app-ink-help!"
+                error:class="app-error"
+            >
+                <flux:select.option value="" :selected="old('timezone', '') === ''">
+                    {{ __('business.fields.select_time_zone') }}
+                </flux:select.option>
+                @foreach (timezone_identifiers_list() as $identifier)
+                    <flux:select.option :value="$identifier" :selected="old('timezone') === $identifier">
+                        {{ $identifier }}
+                    </flux:select.option>
+                @endforeach
+            </flux:select>
 
             <!-- password -->
             <flux:input

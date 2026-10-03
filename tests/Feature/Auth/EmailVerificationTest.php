@@ -69,6 +69,46 @@ class EmailVerificationTest extends TestCase
         $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
     }
 
+    public function test_registered_owner_keeps_business_and_intended_destination_through_verification(): void
+    {
+        $this->skipUnlessFortifyHas(Features::registration());
+        Notification::fake();
+        $destination = route('appearance.edit');
+
+        $response = $this->withSession(['url.intended' => $destination])->post(route('register.store'), [
+            'name' => 'New Owner',
+            'email' => 'owner@example.test',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'business_name' => 'Café del barrio',
+            'timezone' => 'America/La_Paz',
+        ]);
+
+        $response->assertSessionHasNoErrors()->assertRedirect($destination);
+        $user = User::sole();
+        $this->assertAuthenticatedAs($user);
+        $this->assertFalse($user->hasVerifiedEmail());
+        Notification::assertSentTo($user, VerifyEmail::class);
+        $this->get($destination)->assertRedirect(route('verification.notice'));
+        $this->get(route('profile.edit'))->assertOk();
+
+        $verificationUrl = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1($user->email)],
+        );
+        $this->get($verificationUrl)->assertRedirect($destination);
+
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+        $this->assertDatabaseCount('businesses', 1);
+        $this->assertDatabaseHas('businesses', [
+            'user_id' => $user->id,
+            'name' => 'Café del barrio',
+            'timezone' => 'America/La_Paz',
+        ]);
+        $this->get($destination)->assertOk();
+    }
+
     public function test_email_is_not_verified_with_invalid_hash(): void
     {
         $user = User::factory()->unverified()->create();

@@ -17,6 +17,20 @@ class DashboardTest extends TestCase
         $response->assertRedirect(route('login'));
     }
 
+    public function test_dashboard_resolves_the_session_owners_business_not_a_request_identifier(): void
+    {
+        $business = Business::factory()->create(['name' => 'Negocio propio']);
+        $foreignBusiness = Business::factory()->create(['name' => 'Negocio ajeno']);
+
+        $this->actingAs($business->user)->get(route('dashboard', ['business_id' => $foreignBusiness->id]))
+            ->assertOk()
+            ->assertViewHas('business', fn (Business $resolved) => $resolved->is($business))
+            ->assertSee('Negocio propio')
+            ->assertSee(route('profile.edit'))
+            ->assertSee(route('logout'))
+            ->assertDontSee('Negocio ajeno');
+    }
+
     public function test_authenticated_users_can_visit_the_dashboard(): void
     {
         $user = User::factory()->create();
