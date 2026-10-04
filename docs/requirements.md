@@ -78,9 +78,9 @@ As a Business owner, I want a protected account so that only I can configure my 
 
 **Scenario: Registration and authenticated navigation**
 
-- **Given** a new owner registering or an existing owner without a Business.
+- **Given** a new owner registering.
 - **When** registration supplies Owner authentication fields, a Business name, and an explicitly selected server-validated IANA timezone.
-- **Then** Owner and Business are created atomically without a guessed timezone; an existing owner can complete compatible setup. After authentication and email verification, normal web destination handling applies rather than a required first stop or forced redirect to Summary. Summary is the ordinary authenticated application home; when setup is incomplete, its CTA points to the same Pase route as navigation, without a forced wizard. Profile and logout remain accessible. A scheduled Promotion completes setup but does not permit Visits before its start.
+- **Then** Owner and Business are created atomically without a guessed timezone. After authentication and email verification, normal web destination handling applies rather than a required first stop or forced redirect to Summary. Summary is the ordinary authenticated application home; when Promotion preparation is incomplete, its CTA points to the same Pase route as navigation, without a forced wizard. Profile and logout remain accessible. A scheduled Promotion completes preparation but does not permit Visits before its start.
 
 **Verification:** Laravel authentication and route-boundary feature tests.
 
@@ -96,7 +96,7 @@ As a Business owner, I want FidelitoPass to know my local timezone so that Promo
 
 **Scenario: Save valid profile**
 
-- **Given** an authenticated owner.
+- **Given** an authenticated owner with a Business.
 - **When** a valid Business name and IANA timezone are saved.
 - **Then** the profile becomes the source for public branding and future Promotion publication.
 

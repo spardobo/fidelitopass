@@ -15,7 +15,7 @@
                     {{ $business->name }}
                 </flux:heading>
                 <flux:text class="text-[#bdc1bc]">
-                    {{ __('business.onboarding.time_zone') }}: {{ $business->timezone }}
+                    {{ __('business.fields.time_zone') }}: {{ $business->timezone }}
                 </flux:text>
             </div>
             <div class="mt-6">

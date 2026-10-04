@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Business;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -58,7 +59,7 @@ test('project pages resolve grouped translations without leaking keys', function
     expect(__('landing.hero.pass_aria'))->toContain('Pase de ejemplo');
     expect(array_intersect(['card_aria', 'card_caption', 'card_progress', 'card_detail', 'card_badge'], array_keys(__('landing.hero'))))->toBe([]);
     expect(__('business.profile_title'))->toBe('Perfil del negocio');
-    expect(__('business.dashboard.page_title'))->toBe('Panel del negocio');
+    expect(__('business.dashboard.page_title'))->toBe('Resumen');
 
     $this->get(route('home'))
         ->assertSee('aria-label="Secciones de la página"', false)
@@ -66,14 +67,16 @@ test('project pages resolve grouped translations without leaking keys', function
         ->assertDontSee('landing.page_description')
         ->assertDontSee('landing.navigation.page_sections');
 
-    $user = User::factory()->create();
-    $this->actingAs($user);
+    $business = Business::factory()->create();
+    $this->actingAs($business->user);
 
-    $this->get(route('business.create'))
+    $this->get(route('business.edit'))
         ->assertSee('Perfil del negocio - '.config('app.name'))
-        ->assertSeeText('Configura tu negocio')
+        ->assertSeeText('Nombre del negocio')
+        ->assertSeeText('Zona horaria')
         ->assertDontSee('business.profile_title')
-        ->assertDontSee('business.onboarding.heading');
+        ->assertDontSee('business.fields.')
+        ->assertDontSee('business.profile.');
 
     expect(__('Log in to your account'))->toBe('Iniciar sesión en tu cuenta');
 });

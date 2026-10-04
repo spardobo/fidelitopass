@@ -6,36 +6,45 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+it('does not expose the retired business onboarding URL', function () {
+    $business = Business::factory()->create();
+    $this->actingAs($business->user)->get('/business/onboarding')->assertNotFound();
+});
+
 it('sends anonymous visitors to login for all business pages', function () {
-    foreach (['dashboard', 'business.create', 'business.edit'] as $route) {
+    foreach (['dashboard', 'business.edit'] as $route) {
         $this->get(route($route))->assertRedirect(route('login'));
     }
 });
 
-it('sends unverified owners to email verification before onboarding or dashboard', function () {
+it('sends unverified owners to email verification before business editing or dashboard', function () {
     $user = User::factory()->unverified()->create();
     Business::factory()->for($user)->create();
 
-    foreach (['dashboard', 'business.create', 'business.edit'] as $route) {
+    foreach (['dashboard', 'business.edit'] as $route) {
         $this->actingAs($user)->get(route($route))->assertRedirect(route('verification.notice'));
     }
 });
 
-it('sends verified owners without a business to onboarding', function () {
-    $this->actingAs(User::factory()->create());
+it('keeps account profile and logout accessible for verified and unverified business owners', function (bool $verified) {
+    $user = $verified ? User::factory()->create() : User::factory()->unverified()->create();
+    $business = Business::factory()->for($user)->create();
+    $this->actingAs($user);
 
-    $this->get(route('dashboard'))->assertRedirect(route('business.create'));
-    $this->get(route('business.edit'))->assertRedirect(route('business.create'));
-    $this->get(route('business.create'))->assertOk();
-});
+    $this->get(route('profile.edit'))->assertOk();
+    $this->post(route('logout'))->assertRedirect(route('home'));
 
-it('shows only the signed-in owners business and redirects configured owners away from creation', function () {
+    $this->assertGuest();
+    $this->assertModelExists($business);
+})->with(['verified' => true, 'unverified' => false]);
+
+it('shows only the signed-in owners business', function () {
     $other = Business::factory()->create(['name' => 'Otro negocio']);
     $mine = Business::factory()->create(['name' => 'Negocio propio']);
 
     $this->actingAs($mine->user)->get(route('dashboard'))
         ->assertOk()->assertSee('Negocio propio')->assertDontSee('Otro negocio');
-    $this->get(route('business.create'))->assertRedirect(route('business.edit'));
+    $this->get(route('business.edit'))->assertOk()->assertSee('Negocio propio')->assertDontSee('Otro negocio');
     $this->assertNotEquals($other->user_id, $mine->user_id);
 });
 
