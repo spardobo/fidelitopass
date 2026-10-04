@@ -87,6 +87,120 @@ for (const path of ["/login", "/register", resetForm]) {
     });
 }
 
+for (const width of [375, 1280, 320]) {
+    test(`guest registration business fields retain real Onest, geometry and keyboard access at ${width}px`, async ({
+        page,
+    }, testInfo) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto("/register");
+        await page.evaluate(() => document.fonts.ready);
+
+        // Chromium reports the font used for actual heading glyphs, not just a CSS fallback list.
+        const session = await page.context().newCDPSession(page);
+        let fonts;
+        try {
+            await session.send("DOM.enable");
+            await session.send("CSS.enable");
+            const { root } = await session.send("DOM.getDocument");
+            const { nodeId } = await session.send("DOM.querySelector", {
+                nodeId: root.nodeId,
+                selector: "h1",
+            });
+            ({ fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId }));
+        } finally {
+            await session.detach();
+        }
+        expect(
+            fonts.some(
+                (font) =>
+                    font.familyName.includes("Onest") && font.isCustomFont && font.glyphCount > 0,
+            ),
+        ).toBe(true);
+        expect(
+            await page.evaluate(() =>
+                performance
+                    .getEntriesByType("resource")
+                    .some(
+                        (entry) =>
+                            new URL(entry.name).origin === location.origin &&
+                            /onest.*\.woff2/.test(entry.name),
+                    ),
+            ),
+        ).toBe(true);
+
+        const business = page.getByLabel("Nombre del negocio", { exact: true });
+        const timezone = page.getByRole("combobox", { name: "Zona horaria", exact: true });
+        await expect(business).toHaveValue("");
+        await expect(timezone).toHaveValue("");
+        expect(await business.evaluate((input) => input.validity.valueMissing)).toBe(true);
+        expect(await timezone.evaluate((select) => select.validity.valueMissing)).toBe(true);
+        await expect(
+            page.getByText(
+                "Selecciona la zona horaria de tu negocio. Define los días y las fechas límite de tus promociones.",
+                { exact: true },
+            ),
+        ).toBeVisible();
+        expect(await timezone.evaluate((select) => select.reportValidity())).toBe(false);
+        expect(await timezone.evaluate((select) => select.validationMessage)).toBe(
+            "Completa este campo.",
+        );
+        await business.focus();
+        await page.keyboard.press("Tab");
+        await expect(timezone).toBeFocused();
+        await expect(timezone).toHaveCSS("outline-style", "solid");
+        await expect(timezone).toHaveCSS("outline-width", "2px");
+        await expect(timezone).toHaveCSS("outline-color", "rgb(167, 123, 255)");
+        await expect(timezone).toHaveCSS("outline-offset", "3px");
+        await expect(timezone).toHaveCSS("border-color", "rgb(167, 123, 255)");
+        await timezone.selectOption("America/Argentina/Buenos_Aires");
+        expect(await timezone.evaluate((select) => select.checkValidity())).toBe(true);
+        await page.keyboard.press("Tab");
+        await expect(page.getByLabel("Contraseña", { exact: true })).toBeFocused();
+
+        const measurements = await page.evaluate(() => {
+            const selectors = ["h1", 'input[name="business_name"]', 'select[name="timezone"]'];
+            return selectors.map((selector) => {
+                const element = document.querySelector(selector);
+                const style = getComputedStyle(element);
+                const { x, y, width, height } = element.getBoundingClientRect();
+                return {
+                    selector,
+                    x,
+                    y,
+                    width,
+                    height,
+                    color: style.color,
+                    background: style.backgroundColor,
+                    font: style.fontFamily,
+                    size: style.fontSize,
+                    lineHeight: style.lineHeight,
+                };
+            });
+        });
+        for (const control of [business, timezone]) {
+            const box = await control.boundingBox();
+            expect(box.height).toBeGreaterThanOrEqual(44);
+            expect(box.x).toBeGreaterThanOrEqual(0);
+            expect(box.x + box.width).toBeLessThanOrEqual(width);
+            await expect(control).toHaveCSS("font-size", "16px");
+            await expect(control).toHaveCSS("line-height", "24px");
+            await expect(control).toHaveCSS("color", "rgb(246, 245, 242)");
+            await expect(control).toHaveCSS("background-color", "rgb(34, 34, 34)");
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+            true,
+        );
+        await testInfo.attach(`registration-measurements-${width}`, {
+            body: JSON.stringify({ width, fonts, measurements }, null, 2),
+            contentType: "application/json",
+        });
+        await page.screenshot({
+            path: testInfo.outputPath(`registration-fields-${width}.png`),
+            fullPage: true,
+        });
+    });
+}
+
 test("remember label and keyboard toggle the same login checkbox", async ({ page }) => {
     await page.goto("/login");
     const remember = page.getByRole("checkbox", { name: "Recordarme", exact: true });
