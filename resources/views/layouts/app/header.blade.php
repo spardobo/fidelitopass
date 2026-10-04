@@ -4,45 +4,22 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-canvas text-ink">
-        <flux:header container class="border-b border-outline bg-shell">
-            <flux:sidebar.toggle class="lg:hidden mr-2" icon="bars-2" inset="left" />
+        <header data-flux-header class="app-theme [grid-area:header] border-b border-app-line bg-app-canvas">
+            <div class="mx-auto grid max-w-[68rem] grid-cols-[auto_1fr_auto] items-center gap-x-2 px-4 md:gap-x-8 md:px-0 min-[900px]:min-h-18 max-[1120px]:md:px-6">
+                <a href="{{ route('dashboard') }}" wire:navigate aria-label="FidelitoPass" class="app-focus flex min-h-18 items-center">
+                    <img src="{{ asset('logo-header.webp') }}" alt="" class="h-auto w-25 md:w-[142px]" />
+                </a>
 
-            <x-app-logo href="{{ route('dashboard') }}" wire:navigate />
+                <x-app-navigation class="col-span-3 row-start-2 min-[900px]:col-span-1 min-[900px]:col-start-2 min-[900px]:row-start-1" />
 
-            <flux:navbar class="-mb-px max-lg:hidden">
-                <flux:navbar.item icon="layout-grid" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                    {{ __('Dashboard') }}
-                </flux:navbar.item>
-                <flux:navbar.item icon="building-storefront" :href="route('business.edit')" :current="request()->routeIs('business.edit')" wire:navigate>
-                    {{ __('business.profile_title') }}
-                </flux:navbar.item>
-            </flux:navbar>
-
-            <flux:spacer />
-
-            <x-desktop-user-menu />
-        </flux:header>
-
-        <!-- mobile menu -->
-        <flux:sidebar collapsible="mobile" sticky class="lg:hidden border-e border-outline bg-shell">
-            <flux:sidebar.header>
-                <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
-                <flux:sidebar.collapse class="in-data-flux-sidebar-on-desktop:not-in-data-flux-sidebar-collapsed-desktop:-mr-2" />
-            </flux:sidebar.header>
-
-            <flux:sidebar.nav>
-                <flux:sidebar.group :heading="__('Platform')">
-                    <flux:sidebar.item icon="layout-grid" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                        {{ __('Dashboard')  }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="building-storefront" :href="route('business.edit')" :current="request()->routeIs('business.edit')" wire:navigate>
-                        {{ __('business.profile_title') }}
-                    </flux:sidebar.item>
-                </flux:sidebar.group>
-            </flux:sidebar.nav>
-
-            <flux:spacer />
-        </flux:sidebar>
+                <div class="col-span-2 col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2 min-[900px]:col-span-1 min-[900px]:col-start-3">
+                    <flux:button :href="url('/visits/create')" variant="primary" class="app-button-primary px-3!">
+                        {{ __('Register visit') }}
+                    </flux:button>
+                    <x-desktop-user-menu />
+                </div>
+            </div>
+        </header>
 
         {{ $slot }}
 
