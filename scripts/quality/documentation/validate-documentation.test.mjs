@@ -177,10 +177,7 @@ test("repo-root documentation code paths are checked without matching examples o
     assert.deepEqual(validateMarkdownLinks(root), []);
 });
 
-test("register and headings must have unique matching identities", (context) => {
-    const root = fixture();
-    context.after(() => rmSync(root, { recursive: true, force: true }));
-    const path = join(root, "docs/requirements.md");
+function requirementDocument() {
     const rows = Array.from(
         { length: 35 },
         (_, i) => `| ${i + 1} | REQ-TST-${String(i + 1).padStart(3, "0")} | Must |`,
@@ -190,31 +187,90 @@ test("register and headings must have unique matching identities", (context) => 
         (_, i) => `#### REQ-TST-${String(i + 1).padStart(3, "0")} — Entry`,
     );
     const source = `- Total requirements: **35**.\n## Requirement register\n${rows.join("\n")}\n## Detailed requirements\n${headings.join("\n")}\n`;
-    writeFileSync(path, source);
+    return { rows, headings, source };
+}
+
+test("requirements accept 35 unique register rows with matching ordered headings", (context) => {
+    const root = fixture();
+    context.after(() => rmSync(root, { recursive: true, force: true }));
+    writeFileSync(join(root, "docs/requirements.md"), requirementDocument().source);
+
     assert.deepEqual(validateRequirementIds(root), []);
-    writeFileSync(join(root, "README.md"), "REQ-TST-999 REQ-TST--001");
-    assert.match(validateRequirementIds(root).join("\n"), /unknown requirement/);
-    assert.match(validateRequirementIds(root).join("\n"), /malformed requirement/);
-    writeFileSync(join(root, "README.md"), "");
-    writeFileSync(path, source.replace(headings[1], headings[0]));
-    assert.match(validateRequirementIds(root).join("\n"), /more than once/);
-    writeFileSync(path, source.replace(rows[1], rows[0]));
-    assert.match(validateRequirementIds(root).join("\n"), /repeats register row/);
-    writeFileSync(path, source.replace(rows[1], ""));
-    assert.match(validateRequirementIds(root).join("\n"), /has no register row/);
+});
+
+for (const [name, reference, expected] of [
+    ["unknown requirement references are rejected", "REQ-TST-999", /unknown requirement/],
+    ["malformed requirement identifiers are rejected", "REQ-TST--001", /malformed requirement/],
+]) {
+    test(name, (context) => {
+        const root = fixture();
+        context.after(() => rmSync(root, { recursive: true, force: true }));
+        writeFileSync(join(root, "docs/requirements.md"), requirementDocument().source);
+        writeFileSync(join(root, "README.md"), reference);
+
+        assert.match(validateRequirementIds(root).join("\n"), expected);
+    });
+}
+
+for (const [name, document, expected] of [
+    [
+        "duplicate requirement headings are rejected",
+        ({ source, headings }) => source.replace(headings[1], headings[0]),
+        /more than once/,
+    ],
+    [
+        "duplicate requirement register rows are rejected",
+        ({ source, rows }) => source.replace(rows[1], rows[0]),
+        /repeats register row/,
+    ],
+    [
+        "requirement headings without a register row are rejected",
+        ({ source, rows }) => source.replace(rows[1], ""),
+        /has no register row/,
+    ],
+    [
+        "requirement register rows without a heading are rejected",
+        ({ source, headings }) => source.replace(headings[1], ""),
+        /has no heading/,
+    ],
+    [
+        "requirement headings out of register order are rejected",
+        ({ source, headings }) =>
+            source.replace(`${headings[1]}\n${headings[2]}`, `${headings[2]}\n${headings[1]}`),
+        /must match in order/,
+    ],
+    [
+        "removing a matching row and heading requires updating the declared total",
+        ({ source, rows, headings }) =>
+            source.replace(`${rows[1]}\n`, "").replace(`${headings[1]}\n`, ""),
+        /total requirements.*register count/i,
+    ],
+    [
+        "requirements without a declared total are rejected",
+        ({ source }) => source.replace("- Total requirements: **35**.\n", ""),
+        /total requirements.*missing/i,
+    ],
+    [
+        "a declared requirement total that differs from the register count is rejected",
+        ({ source }) => source.replace("**35**", "**36**"),
+        /total requirements.*register count/i,
+    ],
+]) {
+    test(name, (context) => {
+        const root = fixture();
+        context.after(() => rmSync(root, { recursive: true, force: true }));
+        writeFileSync(join(root, "docs/requirements.md"), document(requirementDocument()));
+
+        assert.match(validateRequirementIds(root).join("\n"), expected);
+    });
+}
+
+test("requirements accept a 36th matching row and heading when the declared total is updated", (context) => {
+    const root = fixture();
+    context.after(() => rmSync(root, { recursive: true, force: true }));
+    const { source } = requirementDocument();
     writeFileSync(
-        path,
-        source.replace(`${headings[1]}\n${headings[2]}`, `${headings[2]}\n${headings[1]}`),
-    );
-    assert.match(validateRequirementIds(root).join("\n"), /must match in order/);
-    writeFileSync(path, source.replace(`${rows[1]}\n`, "").replace(`${headings[1]}\n`, ""));
-    assert.match(validateRequirementIds(root).join("\n"), /total requirements.*register count/i);
-    writeFileSync(path, source.replace("- Total requirements: **35**.\n", ""));
-    assert.match(validateRequirementIds(root).join("\n"), /total requirements.*missing/i);
-    writeFileSync(path, source.replace("**35**", "**36**"));
-    assert.match(validateRequirementIds(root).join("\n"), /total requirements.*register count/i);
-    writeFileSync(
-        path,
+        join(root, "docs/requirements.md"),
         source
             .replace("**35**", "**36**")
             .replace(
@@ -223,5 +279,6 @@ test("register and headings must have unique matching identities", (context) => 
             )
             .concat("#### REQ-TST-036 — Entry\n"),
     );
+
     assert.deepEqual(validateRequirementIds(root), []);
 });
