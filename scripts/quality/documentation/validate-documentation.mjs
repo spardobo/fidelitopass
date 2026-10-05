@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, relative, resolve, sep } from "node:path";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const requirementPattern = /^REQ-[A-Z]+-\d{3}$/;
@@ -256,13 +256,30 @@ function repositoryPath(root, value, requireFile = false) {
     const path = value.split("#", 1)[0];
     if (!path || path.split("/").some((part) => part === ".." || part === "." || part === ""))
         return false;
-    const destination = resolve(root, path);
-    return existsSync(destination) && (!requireFile || statSync(destination).isFile());
+
+    try {
+        const canonicalRoot = realpathSync(root);
+        const destination = realpathSync(resolve(root, path));
+        const relativeTarget = relative(canonicalRoot, destination);
+        if (
+            isAbsolute(relativeTarget) ||
+            relativeTarget === ".." ||
+            relativeTarget.startsWith(`..${sep}`)
+        )
+            return false;
+
+        const stats = statSync(destination);
+        return stats.isFile() || (!requireFile && stats.isDirectory());
+    } catch (error) {
+        if (["ENOENT", "ENOTDIR", "ELOOP"].includes(error.code)) return false;
+        throw error;
+    }
 }
 
 /**
  * Check current learning record structure, unique IDs, repository paths and status requirements.
- * Evidence truth and Markdown anchors require human review; filesystem errors propagate.
+ * Evidence truth and Markdown anchors require human review. Missing, broken or looping learning paths
+ * return diagnostics; other filesystem errors propagate.
  *
  * @param {string} root Repository root path, absolute or relative to the working directory.
  * @param {string} content JSONL text with one learning record object per nonblank line.
@@ -365,16 +382,40 @@ export function validateLearningRecords(root, content) {
 
 /**
  * Check documentation links, requirement identifiers and the learning registry when present.
- * Evidence truth and Markdown anchors require human review; filesystem errors propagate.
+ * Evidence truth and Markdown anchors require human review. Missing, broken or looping learning paths
+ * return diagnostics; other filesystem errors propagate.
  *
  * @param {string} root Repository root path, absolute or relative to the working directory.
  * @returns {string[]} Link, requirement and learning diagnostics in that order; empty when valid.
  */
 export function validateRepository(root) {
     const path = resolve(root, learningRegistry);
-    const learningErrors = existsSync(path)
-        ? validateLearningRecords(root, readFileSync(path, "utf8"))
-        : [];
+    const learningErrors = [];
+    let existingPath = path;
+
+    // Inspect the nearest entry even when the registry is absent through a broken parent link.
+    while (existingPath !== resolve(root)) {
+        try {
+            lstatSync(existingPath);
+            break;
+        } catch (error) {
+            if (!["ENOENT", "ENOTDIR", "ELOOP"].includes(error.code)) throw error;
+            existingPath = dirname(existingPath);
+        }
+    }
+
+    const registryExists = existingPath === path;
+    const invalidLocation =
+        existingPath !== resolve(root) &&
+        (!repositoryPath(root, relative(root, existingPath), registryExists) ||
+            (!registryExists && !statSync(existingPath).isDirectory()));
+    if (invalidLocation) {
+        learningErrors.push(`${learningRegistry} must be an existing repository-contained file`);
+    } else if (registryExists) {
+        // Validate canonical containment before reading; this check is not race-proof isolation.
+        learningErrors.push(...validateLearningRecords(root, readFileSync(path, "utf8")));
+    }
+
     return [...validateMarkdownLinks(root), ...validateRequirementIds(root), ...learningErrors];
 }
 

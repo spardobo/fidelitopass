@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -85,6 +85,177 @@ test("learning records reject invalid fields, evidence and nonlocal destinations
     for (const [record, expected] of invalidRecords) {
         assert.match(validateLearningRecords(root, JSON.stringify(record)).join("\n"), expected);
     }
+});
+
+test("learning paths retain lexical rules and file/directory roles", (context) => {
+    const root = fixture();
+    context.after(() => rmSync(root, { recursive: true, force: true }));
+    const valid = learningRecord({ scope: ["docs", "docs/requirements.md"] });
+    assert.deepEqual(validateLearningRecords(root, JSON.stringify(valid)), []);
+
+    for (const path of [
+        ".",
+        "docs/../docs",
+        "docs/./requirements.md",
+        "docs//requirements.md",
+        "docs/",
+        "docs#heading",
+        "missing",
+        "C:/docs",
+        "docs\\requirements.md",
+    ]) {
+        assert.match(
+            validateLearningRecords(root, JSON.stringify(learningRecord({ scope: [path] }))).join(
+                "\n",
+            ),
+            /scope/,
+        );
+    }
+    for (const destination of ["docs", "docs/missing.md", "../outside", "/docs/requirements.md"]) {
+        assert.match(
+            validateLearningRecords(root, JSON.stringify(learningRecord({ destination }))).join(
+                "\n",
+            ),
+            /destination/,
+        );
+    }
+});
+
+test("learning paths accept internal file and directory symlinks and a linked root", (context) => {
+    const root = fixture();
+    const workspace = mkdtempSync(join(tmpdir(), "fidelitopass-links-"));
+    context.after(() => {
+        rmSync(root, { recursive: true, force: true });
+        rmSync(workspace, { recursive: true, force: true });
+    });
+    symlinkSync(join(root, "docs/requirements.md"), join(root, "owner.md"));
+    symlinkSync(join(root, "docs"), join(root, "owners"));
+    const linkedRoot = join(workspace, "repository");
+    symlinkSync(root, linkedRoot);
+    const record = learningRecord({
+        scope: ["owner.md", "owners"],
+        destination: "owners/requirements.md#requirement-register",
+    });
+
+    for (const repository of [root, linkedRoot]) {
+        assert.deepEqual(validateLearningRecords(repository, JSON.stringify(record)), []);
+    }
+});
+
+test("learning paths reject external direct and intermediate symlinks including similar prefixes", (context) => {
+    const root = fixture();
+    const outside = `${root}-outside`;
+    mkdirSync(outside);
+    context.after(() => {
+        rmSync(root, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+    });
+    writeFileSync(join(outside, "owner.md"), "Controlled external owner fixture.\n");
+    symlinkSync(join(outside, "owner.md"), join(root, "external.md"));
+    symlinkSync(outside, join(root, "external"));
+
+    for (const path of ["external.md", "external", "external/owner.md"]) {
+        assert.match(
+            validateLearningRecords(root, JSON.stringify(learningRecord({ scope: [path] }))).join(
+                "\n",
+            ),
+            /scope/,
+        );
+    }
+    for (const destination of ["external.md", "external/owner.md#heading"]) {
+        assert.match(
+            validateLearningRecords(root, JSON.stringify(learningRecord({ destination }))).join(
+                "\n",
+            ),
+            /destination/,
+        );
+    }
+});
+
+test("learning paths reject dangling and looping symlinks without throwing", (context) => {
+    const root = fixture();
+    context.after(() => rmSync(root, { recursive: true, force: true }));
+    symlinkSync(join(root, "missing"), join(root, "broken"));
+    symlinkSync("loop", join(root, "loop"));
+
+    for (const path of ["broken", "broken/owner.md", "loop", "loop/owner.md"]) {
+        const record = learningRecord({ scope: [path], destination: path });
+        const errors = validateLearningRecords(root, JSON.stringify(record)).join("\n");
+        assert.match(errors, /scope/);
+        assert.match(errors, /destination/);
+    }
+});
+
+test("repository validation rejects external learning registry before reading valid JSONL", (context) => {
+    const root = fixture();
+    const outside = mkdtempSync(join(tmpdir(), "fidelitopass-registry-"));
+    context.after(() => {
+        rmSync(root, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+    });
+    const registryDirectory = join(root, "skills/fidelitopass-continuous-improvement");
+    mkdirSync(registryDirectory, { recursive: true });
+    const content = JSON.stringify(learningRecord());
+    assert.deepEqual(validateLearningRecords(root, content), []);
+    writeFileSync(join(outside, "learning.jsonl"), content);
+    symlinkSync(join(outside, "learning.jsonl"), join(registryDirectory, "learning.jsonl"));
+
+    assert.match(validateRepository(root).join("\n"), /learning\.jsonl.*repository.*file/);
+});
+
+test("repository validation rejects intermediate external and broken registry symlinks", (context) => {
+    const root = fixture();
+    const outside = mkdtempSync(join(tmpdir(), "fidelitopass-registry-"));
+    context.after(() => {
+        rmSync(root, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+    });
+    mkdirSync(join(root, "skills"));
+    writeFileSync(join(outside, "learning.jsonl"), JSON.stringify(learningRecord()));
+    const ownerDirectory = join(root, "skills/fidelitopass-continuous-improvement");
+    symlinkSync(outside, ownerDirectory);
+    assert.match(validateRepository(root).join("\n"), /learning\.jsonl.*repository.*file/);
+    rmSync(join(outside, "learning.jsonl"));
+    assert.match(validateRepository(root).join("\n"), /learning\.jsonl.*repository.*file/);
+    rmSync(ownerDirectory);
+    symlinkSync(join(root, "missing"), ownerDirectory);
+    assert.match(validateRepository(root).join("\n"), /learning\.jsonl.*repository.*file/);
+    rmSync(ownerDirectory);
+    mkdirSync(ownerDirectory);
+    const registry = join(ownerDirectory, "learning.jsonl");
+    symlinkSync(join(root, "missing.jsonl"), registry);
+    assert.match(validateRepository(root).join("\n"), /learning\.jsonl.*repository.*file/);
+    rmSync(registry);
+    symlinkSync("learning.jsonl", registry);
+    assert.match(validateRepository(root).join("\n"), /learning\.jsonl.*repository.*file/);
+    rmSync(registry);
+    mkdirSync(registry);
+    assert.match(validateRepository(root).join("\n"), /learning\.jsonl.*repository.*file/);
+    rmSync(registry, { recursive: true });
+    assert.deepEqual(validateRepository(root), []);
+    rmSync(ownerDirectory, { recursive: true });
+    writeFileSync(ownerDirectory, "A file cannot contain the optional registry.\n");
+    assert.match(validateRepository(root).join("\n"), /learning\.jsonl.*repository.*file/);
+});
+
+test("repository validation accepts an internal registry symlink and linked root", (context) => {
+    const root = fixture();
+    const workspace = mkdtempSync(join(tmpdir(), "fidelitopass-registry-"));
+    context.after(() => {
+        rmSync(root, { recursive: true, force: true });
+        rmSync(workspace, { recursive: true, force: true });
+    });
+    mkdirSync(join(root, "skills/fidelitopass-continuous-improvement"), { recursive: true });
+    writeFileSync(join(root, "records.jsonl"), JSON.stringify(learningRecord()));
+    symlinkSync(
+        join(root, "records.jsonl"),
+        join(root, "skills/fidelitopass-continuous-improvement/learning.jsonl"),
+    );
+    const linkedRoot = join(workspace, "repository");
+    symlinkSync(root, linkedRoot);
+
+    assert.deepEqual(validateRepository(root), []);
+    assert.deepEqual(validateRepository(linkedRoot), []);
 });
 
 test("learning states distinguish proposed, locally proven and delivered outcomes", (context) => {
