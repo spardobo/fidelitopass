@@ -1592,15 +1592,8 @@ test("footer and header return to the absolute page top while the hero remains n
 test("registration CTAs retain readable hover contrast and keyboard focus", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("link", { name: "Crear mi cuenta" })).toHaveCount(2);
-    // sample computed colors after the real pointer transition, not source class strings.
-    for (const selector of ["#home a.landing-button", "#business a.landing-button"]) {
-        const link = page.locator(selector);
-        await link.hover();
-        await page.waitForTimeout(350);
-        const colors = await link.evaluate((el) => ({
-            foreground: getComputedStyle(el).color,
-            background: getComputedStyle(el).backgroundColor,
-        }));
+
+    const contrastRatio = ({ foreground, background }) => {
         const luminance = (value) => {
             const channels = value
                 .match(/[\d.]+/g)
@@ -1614,11 +1607,35 @@ test("registration CTAs retain readable hover contrast and keyboard focus", asyn
                 });
             return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
         };
-        const a = luminance(colors.foreground);
-        const b = luminance(colors.background);
-        expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05), selector).toBeGreaterThanOrEqual(
-            4.5,
+        const foregroundLuminance = luminance(foreground);
+        const backgroundLuminance = luminance(background);
+        return (
+            (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+            (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
         );
+    };
+
+    for (const selector of ["#home a.landing-button", "#business a.landing-button"]) {
+        const link = page.locator(selector);
+        await link.hover();
+        await expect
+            .poll(
+                async () => {
+                    const colors = await link.evaluate((el) => ({
+                        foreground: getComputedStyle(el).color,
+                        background: getComputedStyle(el).backgroundColor,
+                        transitioning: el
+                            .getAnimations()
+                            .some((animation) => animation.playState === "running"),
+                    }));
+                    // Initial colors can also pass contrast; wait for the observed hover transition to finish.
+                    if (colors.transitioning) return 0;
+                    return contrastRatio(colors);
+                },
+                { message: selector },
+            )
+            .toBeGreaterThanOrEqual(4.5);
+
         await link.focus();
         await expect(link).toBeFocused();
         expect(await link.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
