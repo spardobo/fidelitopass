@@ -79,6 +79,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-composer-
 
+      - name: Prepare Laravel environment
+        run: cp .env.example .env
+
       - name: Install Composer dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
