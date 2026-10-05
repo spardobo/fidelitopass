@@ -36,6 +36,10 @@ function lineNumber(content, offset) {
     return content.slice(0, offset).split("\n").length;
 }
 
+// --------------------------
+// markdown link validation
+// --------------------------
+
 function markdownTargets(content) {
     const targets = [];
     const inlinePattern = /!?\[[^\]]*\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
@@ -89,6 +93,13 @@ function localTarget(target) {
     }
 }
 
+/**
+ * Check local link and inline path targets in README.md, docs and skills.
+ * Markdown heading anchors require manual review; filesystem errors propagate.
+ *
+ * @param {string} root Repository root path, absolute or relative to the working directory.
+ * @returns {string[]} Diagnostics with source paths and line numbers; empty when valid.
+ */
 export function validateMarkdownLinks(root) {
     const errors = [];
 
@@ -120,6 +131,13 @@ export function validateMarkdownLinks(root) {
     return errors;
 }
 
+/**
+ * Check the requirement summary, register, headings and references in README.md, docs and skills.
+ * Filesystem errors propagate; a missing requirements register returns a diagnostic.
+ *
+ * @param {string} root Repository root path, absolute or relative to the working directory.
+ * @returns {string[]} Requirement diagnostics, with source locations where applicable; empty when valid.
+ */
 export function validateRequirementIds(root) {
     const errors = [];
     const register = resolve(root, "docs/requirements.md");
@@ -128,8 +146,10 @@ export function validateRequirementIds(root) {
 
     const definitions = new Set();
     const registerContent = readFileSync(register, "utf8");
+
     const declaredTotal = registerContent.match(/^- Total requirements: \*\*(\d+)\*\*\.\s*$/m);
     if (!declaredTotal) errors.push("docs/requirements.md total requirements summary is missing");
+
     const registerSection =
         registerContent
             .split("## Requirement register\n")[1]
@@ -146,10 +166,12 @@ export function validateRequirementIds(root) {
         if (Number(number) !== rows.length)
             errors.push(`docs/requirements.md register row ${id} is out of order`);
     }
+
     if (declaredTotal && Number(declaredTotal[1]) !== rows.length)
         errors.push(
             `docs/requirements.md total requirements ${declaredTotal[1]} differs from register count ${rows.length}`,
         );
+
     const headings = [];
     for (const match of registerContent.matchAll(/^####\s+(REQ-[^\s]+)\s+—\s+/gm)) {
         const id = match[1];
@@ -159,8 +181,10 @@ export function validateRequirementIds(root) {
         definitions.add(id);
         headings.push(id);
     }
+
     if (headings.length === 0)
         errors.push("docs/requirements.md contains no canonical requirement headings");
+
     for (const id of rows)
         if (!definitions.has(id))
             errors.push(`docs/requirements.md register row ${id} has no heading`);
@@ -168,6 +192,7 @@ export function validateRequirementIds(root) {
         if (!rowIds.has(id)) errors.push(`docs/requirements.md heading ${id} has no register row`);
     if (rows.length !== headings.length || rows.some((id, index) => id !== headings[index]))
         errors.push("docs/requirements.md register rows and headings must match in order");
+
     const known = definitions;
 
     for (const file of markdownFiles(root)) {
@@ -235,7 +260,14 @@ function repositoryPath(root, value, requireFile = false) {
     return existsSync(destination) && (!requireFile || statSync(destination).isFile());
 }
 
-/** Validate current JSONL entries; evidence truth and Markdown anchors require human review. */
+/**
+ * Check current learning record structure, unique IDs, repository paths and status requirements.
+ * Evidence truth and Markdown anchors require human review; filesystem errors propagate.
+ *
+ * @param {string} root Repository root path, absolute or relative to the working directory.
+ * @param {string} content JSONL text with one learning record object per nonblank line.
+ * @returns {string[]} Registry-path and line-number diagnostics; empty when valid, including blank input.
+ */
 export function validateLearningRecords(root, content) {
     const errors = [];
     const ids = new Set();
@@ -246,12 +278,14 @@ export function validateLearningRecords(root, content) {
         const location = `${learningRegistry}:line ${index + 1}`;
         const report = (message) => errors.push(`${location} ${message}`);
         let record;
+
         try {
             record = JSON.parse(line);
         } catch {
             report("invalid JSON");
             continue;
         }
+
         if (!record || typeof record !== "object" || Array.isArray(record)) {
             report("must be an object");
             continue;
@@ -265,18 +299,21 @@ export function validateLearningRecords(root, content) {
                 "fields must be exactly id, scope, learning, evidence, destination, status, validation",
             );
         }
+
         if (typeof record.id !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(record.id)) {
             report("id must be a stable kebab-case identifier");
         } else {
             if (ids.has(record.id)) report(`duplicate id ${record.id}`);
             ids.add(record.id);
         }
+
         if (
             !textList(record.scope) ||
             record.scope.some((path) => path.includes("#") || !repositoryPath(root, path))
         ) {
             report("scope must list existing repository-relative files or directories");
         }
+
         if (!nonemptyText(record.learning)) report("learning must be nonempty text");
         if (!textList(record.evidence)) report("evidence must be a nonempty list of text");
         if (!learningStatuses.has(record.status)) report("status is unknown");
@@ -298,6 +335,7 @@ export function validateLearningRecords(root, content) {
             report("validation must be an object");
             continue;
         }
+
         const validationFields = ["confidence", "checks", "delivery"];
         if (
             Object.keys(validation).length !== validationFields.length ||
@@ -310,6 +348,7 @@ export function validateLearningRecords(root, content) {
                 "validation requires confidence (proven/provisional), nonempty checks and delivery (text or null)",
             );
         }
+
         if (
             ["applied_locally", "integrated"].includes(record.status) &&
             validation.confidence !== "proven"
@@ -324,6 +363,13 @@ export function validateLearningRecords(root, content) {
     return errors;
 }
 
+/**
+ * Check documentation links, requirement identifiers and the learning registry when present.
+ * Evidence truth and Markdown anchors require human review; filesystem errors propagate.
+ *
+ * @param {string} root Repository root path, absolute or relative to the working directory.
+ * @returns {string[]} Link, requirement and learning diagnostics in that order; empty when valid.
+ */
 export function validateRepository(root) {
     const path = resolve(root, learningRegistry);
     const learningErrors = existsSync(path)
