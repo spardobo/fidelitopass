@@ -36,6 +36,10 @@ function lineNumber(content, offset) {
     return content.slice(0, offset).split("\n").length;
 }
 
+// --------------------------
+// markdown link validation
+// --------------------------
+
 function markdownTargets(content) {
     const targets = [];
     const inlinePattern = /!?\[[^\]]*\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;

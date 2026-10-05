@@ -331,6 +331,10 @@ test("shared tracks retain accessible main and banner landmarks and skip-link fo
     await expect(page).toHaveURL(/#content$/);
 });
 
+// --------------------------
+// hero layout
+// --------------------------
+
 test("runtime fits the hero without ResizeObserver while no-JS remains readable", async ({
     browser,
 }) => {
