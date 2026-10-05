@@ -9,7 +9,7 @@ metadata:
 
 ## Activation Contract
 
-Use at scoped recovery, a potentially reusable correction, or a relevant work close, including blocked work. Exclude routine execution without a learning signal and exploratory questions without a reusable conclusion. If project routing is absent, explicitly request or load this skill by path; do not assume automatic activation.
+Use at scoped recovery, a potentially reusable correction, after changing project instructions, or a relevant work close, including blocked work. Exclude routine execution without a learning signal and exploratory questions without a reusable conclusion. If project routing is absent, explicitly request or load this skill by path; do not assume automatic activation.
 
 ## Hard Rules
 
@@ -35,7 +35,7 @@ Use at scoped recovery, a potentially reusable correction, or a relevant work cl
 2. Classify the observation; separate proven findings from provisional hypotheses.
 3. At relevant close, review errors, rework, discoveries and validation once. Discard trivial or duplicate findings.
 4. Choose permitted apply, propose or do not persist. Update one current entry per learning only when useful; leave an empty registry when none qualifies.
-5. Verify changed mechanics and prose at their natural boundaries; after promotion retain only a short outcome and owner pointer.
+5. Verify changed mechanics and prose at their natural boundaries; after instruction changes apply [scoped hygiene](references/implementation-details.md#instruction-hygiene). After promotion retain only a short outcome and owner pointer.
 
 ## Output Contract
 
@@ -43,4 +43,4 @@ Report pertinent owners, classifications, evidence/confidence, decisions, paths/
 
 ## References
 
-- [Procedure and record contract](references/implementation-details.md) — selective recovery, approval boundaries, owner destination and JSONL meanings.
+- [Procedure and record contract](references/implementation-details.md) — selective recovery, scoped instruction hygiene, approval boundaries, owner destination and JSONL meanings.

@@ -34,6 +34,35 @@ Within the selected owner, place activation, decision gates and execution proced
 
 Workers report findings and evidence without registry writes. The coordinator consolidates accepted findings once, checks for semantic duplicates, and makes only authorized writes. A record never authorizes its own destination change. Use [documentation ownership](../../../docs/documentation-standard.md#knowledge-ownership) and [delivery completion](../../../docs/development/workflow.md#done-criteria) rather than redefining them here.
 
+## Instruction hygiene
+
+After changing project instructions, review the affected entrypoints, changed references and direct consumers once. Review unchanged owners only to resolve a concrete overlap or conflict. A global audit requires an explicit request; a scoped learning review does not authorize one. Use the existing permission gate for edits, not the audit itself as approval.
+
+1. Establish the affected responsibilities, authoritative owners, activation conditions and required versus conditional reads before editing. Select representative positive, negative and mixed tasks for comparison.
+2. Check the affected set for the following issues; consult references only when the finding requires them.
+
+| Signal | Check |
+| --- | --- |
+| Duplication | Compare meaning and authority, not repeated words. Distinguish a short routing summary from a competing rule or a copied procedure. |
+| Contradiction | Compare preconditions, required actions, exclusions, exceptions and approval boundaries against the owner. Do not resolve uncertain intent by deleting a condition. |
+| Obsolete content | Verify paths, anchors and source-dependent claims against current files and installed configuration; preserve valid historical evidence in its existing home. |
+| Incorrect activation | Trace tasks that should and should not load each skill, including mixed work and scoped recovery. Check that portable routing actually reaches the intended owner. |
+| Unnecessary mandatory reads | Trace each unconditional load to the decision it serves. Keep required contracts; make unrelated examples or specialized references conditional only when their existing intent permits it. |
+
+3. Choose one disposition for each finding:
+
+| Disposition | Use when |
+| --- | --- |
+| Conserve | The text carries a necessary condition, exception, curated example or useful routing cue, or no safe improvement is demonstrated. Record the reason in work evidence. |
+| Clarify | Wording or activation is ambiguous but its intended behavior and owner are established. Preserve the original decision boundary. |
+| Consolidate | The same rule has competing homes. Retain the authoritative owner and replace dependent copies with a precise route, preserving each consumer's conditions. |
+| Move to a reference | Specialized HOW, background or examples are not needed at every activation. Keep a precise conditional link; moving text that remains unconditionally loaded is not a context saving. |
+
+4. Compare before and after using the same tasks: a PHP-only server change, Blade-only presentation change, JavaScript-only quality script, and mixed Livewire change. Record selected skills, mandatory references, conditional owner sections and expected behavior, including exclusions and missing-source/approval stops. Add a case for each changed trigger or exception. A smaller load is acceptable only when the same required behavior remains reachable and applied.
+5. Verify edited paths and anchors, owner authority, readability and applicable structural checks. Preserve shared code-quality conventions, meaningful contracts and curated examples; do not replace concrete rules with generic advice or shorten to an arbitrary quota. Report unresolved conflicts without declaring equivalence.
+
+Keep findings, retained-item reasons and comparisons in issue/PR evidence, not normative session history. When context instrumentation is available, measure the same actually supplied file set before and after. Name the measurement boundary and distinguish measured tokens, estimates, word/byte counts and unmeasured runtime context. Do not claim savings from relocation or file size alone. Optional diagnostics such as agnix require verified availability and suitability; neither installation nor blanket autofix is part of this procedure.
+
 ## Compact JSONL contract
 
 Keep one JSON object per nonblank line in [learning.jsonl](../learning.jsonl). Start empty unless a genuine evidenced finding qualifies. Maintain one current entry per learning: reuse its stable ID and update that line in place; Git history owns prior states. Check semantic duplicates as well as IDs.
