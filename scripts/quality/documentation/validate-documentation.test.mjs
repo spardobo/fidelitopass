@@ -4,7 +4,26 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { validateMarkdownLinks, validateRequirementIds } from "./validate-documentation.mjs";
+import {
+    validateLearningRecords,
+    validateMarkdownLinks,
+    validateRepository,
+    validateRequirementIds,
+} from "./validate-documentation.mjs";
+
+// Synthetic records exercise mechanics only; they are not project learnings.
+function learningRecord(overrides = {}) {
+    return {
+        id: "synthetic-correction",
+        scope: ["docs"],
+        learning: "Synthetic reusable correction for validator tests.",
+        evidence: ["Synthetic observed check."],
+        destination: "docs/requirements.md",
+        status: "candidate",
+        validation: { confidence: "provisional", checks: ["Synthetic check."], delivery: null },
+        ...overrides,
+    };
+}
 
 function fixture() {
     const root = mkdtempSync(join(tmpdir(), "fidelitopass-quality-"));
@@ -17,6 +36,104 @@ function fixture() {
 
     return root;
 }
+
+test("learning registry accepts empty input and one current entry per stable identity", (context) => {
+    const root = fixture();
+    context.after(() => rmSync(root, { recursive: true, force: true }));
+    assert.deepEqual(validateLearningRecords(root, ""), []);
+    const record = JSON.stringify(learningRecord());
+    assert.deepEqual(validateLearningRecords(root, `${record}\n`), []);
+    assert.match(validateLearningRecords(root, `${record}\n${record}`).join("\n"), /duplicate id/);
+    assert.match(
+        validateLearningRecords(root, "{broken}\nnull").join("\n"),
+        /line 1.*invalid JSON/,
+    );
+    assert.match(validateLearningRecords(root, "null").join("\n"), /line 1.*object/);
+    assert.match(validateLearningRecords(root, "[]").join("\n"), /object/);
+});
+
+test("learning records reject invalid fields, evidence and nonlocal destinations", (context) => {
+    const root = fixture();
+    context.after(() => rmSync(root, { recursive: true, force: true }));
+    const invalidRecords = [
+        [learningRecord({ id: "Bad ID" }), /id/],
+        [learningRecord({ scope: [] }), /scope/],
+        [learningRecord({ scope: "docs" }), /scope/],
+        [learningRecord({ scope: [42] }), /scope/],
+        [learningRecord({ scope: ["/docs"] }), /scope/],
+        [learningRecord({ scope: ["../outside"] }), /scope/],
+        [learningRecord({ learning: " " }), /learning/],
+        [learningRecord({ evidence: [] }), /evidence/],
+        [learningRecord({ evidence: [42] }), /evidence/],
+        [learningRecord({ status: "done" }), /status/],
+        [learningRecord({ destination: "https://example.com" }), /destination/],
+        [learningRecord({ destination: "../outside" }), /destination/],
+        [learningRecord({ destination: "docs/missing.md" }), /destination/],
+        [learningRecord({ destination: "docs" }), /destination/],
+        [learningRecord({ destination: 42 }), /destination/],
+        [learningRecord({ validation: "passed" }), /validation/],
+        [
+            learningRecord({ validation: { confidence: "unknown", checks: [], delivery: null } }),
+            /validation/,
+        ],
+        [
+            learningRecord({ validation: { confidence: "proven", checks: [42], delivery: null } }),
+            /validation/,
+        ],
+        [learningRecord({ extra: "unversioned field" }), /fields/],
+    ];
+    for (const [record, expected] of invalidRecords) {
+        assert.match(validateLearningRecords(root, JSON.stringify(record)).join("\n"), expected);
+    }
+});
+
+test("learning states distinguish proposed, locally proven and delivered outcomes", (context) => {
+    const root = fixture();
+    context.after(() => rmSync(root, { recursive: true, force: true }));
+    for (const status of ["candidate", "discarded", "superseded"]) {
+        const record = learningRecord({ status, destination: null });
+        assert.deepEqual(validateLearningRecords(root, JSON.stringify(record)), []);
+    }
+    for (const status of ["pending_approval", "applied_locally", "integrated"]) {
+        const missingOwner = learningRecord({ status, destination: null });
+        assert.match(
+            validateLearningRecords(root, JSON.stringify(missingOwner)).join("\n"),
+            /destination/,
+        );
+    }
+    for (const status of ["applied_locally", "integrated"]) {
+        const record = learningRecord({ status });
+        assert.match(validateLearningRecords(root, JSON.stringify(record)).join("\n"), /proven/);
+    }
+    const validation = {
+        confidence: "proven",
+        checks: ["Synthetic passing check."],
+        delivery: null,
+    };
+    const local = learningRecord({ status: "applied_locally", validation });
+    assert.deepEqual(validateLearningRecords(root, JSON.stringify(local)), []);
+
+    const integrated = learningRecord({ status: "integrated", validation });
+    assert.match(validateLearningRecords(root, JSON.stringify(integrated)).join("\n"), /delivery/);
+    validation.delivery = "Synthetic merged revision and exact-main CI evidence.";
+    assert.deepEqual(validateLearningRecords(root, JSON.stringify(integrated)), []);
+
+    const pending = learningRecord({ status: "pending_approval" });
+    assert.deepEqual(validateLearningRecords(root, JSON.stringify(pending)), []);
+    const anchored = learningRecord({ destination: "docs/requirements.md#requirement-register" });
+    assert.deepEqual(validateLearningRecords(root, JSON.stringify(anchored)), []);
+});
+
+test("repository validation includes the portable learning registry", (context) => {
+    const root = fixture();
+    context.after(() => rmSync(root, { recursive: true, force: true }));
+    mkdirSync(join(root, "skills/fidelitopass-continuous-improvement"), { recursive: true });
+    const path = join(root, "skills/fidelitopass-continuous-improvement/learning.jsonl");
+    writeFileSync(path, "");
+    assert.deepEqual(validateRepository(root), []);
+    writeFileSync(path, JSON.stringify(learningRecord({ evidence: [] })));
+    assert.match(validateRepository(root).join("\n"), /learning.jsonl.*evidence/);
+});
 
 test("relative Markdown links resolve from their source file", (context) => {
     const root = fixture();

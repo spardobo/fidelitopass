@@ -188,8 +188,148 @@ export function validateRequirementIds(root) {
     return errors;
 }
 
+// --------------------------
+// learning record validation
+// --------------------------
+
+const learningRegistry = "skills/fidelitopass-continuous-improvement/learning.jsonl";
+const learningFields = [
+    "id",
+    "scope",
+    "learning",
+    "evidence",
+    "destination",
+    "status",
+    "validation",
+];
+const learningStatuses = new Set([
+    "candidate",
+    "pending_approval",
+    "applied_locally",
+    "integrated",
+    "discarded",
+    "superseded",
+]);
+
+function nonemptyText(value) {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
+function textList(value) {
+    return Array.isArray(value) && value.length > 0 && value.every(nonemptyText);
+}
+
+function repositoryPath(root, value, requireFile = false) {
+    if (
+        !nonemptyText(value) ||
+        value.includes("\\") ||
+        value.startsWith("/") ||
+        value.includes(":")
+    )
+        return false;
+
+    const path = value.split("#", 1)[0];
+    if (!path || path.split("/").some((part) => part === ".." || part === "." || part === ""))
+        return false;
+    const destination = resolve(root, path);
+    return existsSync(destination) && (!requireFile || statSync(destination).isFile());
+}
+
+/** Validate current JSONL entries; evidence truth and Markdown anchors require human review. */
+export function validateLearningRecords(root, content) {
+    const errors = [];
+    const ids = new Set();
+    const lines = content.split(/\r?\n/);
+
+    for (const [index, line] of lines.entries()) {
+        if (!line.trim()) continue;
+        const location = `${learningRegistry}:line ${index + 1}`;
+        const report = (message) => errors.push(`${location} ${message}`);
+        let record;
+        try {
+            record = JSON.parse(line);
+        } catch {
+            report("invalid JSON");
+            continue;
+        }
+        if (!record || typeof record !== "object" || Array.isArray(record)) {
+            report("must be an object");
+            continue;
+        }
+
+        if (
+            Object.keys(record).length !== learningFields.length ||
+            learningFields.some((field) => !Object.hasOwn(record, field))
+        ) {
+            report(
+                "fields must be exactly id, scope, learning, evidence, destination, status, validation",
+            );
+        }
+        if (typeof record.id !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(record.id)) {
+            report("id must be a stable kebab-case identifier");
+        } else {
+            if (ids.has(record.id)) report(`duplicate id ${record.id}`);
+            ids.add(record.id);
+        }
+        if (
+            !textList(record.scope) ||
+            record.scope.some((path) => path.includes("#") || !repositoryPath(root, path))
+        ) {
+            report("scope must list existing repository-relative files or directories");
+        }
+        if (!nonemptyText(record.learning)) report("learning must be nonempty text");
+        if (!textList(record.evidence)) report("evidence must be a nonempty list of text");
+        if (!learningStatuses.has(record.status)) report("status is unknown");
+
+        const needsOwner = ["pending_approval", "applied_locally", "integrated"].includes(
+            record.status,
+        );
+        if (
+            (record.destination === null && needsOwner) ||
+            (record.destination !== null && !repositoryPath(root, record.destination, true))
+        ) {
+            report(
+                "destination must be an existing owner file (optional #heading), or null when no owner is required",
+            );
+        }
+
+        const validation = record.validation;
+        if (!validation || typeof validation !== "object" || Array.isArray(validation)) {
+            report("validation must be an object");
+            continue;
+        }
+        const validationFields = ["confidence", "checks", "delivery"];
+        if (
+            Object.keys(validation).length !== validationFields.length ||
+            validationFields.some((field) => !Object.hasOwn(validation, field)) ||
+            !["proven", "provisional"].includes(validation.confidence) ||
+            !textList(validation.checks) ||
+            (validation.delivery !== null && !nonemptyText(validation.delivery))
+        ) {
+            report(
+                "validation requires confidence (proven/provisional), nonempty checks and delivery (text or null)",
+            );
+        }
+        if (
+            ["applied_locally", "integrated"].includes(record.status) &&
+            validation.confidence !== "proven"
+        ) {
+            report("locally applied or integrated learning must be proven");
+        }
+        if (record.status === "integrated" && !nonemptyText(validation.delivery)) {
+            report("integrated learning requires delivery evidence, not only local checks");
+        }
+    }
+
+    return errors;
+}
+
 export function validateRepository(root) {
-    return [...validateMarkdownLinks(root), ...validateRequirementIds(root)];
+    const path = resolve(root, learningRegistry);
+    const learningErrors = existsSync(path)
+        ? validateLearningRecords(root, readFileSync(path, "utf8"))
+        : [];
+    return [...validateMarkdownLinks(root), ...validateRequirementIds(root), ...learningErrors];
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -200,6 +340,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         console.error(errors.map((error) => `- ${error}`).join("\n"));
         process.exitCode = 1;
     } else {
-        console.log("Repository links and requirement identifiers are valid.");
+        console.log("Repository links, requirement identifiers and learning records are valid.");
     }
 }
