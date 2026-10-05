@@ -203,7 +203,7 @@ For the four equal-weight metrics use **four columns above `64rem`**, two at `64
 
 ### Quick actions
 
-- **Registrar visita** as a prominent global action, reachable on mobile. Disable it until validation is operational, with an honest explanation rather than a dead or deceptive control.
+- **Registrar visita** as a prominent global action, reachable on mobile. Keep complete-product menu destinations enabled during incremental implementation, even when routes or functionality are absent and links may fail. Do not disable them or add coming-soon/unavailable copy solely because implementation is pending.
 - **Pase** for managing Promociones and appearance.
 - **Invitar clientes** for the public acquisition QR.
 
@@ -231,7 +231,7 @@ Use **Cancelar**, **Guardar borrador**, **Publicar** when applicable. Preserve u
 
 After the first **saved** appearance, **Ver QR para invitar** is available from Pase, with or without an active Promotion; merely previewing a default colour does not qualify. The permanent public join page shows an active Promotion or an honest save-your-pass waiting state, not a new QR for each Promotion. A QR-generation error is distinct from invitation eligibility.
 
-Enable **Registrar visita** only when appearance is saved, the current Promotion is active, and server-authorized validation is operational. Keep its disabled reason legible and its header access visible. Known zero Visits and failed statistics queries never disable an otherwise authorized operation. Unknown operational phase/authorization must not be inferred from an old badge; server rechecks on confirmation. No local mock capability flag proves production readiness.
+For an implemented validation feature, enable **Registrar visita** only when appearance is saved, the current Promotion is active, and server-authorized validation is operational. When a genuine runtime prerequisite prevents use, keep its disabled reason legible and its header access visible. Known zero Visits and failed statistics queries never disable an otherwise authorized operation. Unknown operational phase/authorization must not be inferred from an old badge; server rechecks on confirmation. No local mock capability flag proves production readiness.
 
 ## Acquisition QR page
 
@@ -255,7 +255,7 @@ No account-creation form for customers.
 
 ## Registrar visita dialog
 
-Once operational, the global action opens one identification → confirmation → result dialog for fast counter use. Until then, keep the action disabled with an honest explanation.
+When implemented and operational, the global action opens one identification → confirmation → result dialog for fast counter use. Pending implementation alone does not disable its header entry.
 
 ### Required order
 

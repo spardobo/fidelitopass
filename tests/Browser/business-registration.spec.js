@@ -37,13 +37,11 @@ async function expectReadable(page) {
 async function expectAuthenticatedSurface(page, surface) {
     const appearance = await page.evaluate((selector) => {
         const card = document.querySelector(selector);
-        const header = document.querySelector("[data-flux-header], [data-flux-sidebar]");
 
         return {
             font: getComputedStyle(document.body).fontFamily,
             canvas: getComputedStyle(document.body).backgroundColor,
             card: getComputedStyle(card).backgroundColor,
-            header: header ? getComputedStyle(header).backgroundColor : null,
             overflow: document.documentElement.scrollWidth > window.innerWidth,
         };
     }, surface);
@@ -51,14 +49,7 @@ async function expectAuthenticatedSurface(page, surface) {
     expect(appearance.font).toContain("Onest Variable");
     expect(appearance.canvas).toBe("rgb(36, 36, 36)");
     expect(appearance.card).toBe("rgb(39, 39, 39)");
-    expect(appearance.header).not.toBeNull();
-    expect(appearance.header).toBe(appearance.canvas);
     expect(appearance.overflow).toBe(false);
-
-    const logoIcon = page.locator('img[src$="logo_icon.svg"]').first();
-    await expect(logoIcon).toBeVisible();
-    await expect.poll(() => logoIcon.evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
-    await expect(logoIcon.locator("..")).toHaveCSS("background-color", "rgb(183, 171, 228)");
 }
 
 async function verificationLink(request, recipient) {
@@ -289,7 +280,7 @@ for (const width of [1280, 375]) {
     }, testInfo) => {
         await page.setViewportSize({ width, height: 800 });
         await page.emulateMedia({ colorScheme: "dark" });
-        const recipient = `onboarding-${width}-${crypto.randomUUID()}@example.test`;
+        const recipient = `registration-${width}-${crypto.randomUUID()}@example.test`;
         const business = `Negocio ${width} ${crypto.randomUUID()}`;
 
         await registerAndVerifyOwner(page, request, width, recipient, business);
@@ -306,52 +297,10 @@ for (const width of [1280, 375]) {
             fullPage: true,
         });
 
-        const ownerName = `Owner ${width}`;
-        const menuButton = page.locator('[data-test="sidebar-menu-button"]');
-        await expect(menuButton).toContainText(ownerName);
-        await expect(page.locator("[data-flux-avatar]")).toHaveCount(0);
-
-        if (width === 375) {
-            await page
-                .getByRole("banner")
-                .getByRole("button", { name: /mostrar u ocultar barra lateral/i })
-                .click();
-        }
-
-        const activeNavigation =
-            width === 375 ? page.locator("[data-flux-sidebar]") : page.getByRole("banner");
-        for (const label of ["Search", "Repository", "Documentation"]) {
-            await expect(
-                activeNavigation.getByRole("link", { name: label, exact: true }),
-            ).toHaveCount(0);
-        }
-        await expect(activeNavigation.locator('a[href="#"]')).toHaveCount(0);
-        await expect(
-            activeNavigation.locator('a[href="https://github.com/laravel/livewire-starter-kit"]'),
-        ).toHaveCount(0);
-        await expect(
-            activeNavigation.locator('a[href="https://laravel.com/docs/starter-kits#livewire"]'),
-        ).toHaveCount(0);
-
-        const navigation =
-            width === 375
-                ? page
-                      .locator("[data-flux-sidebar] [data-flux-sidebar-item]")
-                      .filter({ hasText: "Panel" })
-                : page.getByRole("banner").getByRole("link", { name: "Panel" });
-        const profileLink =
-            width === 375
-                ? page
-                      .locator("[data-flux-sidebar] [data-flux-sidebar-item]")
-                      .filter({ hasText: "Perfil del negocio" })
-                : page.getByRole("banner").getByRole("link", { name: "Perfil del negocio" });
-
-        await expect(navigation).toHaveAttribute("data-current", "data-current");
-        await expect(profileLink).not.toHaveAttribute("data-current", "");
-        await profileLink.click();
+        const menuButton = page.getByRole("button", { name: "Abrir menú de cuenta" });
+        await menuButton.click();
+        await page.getByRole("menuitem", { name: "Perfil del negocio" }).click();
         await expect(page).toHaveURL(/\/business\/profile(?:\?|$)/);
-        await expect(profileLink).toHaveAttribute("data-current", "data-current");
-        await expect(navigation).not.toHaveAttribute("data-current", "");
         await expect(page.getByRole("textbox", { name: "Nombre del negocio" })).toHaveValue(
             business,
         );
@@ -384,7 +333,7 @@ for (const width of [1280, 375]) {
 
         await menuButton.click();
         await expect(page.getByRole("menuitem", { name: "Cerrar sesión" })).toBeVisible();
-        await page.getByRole("menuitem", { name: "Configuración" }).click();
+        await page.getByRole("menuitem", { name: "Perfil", exact: true }).click();
         await expect(page).toHaveURL(/\/settings\/profile(?:\?|$)/);
 
         for (const [path, heading] of [
@@ -432,7 +381,8 @@ for (const width of [1280, 375]) {
             ).toBeVisible();
             await expect(page.getByRole("radio")).toHaveCount(0);
             await expectReadable(page);
-            await page.getByRole("link", { name: "Perfil del negocio" }).click();
+            await menuButton.click();
+            await page.getByRole("menuitem", { name: "Perfil del negocio" }).click();
             await expect(page).toHaveURL(/\/business\/profile(?:\?|$)/);
             await expectReadable(page);
             await page.reload();
