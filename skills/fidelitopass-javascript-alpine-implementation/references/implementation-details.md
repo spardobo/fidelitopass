@@ -48,7 +48,7 @@ Apply [shared code quality](../../shared/code-quality.md) before these client-sp
 
 - Serialize server data into JavaScript with supported secure framework facilities and preserve escaping for the actual output context. Do not concatenate guessed JavaScript strings, bypass escaping or treat serialized client input as trusted server state.
 - Supply professional Spanish visible copy and accessibility text through the proper Laravel/framework translation source, not repeated raw literals or browser-side phrase matching. Keep technical identifiers and internal comments English; leave markup text/attribute composition to the Blade owner.
-- Before an affected change, select the relevant UI owner sections: [Form behaviour](../../../docs/ui-ux-guidelines.md#form-behaviour), [Loading feedback](../../../docs/ui-ux-guidelines.md#loading-and-perceived-responsiveness), [Accessibility baseline](../../../docs/ui-ux-guidelines.md#accessibility-baseline), [Motion](../../../docs/ui-ux-guidelines.md#motion) and the actual screen interaction. Do not copy domain or presentation outcomes into this skill.
+- Before an affected UI change, select the relevant UI owner sections: [Form behaviour](../../../docs/ui-ux-guidelines.md#form-behaviour), [Loading feedback](../../../docs/ui-ux-guidelines.md#loading-and-perceived-responsiveness), [Accessibility baseline](../../../docs/ui-ux-guidelines.md#accessibility-baseline), [Motion](../../../docs/ui-ux-guidelines.md#motion) and the actual screen interaction. Do not copy domain or presentation outcomes into this skill.
 - Use [Documentation routing](../../../AGENTS.md#documentation-routing) for security, domain and other necessary owners. Stop before the affected edit for an unreadable source or genuine policy conflict. Global conventions govern authorized new work; they do not authorize unrelated rollout or certify historical source compliance.
 
 ## Verification boundary
@@ -58,6 +58,17 @@ Apply [shared code quality](../../shared/code-quality.md) before these client-sp
 - Test affected alternate/negative behavior, including optional-API/no-JavaScript fallbacks, keyboard/touch/reduced-motion handling, dynamic DOM, duplicate initialization, resource cleanup and stale callbacks where those risks exist. Assert observable outcomes, not initializer names, helper counts, source ordering, comment boxes, fixed heading labels or formatting.
 - Follow [Browser coverage](../../../docs/quality-strategy.md#browser-coverage) and nearby existing tooling. Preserve the native browser runner's Docker ownership; inspect its execution boundary and do not nest it in Sail. Run application-development PHP/Composer/Artisan/npm commands through Sail under the [project execution contract](../../../AGENTS.md#stack-and-execution); report unavailable runners instead of substituting host tools.
 - Add no runner upgrades or dependencies for consistency. Inspect source readability independently of passing behavior tests. Documentation/link checks establish structural evidence only, not runtime browser proof.
+
+## Node filesystem boundaries
+
+Apply these checks to Node quality scripts that accept repository-relative paths; the filesystem rules do not apply to browser code.
+
+- Preserve lexical restrictions first: reject disallowed absolute paths, traversal segments, separators and anchors. Allow an anchor only for a field whose contract permits it; resolve its file portion without claiming the heading exists.
+- Resolve both the repository root and target with `realpathSync`. Check `path.relative` by segments: reject an absolute result, `..` or a result beginning with `..` plus the platform separator. A textual root prefix accepts similarly named sibling directories and is insufficient. Accept internal links and roots accessed through a link.
+- Validate the canonical location and required file/directory role before reading content. Treat missing, dangling or looping targets as rejection; propagate unexpected filesystem failures rather than turning them into a pass.
+- For an optional file, do not infer safe absence from `existsSync` alone: it follows links and hides dangling entries. Inspect the entry and nearest existing ancestor with `lstatSync`; reject broken or escaped ancestry and non-directory parents before accepting an absent file.
+- Use controlled temporary fixtures for ordinary paths, traversal, permitted anchors, internal/external direct and intermediate links, broken links, similar-prefix siblings and linked roots. Include valid external content so a location rejection cannot be mistaken for a content error; observe RED before the fix when a runnable regression exists.
+- Canonical checks are validation, not a sandbox or protection against concurrent filesystem replacement. Do not claim race-proof containment between checking and reading.
 
 ## Language and asynchronous contracts
 
