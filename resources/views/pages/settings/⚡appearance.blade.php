@@ -12,9 +12,9 @@ new #[Title('Appearance settings')] class extends Component {
 
     <flux:heading level="2" class="sr-only">{{ __('Appearance settings') }}</flux:heading>
 
-    <x-pages::settings.layout :heading="__('Appearance')" :subheading="__('Dark mode is always on')">
+    <x-pages::settings.layout :heading="__('Appearance')" :subheading="__('appearance.dark_mode_heading')">
         <flux:text>
-            {{ __('The dark theme is active for every account.') }}
+            {{ __('appearance.dark_mode_description') }}
         </flux:text>
     </x-pages::settings.layout>
 </section>
