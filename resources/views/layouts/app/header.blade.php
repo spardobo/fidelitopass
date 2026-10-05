@@ -14,7 +14,7 @@
 
                 <div class="col-span-2 col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2 min-[900px]:col-span-1 min-[900px]:col-start-3">
                     <flux:button :href="url('/visits/create')" variant="primary" class="app-button-primary px-3!">
-                        {{ __('Register visit') }}
+                        {{ __('app-header.register_visit') }}
                     </flux:button>
                     <x-desktop-user-menu />
                 </div>

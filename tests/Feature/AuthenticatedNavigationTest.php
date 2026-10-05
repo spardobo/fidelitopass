@@ -14,6 +14,7 @@ it('renders enabled product destinations and POST logout for the authenticated o
 
     $response->assertSee('Resumen')->assertSee('Pase')->assertSee('Invitar clientes')
         ->assertSee('Registrar visita')->assertSee('Abrir menú de cuenta')
+        ->assertSee('Navegación principal')->assertSee('Perfil')->assertSee('Seguridad')->assertSee('Cerrar sesión')
         ->assertSee('data-flux-avatar', false);
 
     $document = new DOMDocument;
@@ -33,6 +34,28 @@ it('renders enabled product destinations and POST logout for the authenticated o
 
     expect($xpath->query('//form[@method="POST" and @action="'.route('logout').'"]//button[@type="submit"]')->length)->toBe(1);
 });
+
+it('renders shell copy from its owning catalog', function (string $key) {
+    $business = Business::factory()->create();
+    $translator = app('translator');
+    $translator->get($key, [], 'es');
+    $translator->addLines([$key => 'Texto localizado de prueba'], 'es');
+
+    $response = $this->actingAs($business->user)->get(route('dashboard'));
+
+    $response->assertSee('Texto localizado de prueba');
+})->with([
+    'summary' => 'app-navigation.summary',
+    'pass' => 'app-navigation.pass',
+    'invitation' => 'app-navigation.invite_customers',
+    'navigation landmark' => 'app-navigation.main_navigation',
+    'account trigger' => 'desktop-user-menu.open_account_menu',
+    'profile action' => 'desktop-user-menu.profile',
+    'security action' => 'desktop-user-menu.security',
+    'logout action' => 'desktop-user-menu.log_out',
+    'visit action' => 'app-header.register_visit',
+    'business domain label' => 'business.profile_title',
+]);
 
 it('marks only the actual current shell destination', function (string $route) {
     $business = Business::factory()->create();

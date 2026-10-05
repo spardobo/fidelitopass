@@ -61,6 +61,12 @@ Keep dependent bindings together when separating them would obscure or alter the
 - Use native Blade conditional/loop directives rather than string-built markup. Keep escaping appropriate to the output context; do not bypass escaping for untrusted copy. Serialize server data into client contexts with supported secure framework facilities, not concatenated JavaScript or guessed quoting.
 - Use lowercase English internal semantic Blade comments only for major related content/action regions when useful. Prefer non-rendered Blade comment syntax. Do not impose fixed labels, templates or comments above every element; apply shared comment-purpose gates instead of duplicating them.
 
+### Translation catalog ownership
+
+Each project-owned screen or component with copy owns a PHP translation catalog, whether shared or local. Layouts with copy also own a catalog. Use owner-prefixed group keys such as `app-navigation.summary` from `lang/es/app-navigation.php`; keep visible and accessibility copy together. Reuse domain-owned terms from their existing catalog instead of duplicating them for each consumer. Do not create empty catalogs for textless components or catalogs for individual Flux/vendor controls.
+
+Reserve `lang/es.json` for inherited or generic starter strings as a project convention, not a Laravel restriction. Do not add JSON entries that match PHP group keys: Laravel checks exact JSON keys before group lookup. Migrate existing copy only within the authorized scope; audit other consumers before removing a JSON entry and retain generic entries still used by starter screens.
+
 ## Outcome owners and verification
 
 Select only the applicable owner sections before the affected edit. Stop for an unreadable source or unresolved conflict; do not invent frontend policy.
