@@ -34,7 +34,9 @@ class RegistrationTest extends TestCase
         $response->assertOk()
             ->assertSee('Nombre del negocio')
             ->assertSee('Zona horaria')
-            ->assertSee('Selecciona una zona horaria');
+            ->assertSee('Selecciona una zona horaria')
+            ->assertSee('Argentina / Buenos Aires')
+            ->assertSee('Las fechas y los horarios tendrán como referencia la hora local de tu negocio.');
 
         $document = new DOMDocument;
         @$document->loadHTML($response->getContent());
@@ -43,6 +45,13 @@ class RegistrationTest extends TestCase
         $this->assertSame(1, $xpath->query('//input[@name="business_name" and @required]')->length);
         $this->assertSame(1, $xpath->query('//select[@name="timezone" and @required]/option[@value="" and @selected]')->length);
         $this->assertSame(0, $xpath->query('//select[@name="timezone"]/option[@value!="" and @selected]')->length);
+        $this->assertSame(timezone_identifiers_list(), array_map(
+            fn ($option) => $option->getAttribute('value'),
+            iterator_to_array($xpath->query('//select[@name="timezone"]/option[@value!=""]')),
+        ));
+        $this->assertMatchesRegularExpression('/^\(UTC[+-]\d{2}:\d{2}\) Montevideo$/', trim(
+            $xpath->query('//select[@name="timezone"]/option[@value="America/Montevideo"]')->item(0)->textContent,
+        ));
     }
 
     public function test_mismatched_password_confirmation_returns_feedback_without_creating_a_user(): void

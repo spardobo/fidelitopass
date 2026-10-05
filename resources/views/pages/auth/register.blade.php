@@ -61,7 +61,22 @@
                 name="timezone"
                 :label="__('business.fields.time_zone')"
                 :description:trailing="__('auth.registration.timezone_help')"
+                x-data="{
+                    init() {
+                        if (this.$el.dataset.hasOldInput === 'true' || this.$el.value !== '') return;
+
+                        try {
+                            const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                            const supported = Array.from(this.$el.options).some(option => option.value === zone);
+
+                            if (supported) this.$el.value = zone;
+                        } catch {
+                            // timezone discovery is optional; keep manual selection available.
+                        }
+                    }
+                }"
                 required
+                :data-has-old-input="session()->hasOldInput() ? 'true' : 'false'"
                 class="app-input"
                 label:class="app-label"
                 description:class="app-role-support! text-app-ink-help!"
@@ -70,9 +85,9 @@
                 <flux:select.option value="" :selected="old('timezone', '') === ''">
                     {{ __('business.fields.select_time_zone') }}
                 </flux:select.option>
-                @foreach (timezone_identifiers_list() as $identifier)
+                @foreach (\App\Support\TimezoneLabel::options() as $identifier => $label)
                     <flux:select.option :value="$identifier" :selected="old('timezone') === $identifier">
-                        {{ $identifier }}
+                        {{ $label }}
                     </flux:select.option>
                 @endforeach
             </flux:select>

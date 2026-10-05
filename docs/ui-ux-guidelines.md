@@ -165,7 +165,7 @@ Use the Starter Kit/Fortify flows with the FidelitoPass visual tokens.
 - Labels remain visible.
 - Validation appears close to the field.
 - Do not add decorative side panels that distract from authentication.
-- Registration collects Business name and an explicitly selected, visible, server-validated IANA timezone alongside owner credentials in one atomic operation; no logo or Promoción configuration is required. Do not guess or automatically select the timezone.
+- Registration collects Business name and a visible, manually editable, server-validated IANA timezone alongside owner credentials in one atomic operation; no logo or Promoción configuration is required. Fresh registration may prefill a supported browser-configured timezone. Explain that this is a suggestion to check against the Business, not verified physical location. Explicit registration submission confirms the selection. If detection is unavailable or unsupported, leave manual selection; preserve entered values after validation errors.
 - Preserve email verification and normal intended destinations after authentication. **Resumen** is the ordinary authenticated application home, not a required first stop.
 
 ## Authenticated navigation
@@ -178,8 +178,8 @@ The Business is created with the owner at registration. The Business destination
 
 Timezone selection should:
 
-- Require explicit selection at registration; display the saved timezone when editing the Business.
-- Display the IANA name in a searchable/selectable control.
+- Allow a supported browser suggestion only on fresh registration; require confirmation through explicit submission. Display the saved timezone when editing, without browser detection.
+- Use an editable native select with readable location labels and decorative current offsets. Preserve useful location hierarchy; users need not understand technical IANA codes. Submitted and stored values remain validated IANA identifiers.
 - Remain editable in settings.
 - Explain briefly that it controls Promoción days and deadlines.
 

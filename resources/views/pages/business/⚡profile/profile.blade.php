@@ -15,17 +15,20 @@
             <flux:label>
                 {{ __('business.fields.time_zone') }}
             </flux:label>
-            <flux:select wire:model="timezone" required>
+            <flux:select id="business-timezone" wire:model="timezone" aria-describedby="business-timezone-guidance" required>
                 <flux:select.option value="">
                     {{ __('business.fields.select_time_zone') }}
                 </flux:select.option>
-                @foreach (timezone_identifiers_list() as $identifier)
-                    <flux:select.option :value="$identifier">
-                        {{ $identifier }}
+                @foreach (\App\Support\TimezoneLabel::options() as $identifier => $label)
+                    <flux:select.option :value="$identifier" wire:key="timezone-{{ $identifier }}">
+                        {{ $label }}
                     </flux:select.option>
                 @endforeach
             </flux:select>
             <flux:error name="timezone" />
+            <flux:description id="business-timezone-guidance">
+                {{ __('business.profile.timezone_guidance') }}
+            </flux:description>
         </flux:field>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">

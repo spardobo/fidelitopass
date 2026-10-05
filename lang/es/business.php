@@ -8,7 +8,8 @@ return [
         'select_time_zone' => 'Selecciona una zona horaria',
     ],
     'profile' => [
-        'description' => 'Edita el nombre y la zona horaria de tu negocio. Esta zona determina los días y plazos de las promociones.',
+        'description' => 'Edita el nombre y la zona horaria de tu negocio.',
+        'timezone_guidance' => 'Las fechas y los horarios se basan en la hora local de tu negocio. Cambiar la zona horaria solo afectará a las promociones nuevas que publiques.',
         'save' => 'Guardar negocio',
         'back_to_dashboard' => 'Volver al resumen',
     ],

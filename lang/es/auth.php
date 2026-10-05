@@ -5,7 +5,7 @@ declare(strict_types=1);
 return [
     'registration' => [
         'description' => 'Introduce tus datos y los de tu negocio para crear tu cuenta.',
-        'timezone_help' => 'Selecciona la zona horaria de tu negocio. Define los días y las fechas límite de tus promociones.',
+        'timezone_help' => 'Las fechas y los horarios tendrán como referencia la hora local de tu negocio.',
     ],
     'failed' => 'Estas credenciales no coinciden con nuestros registros.',
     'password' => 'La contraseña es incorrecta.',
