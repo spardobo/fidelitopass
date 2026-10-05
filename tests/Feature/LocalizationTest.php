@@ -81,6 +81,38 @@ test('project pages resolve grouped translations without leaking keys', function
     expect(__('Log in to your account'))->toBe('Iniciar sesión en tu cuenta');
 });
 
+test('project additions no longer occupy the generic JSON catalog', function (): void {
+    $catalog = json_decode(file_get_contents(lang_path('es.json')), true, flags: JSON_THROW_ON_ERROR);
+    $projectKeys = [
+        'Back to dashboard',
+        'Business name',
+        'Business profile',
+        'Business dashboard',
+        'Dark mode is always on',
+        'Edit business profile',
+        'Enter your business name and time zone to continue.',
+        'Review your business information.',
+        'Save business',
+        'Select a time zone',
+        'Set up your business',
+        'Time zone',
+        'The dark theme is active for every account.',
+    ];
+
+    expect(array_intersect($projectKeys, array_keys($catalog)))->toBe([]);
+    expect(__('appearance.dark_mode_heading'))->toBe('El modo oscuro está siempre activo');
+    expect(__('appearance.dark_mode_description'))->toBe('El tema oscuro está activo para todas las cuentas.');
+    expect(__('Appearance'))->toBe('Apariencia');
+    expect(__('Appearance settings'))->toBe('Configuración de apariencia');
+    expect(__('business.fields.business_name'))->toBe('Nombre del negocio');
+    expect(__('business.fields.time_zone'))->toBe('Zona horaria');
+    expect(__('business.fields.select_time_zone'))->toBe('Selecciona una zona horaria');
+    expect(__('business.profile.save'))->toBe('Guardar negocio');
+    expect(__('business.profile.back_to_dashboard'))->toBe('Volver al resumen');
+    expect(__('business.dashboard.edit_profile'))->toBe('Editar perfil del negocio');
+    expect(__('business.dashboard.description'))->toBe('Consulta los datos de tu negocio.');
+});
+
 test('authenticated settings translate Livewire titles and navigation', function (): void {
     $this->actingAs(User::factory()->create());
 
