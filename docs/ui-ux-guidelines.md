@@ -179,7 +179,11 @@ The Business is created with the owner at registration. The Business destination
 Timezone selection should:
 
 - Allow a supported browser suggestion only on fresh registration; require confirmation through explicit submission. Display the saved timezone when editing, without browser detection.
-- Use an editable native select with readable location labels and decorative current offsets. Preserve useful location hierarchy; users need not understand technical IANA codes. Submitted and stored values remain validated IANA identifiers.
+- Use an editable native select with ICU names and cities in the active application locale and decorative current PHP offsets at one shared instant. Offer only native PHP default identifiers recognized by ICU as system zones; missing ICU support leaves no choices.
+- Keep native options compact: localized country, representative city and decorative offset, such as `Bolivia, La Paz (UTC-04:00)`. Omit the city when it repeats the country. Shorter options reduce content width; native popup dimensions remain browser-controlled.
+- Show the selected ICU time zone name in a subtle, wrapping badge below the field, updating it after manual selection and supported browser detection. Hide the badge when no valid selection exists. Preserve guidance and validation feedback. Capitalize only the time zone phrase's initial character; preserve proper names and the remaining runtime-localized text.
+- Order by the displayed country, representative city and original IANA identity, not the offset. Place UTC last, using its localized name and offset without fabricated geography. Append original IANA detail only when geographic labels still collide. Keep every distinct choice.
+- Keep recognized zones even when PHP and ICU offset rules differ: PHP supplies the offset and ICU supplies generic-location wording in that case. Use ICU's localized long name for UTC. Labels reflect installed runtime data, not a promised external-provider vocabulary. Submitted and stored values remain validated original IANA identifiers, never rewritten ICU canonical aliases.
 - Remain editable in settings.
 - Explain briefly that it controls Promoción days and deadlines.
 

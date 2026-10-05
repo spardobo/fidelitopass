@@ -36,7 +36,10 @@ test("fresh registration prefills a supported browser timezone", async ({ page }
 
     await expect(timezoneSelect(page)).toHaveValue("America/Montevideo");
     await expect(timezoneSelect(page).locator('option[value="America/Montevideo"]')).toHaveText(
-        "(UTC-03:00) Montevideo",
+        /^Uruguay, Montevideo \(UTC-03:00\)$/,
+    );
+    await expect(page.locator("#registration-timezone-name")).toHaveText(
+        "Hora estándar de Uruguay",
     );
     expect(errors).toEqual([]);
 });
@@ -59,6 +62,7 @@ test("manual override submits the canonical IANA value without creating an accou
     await page.goto("/register");
     await expect(timezoneSelect(page)).toHaveValue("America/Montevideo");
     await timezoneSelect(page).selectOption("Europe/Madrid");
+    await expect(page.locator("#registration-timezone-name")).toHaveText("Hora de Europa central");
     await fillRegistration(page);
     await page.route("**/register", async (route) => {
         if (route.request().method() !== "POST") return route.continue();
@@ -145,7 +149,7 @@ for (const width of [1280, 375]) {
         await page.keyboard.press("ArrowDown");
         await expect(timezone).not.toHaveValue("America/Montevideo");
         await expect(timezone.locator('option[value="America/Argentina/Buenos_Aires"]')).toHaveText(
-            "(UTC-03:00) Argentina / Buenos Aires",
+            /^Argentina, Buenos Aires \(UTC-03:00\)$/,
         );
         expect(await timezone.locator("option").count()).toBeGreaterThan(400);
         await expect(

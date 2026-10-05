@@ -1,20 +1,22 @@
 <?php
 
 use App\Models\Business;
+use App\Support\SupportedTimezones;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Exceptions\PublicPropertyNotFoundException;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-it('renders readable full timezone options with stored selection and future publication guidance', function () {
+it('renders compact timezone options with stored selection and future publication guidance', function () {
     $business = Business::factory()->create(['timezone' => 'America/La_Paz']);
     $this->actingAs($business->user);
 
     Livewire::test('pages::business.profile')
         ->assertSet('timezone', 'America/La_Paz')
-        ->assertSee('La Paz')
-        ->assertSee('Argentina / Buenos Aires')
+        ->assertSeeHtml('id="business-timezone-name"')
+        ->assertSee('Hora de Bolivia')
+        ->assertSee('data-timezone-name="Hora estándar de Argentina"', escape: false)
         ->assertSeeHtml('value="Europe/Madrid"')
         ->assertSeeHtml('value="Asia/Tokyo"')
         ->assertSeeHtml('value="UTC"')
@@ -23,21 +25,65 @@ it('renders readable full timezone options with stored selection and future publ
         ->assertSee('Las fechas y los horarios se basan en la hora local de tu negocio. Cambiar la zona horaria solo afectará a las promociones nuevas que publiques.');
 });
 
-it('saves a valid canonical timezone selected from the full list', function () {
+it('renders the saved timezone name separately from its compact option', function () {
+    $business = Business::factory()->create(['timezone' => 'America/La_Paz']);
+    $this->actingAs($business->user);
+    $component = Livewire::test('pages::business.profile');
+    $document = new DOMDocument;
+    @$document->loadHTML($component->html());
+    $xpath = new DOMXPath($document);
+
+    expect(trim($xpath->query('//*[@id="business-timezone-name"]')->item(0)->textContent))->toBe('Hora de Bolivia');
+    expect(trim($xpath->query('//select[@id="business-timezone"]/option[@value="America/La_Paz"]')->item(0)->textContent))->toBe('Bolivia, La Paz (UTC-04:00)');
+});
+
+it('renders timezone labels using the active locale', function () {
+    $business = Business::factory()->create(['timezone' => 'Asia/Kolkata']);
+    $this->actingAs($business->user);
+    app()->setLocale('en');
+
+    Livewire::test('pages::business.profile')
+        ->assertSet('timezone', 'Asia/Kolkata')
+        ->assertSee('Bolivia Time')
+        ->assertDontSee('Hora de Bolivia');
+});
+
+it('rejects PHP only timezones without changing either business field', function () {
+    $unsupported = array_values(array_diff(timezone_identifiers_list(), SupportedTimezones::identifiers()));
+    if ($unsupported === []) {
+        fwrite(STDOUT, "Coverage limit: ICU recognizes every native ID; PHP-only profile rejection has no runtime case.\n");
+        expect(SupportedTimezones::identifiers())->toBe(timezone_identifiers_list());
+
+        return;
+    }
+    $business = Business::factory()->create(['name' => 'Sin cambios', 'timezone' => 'UTC']);
+    $this->actingAs($business->user);
+
+    Livewire::test('pages::business.profile')
+        ->set('name', 'Cambio rechazado')
+        ->set('timezone', $unsupported[0])
+        ->call('save')
+        ->assertHasErrors(['timezone']);
+
+    expect($business->fresh()->name)->toBe('Sin cambios')
+        ->and($business->fresh()->timezone)->toBe('UTC');
+});
+
+it('saves the original supported IANA identity without ICU canonical rewriting', function (string $identifier) {
     $business = Business::factory()->create(['timezone' => 'UTC']);
     $this->actingAs($business->user);
 
     Livewire::test('pages::business.profile')
-        ->set('timezone', 'Europe/Madrid')
-        ->assertSeeHtml('value="Europe/Madrid"')
+        ->set('timezone', $identifier)
+        ->assertSeeHtml('value="'.$identifier.'"')
         ->set('name', 'Negocio actualizado')
         ->call('save')
         ->assertHasNoErrors()
         ->assertRedirect(route('dashboard'));
 
     expect($business->fresh()->name)->toBe('Negocio actualizado')
-        ->and($business->fresh()->timezone)->toBe('Europe/Madrid');
-});
+        ->and($business->fresh()->timezone)->toBe($identifier);
+})->with(['Europe/Madrid', 'Asia/Kolkata', 'Asia/Kathmandu']);
 
 it('keeps the profile editing heading when an owner clears the name', function () {
     $business = Business::factory()->create();
@@ -102,5 +148,7 @@ it('rejects invalid names and non IANA timezones without changing the profile', 
     'missing name' => ['', 'UTC', 'name'],
     'long name' => [str_repeat('a', 256), 'UTC', 'name'],
     'invalid timezone' => ['Café Sur', 'Mars/Olympus', 'timezone'],
+    'ICU alias outside native defaults' => ['Café Sur', 'US/Eastern', 'timezone'],
+    'ICU unknown fallback' => ['Café Sur', 'Etc/Unknown', 'timezone'],
     'explicit timezone required' => ['Café Sur', '', 'timezone'],
 ]);

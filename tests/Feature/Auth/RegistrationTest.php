@@ -4,6 +4,8 @@ namespace Tests\Feature\Auth;
 
 use App\Models\Business;
 use App\Models\User;
+use App\Support\SupportedTimezones;
+use App\Support\TimezoneLabel;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -35,7 +37,7 @@ class RegistrationTest extends TestCase
             ->assertSee('Nombre del negocio')
             ->assertSee('Zona horaria')
             ->assertSee('Selecciona una zona horaria')
-            ->assertSee('Argentina / Buenos Aires')
+            ->assertSee('data-timezone-name="Hora estándar de Argentina"', escape: false)
             ->assertSee('Las fechas y los horarios tendrán como referencia la hora local de tu negocio.');
 
         $document = new DOMDocument;
@@ -45,13 +47,42 @@ class RegistrationTest extends TestCase
         $this->assertSame(1, $xpath->query('//input[@name="business_name" and @required]')->length);
         $this->assertSame(1, $xpath->query('//select[@name="timezone" and @required]/option[@value="" and @selected]')->length);
         $this->assertSame(0, $xpath->query('//select[@name="timezone"]/option[@value!="" and @selected]')->length);
-        $this->assertSame(timezone_identifiers_list(), array_map(
+        $this->assertSame(array_keys(TimezoneLabel::options(app()->getLocale())), array_map(
             fn ($option) => $option->getAttribute('value'),
             iterator_to_array($xpath->query('//select[@name="timezone"]/option[@value!=""]')),
         ));
-        $this->assertMatchesRegularExpression('/^\(UTC[+-]\d{2}:\d{2}\) Montevideo$/', trim(
+        $this->assertMatchesRegularExpression('/^Uruguay, Montevideo \(UTC[+-]\d{2}:\d{2}\)$/', trim(
             $xpath->query('//select[@name="timezone"]/option[@value="America/Montevideo"]')->item(0)->textContent,
         ));
+    }
+
+    public function test_registration_options_use_the_active_locale(): void
+    {
+        app()->setLocale('en');
+
+        $this->get(route('register'))->assertSee('Bolivia Time')->assertDontSee('Hora de Bolivia');
+    }
+
+    public function test_php_only_timezones_are_rejected_without_creating_records(): void
+    {
+        $unsupported = array_values(array_diff(timezone_identifiers_list(), SupportedTimezones::identifiers()));
+        if ($unsupported === []) {
+            fwrite(STDOUT, "Coverage limit: ICU recognizes every native ID; PHP-only registration rejection has no runtime case.\n");
+            $this->assertSame(timezone_identifiers_list(), SupportedTimezones::identifiers());
+
+            return;
+        }
+        Notification::fake();
+        $input = array_replace($this->registrationInput(), ['timezone' => $unsupported[0]]);
+
+        $this->from(route('register'))->post(route('register.store'), $input)
+            ->assertSessionHasErrors(['timezone'])
+            ->assertSessionHasInput('timezone', $unsupported[0]);
+
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('businesses', 0);
+        $this->assertGuest();
+        Notification::assertNothingSent();
     }
 
     public function test_mismatched_password_confirmation_returns_feedback_without_creating_a_user(): void
@@ -133,6 +164,8 @@ class RegistrationTest extends TestCase
             'non-string timezone' => [['timezone' => ['Europe/Madrid']], 'timezone', 'El campo zona horaria debe ser una cadena de caracteres.'],
             'unknown timezone' => [['timezone' => 'Mars/Olympus'], 'timezone', 'El campo zona horaria no está en la lista de valores permitidos.'],
             'offset instead of IANA identifier' => [['timezone' => '+02:00'], 'timezone', 'El campo zona horaria no está en la lista de valores permitidos.'],
+            'ICU alias outside native defaults' => [['timezone' => 'US/Eastern'], 'timezone', 'El campo zona horaria no está en la lista de valores permitidos.'],
+            'ICU unknown fallback' => [['timezone' => 'Etc/Unknown'], 'timezone', 'El campo zona horaria no está en la lista de valores permitidos.'],
         ];
     }
 
@@ -171,6 +204,22 @@ class RegistrationTest extends TestCase
         Notification::assertNothingSent();
     }
 
+    public function test_selected_timezone_name_is_rendered_below_preserved_registration_input(): void
+    {
+        $response = $this->withSession(['_old_input' => ['timezone' => 'America/La_Paz']])->get(route('register'));
+        $document = new DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new DOMXPath($document);
+
+        $this->assertSame('Hora de Bolivia', trim($xpath->query('//*[@id="registration-timezone-name"]')->item(0)->textContent));
+        $this->assertSame('Hora de Bolivia', $xpath->query('//select[@name="timezone"]/option[@value="America/La_Paz"]')->item(0)->getAttribute('data-timezone-name'));
+    }
+
+    public function test_non_string_preserved_timezone_does_not_break_registration_presentation(): void
+    {
+        $this->withSession(['_old_input' => ['timezone' => ['invalid']]])->get(route('register'))->assertOk();
+    }
+
     public function test_business_persistence_failure_rolls_back_both_records_without_logging_in_or_notifying(): void
     {
         Notification::fake();
@@ -206,7 +255,7 @@ class RegistrationTest extends TestCase
         $input = array_replace($this->registrationInput(), [
             'user_id' => $otherOwner->id,
             'email_verified_at' => now()->toDateTimeString(),
-            'timezone' => 'Europe/Madrid',
+            'timezone' => 'Asia/Kolkata',
         ]);
 
         $response = $this->postJson(route('register.store'), $input);
@@ -215,7 +264,7 @@ class RegistrationTest extends TestCase
         $user = User::where('email', 'test@example.com')->sole();
         $this->assertAuthenticatedAs($user);
         $this->assertFalse($user->hasVerifiedEmail());
-        $this->assertDatabaseHas('businesses', ['user_id' => $user->id, 'timezone' => 'Europe/Madrid']);
+        $this->assertDatabaseHas('businesses', ['user_id' => $user->id, 'timezone' => 'Asia/Kolkata']);
         $this->assertNull($otherOwner->business);
         Notification::assertSentTo($user, VerifyEmail::class);
     }

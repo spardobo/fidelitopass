@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\SupportedTimezones;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -29,7 +30,7 @@ new #[Layout('layouts::app'), Title('business.profile_title')] class extends Com
 
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
-            'timezone' => ['required', 'string', Rule::in(timezone_identifiers_list())],
+            'timezone' => ['required', 'string', Rule::in(SupportedTimezones::identifiers())],
         ]);
 
         $business->update($validated);

@@ -79,7 +79,7 @@ As a Business owner, I want a protected account so that only I can configure my 
 **Scenario: Registration and authenticated navigation**
 
 - **Given** a new owner registering.
-- **When** registration supplies Owner authentication fields, a Business name, and a visible, manually editable, server-validated IANA timezone confirmed by explicit submission. Fresh registration may prefill a supported browser-configured timezone as a suggestion, not a verified Business location; unavailable or unsupported detection leaves manual selection.
+- **When** registration supplies Owner authentication fields, a Business name, and a visible, manually editable, server-validated IANA timezone confirmed by explicit submission. Fresh registration may prefill a supported browser-configured timezone as a suggestion, not a verified Business location; unavailable or unsupported detection leaves manual selection. Selectable and server-accepted identifiers are the intersection of native PHP defaults and ICU-recognized system zones; missing ICU support fails closed.
 - **Then** Owner and Business are created atomically with the confirmed IANA identity, never a guessed location or stored numeric offset. After authentication and email verification, normal web destination handling applies rather than a required first stop or forced redirect to Summary. Summary is the ordinary authenticated application home; when Promotion preparation is incomplete, its CTA points to the same Pase route as navigation, without a forced wizard. Profile and logout remain accessible. A scheduled Promotion completes preparation but does not permit Visits before its start.
 
 **Verification:** Laravel authentication and route-boundary feature tests.
@@ -98,7 +98,7 @@ As a Business owner, I want FidelitoPass to know my local timezone so that Promo
 
 - **Given** an authenticated owner with a Business.
 - **When** a valid Business name and IANA timezone are saved.
-- **Then** the profile becomes the source for public branding and future Promotion publication. Editing starts with the saved timezone without browser detection. Selection uses readable location labels with decorative current offsets while retaining the validated IANA identity.
+- **Then** the profile becomes the source for public branding and future Promotion publication. Editing starts with the saved timezone without browser detection. Selection uses compact localized country and city labels with decorative current PHP offsets at one shared instant. The selected runtime-localized time zone name appears below the field and updates when the selection changes. Order follows that geography and original IANA identity, with UTC last. Ambiguous labels gain IANA detail without merging choices; the validated original IANA identity is retained.
 
 **Scenario: Change timezone**
 
