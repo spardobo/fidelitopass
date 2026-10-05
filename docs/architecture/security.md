@@ -117,7 +117,7 @@ Treat all external input as untrusted.
 - Use Laravel validation/Form Requests or Livewire validation.
 - Prefer allowlists/enums/ranges over blacklist filtering.
 - Validate Promotion target/Reward fields and Promotion-owned extra-points multipliers (x2, x3, x5), weekdays, and whole-day or disjoint half-open timed windows against explicit allowlists/ranges; reject overlap, stacking, and mixed whole-day/timed rules.
-- Validate IANA timezone names against supported timezone identifiers.
+- Validate registration and Business profile timezone names against the same locale-independent intersection of native PHP default identifiers and ICU-recognized system zones. Missing ICU support fails closed. ICU canonical aliases are metadata, not replacements for submitted or stored IANA identity.
 - Validate public identifiers and manual codes by format before lookup.
 - Use Eloquent/query-builder parameter binding; do not concatenate user input into raw SQL.
 

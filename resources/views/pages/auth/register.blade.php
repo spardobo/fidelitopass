@@ -57,25 +57,62 @@
                 error:class="app-error"
             />
 
-            <flux:select
-                name="timezone"
-                :label="__('business.fields.time_zone')"
-                :description:trailing="__('auth.registration.timezone_help')"
-                required
-                class="app-input"
-                label:class="app-label"
-                description:class="app-role-support! text-app-ink-help!"
-                error:class="app-error"
-            >
-                <flux:select.option value="" :selected="old('timezone', '') === ''">
-                    {{ __('business.fields.select_time_zone') }}
-                </flux:select.option>
-                @foreach (timezone_identifiers_list() as $identifier)
-                    <flux:select.option :value="$identifier" :selected="old('timezone') === $identifier">
-                        {{ $identifier }}
+            @php
+                $timezoneChoices = \App\Support\TimezoneLabel::choices(app()->getLocale());
+                $selectedTimezone = old('timezone', '');
+                $selectedTimezoneName = is_string($selectedTimezone) ? ($timezoneChoices[$selectedTimezone]['name'] ?? '') : '';
+            @endphp
+
+            <flux:field x-data="{ timezoneName: @js($selectedTimezoneName) }">
+                <flux:label class="app-label">
+                    {{ __('business.fields.time_zone') }}
+                </flux:label>
+                <flux:select
+                    name="timezone"
+                    x-init="
+                        if ($el.dataset.hasOldInput !== 'true' && $el.value === '') {
+                            try {
+                                const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                                const supported = Array.from($el.options).some(option => option.value === zone);
+
+                                if (supported) $el.value = zone;
+                            } catch {
+                                // timezone discovery is optional; keep manual selection available.
+                            }
+                        }
+
+                        timezoneName = $el.selectedOptions[0]?.dataset.timezoneName ?? '';
+                    "
+                    x-on:change="timezoneName = $el.selectedOptions[0]?.dataset.timezoneName ?? ''"
+                    aria-describedby="registration-timezone-name registration-timezone-guidance"
+                    required
+                    :data-has-old-input="session()->hasOldInput() ? 'true' : 'false'"
+                    class="app-input"
+                >
+                    <flux:select.option value="" :selected="old('timezone', '') === ''">
+                        {{ __('business.fields.select_time_zone') }}
                     </flux:select.option>
-                @endforeach
-            </flux:select>
+                    @foreach ($timezoneChoices as $identifier => $choice)
+                        <flux:select.option :value="$identifier" :selected="old('timezone') === $identifier" :data-timezone-name="$choice['name']">
+                            {{ $choice['label'] }}
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:description
+                    id="registration-timezone-name"
+                    x-show="timezoneName !== ''"
+                    aria-live="polite"
+                    @style(['display: none' => $selectedTimezoneName === ''])
+                >
+                    <flux:badge x-text="timezoneName" class="max-w-full whitespace-normal! bg-app-emphasis! text-app-ink-priority!">
+                        {{ $selectedTimezoneName }}
+                    </flux:badge>
+                </flux:description>
+                <flux:error name="timezone" class="app-error" />
+                <flux:description id="registration-timezone-guidance" class="app-role-support! text-app-ink-help!">
+                    {{ __('auth.registration.timezone_help') }}
+                </flux:description>
+            </flux:field>
 
             <!-- password -->
             <flux:input

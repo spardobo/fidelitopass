@@ -89,7 +89,10 @@ async function registerAndVerifyOwner(page, request, width, recipient, business)
     await page.getByRole("textbox", { name: /correo/i }).fill(recipient);
     await page.getByRole("textbox", { name: "Nombre del negocio", exact: true }).fill(business);
     const timezone = page.getByRole("combobox", { name: "Zona horaria", exact: true });
-    await expect(timezone).toHaveValue("");
+    const suggestedTimezone = await page.evaluate(
+        () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    );
+    await expect(timezone).toHaveValue(suggestedTimezone);
     await timezone.selectOption("America/Argentina/Buenos_Aires");
     await page.locator('input[name="password"]').fill("ValidPassword84!strong");
     await page.locator('input[name="password_confirmation"]').fill("ValidPassword84!strong");

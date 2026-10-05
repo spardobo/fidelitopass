@@ -5,6 +5,7 @@ namespace App\Actions\Fortify;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\User;
+use App\Support\SupportedTimezones;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -29,7 +30,7 @@ class CreateNewUser implements CreatesNewUsers
             ...$this->profileRules(),
             'password' => $this->passwordRules(),
             'business_name' => ['required', 'string', 'max:255'],
-            'timezone' => ['required', 'string', Rule::in(timezone_identifiers_list())],
+            'timezone' => ['required', 'string', Rule::in(SupportedTimezones::identifiers())],
         ])->validate();
 
         return DB::transaction(function () use ($validated): User {
