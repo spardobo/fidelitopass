@@ -422,10 +422,10 @@ select:focus[data-flux-control] {
 
 /* Public typography stays distinct from authenticated roles. */
 @utility landing-role-hero {
-    @apply text-4xl! leading-10! font-semibold! lg:text-[2.5rem]! lg:leading-11! min-[70rem]:text-[2.75rem]! min-[70rem]:leading-12!;
+    @apply app-role-marketing-title;
 }
 @utility landing-role-section {
-    @apply text-2xl! leading-8! font-semibold! md:text-3xl! md:leading-9!;
+    @apply app-role-marketing-section;
 }
 @utility landing-role-card {
     @apply text-lg! leading-7! font-semibold! text-inherit!;
