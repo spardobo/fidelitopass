@@ -12,6 +12,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('dashboard');
 
     Route::livewire('business/profile', 'pages::business.profile')->name('business.edit');
+    Route::livewire('pass', 'pages::business.pass')->name('business.pass');
+    Route::livewire('pass/appearance', 'pages::business.pass')->name('business.pass.appearance');
 });
 
 require __DIR__.'/settings.php';
