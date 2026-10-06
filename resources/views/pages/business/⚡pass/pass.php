@@ -27,6 +27,17 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
         '#000000',
     ];
 
+    private const COLOR_PRESET_NAMES = [
+        'business.pass.preset_lavender',
+        'business.pass.preset_red',
+        'business.pass.preset_slate',
+        'business.pass.preset_blue',
+        'business.pass.preset_green',
+        'business.pass.preset_violet',
+        'business.pass.preset_orange',
+        'business.pass.preset_black',
+    ];
+
     public ?string $backgroundColor = null;
 
     #[Locked]
@@ -111,6 +122,15 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     public function colorPresets(): array
     {
         return self::COLOR_PRESETS;
+    }
+
+    #[Computed]
+    public function colorPresetNames(): array
+    {
+        return array_map(
+            static fn (string $translationKey): string => __($translationKey),
+            self::COLOR_PRESET_NAMES,
+        );
     }
 
     #[Computed]

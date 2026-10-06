@@ -191,6 +191,180 @@ select:focus[data-flux-control] {
 @utility app-role-support {
     @apply text-sm leading-5 font-normal;
 }
+@utility app-note-with-icon {
+    @apply flex items-start gap-2;
+}
+
+@container pass-appearance-form (min-width: 28.5rem) {
+    .app-pass-color-control-row,
+    .app-pass-color-preset-list {
+        @apply flex-nowrap;
+    }
+}
+
+@container pass-appearance-form (min-width: 28.5rem) and (max-width: 34.4375rem) {
+    .app-pass-color-swatch {
+        @apply size-6;
+    }
+}
+
+@container pass-appearance-form (min-width: 34.5rem) {
+    .app-pass-color-preset {
+        @apply min-h-11! min-w-11!;
+    }
+}
+
+@container pass-appearance-form (max-width: 28.499rem) {
+    .app-pass-color-preset {
+        @apply min-h-11! min-w-11!;
+    }
+}
+@utility app-workspace {
+    @apply mx-auto flex w-full max-w-[68rem] min-w-0 flex-col gap-8 px-4 sm:px-6;
+}
+@utility app-pass-preview {
+    @apply grid w-full min-w-0 max-w-[400px] grid-rows-[1fr_2fr_1fr] rounded-2xl p-3 shadow-xl sm:p-4;
+    min-height: max-content;
+}
+@utility app-pass-preview-rail {
+    @apply mx-auto w-full min-w-0 max-w-[400px] space-y-3;
+}
+@utility app-pass-preview-header {
+    @apply row-start-1 flex min-w-0 items-center justify-between gap-3 border-b border-current/25 py-2;
+}
+@utility app-pass-preview-content {
+    @apply row-start-2 flex min-h-min min-w-0 flex-col justify-center gap-2 py-2;
+}
+@utility app-pass-preview-terms {
+    @apply grid flex-1 grid-cols-[minmax(0,1fr)_4rem] gap-2;
+}
+@utility app-pass-preview-details {
+    @apply flex min-w-0 flex-col gap-1;
+}
+@utility app-pass-preview-copy {
+    @apply flex min-w-0 flex-col gap-2;
+}
+@utility app-pass-preview-reward {
+    @apply row-start-3 flex min-w-0 flex-col justify-center gap-1 border-t border-current/25 py-2;
+}
+@utility app-pass-preview-goal {
+    @apply flex flex-col items-center justify-center border-s border-current/25 ps-2 text-center;
+}
+/* Pase-specific overrides keep shared authenticated and marketing roles unchanged. */
+@layer utilities {
+    .app-pass-page .app-heading {
+        font-size: 2rem !important;
+        line-height: 2.5rem !important;
+        font-weight: 700 !important;
+    }
+
+    .app-pass-page [class~="app-role-intro!"] {
+        font-size: 1.125rem !important;
+        line-height: 1.75rem !important;
+        font-weight: 400 !important;
+    }
+
+    .app-pass-page .app-role-pass-preview-compact {
+        font-size: 0.875rem !important;
+        line-height: 1.25rem !important;
+        font-weight: 400 !important;
+    }
+
+    .app-pass-page .app-role-pass-preview-reward {
+        font-size: 0.875rem !important;
+        line-height: 1.25rem !important;
+        font-weight: 700 !important;
+    }
+
+    .app-pass-page .app-role-pass-preview-label {
+        font-size: 0.875rem !important;
+        line-height: 1.25rem !important;
+        font-weight: 600 !important;
+    }
+
+    .app-pass-page .app-role-pass-preview-metric {
+        font-size: 1.75rem !important;
+        line-height: 2rem !important;
+        font-weight: 700 !important;
+        font-variant-numeric: tabular-nums !important;
+    }
+}
+/* Keep 192px for adjacent content and 24px for the gap as the rail shrinks. */
+@container pass-workspace (min-width: 33.5rem) {
+    .app-pass-editor-layout {
+        grid-template-columns: minmax(320px, min(400px, calc(100% - 216px))) minmax(192px, 1fr);
+        align-items: start;
+    }
+}
+/* Include maximum overview padding and borders in the split threshold. */
+@container pass-workspace (min-width: 37.125rem) {
+    .app-pass-overview-layout {
+        grid-template-columns: minmax(320px, min(400px, calc(100% - 216px))) minmax(192px, 1fr);
+        align-items: start;
+    }
+}
+@container (max-width: 360px) {
+    .app-pass-preview {
+        padding: 0.75rem;
+    }
+    .app-pass-preview-terms {
+        grid-template-columns: minmax(0, 1fr) 3.5rem;
+    }
+    .app-pass-preview-details {
+        gap: 0.25rem;
+    }
+}
+
+@media (max-width: 767px) {
+    @container pass-preview (max-width: 575px) {
+        .app-pass-preview--marketing {
+            padding: calc(16px / var(--landing-scale, 1));
+        }
+    }
+}
+
+@layer utilities {
+    .app-pass-preview--marketing {
+        width: 576px;
+        max-width: 576px;
+        height: 384px;
+        min-height: 0;
+        padding: 1.5rem;
+    }
+
+    .app-pass-preview--with-qr > .app-pass-preview-content {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 9rem;
+        align-items: center;
+        column-gap: 1.5rem;
+    }
+
+    .app-pass-preview--with-manual-code > .app-pass-preview-reward {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 9rem;
+        align-items: center;
+        column-gap: 1.5rem;
+    }
+
+    .app-pass-preview-qr {
+        display: flex;
+        grid-column: 2;
+        flex-direction: column;
+        align-items: center;
+        justify-self: center;
+        gap: 0.5rem;
+    }
+
+    .app-pass-preview-manual-code {
+        grid-column: 2;
+        justify-self: center;
+        text-align: center;
+    }
+
+    .app-pass-overview-content {
+        align-self: center;
+    }
+}
 
 /* only Flux's public accent tokens are inherited; no descendant restyling. */
 @utility app-theme {
