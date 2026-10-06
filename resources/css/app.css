@@ -93,6 +93,23 @@
     }
 }
 
+.app-pass-brand-mark {
+    display: inline-block;
+    flex-shrink: 0;
+    background-color: currentColor;
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+}
+
+.app-pass-brand-mark {
+    mask-image: url('/icons/pass-brand-mark.svg');
+    -webkit-mask-image: url('/icons/pass-brand-mark.svg');
+}
+
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }
@@ -111,8 +128,62 @@ select:focus[data-flux-control] {
 @utility app-role-title {
     @apply text-2xl leading-8 font-semibold md:text-3xl md:leading-9;
 }
+@utility app-role-marketing-title {
+    @apply text-4xl! leading-10! font-semibold! text-app-ink! lg:text-[2.5rem]! lg:leading-11! min-[70rem]:text-[2.75rem]! min-[70rem]:leading-12!;
+}
+@utility app-role-marketing-section {
+    @apply text-[1.75rem]! leading-9! font-semibold! md:text-[2rem]! md:leading-10!;
+}
+@utility app-role-marketing-card-title {
+    @apply text-xl! leading-7! font-semibold! text-app-ink! md:text-2xl! md:leading-8!;
+}
+@utility app-role-marketing-statement-title {
+    @apply text-[1.75rem] leading-9 font-semibold md:text-[2rem] md:leading-10;
+}
+@utility app-role-marketing-pass-brand {
+    @apply text-xl! leading-7! font-bold!;
+}
+@utility app-role-marketing-pass-label {
+    @apply text-lg! leading-7! font-semibold!;
+}
+@utility app-role-marketing-pass-detail {
+    @apply text-sm! leading-5! font-normal!;
+}
+@utility app-role-marketing-pass-metric {
+    @apply text-3xl! leading-9! font-bold! tabular-nums!;
+}
+@utility app-role-marketing-pass-reward {
+    @apply text-base! leading-6! font-bold!;
+}
+@utility app-role-section {
+    @apply text-xl leading-7 font-semibold;
+}
+@utility app-role-card {
+    @apply text-lg leading-7 font-semibold;
+}
+@utility app-role-metric {
+    @apply text-4xl leading-10 font-semibold tabular-nums;
+}
+@utility app-role-pass-preview-brand {
+    @apply text-xl! leading-7! font-bold!;
+}
+@utility app-role-pass-preview-compact {
+    @apply text-xs! leading-4! font-normal!;
+}
+@utility app-role-pass-preview-reward {
+    @apply text-sm! leading-5! font-bold!;
+}
+@utility app-role-pass-preview-label {
+    @apply text-xs! leading-4! font-semibold!;
+}
+@utility app-role-pass-preview-metric {
+    @apply text-2xl! leading-8! font-semibold! tabular-nums!;
+}
 @utility app-role-body {
     @apply text-base leading-app-body font-normal;
+}
+@utility app-role-intro {
+    @apply text-base leading-app-body font-medium;
 }
 @utility app-role-action {
     @apply app-role-body font-medium;
