@@ -28,11 +28,11 @@ Prefer Laravel/Eloquent, Livewire, Flux, semantic HTML, Tailwind and Alpine capa
 
 Use names, types and structure first; distinguish these purposes instead of substituting one for another:
 
-| Purpose | Gate |
-| --- | --- |
-| Responsibility group | Locate a major cohesive group of multiple collaborating elements: state, configuration, functions or handlers. |
+| Purpose               | Gate                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Responsibility group  | Locate a major cohesive group of multiple collaborating elements: state, configuration, functions or handlers. |
 | API/function contract | Explain public use or information not expressed by signatures; apply the language owner's documentation scope. |
-| Internal rationale | Explain a non-obvious constraint, required order, edge condition or units near the affected step. |
+| Internal rationale    | Explain a non-obvious constraint, required order, edge condition or units near the affected step.              |
 
 For useful major PHP/JavaScript responsibility groups outside function, method, closure and callback bodies, use a three-line `//` box with matching dashed separator lines around a short lowercase English label, indented with surrounding code. Leave one blank line before and after the box. Inside bodies, use logical paragraphs and only necessary rationale comments. Keep each docblock immediately attached to its declaration, with declaration attributes permitted in PHP; never put a box between them. Do not box each helper, one isolated function or an empty decorative section. Small configuration groups may use a plain lowercase comment. Do not impose fixed labels, separator widths, helper counts or universal templates.
 
@@ -42,4 +42,6 @@ Use lowercase English semantic region comments in Blade only where they locate u
 
 Keep changed behavior distinguishable from a readability refactor. Preserve existing public contracts, exceptions, permission checks, ordering and lifecycle effects. Review the complete changed reading path after formatting: names identify intent, related steps stay together, important effects are visible, and any extraction reduces the context needed to understand the caller.
 
-Treat length, nesting and repeated syntax as review signals, not automatic limits. Do not add helpers, comments, defensive guards, layers or tests merely to satisfy a visual template. Useful type annotations and real framework contracts take precedence over editorial preferences.
+Treat length, nesting and repeated syntax as review signals, not automatic limits. Do not add helpers, comments, defensive guards, layers or tests merely to satisfy a visual template. Useful type annotations supported by the target language and its configured tooling, and real framework contracts, take precedence over editorial preferences.
+
+Static analysis, formatting and documentation checks prove only their own boundaries; they do not establish runtime equivalence. Require evidence at the relevant execution boundary for an equivalence claim, or report what remains unverified and why.
