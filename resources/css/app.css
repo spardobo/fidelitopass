@@ -134,6 +134,9 @@ select:focus[data-flux-control] {
 @utility app-role-marketing-section {
     @apply text-[1.75rem]! leading-9! font-semibold! md:text-[2rem]! md:leading-10!;
 }
+@utility app-role-marketing-eyebrow {
+    @apply font-semibold! text-app-accent-text!;
+}
 @utility app-role-marketing-card-title {
     @apply text-xl! leading-7! font-semibold! text-app-ink! md:text-2xl! md:leading-8!;
 }

@@ -1470,6 +1470,64 @@ test("confirmed mechanics priority keeps on-dark heading body and example ink", 
     }
 });
 
+test("mechanics eyebrow uses contrast-safe accent text without changing typography", async ({
+    page,
+}) => {
+    const fontSizes = [];
+
+    for (const width of [375, 768, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/");
+        await waitForFonts(page);
+
+        const eyebrow = page.locator("#challenges > p:first-child");
+        const measurement = await eyebrow.evaluate((element) => {
+            const panel = element.closest("#challenges");
+            const style = getComputedStyle(element);
+            const foreground = style.color;
+            const background = getComputedStyle(panel).backgroundColor;
+            const luminance = (color) => {
+                const channels = color
+                    .match(/[\d.]+/g)
+                    .slice(0, 3)
+                    .map(Number);
+                const linear = channels.map((channel) => {
+                    const normalized = channel / 255;
+                    return normalized <= 0.04045
+                        ? normalized / 12.92
+                        : ((normalized + 0.055) / 1.055) ** 2.4;
+                });
+                return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+            };
+            const foregroundLuminance = luminance(foreground);
+            const backgroundLuminance = luminance(background);
+
+            return {
+                foreground,
+                background,
+                fontSize: style.fontSize,
+                fontWeight: style.fontWeight,
+                fontFamily: style.fontFamily,
+                fontStatus: document.fonts.status,
+                contrast:
+                    (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+                    (Math.min(foregroundLuminance, backgroundLuminance) + 0.05),
+            };
+        });
+
+        fontSizes.push(measurement.fontSize);
+        console.log("mechanics-eyebrow-contrast", width, JSON.stringify(measurement));
+        expect(measurement.foreground, `${width}px eyebrow color`).toBe("rgb(205, 176, 255)");
+        expect(measurement.fontWeight, `${width}px eyebrow weight`).toBe("600");
+        expect(
+            measurement.contrast,
+            `${width}px ${measurement.foreground} on ${measurement.background}`,
+        ).toBeGreaterThanOrEqual(4.5);
+    }
+
+    expect(new Set(fontSizes).size, "eyebrow font size across responsive widths").toBe(1);
+});
+
 test("confirmed panel boundaries and separators retain neutral and priority roles", async ({
     page,
 }) => {

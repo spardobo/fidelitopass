@@ -246,7 +246,7 @@
         </section>
 
         <section id="challenges" aria-labelledby="challenge-title" class="rounded-3xl border border-app-priority-border bg-app-emphasis p-8 text-app-ink md:p-12">
-            <flux:text class="font-semibold! text-app-accent!">
+            <flux:text class="app-role-marketing-eyebrow">
                 {{ __('landing.challenge.eyebrow') }}
             </flux:text>
             <flux:heading level="2" id="challenge-title" class="app-role-marketing-section mt-4 text-inherit!">
