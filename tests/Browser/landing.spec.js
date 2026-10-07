@@ -113,8 +113,25 @@ test("landing typography uses the loaded local Onest and responsive editorial ro
                 hero: style("#hero-title"),
                 section: style("#benefits-title"),
                 card: style("#benefits article h3"),
+                statement: style("[data-tagline]"),
                 body: style("#home p:not(.text-sm)"),
-                support: style("#home .landing-role-support"),
+                support: style("#home .app-role-support"),
+                heroInk: getComputedStyle(document.querySelector("#hero-title")).color,
+                sectionInk: getComputedStyle(document.querySelector("#benefits-title")).color,
+                benefitEyebrowInk: getComputedStyle(
+                    document.querySelector("#benefits > div:first-child > p:first-child"),
+                ).color,
+                sectionIntroInks: [
+                    "#home > div:first-child > span",
+                    "#benefits > div:first-child > p:first-child",
+                    "#how-it-works > p:first-child",
+                    "#challenges > p:first-child",
+                    "#pass > p:first-child",
+                ].map((selector) => {
+                    const element = document.querySelector(selector);
+                    return element ? getComputedStyle(element).color : `missing:${selector}`;
+                }),
+                loginLinkInk: getComputedStyle(document.querySelector('#home a[href$="/login"]')).color,
             };
         });
         console.log("landing-computed-roles", width, JSON.stringify(roles));
@@ -130,9 +147,19 @@ test("landing typography uses the loaded local Onest and responsive editorial ro
                     : ["44px", "48px", "600"],
         );
         expect(roles.section).toEqual(
-            width < 768 ? ["24px", "32px", "600"] : ["30px", "36px", "600"],
+            width < 768 ? ["28px", "36px", "600"] : ["32px", "40px", "600"],
         );
-        expect(roles.card).toEqual(["18px", "28px", "600"]);
+        expect(roles.card).toEqual(
+            width < 768 ? ["20px", "28px", "600"] : ["24px", "32px", "600"],
+        );
+        expect(roles.statement).toEqual(
+            width < 768 ? ["28px", "36px", "600"] : ["32px", "40px", "600"],
+        );
+        expect(roles.heroInk).toBe("rgb(246, 245, 242)");
+        expect(roles.sectionInk).toBe("rgb(246, 245, 242)");
+        expect(roles.benefitEyebrowInk).toBe("rgb(167, 123, 255)");
+        expect(roles.sectionIntroInks).toEqual(Array(5).fill("rgb(167, 123, 255)"));
+        expect(roles.loginLinkInk).toBe("rgb(167, 123, 255)");
         await expect(page.locator("#benefits article").first().locator("h3")).toHaveCSS(
             "color",
             "rgb(246, 245, 242)",
@@ -165,11 +192,46 @@ test("public copy preserves sample pass typography and contextual paragraph ink"
             ["14px", "20px", "400", ink],
             ["30px", "36px", "700", ink],
             ["14px", "20px", "400", ink],
-            ["16px", "24px", "600", ink],
+            ["16px", "24px", "700", ink],
             ["14px", "20px", "400", ink],
             ["14px", "20px", "600", ink],
             ["20px", "28px", "600", ink],
         ]);
+        const composition = await page.locator("[data-pass]").evaluate((pass) => {
+            const middle = pass.querySelector(".app-pass-preview-content");
+            const qr = middle.querySelector(".app-pass-preview-qr");
+            const footer = pass.querySelector(".app-pass-preview-reward");
+            const manualCode = footer.querySelector(".app-pass-preview-manual-code");
+            const middleCopy = middle.querySelector(".app-pass-preview-copy");
+            const footerCopy = footer.firstElementChild;
+            const qrBounds = qr.getBoundingClientRect();
+            const middleBounds = middle.getBoundingClientRect();
+            const footerBounds = footer.getBoundingClientRect();
+            const manualBounds = manualCode.getBoundingClientRect();
+            const middleCopyBounds = middleCopy.getBoundingClientRect();
+            const footerCopyBounds = footerCopy.getBoundingClientRect();
+
+            return {
+                qrInsideMiddle: middle.contains(qr),
+                qrWithinMiddle: qrBounds.top >= middleBounds.top && qrBounds.bottom <= middleBounds.bottom,
+                footerFollowsMiddle: footerBounds.top >= middleBounds.bottom,
+                manualInsideFooter: footer.contains(manualCode),
+                manualWithinFooter: manualBounds.top >= footerBounds.top && manualBounds.bottom <= footerBounds.bottom,
+                qrCentered: Math.abs((qrBounds.top + qrBounds.bottom) / 2 - (middleCopyBounds.top + middleCopyBounds.bottom) / 2) <= 1,
+                manualCentered: Math.abs((manualBounds.top + manualBounds.bottom) / 2 - (footerCopyBounds.top + footerCopyBounds.bottom) / 2) <= 1,
+                rewardWeight: getComputedStyle(footer.querySelector("p")).fontWeight,
+            };
+        });
+        expect(composition).toEqual({
+            qrInsideMiddle: true,
+            qrWithinMiddle: true,
+            footerFollowsMiddle: true,
+            manualInsideFooter: true,
+            manualWithinFooter: true,
+            qrCentered: true,
+            manualCentered: true,
+            rewardWeight: "700",
+        });
         for (const [selector, color] of [
             [
                 "#benefits > div:first-child > p:last-child, #how-it-works > p:nth-of-type(2), #pass > p:nth-of-type(2)",
@@ -194,6 +256,24 @@ test("public copy preserves sample pass typography and contextual paragraph ink"
             await expect(heading).toHaveCSS("color", "rgb(246, 245, 242)");
         }
         await expect(page.locator("#business-title")).toHaveCSS("color", ink);
+    }
+});
+
+test("landing registration calls to action use the shared action role and control height", async ({
+    page,
+}) => {
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/");
+
+        for (const button of await page
+            .locator('#home a[href*="register"], #business a[href*="register"]')
+            .all()) {
+            await expect(button).toHaveCSS("font-size", "16px");
+            await expect(button).toHaveCSS("line-height", "24px");
+            await expect(button).toHaveCSS("font-weight", "500");
+            await expect(button).toHaveCSS("min-height", "44px");
+        }
     }
 });
 
@@ -252,26 +332,35 @@ test("public links preserve inherited ink weight decoration and keyboard focus",
 });
 
 test("hero outer gaps are bounded by the existing major section rhythm", async ({ page }) => {
-    for (const height of [1200, 1600]) {
-        await page.setViewportSize({ width: 1280, height });
-        await page.goto("/");
-        const geometry = await page.locator("#home").evaluate((hero) => {
-            const rect = hero.getBoundingClientRect();
-            const benefits = document.querySelector("#benefits");
-            return {
-                topGap: rect.top - document.querySelector("header").getBoundingClientRect().bottom,
-                bottomGap: parseFloat(getComputedStyle(hero).marginBottom),
-                sectionSpace: parseFloat(getComputedStyle(benefits).paddingTop),
-                heroTop: rect.top,
-                heroBottom: rect.bottom,
-                benefitsTop: benefits.getBoundingClientRect().top,
-                titleTop: benefits.firstElementChild.getBoundingClientRect().top,
-            };
-        });
-        console.log("bounded-hero", height, JSON.stringify(geometry));
-        expect(geometry.topGap).toBeLessThanOrEqual(geometry.sectionSpace);
-        expect(geometry.bottomGap).toBeLessThanOrEqual(geometry.sectionSpace);
-        expect(geometry.topGap).toBeCloseTo(geometry.bottomGap, 0);
+    for (const width of [375, 768, 1280]) {
+        for (const height of [900, 1600]) {
+            await page.setViewportSize({ width, height });
+            await page.goto("/");
+            const geometry = await page.locator("#home").evaluate((hero) => {
+                const rect = hero.getBoundingClientRect();
+                const benefits = document.querySelector("#benefits");
+                return {
+                    topGap:
+                        rect.top - document.querySelector("header").getBoundingClientRect().bottom,
+                    bottomGap: parseFloat(getComputedStyle(hero).marginBottom),
+                    sectionSpace: parseFloat(getComputedStyle(benefits).paddingTop),
+                    heroTop: rect.top,
+                    heroBottom: rect.bottom,
+                    benefitsTop: benefits.getBoundingClientRect().top,
+                    titleTop: benefits.firstElementChild.getBoundingClientRect().top,
+                };
+            });
+            console.log("bounded-hero", width, height, JSON.stringify(geometry));
+            expect(geometry.topGap).toBeLessThanOrEqual(geometry.sectionSpace);
+            expect(geometry.bottomGap).toBeLessThanOrEqual(geometry.sectionSpace);
+            expect(geometry.topGap).toBeCloseTo(geometry.bottomGap, 0);
+            expect(Math.abs(geometry.topGap / 4 - Math.round(geometry.topGap / 4))).toBeLessThan(
+                0.001,
+            );
+            expect(
+                Math.abs(geometry.bottomGap / 4 - Math.round(geometry.bottomGap / 4)),
+            ).toBeLessThan(0.001);
+        }
     }
 });
 
@@ -1228,7 +1317,7 @@ test("confirmed editorial hierarchy persists after entrance and every visibility
         await expect(words.first()).toHaveCSS("color", "rgb(246, 245, 242)");
         await expect(words.filter({ hasText: /^recompensa\.$/ })).toHaveCSS(
             "color",
-            "rgb(205, 176, 255)",
+            "rgb(167, 123, 255)",
         );
         await expect(words.last()).toHaveCSS("color", "rgb(176, 172, 184)");
     };
@@ -1237,7 +1326,7 @@ test("confirmed editorial hierarchy persists after entrance and every visibility
     await page.locator("[data-tagline]").scrollIntoViewIfNeeded();
     await expect(page.locator("[data-tagline-word]:not(.is-lit)")).toHaveCount(0);
     await expectHierarchy(page);
-    await expect(page.locator("[data-tagline]")).toHaveCSS("font-size", "36px");
+    await expect(page.locator("[data-tagline]")).toHaveCSS("font-size", "32px");
     await expect(page.locator("[data-tagline]")).toHaveCSS("max-width", "768px");
     await page.evaluate(() => document.dispatchEvent(new Event("livewire:navigating")));
     await expectHierarchy(page);
@@ -1374,6 +1463,34 @@ test("public palette, focus and responsive hero geometry follow the landing role
     }
 });
 
+test("sample pass and landing benefit use the Flux outline icon pack", async ({ page }) => {
+    await page.goto("/");
+
+    const promotionIcon = page.locator(
+        "[data-pass] svg.app-pass-preview-promotion-icon[data-flux-icon]",
+    );
+    await expect(promotionIcon).toHaveAttribute("aria-hidden", "true");
+    await expect(promotionIcon).toBeVisible();
+    await expect(promotionIcon).toHaveAttribute("viewBox", "0 0 24 24");
+    await expect(promotionIcon).toHaveAttribute("stroke-width", "1.5");
+    await expect(promotionIcon).toHaveAttribute("fill", "none");
+    await expect(promotionIcon.locator("path").first()).toHaveAttribute("d", /^M9\.568 3H5\.25/);
+
+    const benefitIcons = page.locator(".landing-info-card svg[data-flux-icon]");
+    await expect(benefitIcons).toHaveCount(2);
+    const expectedPaths = [
+        "M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3-3 3",
+        "M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941",
+    ];
+    for (const [index, benefitIcon] of (await benefitIcons.all()).entries()) {
+        await expect(benefitIcon).toBeVisible();
+        await expect(benefitIcon).toHaveAttribute("viewBox", "0 0 24 24");
+        await expect(benefitIcon).toHaveCSS("width", "64px");
+        await expect(benefitIcon).toHaveCSS("height", "64px");
+        await expect(benefitIcon.locator("path")).toHaveAttribute("d", expectedPaths[index]);
+    }
+});
+
 test("desktop navigation follows the visible section order without horizontal overflow", async ({
     page,
 }) => {
@@ -1398,7 +1515,7 @@ test("public landing scales the approved sample and keeps every section reachabl
 }, testInfo) => {
     test.setTimeout(60000);
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    for (const width of [...widths, 1920]) {
+    for (const width of [320, ...widths, 1920]) {
         await page.setViewportSize({ width, height: width === 1920 ? 1080 : 900 });
         await page.goto("/");
         await page.evaluate(() => document.fonts.ready);
@@ -1422,12 +1539,18 @@ test("public landing scales the approved sample and keeps every section reachabl
         );
         await expect(pass).toContainText("9 / 15 puntos");
         await expect(pass).toContainText("2 puntos");
-        await expect(pass).toContainText("Hamburguesa gratis");
+        await expect(pass).toContainText("Un consumo de cortesía");
+        await expect(pass).not.toContainText("Hamburguesa gratis");
+        await expect(pass.locator(".app-pass-preview-header")).toBeVisible();
+        await expect(pass.locator(".app-pass-preview-content")).toBeVisible();
+        await expect(pass.locator(".app-pass-preview-reward")).toBeVisible();
+        await expect(pass.locator(".app-pass-preview-qr")).toBeVisible();
+        await expect(pass).toHaveClass(/app-pass-preview--with-qr/);
         await expect(pass).toContainText("30 SEP");
         await expect(pass).toContainText("48273");
         await expect(
             page.getByText(
-                "Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene una hamburguesa.",
+                "Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.",
             ),
         ).toBeVisible();
         await expect(page.locator('header nav a[href="#pass"]').first()).toHaveAttribute(
@@ -1435,6 +1558,19 @@ test("public landing scales the approved sample and keeps every section reachabl
             "#pass",
         );
         await expect(page.getByRole("img", { name: "QR de ejemplo" })).toBeVisible();
+        const stepNumbers = page.locator("#how-it-works ol > li > span");
+        await expect(stepNumbers).toHaveText(["01", "02", "03"]);
+        for (const stepNumber of await stepNumbers.all()) {
+            await expect(stepNumber).toHaveCSS("color", "rgb(167, 123, 255)");
+        }
+        await page.locator("[data-tagline]").scrollIntoViewIfNeeded();
+        await expect(page.locator("[data-tagline-word]:not(.is-lit)")).toHaveCount(0);
+        const taglineWords = page.locator("[data-tagline-word]");
+        await expect(taglineWords.first()).toHaveCSS("color", "rgb(246, 245, 242)");
+        await expect(
+            taglineWords.filter({ hasText: /^recompensa\.$/ }),
+        ).toHaveCSS("color", "rgb(167, 123, 255)");
+        await expect(taglineWords.last()).toHaveCSS("color", "rgb(176, 172, 184)");
         await expect(page.locator("main")).not.toContainText(
             /landing\.[a-z_]+|tarjeta Wallet|Apple Wallet|tarjeta de sellos/,
         );
@@ -1454,7 +1590,21 @@ test("public landing scales the approved sample and keeps every section reachabl
                 thumb: box("[data-thumbnail]"),
                 pass: box("[data-pass]"),
                 qr: box(".landing-pass-qr"),
-                code: box(".landing-pass-qr + p"),
+                code: box(".app-pass-preview-manual-code"),
+                thumbnailWidth: document.querySelector("[data-thumbnail]").clientWidth,
+                scale: getComputedStyle(document.querySelector("[data-thumbnail]")).getPropertyValue("--landing-scale"),
+                containerType: getComputedStyle(document.querySelector("[data-thumbnail]")).containerType,
+                containerName: getComputedStyle(document.querySelector("[data-thumbnail]")).containerName,
+                passOffsetWidth: document.querySelector("[data-pass]").offsetWidth,
+                passPadding: getComputedStyle(document.querySelector("[data-pass]")).paddingLeft,
+                renderedPadding: {
+                    left:
+                        parseFloat(getComputedStyle(document.querySelector("[data-pass]")).paddingLeft) *
+                        (box("[data-pass]").width / document.querySelector("[data-pass]").offsetWidth),
+                    right:
+                        parseFloat(getComputedStyle(document.querySelector("[data-pass]")).paddingRight) *
+                        (box("[data-pass]").width / document.querySelector("[data-pass]").offsetWidth),
+                },
                 cards: [...document.querySelectorAll("#benefits article")].map((e) => {
                     const r = e.getBoundingClientRect();
                     return { x: r.x, y: r.y, width: r.width };
@@ -1462,12 +1612,19 @@ test("public landing scales the approved sample and keeps every section reachabl
                 overflow: document.documentElement.scrollWidth > innerWidth,
             };
         });
+        console.log("landing-card-padding", width, JSON.stringify(geometry));
         expect(geometry.pass.width).toBeCloseTo(geometry.thumb.width, 0);
         expect(geometry.pass.height).toBeCloseTo(geometry.thumb.height, 0);
         expect(geometry.pass.width / geometry.pass.height).toBeCloseTo(1.5, 2);
         expect(geometry.qr.x).toBeGreaterThan(geometry.pass.x + geometry.pass.width / 2);
         expect(geometry.code.y).toBeGreaterThan(geometry.qr.y);
         expect(geometry.code.bottom).toBeLessThanOrEqual(geometry.pass.bottom);
+        if (width <= 375) {
+            expect(geometry.renderedPadding.left).toBeGreaterThanOrEqual(15.99);
+            expect(geometry.renderedPadding.right).toBeGreaterThanOrEqual(15.99);
+        } else {
+            expect(geometry.passPadding).toBe("24px");
+        }
         expect(geometry.overflow).toBe(false);
         const layout = await page.evaluate(() => ({
             headerBottom: document.querySelector("header").getBoundingClientRect().bottom,
@@ -1499,11 +1656,15 @@ test("public landing scales the approved sample and keeps every section reachabl
         for (const asset of [
             "logo-header.webp",
             "logo_icon.svg",
-            "benefit-challenges.svg",
-            "benefit-points.svg",
             "preview-pass-qr.svg",
         ])
             expect((await page.request.get(`/${asset}`)).ok()).toBe(true);
+        for (const asset of [
+            "icons/target.svg",
+            "benefit-challenges.svg",
+            "benefit-points.svg",
+        ])
+            expect((await page.request.get(`/${asset}`)).status()).toBe(404);
         for (const section of await page.locator("main > section:not(#home)").all()) {
             await section.scrollIntoViewIfNeeded();
             await expect(section).toHaveCSS("opacity", "1");
@@ -1516,7 +1677,7 @@ test("public landing scales the approved sample and keeps every section reachabl
         );
         await expect(
             page.locator("[data-tagline-word]").filter({ hasText: /^recompensa\.$/ }),
-        ).toHaveCSS("color", "rgb(205, 176, 255)");
+        ).toHaveCSS("color", "rgb(167, 123, 255)");
         await page.mouse.move(0, 0);
         await pass.dispatchEvent("pointerleave");
         await expect(pass).toHaveCSS("transform", "none");
@@ -1591,6 +1752,93 @@ test("footer and header return to the absolute page top while the hero remains n
 
     await page.locator("#home").scrollIntoViewIfNeeded();
     await expect(page.locator("#home")).toHaveAttribute("id", "home");
+});
+
+test("landing footer groups links into two rows on mobile and one row from sm", async ({ page }) => {
+    const selectors = {
+        footer: "footer",
+        logo: 'footer img[src*="logo-header.webp"]',
+        register: 'footer a[href$="/register"]',
+        login: 'footer a[href$="/login"]',
+        back: 'footer a[href="#page-top"]',
+    };
+
+    for (const width of [320, 375, 640, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/");
+        await page.locator(selectors.footer).scrollIntoViewIfNeeded();
+
+        const layout = await page.evaluate((items) => {
+            const rect = (selector) => {
+                const { x, y, width, height, right } = document
+                    .querySelector(selector)
+                    .getBoundingClientRect();
+
+                return { x, y, width, height, right, centerY: y + height / 2 };
+            };
+            const textRect = (selector) => {
+                const range = document.createRange();
+                range.selectNodeContents(document.querySelector(selector));
+
+                const { x, right } = range.getBoundingClientRect();
+
+                return { x, right };
+            };
+            const footer = document.querySelector(items.footer);
+            const style = getComputedStyle(footer);
+
+            return {
+                paddingInline: [style.paddingLeft, style.paddingRight],
+                rowGap: style.rowGap,
+                columnGap: style.columnGap,
+                display: style.display,
+                footer: rect(items.footer),
+                logo: rect(items.logo),
+                register: rect(items.register),
+                login: rect(items.login),
+                back: rect(items.back),
+                registerText: textRect(items.register),
+                loginText: textRect(items.login),
+                backText: textRect(items.back),
+                linkFontSizes: Array.from(footer.querySelectorAll("a"), (link) =>
+                    getComputedStyle(link).fontSize,
+                ),
+                documentOverflow: document.documentElement.scrollWidth > innerWidth,
+            };
+        }, selectors);
+
+        const expectedPadding = width < 768 ? "24px" : "32px";
+        expect(layout.paddingInline).toEqual([expectedPadding, expectedPadding]);
+        expect(layout.logo.width).toBe(128);
+        expect(layout.linkFontSizes).toEqual(["14px", "14px", "14px"]);
+        for (const name of ["register", "login", "back"]) {
+            expect(layout[name].height, `${name} target at ${width}px`).toBeGreaterThanOrEqual(44);
+        }
+        expect(layout.documentOverflow).toBe(false);
+
+        if (width < 640) {
+            expect(layout.display).toBe("grid");
+            expect(layout.rowGap).toBe("8px");
+            expect(layout.columnGap).toBe("16px");
+            expect(Math.abs(layout.logo.centerY - layout.back.centerY)).toBeLessThanOrEqual(1);
+            expect(Math.abs(layout.register.centerY - layout.login.centerY)).toBeLessThanOrEqual(1);
+            expect(layout.register.centerY - layout.logo.centerY).toBeGreaterThan(44);
+            expect(Math.abs(layout.logo.x - layout.register.x)).toBeLessThanOrEqual(1);
+            expect(Math.abs(layout.login.right - layout.back.right)).toBeLessThanOrEqual(1);
+            expect(Math.abs(layout.registerText.x - layout.register.x)).toBeLessThanOrEqual(1);
+            expect(Math.abs(layout.loginText.right - layout.login.right)).toBeLessThanOrEqual(1);
+            expect(Math.abs(layout.backText.right - layout.back.right)).toBeLessThanOrEqual(1);
+        } else {
+            expect(layout.display).toBe("flex");
+            const rowCenters = [layout.logo, layout.register, layout.login, layout.back].map(
+                ({ centerY }) => centerY,
+            );
+            expect(Math.max(...rowCenters) - Math.min(...rowCenters)).toBeLessThanOrEqual(1);
+            expect(layout.logo.x).toBeLessThan(layout.register.x);
+            expect(layout.register.x).toBeLessThan(layout.login.x);
+            expect(layout.login.x).toBeLessThan(layout.back.x);
+        }
+    }
 });
 
 test("registration CTAs retain readable hover contrast and keyboard focus", async ({ page }) => {
