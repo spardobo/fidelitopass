@@ -8,12 +8,12 @@ FidelitoPass uses Laravel, Livewire, Flux UI, Tailwind CSS and PostgreSQL, with 
 
 Run application-development commands through Sail from the repository root:
 
-| Tool | Command form |
-| --- | --- |
-| PHP | `./vendor/bin/sail php <arguments>` |
-| Composer | `./vendor/bin/sail composer <arguments>` |
-| Artisan | `./vendor/bin/sail artisan <command> <arguments>` |
-| npm | `./vendor/bin/sail npm <command> <arguments>` |
+| Tool     | Command form                                      |
+| -------- | ------------------------------------------------- |
+| PHP      | `./vendor/bin/sail php <arguments>`               |
+| Composer | `./vendor/bin/sail composer <arguments>`          |
+| Artisan  | `./vendor/bin/sail artisan <command> <arguments>` |
+| npm      | `./vendor/bin/sail npm <command> <arguments>`     |
 
 Do not substitute host PHP, Composer, Artisan or npm when Sail is unavailable; report the blocked command. Preserve existing native Docker/browser runners such as `scripts/quality/browser/run-playwright.sh`, which owns its browser container. Inspect their execution boundary before use; do not blindly wrap them in Sail or create nested containers. Command forms do not authorize installation, migrations, server startup or broader checks.
 
@@ -21,16 +21,13 @@ Do not substitute host PHP, Composer, Artisan or npm when Sail is unavailable; r
 
 Load the implementation skills matching the affected responsibilities. Mixed Livewire work may require PHP, Blade and JavaScript owners together; presentation-only or client-only work does not automatically load the PHP skill. Paths below are exact repository-relative paths, not a global skill inventory.
 
-| User intent | Skill to check |
-| --- | --- |
-| Implement Laravel/PHP, Livewire server logic, Eloquent, Actions, Jobs, database access or Wallet integration | `skills/fidelitopass-laravel-livewire-implementation/SKILL.md` |
-| Implement Blade/Flux/Tailwind views, layouts, forms or presentation markup | `skills/fidelitopass-blade-flux-implementation/SKILL.md` |
-| Implement JavaScript/Alpine, component-local browser behavior or JS tests/scripts | `skills/fidelitopass-javascript-alpine-implementation/SKILL.md` |
-| Integrate a page, layout or navigation into the Livewire starter | `skills/laravel-livewire-starter-integration/SKILL.md` |
-| Select or scope delivery work, change board state, or establish completion | `skills/fidelitopass-delivery-planning/SKILL.md` |
-| Recover scoped learnings, assess a reusable correction, review changed instructions, or perform a relevant bounded work close (including blocked work) | `skills/fidelitopass-continuous-improvement/SKILL.md` |
-
-At scoped recovery, a potentially reusable correction, instruction changes or a relevant work close, load the continuous-improvement skill through this table; keep its procedure there, not in every implementation skill.
+| User intent                                                                                                  | Skill to check                                                  |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| Implement Laravel/PHP, Livewire server logic, Eloquent, Actions, Jobs, database access or Wallet integration | `skills/fidelitopass-laravel-livewire-implementation/SKILL.md`  |
+| Implement Blade/Flux/Tailwind views, layouts, forms or presentation markup                                   | `skills/fidelitopass-blade-flux-implementation/SKILL.md`        |
+| Implement JavaScript/Alpine, component-local browser behavior or JS tests/scripts                            | `skills/fidelitopass-javascript-alpine-implementation/SKILL.md` |
+| Integrate a page, layout or navigation into the Livewire starter                                             | `skills/laravel-livewire-starter-integration/SKILL.md`          |
+| Select or scope delivery work, change board state, or establish completion                                   | `skills/fidelitopass-delivery-planning/SKILL.md`                |
 
 Implementation skills own coding HOW; architecture owns design principles and their shared code-quality reference owns cross-language readability conventions. They do not redefine product or risk policy. Select outcome/contract documents through the routing table below; `docs/README.md` explains the design order and each owner's role.
 
@@ -38,24 +35,24 @@ Implementation skills own coding HOW; architecture owns design principles and th
 
 Paths below are repository-relative. Before implementation, select and read the owner sections applicable to the request; cross-cutting work may require multiple sources. Do not load the full set or follow every reference automatically. For documentation changes, read `docs/documentation-standard.md` first. Consult the root `README.md` only when the request concerns the human-facing public introduction.
 
-| Need | Read |
-| --- | --- |
-| Understand the product or a domain term | `docs/conceptual-design.md` |
-| Decide whether something belongs in MVP | `docs/product-scope.md` |
-| Configure/evaluate Promotion-owned x2/x3/x5 points or progress | relevant section of `docs/promotion-model.md` |
-| Confirm user-visible behaviour | relevant requirement in `docs/requirements.md` |
-| Map a customer state to Google Wallet | relevant section of `docs/wallet-presentation.md` |
-| Design a page or interaction | relevant section of `docs/ui-ux-guidelines.md` |
-| Change system boundaries or integration ownership | relevant section of `docs/architecture/overview.md` |
-| Change authentication, authorization, tokens, rate limits, or security logging | relevant section of `docs/architecture/security.md` |
-| Add or alter persistent data | relevant section of `docs/development/database-standard.md` |
-| Confirm application integrity, provider effects, operational logging or retired credential persistence | relevant section of `docs/development/laravel-application-standard.md` |
-| Decide what verification is sufficient | relevant section of `docs/quality-strategy.md` |
-| Select or load delivery work | relevant section of `docs/delivery-plan.md` |
-| Interpret the project delivery flow | relevant section of `docs/development/workflow.md` |
-| Revisit a costly cross-cutting decision | only the relevant ADR in `docs/architecture/decisions/`; for a qualifying new ADR, use the ADR policy in `docs/documentation-standard.md` and `docs/architecture/decisions/template.md` |
-| Write or maintain documentation | `docs/documentation-standard.md` |
-| Write or revise the human-facing public introduction | root `README.md` |
+| Need                                                                                                   | Read                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Understand the product or a domain term                                                                | `docs/conceptual-design.md`                                                                                                                                                             |
+| Decide whether something belongs in MVP                                                                | `docs/product-scope.md`                                                                                                                                                                 |
+| Configure/evaluate Promotion-owned x2/x3/x5 points or progress                                         | relevant section of `docs/promotion-model.md`                                                                                                                                           |
+| Confirm user-visible behaviour                                                                         | relevant requirement in `docs/requirements.md`                                                                                                                                          |
+| Map a customer state to Google Wallet                                                                  | relevant section of `docs/wallet-presentation.md`                                                                                                                                       |
+| Design a page or interaction                                                                           | relevant section of `docs/ui-ux-guidelines.md`                                                                                                                                          |
+| Change system boundaries or integration ownership                                                      | relevant section of `docs/architecture/overview.md`                                                                                                                                     |
+| Change authentication, authorization, tokens, rate limits, or security logging                         | relevant section of `docs/architecture/security.md`                                                                                                                                     |
+| Add or alter persistent data                                                                           | relevant section of `docs/development/database-standard.md`                                                                                                                             |
+| Confirm application integrity, provider effects, operational logging or retired credential persistence | relevant section of `docs/development/laravel-application-standard.md`                                                                                                                  |
+| Decide what verification is sufficient                                                                 | relevant section of `docs/quality-strategy.md`                                                                                                                                          |
+| Select or load delivery work                                                                           | relevant section of `docs/delivery-plan.md`                                                                                                                                             |
+| Interpret the project delivery flow                                                                    | relevant section of `docs/development/workflow.md`                                                                                                                                      |
+| Revisit a costly cross-cutting decision                                                                | only the relevant ADR in `docs/architecture/decisions/`; for a qualifying new ADR, use the ADR policy in `docs/documentation-standard.md` and `docs/architecture/decisions/template.md` |
+| Write or maintain documentation                                                                        | `docs/documentation-standard.md`                                                                                                                                                        |
+| Write or revise the human-facing public introduction                                                   | root `README.md`                                                                                                                                                                        |
 
 This table routes knowledge; it does not redefine domain rules or require reading every ADR.
 
