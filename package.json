@@ -5,9 +5,9 @@
     "scripts": {
         "dev": "vite dev",
         "build": "vite build",
-        "format": "vp fmt resources/js scripts/quality playwright.config.js vite.config.js --write",
-        "check:format": "vp fmt resources/js scripts/quality playwright.config.js vite.config.js --check",
-        "check:lint": "vp lint resources/js scripts/quality playwright.config.js vite.config.js",
+        "format": "vp fmt \"resources/js/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\" \"tests/**/*.{js,mjs}\" \"*.js\" --write",
+        "check:format": "vp fmt \"resources/js/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\" \"tests/**/*.{js,mjs}\" \"*.js\" --check",
+        "check:lint": "vp lint resources/js scripts tests *.js",
         "check:documentation": "node scripts/quality/documentation/validate-documentation.mjs",
         "check:playwright-runtime": "node scripts/quality/browser/check-playwright-runtime.mjs",
         "test": "node --test \"scripts/quality/**/*.test.mjs\"",

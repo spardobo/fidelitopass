@@ -1,39 +1,190 @@
 import { expect, test } from "@playwright/test";
 
-const requiredMessage = "Completa este campo.";
+const REQUIRED_MESSAGE = "Completa este campo.";
+const EMAIL_MESSAGE = "Introduce una dirección de correo electrónico válida.";
+const URL_MESSAGE = "Introduce una URL válida.";
+const PATTERN_MESSAGE = "Introduce un valor que coincida con el formato solicitado.";
+const STEP_MESSAGE = "Introduce un valor que respete el incremento permitido.";
+const BAD_INPUT_MESSAGE = "Introduce un valor válido para este campo.";
 
-test.use({ locale: "en-US" });
+const ALLOWED_GUEST_METHODS = ["GET", "HEAD"];
 
-// Guest checks must never create accounts or submit credentials.
+const CONSTRAINT_CASES = [
+    {
+        name: "URL",
+        attributes: {
+            type: "url",
+        },
+        invalidValue: "invalid",
+        validValue: "https://example.test",
+        expectedValidityFlag: "typeMismatch",
+        expectedMessage: URL_MESSAGE,
+    },
+    {
+        name: "pattern",
+        attributes: {
+            pattern: "[A-Z]{3}",
+        },
+        invalidValue: "abc",
+        validValue: "ABC",
+        expectedValidityFlag: "patternMismatch",
+        expectedMessage: PATTERN_MESSAGE,
+    },
+    {
+        name: "minimum",
+        attributes: {
+            type: "number",
+            min: "2",
+            max: "10",
+            step: "2",
+        },
+        invalidValue: "0",
+        validValue: "2",
+        expectedValidityFlag: "rangeUnderflow",
+        expectedMessage: "Introduce un valor mayor o igual que 2.",
+    },
+    {
+        name: "maximum",
+        attributes: {
+            type: "number",
+            min: "2",
+            max: "10",
+            step: "2",
+        },
+        invalidValue: "12",
+        validValue: "10",
+        expectedValidityFlag: "rangeOverflow",
+        expectedMessage: "Introduce un valor menor o igual que 10.",
+    },
+    {
+        name: "step",
+        attributes: {
+            type: "number",
+            min: "2",
+            max: "10",
+            step: "2",
+        },
+        invalidValue: "3",
+        validValue: "4",
+        expectedValidityFlag: "stepMismatch",
+        expectedMessage: STEP_MESSAGE,
+    },
+    {
+        name: "default step base",
+        attributes: {
+            type: "number",
+        },
+        invalidValue: "0.5",
+        validValue: "1",
+        expectedValidityFlag: "stepMismatch",
+        expectedMessage: STEP_MESSAGE,
+    },
+    {
+        name: "value step base",
+        attributes: {
+            type: "number",
+            value: "0.5",
+            step: "2",
+        },
+        invalidValue: "2",
+        validValue: "2.5",
+        expectedValidityFlag: "stepMismatch",
+        expectedMessage: STEP_MESSAGE,
+    },
+    {
+        name: "range before step",
+        attributes: {
+            type: "number",
+            min: "2",
+            step: "2",
+        },
+        invalidValue: "1",
+        validValue: "2",
+        expectedValidityFlag: "rangeUnderflow",
+        expectedMessage: "Introduce un valor mayor o igual que 2.",
+        simultaneousValidityFlags: {
+            stepMismatch: true,
+        },
+    },
+    {
+        name: "type before pattern",
+        attributes: {
+            type: "email",
+            pattern: ".+@example[.]test",
+        },
+        invalidValue: "invalid",
+        validValue: "a@example.test",
+        expectedValidityFlag: "typeMismatch",
+        expectedMessage: EMAIL_MESSAGE,
+        simultaneousValidityFlags: {
+            patternMismatch: true,
+        },
+    },
+];
+
+const REQUIRED_CONTROL_TYPES = ["checkbox", "radio", "file"];
+
+const BARRED_CONTROL_ATTRIBUTES = [
+    {
+        disabled: "",
+    },
+    {
+        readonly: "",
+    },
+    {
+        type: "hidden",
+    },
+];
+
+const LENGTH_CONTROL_TAGS = ["input", "textarea"];
+
+test.use({
+    locale: "en-US",
+});
+
+// guest checks must never create accounts or submit credentials.
 test.beforeEach(async ({ page }) => {
     await page.route("**/*", async (route) => {
-        if (!["GET", "HEAD"].includes(route.request().method())) {
+        const method = route.request().method();
+
+        if (!ALLOWED_GUEST_METHODS.includes(method)) {
             await route.abort();
+
             throw new Error("Native validation checks must not send mutation requests");
         }
+
         await route.continue();
     });
 });
 
-// The native matrix appends controls to the real page without inventing app flows.
+// the native matrix appends controls to the real page
+// without inventing app flows.
 async function appendControl(page, tag, attributes) {
     await page.evaluate(
         ({ tag, attributes }) => {
             const control = document.createElement(tag);
+
             control.id = "native-fixture";
+
             for (const [name, value] of Object.entries(attributes)) {
                 control.setAttribute(name, value);
             }
+
             document.querySelector("form").append(control);
         },
-        { tag, attributes },
+        {
+            tag,
+            attributes,
+        },
     );
+
     return page.locator("#native-fixture");
 }
 
 async function reportValidity(control) {
     return control.evaluate((element) => {
         const valid = element.reportValidity();
+
         return {
             valid,
             message: element.validationMessage,
@@ -51,105 +202,37 @@ async function reportValidity(control) {
     });
 }
 
-const constraintCases = [
-    [
-        "URL",
-        { type: "url" },
-        "invalid",
-        "https://example.test",
-        "typeMismatch",
-        "Introduce una URL válida.",
-    ],
-    [
-        "pattern",
-        { pattern: "[A-Z]{3}" },
-        "abc",
-        "ABC",
-        "patternMismatch",
-        "Introduce un valor que coincida con el formato solicitado.",
-    ],
-    [
-        "minimum",
-        { type: "number", min: "2", max: "10", step: "2" },
-        "0",
-        "2",
-        "rangeUnderflow",
-        "Introduce un valor mayor o igual que 2.",
-    ],
-    [
-        "maximum",
-        { type: "number", min: "2", max: "10", step: "2" },
-        "12",
-        "10",
-        "rangeOverflow",
-        "Introduce un valor menor o igual que 10.",
-    ],
-    [
-        "step",
-        { type: "number", min: "2", max: "10", step: "2" },
-        "3",
-        "4",
-        "stepMismatch",
-        "Introduce un valor que respete el incremento permitido.",
-    ],
-    [
-        "default step base",
-        { type: "number" },
-        "0.5",
-        "1",
-        "stepMismatch",
-        "Introduce un valor que respete el incremento permitido.",
-    ],
-    [
-        "value step base",
-        { type: "number", value: "0.5", step: "2" },
-        "2",
-        "2.5",
-        "stepMismatch",
-        "Introduce un valor que respete el incremento permitido.",
-    ],
-    [
-        "range before step",
-        { type: "number", min: "2", step: "2" },
-        "1",
-        "2",
-        "rangeUnderflow",
-        "Introduce un valor mayor o igual que 2.",
-        { stepMismatch: true },
-    ],
-    [
-        "type before pattern",
-        { type: "email", pattern: ".+@example[.]test" },
-        "invalid",
-        "a@example.test",
-        "typeMismatch",
-        "Introduce una dirección de correo electrónico válida.",
-        { patternMismatch: true },
-    ],
-];
+async function expectValidity(control, expected) {
+    expect(await reportValidity(control)).toMatchObject(expected);
+}
 
-for (const [
+for (const {
     name,
     attributes,
     invalidValue,
     validValue,
-    flag,
-    message,
-    simultaneousFlags = {},
-] of constraintCases) {
+    expectedValidityFlag,
+    expectedMessage,
+    simultaneousValidityFlags = {},
+} of CONSTRAINT_CASES) {
     test(`native ${name} message localizes and recovers`, async ({ page }) => {
         await page.goto("/login");
+
         const control = await appendControl(page, "input", attributes);
+
         await control.fill(invalidValue);
-        expect(await reportValidity(control)).toMatchObject({
+
+        await expectValidity(control, {
             valid: false,
-            [flag]: true,
-            ...simultaneousFlags,
+            [expectedValidityFlag]: true,
+            ...simultaneousValidityFlags,
             customError: true,
-            message,
+            message: expectedMessage,
         });
+
         await control.fill(validValue);
-        expect(await reportValidity(control)).toMatchObject({
+
+        await expectValidity(control, {
             valid: true,
             customError: false,
             message: "",
@@ -157,19 +240,22 @@ for (const [
     });
 }
 
-for (const type of ["checkbox", "radio", "file"]) {
+for (const type of REQUIRED_CONTROL_TYPES) {
     test(`required ${type} uses native missing flag and recovers`, async ({ page }) => {
         await page.goto("/login");
+
         const control = await appendControl(page, "input", {
             type,
             name: "native-required",
             required: "",
         });
-        expect(await reportValidity(control)).toMatchObject({
+
+        await expectValidity(control, {
             valid: false,
             missing: true,
-            message: requiredMessage,
+            message: REQUIRED_MESSAGE,
         });
+
         if (type === "file") {
             await control.setInputFiles({
                 name: "fixture.txt",
@@ -179,7 +265,8 @@ for (const type of ["checkbox", "radio", "file"]) {
         } else {
             await control.check();
         }
-        expect(await reportValidity(control)).toMatchObject({
+
+        await expectValidity(control, {
             valid: true,
             customError: false,
             message: "",
@@ -187,19 +274,28 @@ for (const type of ["checkbox", "radio", "file"]) {
     });
 }
 
-for (const attributes of [{ disabled: "" }, { readonly: "" }, { type: "hidden" }]) {
+for (const attributes of BARRED_CONTROL_ATTRIBUTES) {
     test(`barred control ${JSON.stringify(attributes)} remains untouched`, async ({ page }) => {
         await page.goto("/login");
-        const control = await appendControl(page, "input", { required: "", ...attributes });
+
+        const control = await appendControl(page, "input", {
+            required: "",
+            ...attributes,
+        });
+
         expect(await control.evaluate((element) => element.willValidate)).toBe(false);
-        expect(await reportValidity(control)).toMatchObject({
+
+        await expectValidity(control, {
             valid: true,
             customError: false,
             message: "",
         });
-        // Even an unrelated synthetic invalid event must not create a localization error.
+
+        // even an unrelated synthetic invalid event
+        // must not create a localization error.
         await control.dispatchEvent("invalid");
-        expect(await reportValidity(control)).toMatchObject({
+
+        await expectValidity(control, {
             valid: true,
             customError: false,
             message: "",
@@ -207,46 +303,81 @@ for (const attributes of [{ disabled: "" }, { readonly: "" }, { type: "hidden" }
     });
 }
 
-for (const tag of ["input", "textarea"]) {
+for (const tag of LENGTH_CONTROL_TAGS) {
     test(`native ${tag} length constraints use real user edits`, async ({ page }) => {
         await page.goto("/login");
-        const control = await appendControl(page, tag, { minlength: "3", maxlength: "5" });
+
+        const control = await appendControl(page, tag, {
+            minlength: "3",
+            maxlength: "5",
+        });
+
         await control.pressSequentially("ab");
-        expect(await reportValidity(control)).toMatchObject({
+
+        await expectValidity(control, {
             valid: false,
             tooShort: true,
             message: "Introduce al menos 3 caracteres.",
         });
+
         await control.pressSequentially("c");
-        expect(await reportValidity(control)).toMatchObject({ valid: true, tooShort: false });
+
+        await expectValidity(control, {
+            valid: true,
+            tooShort: false,
+        });
+
         await control.pressSequentially("def");
+
         await expect(control).toHaveValue("abcde");
-        expect(await reportValidity(control)).toMatchObject({ valid: true, tooLong: false });
-        // Chromium prevents typing beyond maxlength, but tightening the limit
-        // after a real edit exposes native tooLong without fabricated flags.
-        await control.evaluate((element) => (element.maxLength = 4));
-        expect(await reportValidity(control)).toMatchObject({
+
+        await expectValidity(control, {
+            valid: true,
+            tooLong: false,
+        });
+
+        // chromium prevents typing beyond maxlength,
+        // but tightening the limit after a real edit
+        // exposes native tooLong without fabricated flags.
+        await control.evaluate((element) => {
+            element.maxLength = 4;
+        });
+
+        await expectValidity(control, {
             valid: false,
             tooLong: true,
             message: "Introduce como máximo 4 caracteres.",
         });
+
         await control.press("Backspace");
-        expect(await reportValidity(control)).toMatchObject({ valid: true, customError: false });
+
+        await expectValidity(control, {
+            valid: true,
+            customError: false,
+        });
     });
 }
 
 test("number badInput from keyboard takes precedence over missing value", async ({ page }) => {
     await page.goto("/login");
-    const control = await appendControl(page, "input", { type: "number", required: "" });
+
+    const control = await appendControl(page, "input", {
+        type: "number",
+        required: "",
+    });
+
     await control.pressSequentially("-");
-    expect(await reportValidity(control)).toMatchObject({
+
+    await expectValidity(control, {
         valid: false,
         badInput: true,
         missing: true,
-        message: "Introduce un valor válido para este campo.",
+        message: BAD_INPUT_MESSAGE,
     });
+
     await control.fill("2");
-    expect(await reportValidity(control)).toMatchObject({
+
+    await expectValidity(control, {
         valid: true,
         customError: false,
         message: "",
@@ -257,33 +388,61 @@ test("repeat invalid reports reselect changed native constraints and preserve re
     page,
 }) => {
     await page.goto("/login");
-    const control = await appendControl(page, "input", { type: "number", min: "2" });
+
+    const control = await appendControl(page, "input", {
+        type: "number",
+        min: "2",
+    });
+
     await control.fill("1");
-    expect(await reportValidity(control)).toMatchObject({
+
+    await expectValidity(control, {
         rangeUnderflow: true,
         message: "Introduce un valor mayor o igual que 2.",
     });
-    await control.evaluate((element) => (element.min = "3"));
-    expect(await reportValidity(control)).toMatchObject({
+
+    await control.evaluate((element) => {
+        element.min = "3";
+    });
+
+    await expectValidity(control, {
         rangeUnderflow: true,
         message: "Introduce un valor mayor o igual que 3.",
     });
+
     await control.evaluate((element) => element.setCustomValidity("Caller replacement"));
+
     expect((await reportValidity(control)).message).toBe("Caller replacement");
+
     await control.fill("4");
+
     expect((await reportValidity(control)).message).toBe("Caller replacement");
 });
 
 test("temporarily disabled localized control can recover when reenabled", async ({ page }) => {
     await page.goto("/login");
-    const control = await appendControl(page, "input", { required: "" });
-    expect((await reportValidity(control)).message).toBe(requiredMessage);
-    await control.evaluate((element) => (element.disabled = true));
+
+    const control = await appendControl(page, "input", {
+        required: "",
+    });
+
+    expect((await reportValidity(control)).message).toBe(REQUIRED_MESSAGE);
+
+    await control.evaluate((element) => {
+        element.disabled = true;
+    });
+
     await control.dispatchEvent("input");
+
     expect((await reportValidity(control)).valid).toBe(true);
-    await control.evaluate((element) => (element.disabled = false));
+
+    await control.evaluate((element) => {
+        element.disabled = false;
+    });
+
     await control.fill("corrected");
-    expect(await reportValidity(control)).toMatchObject({
+
+    await expectValidity(control, {
         valid: true,
         customError: false,
         message: "",
@@ -294,20 +453,32 @@ test("replacement nodes and valid controls do not acquire stale custom errors", 
     page,
 }) => {
     await page.goto("/login");
-    const control = await appendControl(page, "input", { type: "email", required: "" });
+
+    const control = await appendControl(page, "input", {
+        type: "email",
+        required: "",
+    });
+
     await reportValidity(control);
+
     await control.evaluate((element) => element.replaceWith(element.cloneNode()));
+
     await control.fill("valid@example.test");
+
     await control.dispatchEvent("invalid");
-    expect(await reportValidity(control)).toMatchObject({
+
+    await expectValidity(control, {
         valid: true,
         customError: false,
         message: "",
     });
+
     await control.fill("<invalid>");
-    expect(await reportValidity(control)).toMatchObject({
+
+    await expectValidity(control, {
         typeMismatch: true,
-        message: "Introduce una dirección de correo electrónico válida.",
+        message: EMAIL_MESSAGE,
     });
+
     expect(await control.inputValue()).toBe("<invalid>");
 });

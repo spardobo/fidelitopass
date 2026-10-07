@@ -12,7 +12,9 @@ async function stubBrowserZone(page, zone) {
 
         const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
         Intl.DateTimeFormat.prototype.resolvedOptions = function () {
-            if (reportedZone === "throws") throw new Error("Timezone unavailable");
+            if (reportedZone === "throws") {
+                throw new Error("Timezone unavailable");
+            }
             return { ...resolvedOptions.call(this), timeZone: reportedZone };
         };
     }, zone);
@@ -64,8 +66,12 @@ test("manual override submits the canonical IANA value without creating an accou
     await timezoneSelect(page).selectOption("Europe/Madrid");
     await expect(page.locator("#registration-timezone-name")).toHaveText("Hora de Europa central");
     await fillRegistration(page);
+
     await page.route("**/register", async (route) => {
-        if (route.request().method() !== "POST") return route.continue();
+        if (route.request().method() !== "POST") {
+            return route.continue();
+        }
+
         await route.fulfill({
             status: 200,
             contentType: "text/plain",
@@ -117,6 +123,7 @@ test("wire navigate initializes each fresh registration without resetting manual
 }) => {
     await stubBrowserZone(page, "America/Montevideo");
     await page.goto("/register");
+
     for (let visit = 0; visit < 2; visit++) {
         await expect(timezoneSelect(page)).toHaveValue("America/Montevideo");
         await timezoneSelect(page).selectOption("Europe/Madrid");
@@ -126,6 +133,7 @@ test("wire navigate initializes each fresh registration without resetting manual
         await page.getByRole("link", { name: "Registrarse", exact: true }).click();
         await expect(page).toHaveURL(/\/register$/);
     }
+
     await expect(timezoneSelect(page)).toHaveValue("America/Montevideo");
 });
 
@@ -138,6 +146,7 @@ for (const width of [1280, 375]) {
         await page.addInitScript(() => localStorage.setItem("flux.appearance", "light"));
         await stubBrowserZone(page, "America/Montevideo");
         await page.goto("/register");
+
         const timezone = timezoneSelect(page);
 
         await page.getByLabel("Nombre del negocio", { exact: true }).focus();
@@ -158,6 +167,7 @@ for (const width of [1280, 375]) {
                 { exact: true },
             ),
         ).toBeVisible();
+
         await page.evaluate(() => document.fonts.ready);
         await expect(page.locator("html")).toHaveClass(/\bdark\b/);
         await expect(page.locator("body")).toHaveCSS("font-family", /Onest Variable/);
@@ -173,6 +183,7 @@ for (const width of [1280, 375]) {
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
             true,
         );
+
         await page.screenshot({
             path: testInfo.outputPath(`registration-timezone-${width}.png`),
             fullPage: true,

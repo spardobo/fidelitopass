@@ -2,19 +2,19 @@
     @if ($editing)
         <header class="space-y-6">
             <div class="flex min-h-11 items-center">
-            @if ($this->isDirty)
-                <flux:modal.trigger name="discard-pass-appearance">
-                    <button type="button" class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline">
+                @if ($this->isDirty)
+                    <flux:modal.trigger name="discard-pass-appearance">
+                        <button type="button" class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline">
+                            <flux:icon.arrow-left variant="outline" class="size-4" />
+                            {{ __('business.pass.back_to_pass') }}
+                        </button>
+                    </flux:modal.trigger>
+                @else
+                    <a href="{{ route('business.pass') }}" wire:click.prevent="cancel" class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline">
                         <flux:icon.arrow-left variant="outline" class="size-4" />
                         {{ __('business.pass.back_to_pass') }}
-                    </button>
-                </flux:modal.trigger>
-            @else
-                <a href="{{ route('business.pass') }}" wire:click.prevent="cancel" class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline">
-                    <flux:icon.arrow-left variant="outline" class="size-4" />
-                    {{ __('business.pass.back_to_pass') }}
-                </a>
-            @endif
+                    </a>
+                @endif
             </div>
 
             <div class="space-y-2">
@@ -166,11 +166,10 @@
             </div>
         </section>
 
-
     @else
         <header class="space-y-2">
             <p class="app-role-body! text-app-accent">{{ $this->business->name }} · {{ __('business.pass.business_label') }}</p>
-        <flux:heading level="1" size="xl" class="app-heading">
+            <flux:heading level="1" size="xl" class="app-heading">
                 {{ __('business.pass.overview_title', ['business' => $this->business->name]) }}
             </flux:heading>
             <flux:text size="lg" class="app-role-intro!">

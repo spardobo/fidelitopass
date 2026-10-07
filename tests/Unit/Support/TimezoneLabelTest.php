@@ -9,7 +9,9 @@ it('offers compact geography without merging IANA values', function (string $loc
     $options = TimezoneLabel::options($locale, $instant);
 
     expect($options['America/La_Paz'])->toBe('Bolivia, La Paz (UTC-04:00)');
+
     $city = (new IntlDateFormatter($locale, IntlDateFormatter::NONE, IntlDateFormatter::NONE, 'America/Los_Angeles', null, 'VVV'))->format($instant);
+
     expect($options['America/Los_Angeles'])->toContain($city);
     expect($options['Europe/Madrid'])->not->toBe($options['Europe/Paris']);
     expect(count(array_unique($options)))->toBe(count($options));
@@ -75,11 +77,13 @@ it('orders by localized native country then representative city rather than offs
     $expected = array_keys($options);
     $collator = new Collator($locale);
     $metadata = [];
+
     foreach ($expected as $identifier) {
         $country = (new DateTimeZone($identifier))->getLocation()['country_code'] ?? null;
         $city = (new IntlDateFormatter($locale, IntlDateFormatter::NONE, IntlDateFormatter::NONE, $identifier, null, 'VVV'))->format(1784116800);
         $metadata[$identifier] = [$country ? Locale::getDisplayRegion('und_'.$country, $locale) : '', $city];
     }
+
     usort($expected, function ($left, $right) use ($collator, $metadata) {
         return ($left === 'UTC') <=> ($right === 'UTC')
             ?: $collator->compare($metadata[$left][0], $metadata[$right][0])
@@ -101,9 +105,11 @@ it('retains recognized zones with native offsets and location wording when ICU r
         $icu = IntlTimeZone::createTimeZone($identifier);
         $icu->getOffset($instant->getTimestamp() * 1000, false, $raw, $dst);
         $native = new DateTimeZone($identifier);
+
         if ($native->getOffset($instant) * 1000 === $raw + $dst) {
             continue;
         }
+
         $location = (new IntlDateFormatter('es', IntlDateFormatter::NONE, IntlDateFormatter::NONE, $identifier, null, 'VVVV'))->format($instant);
         $capitalized = mb_strtoupper(mb_substr($location, 0, 1)).mb_substr($location, 1);
 

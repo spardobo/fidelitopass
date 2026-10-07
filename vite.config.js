@@ -7,6 +7,14 @@ export default defineConfig({
         options: {
             denyWarnings: true,
         },
+        overrides: [
+            {
+                files: ["tests/**/*.js", "tests/**/*.mjs"],
+                rules: {
+                    "no-nested-ternary": "error",
+                },
+            },
+        ],
     },
     plugins: lazyPlugins(() => [
         laravel({

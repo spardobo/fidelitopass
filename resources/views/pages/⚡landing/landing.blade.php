@@ -407,22 +407,28 @@
         function scheduleFrame(callback) {
             const frame = requestAnimationFrame(() => {
                 frames.delete(frame);
+
                 if (isActive()) callback();
             });
+
             frames.add(frame);
+
             return frame;
         }
 
         function scheduleWord(word, delayMs) {
             const timer = window.setTimeout(() => {
                 timers.delete(timer);
+
                 if (isActive() && !reducedMotion.matches) word.classList.add('is-lit');
             }, delayMs);
+
             timers.add(timer);
         }
 
         function disconnectObserver(observer) {
             if (!observer || !observers.has(observer)) return;
+
             observer.disconnect();
             observers.delete(observer);
         }
@@ -438,6 +444,7 @@
         // ---------------------------------------------------------------------
         function closeMenu(event) {
             if (!isActive()) return;
+
             event.currentTarget.closest('details').open = false;
         }
 
@@ -452,6 +459,7 @@
         // ---------------------------------------------------------------------
         function measureLanding() {
             if (!isActive()) return;
+
             setLayoutProperty(thumbnail, '--landing-scale', String(Math.min(1, thumbnail.clientWidth / passWidthPx)));
 
             // measure the stable header boundary, never the hero's own distributed margin.
@@ -469,17 +477,20 @@
             ));
             const extraGapPx = Math.floor(boundedExtraGapPx / 4) * 4;
             setLayoutProperty(hero, '--landing-hero-extra-gap', `${extraGapPx}px`);
+
             // the page closes with its opening gap without reducing hero availability.
             setLayoutProperty(main, '--landing-closing-gap', `${baseGapPx + extraGapPx}px`);
         }
 
         function initializeHeroLayout() {
             measureLanding();
+
             if (typeof ResizeObserver === 'function') {
                 const observer = new ResizeObserver(measureLanding);
                 observers.add(observer);
                 [thumbnail, header, main].forEach(element => observer.observe(element));
             }
+
             window.addEventListener('resize', measureLanding, { signal: listeners.signal });
             document.fonts?.ready.then(measureLanding);
         }
@@ -489,6 +500,7 @@
         // ---------------------------------------------------------------------
         function cancelPassFrame() {
             if (passFrame === null) return;
+
             cancelAnimationFrame(passFrame);
             frames.delete(passFrame);
             passFrame = null;
@@ -521,10 +533,12 @@
 
         function movePass(event) {
             if (!isActive()) return;
+
             if (event.pointerType !== 'mouse' || reducedMotion.matches) {
                 resetPass();
                 return;
             }
+
             cancelPassFrame();
 
             // capture pointer geometry now; only presentation writes wait for the owned frame.
@@ -532,6 +546,7 @@
             passFrame = scheduleFrame(() => {
                 passFrame = null;
                 if (reducedMotion.matches) return;
+
                 renderPassPresentation(presentation);
             });
         }
@@ -547,8 +562,10 @@
         // ---------------------------------------------------------------------
         function revealSection(section) {
             if (!sections.includes(section)) return;
+
             section.dataset.reveal = 'shown';
             sectionObserver?.unobserve(section);
+
             if (sections.every(element => element.dataset.reveal === 'shown')) {
                 disconnectObserver(sectionObserver);
             }
@@ -556,18 +573,22 @@
 
         function revealFocusedSection(event) {
             if (!isActive()) return;
+
             revealSection(event.currentTarget);
         }
 
         function revealFragment(fragment) {
             if (!fragment.startsWith('#')) return;
+
             const target = Array.from(landingRoot.querySelectorAll('[id]')).find(element => `#${element.id}` === fragment);
             if (!target) return;
+
             revealSection(target.closest('section'));
         }
 
         function revealAnchorTarget(event) {
             if (!isActive()) return;
+
             const anchor = event.target.closest('a[href^="#"]');
             if (anchor) revealFragment(anchor.getAttribute('href'));
         }
@@ -578,6 +599,7 @@
 
         function onSectionIntersection(entries) {
             if (!isActive() || reducedMotion.matches) return;
+
             entries.forEach(entry => {
                 if (entry.isIntersecting) revealSection(entry.target);
             });
@@ -585,6 +607,7 @@
 
         function observePendingSections() {
             if (reducedMotion.matches) return;
+
             sections.forEach(section => {
                 if (section.dataset.reveal === 'pending') sectionObserver.observe(section);
             });
@@ -598,12 +621,14 @@
 
         function initializeSectionReveal() {
             if (reducedMotion.matches || typeof IntersectionObserver !== 'function') return;
+
             sectionObserver = new IntersectionObserver(onSectionIntersection, { threshold: sectionThreshold });
             observers.add(sectionObserver);
             sections.forEach(section => {
                 if (section.dataset.reveal !== 'shown') section.dataset.reveal = 'pending';
                 section.addEventListener('focusin', revealFocusedSection, { signal: listeners.signal });
             });
+
             landingRoot.dataset.revealReady = 'true';
             revealHashTarget();
 
@@ -624,6 +649,7 @@
         function onTaglineIntersection(entries) {
             if (!isActive() || reducedMotion.matches || taglineStarted) return;
             if (!entries.some(entry => entry.isIntersecting)) return;
+
             taglineStarted = true;
             disconnectObserver(taglineObserver);
             words.forEach((word, index) => scheduleWord(word, index * taglineDelayMs));
@@ -635,6 +661,7 @@
                 return;
             }
             if (words.every(word => word.classList.contains('is-lit'))) return;
+
             taglineObserver = new IntersectionObserver(onTaglineIntersection);
             observers.add(taglineObserver);
             taglineObserver.observe(tagline);
@@ -657,6 +684,7 @@
                 destroy();
                 return;
             }
+
             if (!referencesCurrent()) {
                 // replaced nodes need fresh references, not listeners retained on detached elements.
                 destroy();
@@ -674,8 +702,10 @@
 
         function destroy() {
             if (destroyed) return;
+
             const ownsRoot = landingRoot.landingOwner === owner;
             destroyed = true;
+
             listeners.abort();
             observers.forEach(observer => observer.disconnect());
             observers.clear();
@@ -683,6 +713,7 @@
             timers.clear();
             frames.forEach(frame => cancelAnimationFrame(frame));
             frames.clear();
+
             // an obsolete owner releases its resources without resetting a newer owner's content.
             if (!ownsRoot) return;
 
