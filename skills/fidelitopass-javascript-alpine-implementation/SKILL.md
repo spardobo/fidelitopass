@@ -14,9 +14,11 @@ Use for project JavaScript/Alpine, browser behavior and JS tests/scripts; exclud
 ## Hard Rules
 
 - Apply both references; assess readability separately from behavior.
-- Before editing, identify the real file path, extension, language, module system, runtime, execution context, package boundary and formatter/linter owner. Preserve them; do not introduce TypeScript-only syntax or migrate `.js`/`.mjs` to TypeScript incidentally.
+- Implement the simplest complete current requirement; apply the architecture owner rather than generalizing for hypothetical reuse.
+- Before writing behavior, identify its observable requirement and owner, then establish the actual file, language, module, runtime/context, lifetime, APIs, resources and cheapest meaningful proof. Stop if a material fact is unknown.
+- Preserve the real file path/extension, language, module system, runtime/context and formatter/linter ownership. Do not introduce TypeScript-only syntax in `.js`/`.mjs` or migrate languages incidentally.
 - Treat a refactor as behavior-preserving only when the relevant execution boundary supports that claim. Preserve applicable public, failure, observation-time, operation-order and test-scenario contracts; report unverified boundaries and residual risk.
-- Prefer Livewire state/interactions, Flux widgets and small transient Alpine presentation before custom JavaScript.
+- For browser behavior, prefer native HTML/browser behavior, then suitable Flux, Livewire, local Alpine and only then custom JavaScript for a concrete gap. This is a capability order, not a checklist for Node code.
 - Preserve server authority, native assets and translated Spanish copy; add no competing runtime or pipeline.
 - Expose actual responsibilities/resources; add no speculative lifecycle machinery.
 

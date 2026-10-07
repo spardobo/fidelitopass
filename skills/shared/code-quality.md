@@ -11,7 +11,7 @@ Apply this shared, reusable cross-language contract to affected PHP, Blade and J
 
 ## Design authority
 
-Apply [architecture's design principles](../../docs/architecture/overview.md#pragmatic-design-principles). This reference owns source readability and editorial conventions, not an independent architecture policy.
+Apply [architecture's design principles](../../docs/architecture/overview.md#pragmatic-design-principles): implement the simplest complete solution for the current requirement, not hypothetical generalization. This is a summary for routing, not an independent architecture policy; architecture remains authoritative.
 
 ## Framework-first gate
 
@@ -40,7 +40,7 @@ Use lowercase English semantic region comments in Blade only where they locate u
 
 ## Scoped review
 
-Keep changed behavior distinguishable from a readability refactor. Preserve existing public contracts, exceptions, permission checks, ordering and lifecycle effects. Review the complete changed reading path after formatting: names identify intent, related steps stay together, important effects are visible, and any extraction reduces the context needed to understand the caller.
+Keep changed behavior distinguishable from a readability refactor. Preserve existing public contracts, exceptions, permission checks, ordering and lifecycle effects. Limit a change to its authorized behavior and directly necessary corrections; report unrelated cleanup separately. Review the complete changed reading path after formatting: names identify intent, related steps stay together, important effects are visible, and any extraction reduces the context needed to understand the caller.
 
 Treat length, nesting and repeated syntax as review signals, not automatic limits. Do not add helpers, comments, defensive guards, layers or tests merely to satisfy a visual template. Useful type annotations supported by the target language and its configured tooling, and real framework contracts, take precedence over editorial preferences.
 
