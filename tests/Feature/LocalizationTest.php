@@ -38,7 +38,7 @@ test('landing page translates its title, description and accessible navigation',
         ->assertSee('Pase de ejemplo de CAFÉ CENTRAL')
         ->assertSee('El Pase')
         ->assertSee('Beneficios')
-        ->assertSee('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene una hamburguesa.')
+        ->assertSee('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.')
         ->assertDontSee('landing.hero.sample.business')
         ->assertDontSee('landing.hero.card_aria')
         ->assertDontSee('tarjeta Wallet');
