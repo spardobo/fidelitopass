@@ -5,9 +5,9 @@
     </head>
     <body class="min-h-screen bg-canvas text-ink">
         <header data-flux-header class="app-theme [grid-area:header] border-b border-app-line bg-app-canvas">
-            <div class="mx-auto grid max-w-[68rem] grid-cols-[auto_1fr_auto] items-center gap-x-2 px-4 md:gap-x-8 md:px-0 min-[900px]:min-h-18 max-[1120px]:md:px-6">
-                <a href="{{ route('dashboard') }}" wire:navigate aria-label="FidelitoPass" class="app-focus flex min-h-18 items-center">
-                    <img src="{{ asset('logo-header.webp') }}" alt="" class="h-auto w-25 md:w-[142px]" />
+            <div class="mx-auto grid max-w-[68rem] grid-cols-[auto_1fr_auto] items-center gap-x-2 px-4 md:gap-x-8 md:px-0 min-[900px]:min-h-[90px] max-[1120px]:md:px-6">
+                <a href="{{ route('dashboard') }}" wire:navigate aria-label="FidelitoPass" class="app-focus flex min-h-18 items-center min-[900px]:min-h-11">
+                    <img src="{{ asset('logo-header.webp') }}" alt="" class="h-auto w-40 sm:w-48" />
                 </a>
 
                 <x-app-navigation class="col-span-3 row-start-2 min-[900px]:col-span-1 min-[900px]:col-start-2 min-[900px]:row-start-1" />
