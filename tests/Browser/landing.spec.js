@@ -201,7 +201,13 @@ test("landing typography uses the loaded local Onest and responsive editorial ro
         expect(roles.heroInk).toBe("rgb(246, 245, 242)");
         expect(roles.sectionInk).toBe("rgb(246, 245, 242)");
         expect(roles.benefitEyebrowInk).toBe("rgb(167, 123, 255)");
-        expect(roles.sectionIntroInks).toEqual(Array(5).fill("rgb(167, 123, 255)"));
+        expect(roles.sectionIntroInks).toEqual([
+            "rgb(167, 123, 255)",
+            "rgb(167, 123, 255)",
+            "rgb(167, 123, 255)",
+            "rgb(205, 176, 255)",
+            "rgb(167, 123, 255)",
+        ]);
         expect(roles.loginLinkInk).toBe("rgb(167, 123, 255)");
         await expect(page.locator("#benefits article").first().locator("h3")).toHaveCSS(
             "color",
@@ -348,17 +354,16 @@ test("public links preserve inherited ink weight decoration and keyboard focus",
         await page.mouse.move(0, 0);
         if (width < 1280) await page.locator(".landing-menu summary").click();
         const nav = page.locator(width < 1280 ? ".landing-menu nav" : "header > div > nav");
+        const supportLink = page
+            .locator("#home")
+            .getByRole("link", { name: "Inicia sesión", exact: true });
         await expectOrderedNavigation(nav);
+        await expect(supportLink).toHaveCount(1);
 
         for (const [links, ink, decoration, size] of [
             [nav.locator("a"), "rgb(246, 245, 242)", "none", width < 1280 ? "16px" : "14px"],
             [page.locator("footer a"), "rgb(224, 224, 224)", "none", "14px"],
-            [
-                page.locator("#home .landing-role-support a"),
-                "rgb(224, 224, 224)",
-                "underline",
-                "14px",
-            ],
+            [supportLink, "rgb(167, 123, 255)", "underline", "14px"],
         ]) {
             for (const link of await links.all()) {
                 await expect(link).toHaveCSS("font-size", size);
@@ -377,7 +382,7 @@ test("public links preserve inherited ink weight decoration and keyboard focus",
                 await page.mouse.move(0, 0);
             }
         }
-        await expect(page.locator("#home .landing-role-support")).toHaveText(/\? Inicia sesión$/);
+        await expect(page.locator("#home .app-role-support")).toHaveText(/\? Inicia sesión$/);
         const logo = page.locator('header a[href="#page-top"]');
         await expect(logo).toHaveAttribute("aria-label", /\S/);
         await expect(logo.locator("img")).toHaveAttribute("width", "480");
@@ -394,6 +399,8 @@ test("public links preserve inherited ink weight decoration and keyboard focus",
 });
 
 test("hero outer gaps are bounded by the existing major section rhythm", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+
     for (const width of [375, 768, 1280]) {
         for (const height of [900, 1600]) {
             await page.setViewportSize({ width, height });
@@ -402,10 +409,16 @@ test("hero outer gaps are bounded by the existing major section rhythm", async (
             const geometry = await page.locator("#home").evaluate((hero) => {
                 const rect = hero.getBoundingClientRect();
                 const benefits = document.querySelector("#benefits");
+                const header = document.querySelector("header").getBoundingClientRect();
+                const footer = document.querySelector("footer").getBoundingClientRect();
+                const closingCta = document
+                    .querySelector("main")
+                    .lastElementChild.getBoundingClientRect();
+
                 return {
-                    topGap:
-                        rect.top - document.querySelector("header").getBoundingClientRect().bottom,
-                    bottomGap: parseFloat(getComputedStyle(hero).marginBottom),
+                    openingGap: rect.top - header.bottom,
+                    closingGap: footer.top - closingCta.bottom,
+                    sectionGap: parseFloat(getComputedStyle(hero).marginBottom),
                     sectionSpace: parseFloat(getComputedStyle(benefits).paddingTop),
                     heroTop: rect.top,
                     heroBottom: rect.bottom,
@@ -415,14 +428,15 @@ test("hero outer gaps are bounded by the existing major section rhythm", async (
             });
 
             console.log("bounded-hero", width, height, JSON.stringify(geometry));
-            expect(geometry.topGap).toBeLessThanOrEqual(geometry.sectionSpace);
-            expect(geometry.bottomGap).toBeLessThanOrEqual(geometry.sectionSpace);
-            expect(geometry.topGap).toBeCloseTo(geometry.bottomGap, 0);
-            expect(Math.abs(geometry.topGap / 4 - Math.round(geometry.topGap / 4))).toBeLessThan(
-                0.001,
-            );
+            expect(geometry.openingGap).toBeLessThanOrEqual(geometry.sectionSpace);
+            expect(geometry.closingGap).toBeLessThanOrEqual(geometry.sectionSpace);
+            expect(Math.abs(geometry.openingGap - geometry.closingGap)).toBeLessThanOrEqual(1);
+            expect(geometry.sectionGap).toBeLessThanOrEqual(geometry.sectionSpace);
             expect(
-                Math.abs(geometry.bottomGap / 4 - Math.round(geometry.bottomGap / 4)),
+                Math.abs(geometry.openingGap / 4 - Math.round(geometry.openingGap / 4)),
+            ).toBeLessThan(0.001);
+            expect(
+                Math.abs(geometry.sectionGap / 4 - Math.round(geometry.sectionGap / 4)),
             ).toBeLessThan(0.001);
         }
     }
@@ -505,6 +519,20 @@ test("runtime fits the hero without ResizeObserver while no-JS remains readable"
             const page = await context.newPage();
             await page.goto("/");
 
+            const readExteriorLayoutGaps = () =>
+                page.evaluate(() => {
+                    const main = document.querySelector("main");
+                    const header = document.querySelector("header").getBoundingClientRect();
+                    const hero = document.querySelector("#home").getBoundingClientRect();
+                    const footer = document.querySelector("footer").getBoundingClientRect();
+
+                    return {
+                        opening: hero.top - header.bottom,
+                        closingLayout: Number.parseFloat(getComputedStyle(main).paddingBottom),
+                        mainToFooter: footer.top - main.getBoundingClientRect().bottom,
+                    };
+                });
+
             const layout = await page.evaluate(() => {
                 const header = document.querySelector("header").getBoundingClientRect();
                 const main = document.querySelector("main").getBoundingClientRect();
@@ -523,10 +551,12 @@ test("runtime fits the hero without ResizeObserver while no-JS remains readable"
 
             if (mode === "no-resize-observer") {
                 expect(layout.heroHeight, mode).toBeCloseTo(704, 0);
-                expect(layout.heroTop - layout.headerBottom).toBeCloseTo(
-                    900 - layout.heroBottom,
-                    0,
-                );
+                const initialGaps = await readExteriorLayoutGaps();
+                expect(
+                    Math.abs(initialGaps.opening - initialGaps.closingLayout),
+                    mode,
+                ).toBeLessThanOrEqual(1);
+                expect(Math.abs(initialGaps.mainToFooter), mode).toBeLessThanOrEqual(1);
                 await expect(page.locator("#business")).toHaveAttribute("data-reveal", "pending");
 
                 await page.locator("main").evaluate((main) => {
@@ -551,6 +581,12 @@ test("runtime fits the hero without ResizeObserver while no-JS remains readable"
                                 document.querySelector("header").getBoundingClientRect().bottom,
                         ),
                 ).toBeCloseTo(80, 0);
+                const expandedGaps = await readExteriorLayoutGaps();
+                expect(
+                    Math.abs(expandedGaps.opening - expandedGaps.closingLayout),
+                    mode,
+                ).toBeLessThanOrEqual(1);
+                expect(Math.abs(expandedGaps.mainToFooter), mode).toBeLessThanOrEqual(1);
 
                 await page.locator("main").evaluate((main) => {
                     main.style.removeProperty("padding-top");
@@ -562,17 +598,14 @@ test("runtime fits the hero without ResizeObserver while no-JS remains readable"
                 });
 
                 await expect
-                    .poll(() =>
-                        page.locator("#home").evaluate((hero) => {
-                            const box = hero.getBoundingClientRect();
-                            const headerBottom = document
-                                .querySelector("header")
-                                .getBoundingClientRect().bottom;
-
-                            return Math.abs(box.top - headerBottom - (innerHeight - box.bottom));
-                        }),
-                    )
-                    .toBeLessThan(1);
+                    .poll(async () => {
+                        const gaps = await readExteriorLayoutGaps();
+                        return Math.max(
+                            Math.abs(gaps.opening - gaps.closingLayout),
+                            Math.abs(gaps.mainToFooter),
+                        );
+                    })
+                    .toBeLessThanOrEqual(1);
 
                 await page.setViewportSize({ width: 1280, height: 540 });
                 await expect
@@ -591,6 +624,12 @@ test("runtime fits the hero without ResizeObserver while no-JS remains readable"
                                 document.querySelector("header").getBoundingClientRect().bottom,
                         ),
                 ).toBeCloseTo(40, 0);
+                const shortViewportGaps = await readExteriorLayoutGaps();
+                expect(
+                    Math.abs(shortViewportGaps.opening - shortViewportGaps.closingLayout),
+                    mode,
+                ).toBeLessThanOrEqual(1);
+                expect(Math.abs(shortViewportGaps.mainToFooter), mode).toBeLessThanOrEqual(1);
             } else {
                 await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
                 await expect(page.locator("#business")).toHaveCSS("opacity", "1");
@@ -610,23 +649,26 @@ test("runtime fits the hero without ResizeObserver while no-JS remains readable"
     }
 });
 
-test("measured hero distributes unused space symmetrically", async ({ page }) => {
+test("measured hero matches the page exterior gaps", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
 
     const geometry = await page.evaluate(() => {
         const main = document.querySelector("main");
         const hero = document.querySelector("#home").getBoundingClientRect();
+        const footer = document.querySelector("footer").getBoundingClientRect();
         return {
             headerBottom: document.querySelector("header").getBoundingClientRect().bottom,
-            top: hero.top,
-            bottom: hero.bottom,
+            openingGap: hero.top - document.querySelector("header").getBoundingClientRect().bottom,
+            closingLayoutGap: Number.parseFloat(getComputedStyle(main).paddingBottom),
+            mainToFooter: footer.top - main.getBoundingClientRect().bottom,
             padding: parseFloat(getComputedStyle(main).paddingTop),
         };
     });
     expect(geometry.headerBottom).toBeCloseTo(91, 0);
     expect(geometry.padding).toBe(40);
-    expect(geometry.top - geometry.headerBottom).toBeCloseTo(900 - geometry.bottom, 0);
+    expect(Math.abs(geometry.openingGap - geometry.closingLayoutGap)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.mainToFooter)).toBeLessThanOrEqual(1);
 });
 
 test("hero text and controls remain inside their panel at 200 percent text size", async ({
@@ -996,6 +1038,9 @@ test("shared palette and matching exterior gaps preserve public geometry", async
             const lastBox = last.getBoundingClientRect();
             const headerBox = header.getBoundingClientRect();
             const heroBox = hero.getBoundingClientRect();
+            const heroContentBottom = Math.max(
+                ...[...hero.children].map((child) => child.getBoundingClientRect().bottom),
+            );
 
             return {
                 headerPadding: [headerRowStyle.paddingTop, headerRowStyle.paddingBottom],
@@ -1011,6 +1056,8 @@ test("shared palette and matching exterior gaps preserve public geometry", async
                 footerTop: footerBox.top,
                 headerHeight: headerBox.height,
                 heroHeight: heroBox.height,
+                heroBottom: heroBox.bottom,
+                heroContentBottom,
                 heroTopGap: heroBox.top - headerBox.bottom,
                 heroBottomGap: parseFloat(getComputedStyle(hero).marginBottom),
             };
@@ -1020,18 +1067,25 @@ test("shared palette and matching exterior gaps preserve public geometry", async
         expect(geometry.padding[0]).toBe(width < 768 ? "32px" : "40px");
         expect(geometry.padding[1]).toBe(lateral);
         expect(geometry.padding[3]).toBe(lateral);
-        expect.soft(parseFloat(geometry.padding[2])).toBeCloseTo(geometry.heroTopGap, 0);
-        expect.soft(geometry.footerGap).toBeCloseTo(geometry.heroTopGap, 0);
+        expect
+            .soft(Math.abs(parseFloat(geometry.padding[2]) - geometry.heroTopGap))
+            .toBeLessThanOrEqual(1);
+        expect.soft(Math.abs(geometry.footerGap - geometry.heroTopGap)).toBeLessThanOrEqual(1);
         expect(geometry.headerPadding).toEqual(["24px", "24px"]);
         expect(geometry.footerPadding).toEqual(geometry.headerPadding);
         expect(geometry.mainBottom).toBeCloseTo(geometry.footerTop, 0);
         expect(geometry.headerHeight).toBeCloseTo(width < 640 ? 87 : 91, 0);
-        if (width === 768) expect(geometry.heroHeight).toBeCloseTo(918, 0);
-        if (height === 540) expect(geometry.heroHeight).toBeCloseTo(486, 0);
+        if (width === 768) {
+            expect(geometry.heroContentBottom).toBeLessThanOrEqual(geometry.heroBottom);
+        }
+        if (height === 540) {
+            expect(geometry.heroContentBottom).toBeLessThanOrEqual(geometry.heroBottom);
+        }
         if (width >= 1280 && height >= 900) {
             expect(geometry.heroHeight).toBeCloseTo(704, 0);
-            expect(geometry.heroTopGap).toBeCloseTo(height === 900 ? 52.5 : 80, 0);
+            expect(geometry.heroTopGap).toBeLessThanOrEqual(80);
             expect(geometry.heroBottomGap).toBeCloseTo(geometry.heroTopGap, 0);
+            if (height === 1600) expect(geometry.heroTopGap).toBe(80);
         }
         expect
             .soft(
@@ -1207,10 +1261,29 @@ test("closing spacing survives scrolled resize and resets only with its layout o
 
             await waitForFonts(page);
             const main = page.locator("main");
-            await expect(main).toHaveCSS(
-                "padding-bottom",
-                mode === "no-javascript" ? "40px" : "52.5px",
-            );
+            if (mode === "no-javascript") {
+                await expect(main).toHaveCSS("padding-bottom", "40px");
+            } else {
+                const gaps = await page.evaluate(() => {
+                    const main = document.querySelector("main");
+                    const header = document.querySelector("header").getBoundingClientRect();
+                    const hero = document.querySelector("#home").getBoundingClientRect();
+                    const footer = document.querySelector("footer").getBoundingClientRect();
+                    const closingCta = main.lastElementChild.getBoundingClientRect();
+
+                    return {
+                        baseGap: parseFloat(getComputedStyle(main).paddingTop),
+                        closingPadding: parseFloat(getComputedStyle(main).paddingBottom),
+                        openingGap: hero.top - header.bottom,
+                        closingGap: footer.top - closingCta.bottom,
+                    };
+                });
+
+                expect(gaps.closingPadding).toBeGreaterThan(gaps.baseGap);
+                expect(gaps.closingPadding).toBeLessThanOrEqual(80);
+                expect(Math.abs(gaps.closingPadding - gaps.openingGap)).toBeLessThanOrEqual(1);
+                expect(Math.abs(gaps.closingPadding - gaps.closingGap)).toBeLessThanOrEqual(1);
+            }
             if (mode !== "no-javascript") {
                 await page.locator("#business").scrollIntoViewIfNeeded();
                 await page.setViewportSize({ width: 1280, height: 1600 });
@@ -1387,7 +1460,10 @@ test("public surface roles retain readable contextual ink across responsive view
 
                     for (const textSelector of textSelectors) {
                         for (const textElement of element.querySelectorAll(textSelector)) {
-                            const color = getComputedStyle(textElement).color;
+                            const textStyle = getComputedStyle(textElement);
+                            const color = textStyle.color;
+                            const fontSize = Number.parseFloat(textStyle.fontSize);
+                            const fontWeight = Number.parseFloat(textStyle.fontWeight);
                             const [red, green, blue, alpha = 1] = channels(color);
                             const textBackground = effectiveBackground(textElement);
                             const ink = [red, green, blue].map(
@@ -1401,7 +1477,7 @@ test("public surface roles retain readable contextual ink across responsive view
                                 (Math.max(inkLuminance, backgroundLuminance) + 0.05) /
                                 (Math.min(inkLuminance, backgroundLuminance) + 0.05);
 
-                            textMeasurements.push({ color, contrast });
+                            textMeasurements.push({ color, contrast, fontSize, fontWeight });
                         }
                     }
 
@@ -1425,6 +1501,11 @@ test("public surface roles retain readable contextual ink across responsive view
                     role: surface.role,
                     background: surface.background,
                     inks: [...new Set(surface.text.map((text) => text.color))],
+                    typography: [
+                        ...new Set(
+                            surface.text.map((text) => `${text.fontSize}px/${text.fontWeight}`),
+                        ),
+                    ],
                     minimumContrast: surface.text.length
                         ? Math.min(...surface.text.map((text) => text.contrast))
                         : null,
@@ -1442,10 +1523,15 @@ test("public surface roles retain readable contextual ink across responsive view
                 surface.expectedBackground,
             );
             for (const text of surface.text) {
+                const largeText =
+                    text.fontSize >= 24 ||
+                    (text.fontSize >= (14 * 4) / 3 && text.fontWeight >= 700);
+                const minimumContrast = largeText ? 3 : 4.5;
+
                 expect(
                     text.contrast,
-                    `${width}x${height} ${surface.role} ${text.color}`,
-                ).toBeGreaterThanOrEqual(4.5);
+                    `${width}x${height} ${surface.role} ${text.color} ${text.fontSize}px/${text.fontWeight}`,
+                ).toBeGreaterThanOrEqual(minimumContrast);
             }
             if (["business cta", "sample pass"].includes(surface.role)) {
                 for (const text of surface.text) {

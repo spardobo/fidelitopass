@@ -191,6 +191,7 @@ test("required registration text and native select recover without blocking subm
     const timezone = page.locator("select[name='timezone']");
 
     await expect(timezone).toHaveAttribute("required");
+    await timezone.selectOption("");
 
     for (const control of [name, timezone]) {
         await expectValidity(control, {
