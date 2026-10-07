@@ -285,7 +285,7 @@ new #[Title('Security settings')] class extends Component {
                                         <flux:icon.key class="size-5 text-zinc-300" />
                                     </div>
                                     <div class="space-y-1">
-                                        <div class="flex items-center gap-2.5">
+                                        <div class="flex items-center gap-3">
                                             <p class="font-medium tracking-tight">{{ $passkey['name'] }}</p>
                                             @if ($passkey['authenticator'])
                                                 <flux:badge size="sm">{{ $passkey['authenticator'] }}</flux:badge>

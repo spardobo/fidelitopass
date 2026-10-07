@@ -30,11 +30,11 @@ return [
         'pass_aria' => 'Pase de ejemplo de CAFÉ CENTRAL',
         'sample' => [
             'business' => 'CAFÉ CENTRAL',
-            'challenge_label' => '🎯 PROMOCIÓN',
+            'challenge_label' => 'PROMOCIÓN',
             'challenge_description' => 'Consigue 15 puntos antes del 30 SEP.',
             'progress' => '9 / 15 puntos',
-            'visit_value' => '⚡ Puntos extra: 2 puntos los martes.',
-            'reward' => '🎁 Hamburguesa gratis',
+            'visit_value' => 'Puntos extra: 2 puntos los martes.',
+            'reward' => 'Un consumo de cortesía',
             'deadline' => 'Válido hasta 30 SEP',
             'qr_alt' => 'QR de ejemplo',
             'manual_code_label' => 'Código manual',
@@ -75,7 +75,7 @@ return [
         'heading' => 'Una meta con fecha. Una visita que suma.',
         'description' => 'Cada Promoción propone alcanzar una meta de puntos antes de una fecha para obtener una recompensa.',
         'detail' => 'Cada visita habitual suma 1 punto. Ofrece Puntos extra en los días u horarios definidos para tu Promoción.',
-        'example_note' => 'Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene una hamburguesa.',
+        'example_note' => 'Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.',
     ],
     'wallet' => [
         'eyebrow' => 'Un Pase para volver',

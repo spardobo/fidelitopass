@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['name', 'timezone'])]
+#[Fillable(['name', 'timezone', 'pass_background_color'])]
 class Business extends Model
 {
     /** @use HasFactory<BusinessFactory> */
