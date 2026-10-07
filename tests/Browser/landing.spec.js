@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-const widths = [375, 768, 1024, 1280];
-const navigation = [
+const VIEWPORT_WIDTHS = [375, 768, 1024, 1280];
+const EXPECTED_NAVIGATION = [
     ["#benefits", "Beneficios"],
     ["#how-it-works", "Cómo funciona"],
     ["#challenges", "Promociones"],
@@ -11,28 +11,68 @@ const navigation = [
 ];
 
 async function expectOrderedNavigation(nav) {
-    await expect(nav.locator("a")).toHaveCount(navigation.length);
+    await expect(nav.locator("a")).toHaveCount(EXPECTED_NAVIGATION.length);
     expect(
         await nav
             .locator("a")
             .evaluateAll((links) =>
                 links.map((link) => [link.getAttribute("href"), link.textContent.trim()]),
             ),
-    ).toEqual(navigation);
+    ).toEqual(EXPECTED_NAVIGATION);
+}
+
+async function waitForFonts(page) {
+    await page.evaluate(() => document.fonts.ready);
+}
+
+async function expectNoHorizontalOverflow(page) {
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+    );
+}
+
+async function getPassFixture(page) {
+    const pass = page.locator("[data-pass]");
+    const bounds = await page.locator("[data-thumbnail]").boundingBox();
+
+    return { pass, bounds };
+}
+
+async function expectVisibleAtRest(locator) {
+    await expect(locator).toHaveCSS("opacity", "1");
+    await expect(locator).toHaveCSS("transform", "none");
+}
+
+async function applyCssVariables(page, values) {
+    await page.evaluate((variables) => {
+        for (const [name, value] of Object.entries(variables)) {
+            document.documentElement.style.setProperty(name, value);
+        }
+    }, values);
+}
+
+async function removeCssVariables(page, names) {
+    await page.evaluate((variables) => {
+        for (const name of variables) {
+            document.documentElement.style.removeProperty(name);
+        }
+    }, names);
 }
 
 test("sample pass responds with a stronger bounded mouse tilt and returns to rest", async ({
     page,
 }) => {
     await page.goto("/");
-    const pass = page.locator("[data-pass]");
-    const bounds = await page.locator("[data-thumbnail]").boundingBox();
+
+    const { pass, bounds } = await getPassFixture(page);
+
     await pass.dispatchEvent("pointermove", {
         pointerType: "mouse",
         clientX: bounds.x + bounds.width,
         clientY: bounds.y,
     });
-    const angle = () =>
+
+    const tiltAngleDegrees = () =>
         pass.evaluate((el) => {
             const matrix = new DOMMatrix(getComputedStyle(el).transform);
             return (
@@ -43,10 +83,11 @@ test("sample pass responds with a stronger bounded mouse tilt and returns to res
                 Math.PI
             );
         });
-    await expect.poll(angle).toBeGreaterThan(7.5);
-    const settledAngle = await angle();
+    await expect.poll(tiltAngleDegrees).toBeGreaterThan(7.5);
+    const settledAngle = await tiltAngleDegrees();
     console.log("pass-tilt-degrees", settledAngle);
     expect(settledAngle).toBeLessThanOrEqual(8.1);
+
     await pass.dispatchEvent("pointerleave");
     await expect(pass).toHaveCSS("transform", "none");
 });
@@ -70,6 +111,7 @@ test("initially visible benefits play a real entrance transition once", async ({
         requestAnimationFrame(record);
     });
     await page.goto("/");
+
     await expect
         .poll(() => page.evaluate(() => window.benefitsFrames.length))
         .toBeGreaterThanOrEqual(90);
@@ -88,8 +130,7 @@ test("initially visible benefits play a real entrance transition once", async ({
     expect(frames.some((frame) => frame.opacity > 0 && frame.opacity < 1 && frame.y > 0)).toBe(
         true,
     );
-    await expect(page.locator("#benefits")).toHaveCSS("opacity", "1");
-    await expect(page.locator("#benefits")).toHaveCSS("transform", "none");
+    await expectVisibleAtRest(page.locator("#benefits"));
     await page.locator("footer").scrollIntoViewIfNeeded();
     await page.locator("#home").scrollIntoViewIfNeeded();
     await expect(page.locator("#benefits")).toHaveCSS("opacity", "1");
@@ -98,10 +139,12 @@ test("initially visible benefits play a real entrance transition once", async ({
 test("landing typography uses the loaded local Onest and responsive editorial roles", async ({
     page,
 }) => {
-    for (const width of widths) {
+    for (const width of VIEWPORT_WIDTHS) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto("/");
-        await page.evaluate(() => document.fonts.ready);
+
+        await waitForFonts(page);
+
         const roles = await page.evaluate(() => {
             const style = (selector) => {
                 const computed = getComputedStyle(document.querySelector(selector));
@@ -131,27 +174,27 @@ test("landing typography uses the loaded local Onest and responsive editorial ro
                     const element = document.querySelector(selector);
                     return element ? getComputedStyle(element).color : `missing:${selector}`;
                 }),
-                loginLinkInk: getComputedStyle(document.querySelector('#home a[href$="/login"]')).color,
+                loginLinkInk: getComputedStyle(document.querySelector('#home a[href$="/login"]'))
+                    .color,
             };
         });
         console.log("landing-computed-roles", width, JSON.stringify(roles));
+
         expect(roles.loaded).toBe(true);
         expect(roles.family).toContain("Onest Variable");
-        expect(roles.hero).toEqual(
-            width < 768
-                ? ["36px", "40px", "600"]
-                : width < 1024
-                  ? ["36px", "40px", "600"]
-                  : width < 1120
-                    ? ["40px", "44px", "600"]
-                    : ["44px", "48px", "600"],
-        );
+        let expectedHeroTypography = ["36px", "40px", "600"];
+
+        if (width >= 1120) {
+            expectedHeroTypography = ["44px", "48px", "600"];
+        } else if (width >= 1024) {
+            expectedHeroTypography = ["40px", "44px", "600"];
+        }
+
+        expect(roles.hero).toEqual(expectedHeroTypography);
         expect(roles.section).toEqual(
             width < 768 ? ["28px", "36px", "600"] : ["32px", "40px", "600"],
         );
-        expect(roles.card).toEqual(
-            width < 768 ? ["20px", "28px", "600"] : ["24px", "32px", "600"],
-        );
+        expect(roles.card).toEqual(width < 768 ? ["20px", "28px", "600"] : ["24px", "32px", "600"]);
         expect(roles.statement).toEqual(
             width < 768 ? ["28px", "36px", "600"] : ["32px", "40px", "600"],
         );
@@ -176,7 +219,9 @@ test("public copy preserves sample pass typography and contextual paragraph ink"
     for (const width of [375, 1280]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto("/");
-        await page.evaluate(() => document.fonts.ready);
+
+        await waitForFonts(page);
+
         const sample = await page.locator("[data-pass]").evaluate((pass) => {
             const typography = (element) => {
                 const style = getComputedStyle(element);
@@ -197,6 +242,7 @@ test("public copy preserves sample pass typography and contextual paragraph ink"
             ["14px", "20px", "600", ink],
             ["20px", "28px", "600", ink],
         ]);
+
         const composition = await page.locator("[data-pass]").evaluate((pass) => {
             const middle = pass.querySelector(".app-pass-preview-content");
             const qr = middle.querySelector(".app-pass-preview-qr");
@@ -204,6 +250,7 @@ test("public copy preserves sample pass typography and contextual paragraph ink"
             const manualCode = footer.querySelector(".app-pass-preview-manual-code");
             const middleCopy = middle.querySelector(".app-pass-preview-copy");
             const footerCopy = footer.firstElementChild;
+
             const qrBounds = qr.getBoundingClientRect();
             const middleBounds = middle.getBoundingClientRect();
             const footerBounds = footer.getBoundingClientRect();
@@ -213,15 +260,27 @@ test("public copy preserves sample pass typography and contextual paragraph ink"
 
             return {
                 qrInsideMiddle: middle.contains(qr),
-                qrWithinMiddle: qrBounds.top >= middleBounds.top && qrBounds.bottom <= middleBounds.bottom,
+                qrWithinMiddle:
+                    qrBounds.top >= middleBounds.top && qrBounds.bottom <= middleBounds.bottom,
                 footerFollowsMiddle: footerBounds.top >= middleBounds.bottom,
                 manualInsideFooter: footer.contains(manualCode),
-                manualWithinFooter: manualBounds.top >= footerBounds.top && manualBounds.bottom <= footerBounds.bottom,
-                qrCentered: Math.abs((qrBounds.top + qrBounds.bottom) / 2 - (middleCopyBounds.top + middleCopyBounds.bottom) / 2) <= 1,
-                manualCentered: Math.abs((manualBounds.top + manualBounds.bottom) / 2 - (footerCopyBounds.top + footerCopyBounds.bottom) / 2) <= 1,
+                manualWithinFooter:
+                    manualBounds.top >= footerBounds.top &&
+                    manualBounds.bottom <= footerBounds.bottom,
+                qrCentered:
+                    Math.abs(
+                        (qrBounds.top + qrBounds.bottom) / 2 -
+                            (middleCopyBounds.top + middleCopyBounds.bottom) / 2,
+                    ) <= 1,
+                manualCentered:
+                    Math.abs(
+                        (manualBounds.top + manualBounds.bottom) / 2 -
+                            (footerCopyBounds.top + footerCopyBounds.bottom) / 2,
+                    ) <= 1,
                 rewardWeight: getComputedStyle(footer.querySelector("p")).fontWeight,
             };
         });
+
         expect(composition).toEqual({
             qrInsideMiddle: true,
             qrWithinMiddle: true,
@@ -232,6 +291,7 @@ test("public copy preserves sample pass typography and contextual paragraph ink"
             manualCentered: true,
             rewardWeight: "700",
         });
+
         for (const [selector, color] of [
             [
                 "#benefits > div:first-child > p:last-child, #how-it-works > p:nth-of-type(2), #pass > p:nth-of-type(2)",
@@ -284,10 +344,12 @@ test("public links preserve inherited ink weight decoration and keyboard focus",
     for (const width of [375, 1280]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto("/");
+
         await page.mouse.move(0, 0);
         if (width < 1280) await page.locator(".landing-menu summary").click();
         const nav = page.locator(width < 1280 ? ".landing-menu nav" : "header > div > nav");
         await expectOrderedNavigation(nav);
+
         for (const [links, ink, decoration, size] of [
             [nav.locator("a"), "rgb(246, 245, 242)", "none", width < 1280 ? "16px" : "14px"],
             [page.locator("footer a"), "rgb(224, 224, 224)", "none", "14px"],
@@ -336,6 +398,7 @@ test("hero outer gaps are bounded by the existing major section rhythm", async (
         for (const height of [900, 1600]) {
             await page.setViewportSize({ width, height });
             await page.goto("/");
+
             const geometry = await page.locator("#home").evaluate((hero) => {
                 const rect = hero.getBoundingClientRect();
                 const benefits = document.querySelector("#benefits");
@@ -350,6 +413,7 @@ test("hero outer gaps are bounded by the existing major section rhythm", async (
                     titleTop: benefits.firstElementChild.getBoundingClientRect().top,
                 };
             });
+
             console.log("bounded-hero", width, height, JSON.stringify(geometry));
             expect(geometry.topGap).toBeLessThanOrEqual(geometry.sectionSpace);
             expect(geometry.bottomGap).toBeLessThanOrEqual(geometry.sectionSpace);
@@ -368,7 +432,8 @@ test("organic hero preserves base main padding and a centered nominal cap", asyn
     for (const height of [1200, 900, 729, 540]) {
         await page.setViewportSize({ width: 1280, height });
         await page.goto("/");
-        await page.evaluate(() => document.fonts.ready);
+
+        await waitForFonts(page);
         const geometry = await page.locator("#home").evaluate((hero) => {
             const rect = hero.getBoundingClientRect();
             const header = document.querySelector("header").getBoundingClientRect();
@@ -388,6 +453,7 @@ test("organic hero preserves base main padding and a centered nominal cap", asyn
     }
     await page.setViewportSize({ width: 375, height: 540 });
     await page.goto("/");
+
     const mobile = await page.locator("#home").evaluate((hero) => ({
         base: getComputedStyle(document.querySelector("main")).paddingTop,
         top:
@@ -404,8 +470,10 @@ test("shared tracks retain accessible main and banner landmarks and skip-link fo
     page,
 }) => {
     await page.goto("/");
+
     await expect(page.getByRole("banner")).toHaveCount(1);
     await expect(page.getByRole("main")).toHaveCount(1);
+
     const roles = await page.context().newCDPSession(page);
     const tree = await roles.send("Accessibility.getFullAXTree");
     expect(tree.nodes.filter((node) => !node.ignored && node.role?.value === "main")).toHaveLength(
@@ -420,10 +488,6 @@ test("shared tracks retain accessible main and banner landmarks and skip-link fo
     await expect(page).toHaveURL(/#content$/);
 });
 
-// --------------------------
-// hero layout
-// --------------------------
-
 test("runtime fits the hero without ResizeObserver while no-JS remains readable", async ({
     browser,
 }) => {
@@ -432,103 +496,124 @@ test("runtime fits the hero without ResizeObserver while no-JS remains readable"
             viewport: { width: 1280, height: 900 },
             javaScriptEnabled: mode !== "disabled",
         });
-        if (mode === "no-resize-observer")
-            await context.addInitScript(() => {
-                window.ResizeObserver = undefined;
+        try {
+            if (mode === "no-resize-observer") {
+                await context.addInitScript(() => {
+                    window.ResizeObserver = undefined;
+                });
+            }
+            const page = await context.newPage();
+            await page.goto("/");
+
+            const layout = await page.evaluate(() => {
+                const header = document.querySelector("header").getBoundingClientRect();
+                const main = document.querySelector("main").getBoundingClientRect();
+                const hero = document.querySelector("#home").getBoundingClientRect();
+                return {
+                    headerBottom: header.bottom,
+                    mainTop: main.top,
+                    heroTop: hero.top,
+                    heroHeight: hero.height,
+                    heroBottom: hero.bottom,
+                };
             });
-        const page = await context.newPage();
-        await page.goto("/");
-        const layout = await page.evaluate(() => {
-            const header = document.querySelector("header").getBoundingClientRect();
-            const main = document.querySelector("main").getBoundingClientRect();
-            const hero = document.querySelector("#home").getBoundingClientRect();
-            return {
-                headerBottom: header.bottom,
-                mainTop: main.top,
-                heroTop: hero.top,
-                heroHeight: hero.height,
-                heroBottom: hero.bottom,
-            };
-        });
-        expect(layout.heroTop - layout.headerBottom, mode).toBeGreaterThan(0);
-        expect(layout.mainTop, mode).toBeCloseTo(layout.headerBottom, 0);
-        expect(layout.heroHeight, mode).toBeGreaterThan(0);
-        if (mode === "no-resize-observer") {
-            expect(layout.heroHeight, mode).toBeCloseTo(704, 0);
-            expect(layout.heroTop - layout.headerBottom).toBeCloseTo(900 - layout.heroBottom, 0);
-            await expect(page.locator("#business")).toHaveAttribute("data-reveal", "pending");
-            await page.locator("main").evaluate((main) => {
-                main.style.paddingTop = "80px";
-                for (let index = 0; index < 5; index++) window.dispatchEvent(new Event("resize"));
-            });
-            await expect
-                .poll(() =>
-                    page.locator("#home").evaluate((hero) => hero.getBoundingClientRect().height),
-                )
-                .toBeCloseTo(649, 0);
-            expect(
-                await page
-                    .locator("#home")
-                    .evaluate(
-                        (hero) =>
-                            hero.getBoundingClientRect().top -
-                            document.querySelector("header").getBoundingClientRect().bottom,
-                    ),
-            ).toBeCloseTo(80, 0);
-            await page.locator("main").evaluate((main) => {
-                main.style.removeProperty("padding-top");
-                window.dispatchEvent(new Event("resize"));
-            });
-            await page.locator("header").evaluate((header) => {
-                header.style.paddingBottom = "20px";
-                window.dispatchEvent(new Event("resize"));
-            });
-            await expect
-                .poll(() =>
-                    page.locator("#home").evaluate((hero) => {
-                        const box = hero.getBoundingClientRect();
-                        return Math.abs(
-                            box.top -
-                                document.querySelector("header").getBoundingClientRect().bottom -
-                                (innerHeight - box.bottom),
-                        );
-                    }),
-                )
-                .toBeLessThan(1);
-            await page.setViewportSize({ width: 1280, height: 540 });
-            await expect
-                .poll(() =>
-                    page
+            expect(layout.heroTop - layout.headerBottom, mode).toBeGreaterThan(0);
+            expect(layout.mainTop, mode).toBeCloseTo(layout.headerBottom, 0);
+            expect(layout.heroHeight, mode).toBeGreaterThan(0);
+
+            if (mode === "no-resize-observer") {
+                expect(layout.heroHeight, mode).toBeCloseTo(704, 0);
+                expect(layout.heroTop - layout.headerBottom).toBeCloseTo(
+                    900 - layout.heroBottom,
+                    0,
+                );
+                await expect(page.locator("#business")).toHaveAttribute("data-reveal", "pending");
+
+                await page.locator("main").evaluate((main) => {
+                    main.style.paddingTop = "80px";
+                    for (let index = 0; index < 5; index++) {
+                        window.dispatchEvent(new Event("resize"));
+                    }
+                });
+                await expect
+                    .poll(() =>
+                        page
+                            .locator("#home")
+                            .evaluate((hero) => hero.getBoundingClientRect().height),
+                    )
+                    .toBeCloseTo(649, 0);
+                expect(
+                    await page
                         .locator("#home")
-                        .evaluate((hero) => parseFloat(getComputedStyle(hero).marginTop)),
-                )
-                .toBe(0);
-            expect(
-                await page
-                    .locator("#home")
-                    .evaluate(
-                        (hero) =>
-                            hero.getBoundingClientRect().top -
-                            document.querySelector("header").getBoundingClientRect().bottom,
-                    ),
-            ).toBeCloseTo(40, 0);
-        } else {
-            await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-            await expect(page.locator("#business")).toHaveCSS("opacity", "1");
-            await expect(page.locator(".landing-world")).toHaveCSS(
-                "background-color",
-                "rgb(36, 36, 36)",
-            );
-            await expect(page.locator("#home")).toHaveCSS("background-color", "rgb(46, 46, 46)");
-            expect(layout.heroBottom).toBeGreaterThan(layout.heroTop);
+                        .evaluate(
+                            (hero) =>
+                                hero.getBoundingClientRect().top -
+                                document.querySelector("header").getBoundingClientRect().bottom,
+                        ),
+                ).toBeCloseTo(80, 0);
+
+                await page.locator("main").evaluate((main) => {
+                    main.style.removeProperty("padding-top");
+                    window.dispatchEvent(new Event("resize"));
+                });
+                await page.locator("header").evaluate((header) => {
+                    header.style.paddingBottom = "20px";
+                    window.dispatchEvent(new Event("resize"));
+                });
+
+                await expect
+                    .poll(() =>
+                        page.locator("#home").evaluate((hero) => {
+                            const box = hero.getBoundingClientRect();
+                            const headerBottom = document
+                                .querySelector("header")
+                                .getBoundingClientRect().bottom;
+
+                            return Math.abs(box.top - headerBottom - (innerHeight - box.bottom));
+                        }),
+                    )
+                    .toBeLessThan(1);
+
+                await page.setViewportSize({ width: 1280, height: 540 });
+                await expect
+                    .poll(() =>
+                        page
+                            .locator("#home")
+                            .evaluate((hero) => parseFloat(getComputedStyle(hero).marginTop)),
+                    )
+                    .toBe(0);
+                expect(
+                    await page
+                        .locator("#home")
+                        .evaluate(
+                            (hero) =>
+                                hero.getBoundingClientRect().top -
+                                document.querySelector("header").getBoundingClientRect().bottom,
+                        ),
+                ).toBeCloseTo(40, 0);
+            } else {
+                await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+                await expect(page.locator("#business")).toHaveCSS("opacity", "1");
+                await expect(page.locator(".landing-world")).toHaveCSS(
+                    "background-color",
+                    "rgb(36, 36, 36)",
+                );
+                await expect(page.locator("#home")).toHaveCSS(
+                    "background-color",
+                    "rgb(46, 46, 46)",
+                );
+                expect(layout.heroBottom).toBeGreaterThan(layout.heroTop);
+            }
+        } finally {
+            await context.close();
         }
-        await context.close();
     }
 });
 
 test("measured hero distributes unused space symmetrically", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
+
     const geometry = await page.evaluate(() => {
         const main = document.querySelector("main");
         const hero = document.querySelector("#home").getBoundingClientRect();
@@ -550,6 +635,7 @@ test("hero text and controls remain inside their panel at 200 percent text size"
     for (const width of [320, 375, 1280]) {
         await page.setViewportSize({ width, height: 700 });
         await page.goto("/");
+
         await page.evaluate(() => {
             document.documentElement.style.fontSize = "32px";
         });
@@ -599,6 +685,7 @@ test("landing observers disconnect when its Livewire root is removed without nav
         }
     });
     await page.goto("/");
+
     await expect(page.locator("#business")).toHaveAttribute("data-reveal", "pending");
     await page.locator(".landing-world").evaluate((root) => root.remove());
     await expect
@@ -623,6 +710,7 @@ test("overlapping navigation and disposal restore visible content and allow one 
         };
     });
     await page.goto("/");
+
     const closing = page.locator("#business");
     await expect(closing).toHaveAttribute("data-reveal", "pending");
     const replay = () =>
@@ -640,14 +728,12 @@ test("overlapping navigation and disposal restore visible content and allow one 
         document.dispatchEvent(new Event("livewire:navigating"));
         document.dispatchEvent(new Event("livewire:navigating"));
     });
-    await expect(closing).toHaveCSS("opacity", "1");
-    await expect(closing).toHaveCSS("transform", "none");
+    await expectVisibleAtRest(closing);
     await replay();
     expect(await page.evaluate(() => window.createdLandingObservers)).toBe(initialObservers + 1);
     await replay();
     expect(await page.evaluate(() => window.createdLandingObservers)).toBe(initialObservers + 1);
-    const pass = page.locator("[data-pass]");
-    const bounds = await page.locator("[data-thumbnail]").boundingBox();
+    const { pass, bounds } = await getPassFixture(page);
     await pass.dispatchEvent("pointermove", {
         pointerType: "mouse",
         clientX: bounds.x + bounds.width,
@@ -666,9 +752,9 @@ test("replacing actual hero nodes reconnects sizing and pointer behavior without
     page,
 }) => {
     await page.goto("/");
+
     await page.locator("#home").evaluate((hero) => hero.replaceWith(hero.cloneNode(true)));
-    const pass = page.locator("[data-pass]");
-    const bounds = await page.locator("[data-thumbnail]").boundingBox();
+    const { pass, bounds } = await getPassFixture(page);
     await pass.dispatchEvent("pointermove", {
         pointerType: "mouse",
         clientX: bounds.x + bounds.width,
@@ -706,6 +792,7 @@ test("a pending tagline cadence completes visibly when reduced motion changes", 
         };
     });
     await page.goto("/");
+
     await expect.poll(() => page.evaluate(() => typeof window.startTagline)).toBe("function");
     await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
     await page.clock.pauseAt(new Date("2026-01-01T00:00:10Z"));
@@ -731,6 +818,7 @@ test("reduced motion during an active section entrance restores its final visibl
 }) => {
     await page.setViewportSize({ width: 1280, height: 1200 });
     await page.goto("/");
+
     const benefits = page.locator("#benefits");
     await expect
         .poll(() =>
@@ -741,8 +829,7 @@ test("reduced motion during an active section entrance restores its final visibl
         )
         .toBe(true);
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect(benefits).toHaveCSS("opacity", "1");
-    await expect(benefits).toHaveCSS("transform", "none");
+    await expectVisibleAtRest(benefits);
     await expect(page.locator("#business")).toHaveCSS("opacity", "1");
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await expect(benefits).toHaveCSS("opacity", "1");
@@ -752,6 +839,7 @@ test("reduced motion during an active section entrance restores its final visibl
 test("short desktop hero grows naturally without negative margins", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 540 });
     await page.goto("/");
+
     const layout = await page.locator("#home").evaluate((hero) => {
         const rect = hero.getBoundingClientRect();
         return {
@@ -775,6 +863,7 @@ test("hero occupies the first visible screen without clipping its content", asyn
     ]) {
         await page.setViewportSize({ width, height });
         await page.goto("/");
+
         const layout = await page.evaluate(() => {
             const hero = document.querySelector("#home");
             const first = document.querySelector("#benefits");
@@ -808,6 +897,7 @@ test("sections reveal once on entry and stay readable with motion disabled or no
 }) => {
     await page.setViewportSize({ width: 375, height: 700 });
     await page.goto("/");
+
     const hero = page.locator("#home");
     const closing = page.locator("#business");
     await expect(hero).toHaveCSS("opacity", "1");
@@ -816,8 +906,7 @@ test("sections reveal once on entry and stay readable with motion disabled or no
         24,
     );
     await closing.scrollIntoViewIfNeeded();
-    await expect(closing).toHaveCSS("opacity", "1");
-    await expect(closing).toHaveCSS("transform", "none");
+    await expectVisibleAtRest(closing);
     await expect(closing).toHaveCSS("transition-duration", "0.5s, 0.5s");
     await expect(closing).toHaveCSS("transition-timing-function", "ease-out, ease-out");
     await hero.scrollIntoViewIfNeeded();
@@ -844,26 +933,33 @@ test("sections reveal once on entry and stay readable with motion disabled or no
     await expect(closing).toHaveCSS("opacity", "1");
 
     const withoutObserver = await browser.newContext({ viewport: { width: 375, height: 700 } });
-    await withoutObserver.addInitScript(() => {
-        window.IntersectionObserver = undefined;
-    });
-    const withoutObserverPage = await withoutObserver.newPage();
-    await withoutObserverPage.goto("/");
-    await expect(withoutObserverPage.locator("#business")).toHaveCSS("opacity", "1");
-    await withoutObserver.close();
+    try {
+        await withoutObserver.addInitScript(() => {
+            window.IntersectionObserver = undefined;
+        });
+        const withoutObserverPage = await withoutObserver.newPage();
+        await withoutObserverPage.goto("/");
+        await expect(withoutObserverPage.locator("#business")).toHaveCSS("opacity", "1");
+    } finally {
+        await withoutObserver.close();
+    }
 
     const fallback = await browser.newContext({
         javaScriptEnabled: false,
         viewport: { width: 375, height: 700 },
     });
-    const fallbackPage = await fallback.newPage();
-    await fallbackPage.goto("/");
-    await expect(fallbackPage.locator("#business")).toHaveCSS("opacity", "1");
-    await fallback.close();
+    try {
+        const fallbackPage = await fallback.newPage();
+        await fallbackPage.goto("/");
+        await expect(fallbackPage.locator("#business")).toHaveCSS("opacity", "1");
+    } finally {
+        await fallback.close();
+    }
 });
 
 test("the emphasized benefit keeps on-dark ink across appearance preferences", async ({ page }) => {
     await page.goto("/");
+
     const card = page.locator("#benefits article").first();
     const heading = card.locator("h3");
     await expect(card).toHaveCSS("background-color", "rgb(61, 46, 85)");
@@ -886,7 +982,8 @@ test("shared palette and matching exterior gaps preserve public geometry", async
     ]) {
         await page.setViewportSize({ width, height });
         await page.goto("/");
-        await page.evaluate(() => document.fonts.ready);
+
+        await waitForFonts(page);
         const geometry = await page.locator("main").evaluate((main) => {
             const style = getComputedStyle(main);
             const hero = document.querySelector("#home");
@@ -895,6 +992,11 @@ test("shared palette and matching exterior gaps preserve public geometry", async
             const last = main.lastElementChild;
             const headerRowStyle = getComputedStyle(header.firstElementChild);
             const footerStyle = getComputedStyle(footer);
+            const footerBox = footer.getBoundingClientRect();
+            const lastBox = last.getBoundingClientRect();
+            const headerBox = header.getBoundingClientRect();
+            const heroBox = hero.getBoundingClientRect();
+
             return {
                 headerPadding: [headerRowStyle.paddingTop, headerRowStyle.paddingBottom],
                 footerPadding: [footerStyle.paddingTop, footerStyle.paddingBottom],
@@ -904,13 +1006,12 @@ test("shared palette and matching exterior gaps preserve public geometry", async
                     style.paddingBottom,
                     style.paddingLeft,
                 ],
-                footerGap: footer.getBoundingClientRect().top - last.getBoundingClientRect().bottom,
+                footerGap: footerBox.top - lastBox.bottom,
                 mainBottom: main.getBoundingClientRect().bottom,
-                footerTop: footer.getBoundingClientRect().top,
-                headerHeight: header.getBoundingClientRect().height,
-                heroHeight: hero.getBoundingClientRect().height,
-                heroTopGap:
-                    hero.getBoundingClientRect().top - header.getBoundingClientRect().bottom,
+                footerTop: footerBox.top,
+                headerHeight: headerBox.height,
+                heroHeight: heroBox.height,
+                heroTopGap: heroBox.top - headerBox.bottom,
                 heroBottomGap: parseFloat(getComputedStyle(hero).marginBottom),
             };
         });
@@ -946,6 +1047,7 @@ test("shared palette and matching exterior gaps preserve public geometry", async
         await expect(page.locator("#home")).toHaveCSS("background-color", "rgb(46, 46, 46)");
     }
     await page.goto("/login");
+
     await expect(page.locator("body")).toHaveCSS("background-color", "rgb(36, 36, 36)");
 });
 
@@ -955,60 +1057,65 @@ test("active auth panels consume approved roles despite saved appearance", async
             viewport: { width: 375, height: 900 },
             colorScheme: "light",
         });
-        await context.addInitScript((value) => {
-            if (value === null) localStorage.removeItem("flux.appearance");
-            else localStorage.setItem("flux.appearance", value);
-        }, appearance);
-        const page = await context.newPage();
-        for (const route of ["/login", "/register"]) {
-            await page.goto(route);
-            await page.evaluate(() => document.fonts.ready);
-            const panel = page.locator("div.rounded-2xl").filter({ has: page.locator("form") });
-            const colors = await panel.evaluate((panel) => {
-                const background = getComputedStyle(panel).backgroundColor;
-                const ink = getComputedStyle(panel.querySelector("h1")).color;
-                const luminance = (color) => {
-                    const channels = color
-                        .match(/[\d.]+/g)
-                        .slice(0, 3)
-                        .map(Number)
-                        .map((channel) => {
-                            const value = channel / 255;
-                            return value <= 0.04045
-                                ? value / 12.92
-                                : ((value + 0.055) / 1.055) ** 2.4;
-                        });
-                    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-                };
-                const light = luminance(ink),
-                    dark = luminance(background);
-                return {
-                    canvas: getComputedStyle(document.body).backgroundColor,
-                    panel: background,
-                    accent: getComputedStyle(panel.querySelector('button[type="submit"]'))
-                        .backgroundColor,
-                    ink,
-                    contrast: (Math.max(light, dark) + 0.05) / (Math.min(light, dark) + 0.05),
-                };
-            });
-            console.log("auth-backgrounds", appearance, route, JSON.stringify(colors));
-            expect.soft(colors.canvas).toBe("rgb(36, 36, 36)");
-            expect.soft(colors.panel).toBe("rgb(46, 46, 46)");
-            expect.soft(colors.accent).toBe("rgb(167, 123, 255)");
-            expect(colors.contrast).toBeGreaterThanOrEqual(4.5);
-            await expect(page.locator("html")).toHaveClass(/\bdark\b/);
-            const input = page.locator('input[name="email"]');
-            await input.focus();
-            await expect(input).toBeFocused();
-            await expect(input).toBeEditable();
+        try {
+            await context.addInitScript((value) => {
+                if (value === null) localStorage.removeItem("flux.appearance");
+                else localStorage.setItem("flux.appearance", value);
+            }, appearance);
+            const page = await context.newPage();
+            for (const route of ["/login", "/register"]) {
+                await page.goto(route);
+
+                await waitForFonts(page);
+                const panel = page.locator("div.rounded-2xl").filter({ has: page.locator("form") });
+                const colors = await panel.evaluate((panel) => {
+                    const background = getComputedStyle(panel).backgroundColor;
+                    const ink = getComputedStyle(panel.querySelector("h1")).color;
+                    const luminance = (color) => {
+                        const channels = color
+                            .match(/[\d.]+/g)
+                            .slice(0, 3)
+                            .map(Number)
+                            .map((channel) => {
+                                const value = channel / 255;
+                                return value <= 0.04045
+                                    ? value / 12.92
+                                    : ((value + 0.055) / 1.055) ** 2.4;
+                            });
+                        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+                    };
+                    const light = luminance(ink),
+                        dark = luminance(background);
+                    return {
+                        canvas: getComputedStyle(document.body).backgroundColor,
+                        panel: background,
+                        accent: getComputedStyle(panel.querySelector('button[type="submit"]'))
+                            .backgroundColor,
+                        ink,
+                        contrast: (Math.max(light, dark) + 0.05) / (Math.min(light, dark) + 0.05),
+                    };
+                });
+                console.log("auth-backgrounds", appearance, route, JSON.stringify(colors));
+                expect.soft(colors.canvas).toBe("rgb(36, 36, 36)");
+                expect.soft(colors.panel).toBe("rgb(46, 46, 46)");
+                expect.soft(colors.accent).toBe("rgb(167, 123, 255)");
+                expect(colors.contrast).toBeGreaterThanOrEqual(4.5);
+                await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+                const input = page.locator('input[name="email"]');
+                await input.focus();
+                await expect(input).toBeFocused();
+                await expect(input).toBeEditable();
+            }
+        } finally {
+            await context.close();
         }
-        await context.close();
     }
 });
 
 test("global application palette edits propagate to public and auth roles", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
+
     await page.mouse.move(0, 0);
     const overrides = {
         "--color-app-canvas": "#202830",
@@ -1025,15 +1132,8 @@ test("global application palette edits propagate to public and auth roles", asyn
         ["#benefits article:first-child, #challenges", "rgb(80, 56, 96)"],
         ["[data-pass], #business, .landing-button-primary", "rgb(192, 144, 240)"],
     ];
-    const applyOverrides = () =>
-        page.evaluate((values) => {
-            for (const [name, value] of Object.entries(values))
-                document.documentElement.style.setProperty(name, value);
-        }, overrides);
-    const resetOverrides = () =>
-        page.evaluate((names) => {
-            for (const name of names) document.documentElement.style.removeProperty(name);
-        }, Object.keys(overrides));
+    const applyOverrides = () => applyCssVariables(page, overrides);
+    const resetOverrides = () => removeCssVariables(page, Object.keys(overrides));
 
     await applyOverrides();
     try {
@@ -1071,6 +1171,7 @@ test("global application palette edits propagate to public and auth roles", asyn
 
     for (const route of ["/login", "/register"]) {
         await page.goto(route);
+
         await applyOverrides();
         try {
             const panel = page.locator("div.rounded-2xl").filter({ has: page.locator("form") });
@@ -1095,41 +1196,48 @@ test("closing spacing survives scrolled resize and resets only with its layout o
             javaScriptEnabled: mode !== "no-javascript",
             reducedMotion: "reduce",
         });
-        if (mode === "no-resize-observer")
-            await context.addInitScript(() => {
-                window.ResizeObserver = undefined;
-            });
-        const page = await context.newPage();
-        await page.goto("/");
-        await page.evaluate(() => document.fonts.ready);
-        const main = page.locator("main");
-        await expect(main).toHaveCSS(
-            "padding-bottom",
-            mode === "no-javascript" ? "40px" : "52.5px",
-        );
-        if (mode !== "no-javascript") {
-            await page.locator("#business").scrollIntoViewIfNeeded();
-            await page.setViewportSize({ width: 1280, height: 1600 });
-            await expect(main).toHaveCSS("padding-bottom", "80px");
-            await main.evaluate((main) => main.replaceWith(main.cloneNode(true)));
-            await expect(main).toHaveCSS("padding-bottom", "80px");
-            const owned = await main.evaluate((main) =>
-                main.style.getPropertyValue("--landing-closing-gap"),
+        try {
+            if (mode === "no-resize-observer") {
+                await context.addInitScript(() => {
+                    window.ResizeObserver = undefined;
+                });
+            }
+            const page = await context.newPage();
+            await page.goto("/");
+
+            await waitForFonts(page);
+            const main = page.locator("main");
+            await expect(main).toHaveCSS(
+                "padding-bottom",
+                mode === "no-javascript" ? "40px" : "52.5px",
             );
-            expect(owned).toBe("80px");
-            await page.evaluate(() => document.dispatchEvent(new Event("livewire:navigating")));
-            await expect(main).toHaveCSS("padding-bottom", "40px");
-            expect(
-                await main.evaluate((main) => main.style.getPropertyValue("--landing-closing-gap")),
-            ).toBe("");
-            await page.setViewportSize({ width: 375, height: 900 });
-            await expect(main).toHaveCSS("padding-bottom", "32px");
-        } else {
-            await page.setViewportSize({ width: 375, height: 900 });
-            await expect(main).toHaveCSS("padding-bottom", "32px");
-            await expect(page.locator("#business")).toHaveCSS("opacity", "1");
+            if (mode !== "no-javascript") {
+                await page.locator("#business").scrollIntoViewIfNeeded();
+                await page.setViewportSize({ width: 1280, height: 1600 });
+                await expect(main).toHaveCSS("padding-bottom", "80px");
+                await main.evaluate((main) => main.replaceWith(main.cloneNode(true)));
+                await expect(main).toHaveCSS("padding-bottom", "80px");
+                const owned = await main.evaluate((main) =>
+                    main.style.getPropertyValue("--landing-closing-gap"),
+                );
+                expect(owned).toBe("80px");
+                await page.evaluate(() => document.dispatchEvent(new Event("livewire:navigating")));
+                await expect(main).toHaveCSS("padding-bottom", "40px");
+                expect(
+                    await main.evaluate((main) =>
+                        main.style.getPropertyValue("--landing-closing-gap"),
+                    ),
+                ).toBe("");
+                await page.setViewportSize({ width: 375, height: 900 });
+                await expect(main).toHaveCSS("padding-bottom", "32px");
+            } else {
+                await page.setViewportSize({ width: 375, height: 900 });
+                await expect(main).toHaveCSS("padding-bottom", "32px");
+                await expect(page.locator("#business")).toHaveCSS("opacity", "1");
+            }
+        } finally {
+            await context.close();
         }
-        await context.close();
     }
 });
 
@@ -1139,46 +1247,126 @@ test("public surface roles retain readable contextual ink across responsive view
     // motion is covered separately; settled surfaces expose their actual reading context.
     await page.emulateMedia({ reducedMotion: "reduce" });
     const roles = [
-        ["neutral benefit", "#benefits article:last-child", "rgb(46, 46, 46)", ["h3", "p"]],
-        ["canvas", ".landing-world", "rgb(36, 36, 36)", []],
-        ["header", "header", "rgb(36, 36, 36)", ["nav a"]],
-        ["footer", "footer", "rgb(36, 36, 36)", ["a"]],
-        ["hero", "#home", "rgb(46, 46, 46)", ["h1", "p[data-flux-text]"]],
-        ["emphasized benefit", "#benefits article:first-child", "rgb(61, 46, 85)", ["h3", "p"]],
-        ["steps", "#how-it-works li", "rgb(46, 46, 46)", ["span", "h3", "p"]],
-        ["faq", "#questions details", "rgb(46, 46, 46)", ["summary", "p"]],
-        ["promotion", "#challenges", "rgb(61, 46, 85)", ["h2", "p"]],
-        ["business cta", "#business", "rgb(167, 123, 255)", ["h2", "p"]],
-        ["sample pass", "[data-pass]", "rgb(167, 123, 255)", ["h2", "h3", "p"]],
-        ["menu", ".landing-menu nav", "rgb(46, 46, 46)", ["a"]],
+        {
+            role: "neutral benefit",
+            selector: "#benefits article:last-child",
+            expectedBackground: "rgb(46, 46, 46)",
+            textSelectors: ["h3", "p"],
+        },
+        {
+            role: "canvas",
+            selector: ".landing-world",
+            expectedBackground: "rgb(36, 36, 36)",
+            textSelectors: [],
+        },
+        {
+            role: "header",
+            selector: "header",
+            expectedBackground: "rgb(36, 36, 36)",
+            textSelectors: ["nav a"],
+        },
+        {
+            role: "footer",
+            selector: "footer",
+            expectedBackground: "rgb(36, 36, 36)",
+            textSelectors: ["a"],
+        },
+        {
+            role: "hero",
+            selector: "#home",
+            expectedBackground: "rgb(46, 46, 46)",
+            textSelectors: ["h1", "p[data-flux-text]"],
+        },
+        {
+            role: "emphasized benefit",
+            selector: "#benefits article:first-child",
+            expectedBackground: "rgb(61, 46, 85)",
+            textSelectors: ["h3", "p"],
+        },
+        {
+            role: "steps",
+            selector: "#how-it-works li",
+            expectedBackground: "rgb(46, 46, 46)",
+            textSelectors: ["span", "h3", "p"],
+        },
+        {
+            role: "faq",
+            selector: "#questions details",
+            expectedBackground: "rgb(46, 46, 46)",
+            textSelectors: ["summary", "p"],
+        },
+        {
+            role: "promotion",
+            selector: "#challenges",
+            expectedBackground: "rgb(61, 46, 85)",
+            textSelectors: ["h2", "p"],
+        },
+        {
+            role: "business cta",
+            selector: "#business",
+            expectedBackground: "rgb(167, 123, 255)",
+            textSelectors: ["h2", "p"],
+        },
+        {
+            role: "sample pass",
+            selector: "[data-pass]",
+            expectedBackground: "rgb(167, 123, 255)",
+            textSelectors: ["h2", "h3", "p"],
+        },
+        {
+            role: "menu",
+            selector: ".landing-menu nav",
+            expectedBackground: "rgb(46, 46, 46)",
+            textSelectors: ["a"],
+        },
     ];
 
     for (const [width, height] of [
-        ...widths.map((width) => [width, 900]),
+        ...VIEWPORT_WIDTHS.map((width) => [width, 900]),
         [375, 540],
         [1280, 540],
         [1280, 1600],
     ]) {
         await page.setViewportSize({ width, height });
         await page.goto("/");
-        if (width < 1280) await page.locator(".landing-menu summary").click();
+
+        if (width < 1280) {
+            await page.locator(".landing-menu summary").click();
+        }
         await page
             .locator("#questions details")
             .first()
             .evaluate((el) => {
                 el.open = true;
             });
+
         const matrix = await page.evaluate((roles) => {
             const channels = (color) => color.match(/[\d.]+/g).map(Number);
+
             // composite transparent ancestors; the pass's white sheen only improves dark-ink contrast.
             const effectiveBackground = (element) => {
-                if (!element) return [255, 255, 255];
-                const [r, g, b, alpha = 1] = channels(getComputedStyle(element).backgroundColor);
-                const behind = effectiveBackground(element.parentElement);
-                return [r, g, b].map(
-                    (channel, index) => channel * alpha + behind[index] * (1 - alpha),
+                if (!element) {
+                    return [255, 255, 255];
+                }
+
+                const [red, green, blue, alpha = 1] = channels(
+                    getComputedStyle(element).backgroundColor,
+                );
+                if (alpha === 1) {
+                    return [red, green, blue];
+                }
+
+                const ancestorBackground = effectiveBackground(element.parentElement);
+
+                if (alpha === 0) {
+                    return ancestorBackground;
+                }
+
+                return [red, green, blue].map(
+                    (channel, index) => channel * alpha + ancestorBackground[index] * (1 - alpha),
                 );
             };
+
             const luminance = (rgb) => {
                 const linear = rgb.map((channel) => {
                     const normalized = channel / 255;
@@ -1188,31 +1376,45 @@ test("public surface roles retain readable contextual ink across responsive view
                 });
                 return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
             };
-            return roles.flatMap(([role, selector, background, textSelectors]) =>
-                [...document.querySelectorAll(selector)].map((element) => ({
-                    role,
-                    expectedBackground: background,
-                    background: `rgb(${effectiveBackground(element).map(Math.round).join(", ")})`,
-                    text: textSelectors.flatMap((selector) =>
-                        [...element.querySelectorAll(selector)].map((text) => {
-                            const color = getComputedStyle(text).color;
-                            const [r, g, b, alpha = 1] = channels(color);
-                            const behind = effectiveBackground(text);
-                            const ink = [r, g, b].map(
-                                (channel, index) => channel * alpha + behind[index] * (1 - alpha),
+
+            const surfaces = [];
+
+            for (const { role, selector, expectedBackground, textSelectors } of roles) {
+                for (const element of document.querySelectorAll(selector)) {
+                    const surfaceBackground = effectiveBackground(element);
+                    const background = `rgb(${surfaceBackground.map(Math.round).join(", ")})`;
+                    const textMeasurements = [];
+
+                    for (const textSelector of textSelectors) {
+                        for (const textElement of element.querySelectorAll(textSelector)) {
+                            const color = getComputedStyle(textElement).color;
+                            const [red, green, blue, alpha = 1] = channels(color);
+                            const textBackground = effectiveBackground(textElement);
+                            const ink = [red, green, blue].map(
+                                (channel, index) =>
+                                    channel * alpha + textBackground[index] * (1 - alpha),
                             );
-                            const inkLuminance = luminance(ink),
-                                backgroundLuminance = luminance(behind);
-                            return {
-                                color,
-                                contrast:
-                                    (Math.max(inkLuminance, backgroundLuminance) + 0.05) /
-                                    (Math.min(inkLuminance, backgroundLuminance) + 0.05),
-                            };
-                        }),
-                    ),
-                })),
-            );
+
+                            const inkLuminance = luminance(ink);
+                            const backgroundLuminance = luminance(textBackground);
+                            const contrast =
+                                (Math.max(inkLuminance, backgroundLuminance) + 0.05) /
+                                (Math.min(inkLuminance, backgroundLuminance) + 0.05);
+
+                            textMeasurements.push({ color, contrast });
+                        }
+                    }
+
+                    surfaces.push({
+                        role,
+                        expectedBackground,
+                        background,
+                        text: textMeasurements,
+                    });
+                }
+            }
+
+            return surfaces;
         }, roles);
         console.log(
             "public-surface-matrix",
@@ -1230,22 +1432,25 @@ test("public surface roles retain readable contextual ink across responsive view
             ),
         );
         expect([...new Set(matrix.map((surface) => surface.role))]).toEqual(
-            roles.map(([role]) => role),
+            roles.map(({ role }) => role),
         );
         for (const surface of matrix) {
-            if (surface.role !== "canvas")
+            if (surface.role !== "canvas") {
                 expect(surface.text.length, surface.role).toBeGreaterThan(0);
+            }
             expect(surface.background, `${width}x${height} ${surface.role}`).toBe(
                 surface.expectedBackground,
             );
-            for (const text of surface.text)
+            for (const text of surface.text) {
                 expect(
                     text.contrast,
                     `${width}x${height} ${surface.role} ${text.color}`,
                 ).toBeGreaterThanOrEqual(4.5);
+            }
             if (["business cta", "sample pass"].includes(surface.role)) {
-                for (const text of surface.text)
+                for (const text of surface.text) {
                     expect(text.color, surface.role).toBe("rgb(23, 19, 31)");
+                }
             }
         }
     }
@@ -1255,6 +1460,7 @@ test("confirmed mechanics priority keeps on-dark heading body and example ink", 
     page,
 }) => {
     await page.goto("/");
+
     const mechanics = page.locator("#challenges");
 
     await expect(mechanics).toHaveCSS("background-color", "rgb(61, 46, 85)");
@@ -1268,6 +1474,7 @@ test("confirmed panel boundaries and separators retain neutral and priority role
     page,
 }) => {
     await page.goto("/");
+
     for (const [selector, color] of [
         [
             "#home, #benefits article:last-child, #how-it-works li, #questions details",
@@ -1323,6 +1530,7 @@ test("confirmed editorial hierarchy persists after entrance and every visibility
     };
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto("/");
+
     await page.locator("[data-tagline]").scrollIntoViewIfNeeded();
     await expect(page.locator("[data-tagline-word]:not(.is-lit)")).toHaveCount(0);
     await expectHierarchy(page);
@@ -1339,17 +1547,21 @@ test("confirmed editorial hierarchy persists after entrance and every visibility
             viewport: { width: 375, height: 812 },
             javaScriptEnabled: mode !== "no-js",
         });
-        if (mode === "no-observer")
-            await context.addInitScript(() => {
-                window.IntersectionObserver = undefined;
-            });
-        const fallback = await context.newPage();
-        await fallback.goto("/");
-        await expectHierarchy(fallback);
-        expect(
-            await fallback.evaluate(() => document.documentElement.scrollWidth > innerWidth),
-        ).toBe(false);
-        await context.close();
+        try {
+            if (mode === "no-observer") {
+                await context.addInitScript(() => {
+                    window.IntersectionObserver = undefined;
+                });
+            }
+            const fallback = await context.newPage();
+            await fallback.goto("/");
+            await expectHierarchy(fallback);
+            expect(
+                await fallback.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+            ).toBe(false);
+        } finally {
+            await context.close();
+        }
     }
 });
 
@@ -1357,6 +1569,7 @@ test("confirmed FAQ has a right decorative chevron with native keyboard toggle a
     page,
 }) => {
     await page.goto("/");
+
     const details = page.locator("#questions details").first();
     const summary = details.locator("summary");
     const icon = summary.locator("svg");
@@ -1366,12 +1579,18 @@ test("confirmed FAQ has a right decorative chevron with native keyboard toggle a
     await expect(summary).toHaveText("¿Qué es una Promoción de puntos?");
     await expect(summary).toHaveCSS("list-style-type", "none");
     await expect(icon).toHaveCSS("transform", "none");
-    const boxes = await summary.evaluate((el) => ({
-        text: el.querySelector("span").getBoundingClientRect().right,
-        icon: el.querySelector("svg").getBoundingClientRect().left,
-        right: el.getBoundingClientRect().right,
-        iconRight: el.querySelector("svg").getBoundingClientRect().right,
-    }));
+    const boxes = await summary.evaluate((element) => {
+        const summaryBox = element.getBoundingClientRect();
+        const textBox = element.querySelector("span").getBoundingClientRect();
+        const iconBox = element.querySelector("svg").getBoundingClientRect();
+
+        return {
+            text: textBox.right,
+            icon: iconBox.left,
+            right: summaryBox.right,
+            iconRight: iconBox.right,
+        };
+    });
     expect(boxes.icon).toBeGreaterThan(boxes.text);
     expect(boxes.iconRight).toBeCloseTo(boxes.right, 0);
     await summary.focus();
@@ -1391,6 +1610,7 @@ test("native Flux primitives preserve the public semantic hierarchy and real acc
     page,
 }) => {
     await page.goto("/");
+
     for (const [selector, level] of [
         ["#hero-title", "H1"],
         ["#benefits-title", "H2"],
@@ -1412,9 +1632,10 @@ test("native Flux primitives preserve the public semantic hierarchy and real acc
 test("public palette, focus and responsive hero geometry follow the landing roles", async ({
     page,
 }) => {
-    for (const width of widths) {
+    for (const width of VIEWPORT_WIDTHS) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto("/");
+
         const hero = page.locator("#home");
         const primary = hero.locator("a.landing-button");
         const sample = page.locator("[data-pass]");
@@ -1496,10 +1717,9 @@ test("desktop navigation follows the visible section order without horizontal ov
 }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
+
     await expectOrderedNavigation(page.locator("header > div > nav"));
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-        true,
-    );
+    await expectNoHorizontalOverflow(page);
     await page.locator('header > div > nav a[href="#benefits"]').click();
     await expect(page).toHaveURL(/#benefits$/);
     await expect
@@ -1515,10 +1735,11 @@ test("public landing scales the approved sample and keeps every section reachabl
 }, testInfo) => {
     test.setTimeout(60000);
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    for (const width of [320, ...widths, 1920]) {
+    for (const width of [320, ...VIEWPORT_WIDTHS, 1920]) {
         await page.setViewportSize({ width, height: width === 1920 ? 1080 : 900 });
         await page.goto("/");
-        await page.evaluate(() => document.fonts.ready);
+
+        await waitForFonts(page);
         await expect(
             page.getByRole("heading", {
                 level: 1,
@@ -1558,6 +1779,7 @@ test("public landing scales the approved sample and keeps every section reachabl
             "#pass",
         );
         await expect(page.getByRole("img", { name: "QR de ejemplo" })).toBeVisible();
+
         const stepNumbers = page.locator("#how-it-works ol > li > span");
         await expect(stepNumbers).toHaveText(["01", "02", "03"]);
         for (const stepNumber of await stepNumbers.all()) {
@@ -1567,13 +1789,16 @@ test("public landing scales the approved sample and keeps every section reachabl
         await expect(page.locator("[data-tagline-word]:not(.is-lit)")).toHaveCount(0);
         const taglineWords = page.locator("[data-tagline-word]");
         await expect(taglineWords.first()).toHaveCSS("color", "rgb(246, 245, 242)");
-        await expect(
-            taglineWords.filter({ hasText: /^recompensa\.$/ }),
-        ).toHaveCSS("color", "rgb(167, 123, 255)");
+        await expect(taglineWords.filter({ hasText: /^recompensa\.$/ })).toHaveCSS(
+            "color",
+            "rgb(167, 123, 255)",
+        );
         await expect(taglineWords.last()).toHaveCSS("color", "rgb(176, 172, 184)");
+
         await expect(page.locator("main")).not.toContainText(
             /landing\.[a-z_]+|tarjeta Wallet|Apple Wallet|tarjeta de sellos/,
         );
+
         const geometry = await page.evaluate(() => {
             const box = (selector) => {
                 const r = document.querySelector(selector).getBoundingClientRect();
@@ -1586,24 +1811,27 @@ test("public landing scales the approved sample and keeps every section reachabl
                     bottom: r.bottom,
                 };
             };
+            const thumbnail = document.querySelector("[data-thumbnail]");
+            const pass = document.querySelector("[data-pass]");
+            const thumbnailStyle = getComputedStyle(thumbnail);
+            const passStyle = getComputedStyle(pass);
+            const passBox = box("[data-pass]");
+            const renderedScale = passBox.width / pass.offsetWidth;
+
             return {
                 thumb: box("[data-thumbnail]"),
-                pass: box("[data-pass]"),
+                pass: passBox,
                 qr: box(".landing-pass-qr"),
                 code: box(".app-pass-preview-manual-code"),
-                thumbnailWidth: document.querySelector("[data-thumbnail]").clientWidth,
-                scale: getComputedStyle(document.querySelector("[data-thumbnail]")).getPropertyValue("--landing-scale"),
-                containerType: getComputedStyle(document.querySelector("[data-thumbnail]")).containerType,
-                containerName: getComputedStyle(document.querySelector("[data-thumbnail]")).containerName,
-                passOffsetWidth: document.querySelector("[data-pass]").offsetWidth,
-                passPadding: getComputedStyle(document.querySelector("[data-pass]")).paddingLeft,
+                thumbnailWidth: thumbnail.clientWidth,
+                scale: thumbnailStyle.getPropertyValue("--landing-scale"),
+                containerType: thumbnailStyle.containerType,
+                containerName: thumbnailStyle.containerName,
+                passOffsetWidth: pass.offsetWidth,
+                passPadding: passStyle.paddingLeft,
                 renderedPadding: {
-                    left:
-                        parseFloat(getComputedStyle(document.querySelector("[data-pass]")).paddingLeft) *
-                        (box("[data-pass]").width / document.querySelector("[data-pass]").offsetWidth),
-                    right:
-                        parseFloat(getComputedStyle(document.querySelector("[data-pass]")).paddingRight) *
-                        (box("[data-pass]").width / document.querySelector("[data-pass]").offsetWidth),
+                    left: parseFloat(passStyle.paddingLeft) * renderedScale,
+                    right: parseFloat(passStyle.paddingRight) * renderedScale,
                 },
                 cards: [...document.querySelectorAll("#benefits article")].map((e) => {
                     const r = e.getBoundingClientRect();
@@ -1613,35 +1841,42 @@ test("public landing scales the approved sample and keeps every section reachabl
             };
         });
         console.log("landing-card-padding", width, JSON.stringify(geometry));
+
         expect(geometry.pass.width).toBeCloseTo(geometry.thumb.width, 0);
         expect(geometry.pass.height).toBeCloseTo(geometry.thumb.height, 0);
         expect(geometry.pass.width / geometry.pass.height).toBeCloseTo(1.5, 2);
         expect(geometry.qr.x).toBeGreaterThan(geometry.pass.x + geometry.pass.width / 2);
         expect(geometry.code.y).toBeGreaterThan(geometry.qr.y);
         expect(geometry.code.bottom).toBeLessThanOrEqual(geometry.pass.bottom);
+
         if (width <= 375) {
             expect(geometry.renderedPadding.left).toBeGreaterThanOrEqual(15.99);
             expect(geometry.renderedPadding.right).toBeGreaterThanOrEqual(15.99);
         } else {
             expect(geometry.passPadding).toBe("24px");
         }
+
         expect(geometry.overflow).toBe(false);
-        const layout = await page.evaluate(() => ({
-            headerBottom: document.querySelector("header").getBoundingClientRect().bottom,
-            heroTop: document.querySelector("#home").getBoundingClientRect().top,
-            passCenter:
-                document.querySelector("[data-thumbnail]").getBoundingClientRect().top +
-                document.querySelector("[data-thumbnail]").getBoundingClientRect().height / 2,
-            copyCenter:
-                document.querySelector("#home > div").getBoundingClientRect().top +
-                document.querySelector("#home > div").getBoundingClientRect().height / 2,
-        }));
+
+        const layout = await page.evaluate(() => {
+            const thumbnailBox = document.querySelector("[data-thumbnail]").getBoundingClientRect();
+            const copyBox = document.querySelector("#home > div").getBoundingClientRect();
+
+            return {
+                headerBottom: document.querySelector("header").getBoundingClientRect().bottom,
+                heroTop: document.querySelector("#home").getBoundingClientRect().top,
+                passCenter: thumbnailBox.top + thumbnailBox.height / 2,
+                copyCenter: copyBox.top + copyBox.height / 2,
+            };
+        });
         expect(layout.heroTop - layout.headerBottom).toBeGreaterThanOrEqual(0);
         if (width === 1280)
             expect(Math.abs(layout.passCenter - layout.copyCenter)).toBeLessThan(60);
+
         expect(geometry.cards[0].width).toBeCloseTo(geometry.cards[1].width, 0);
         if (width >= 768) expect(geometry.cards[0].y).toBeCloseTo(geometry.cards[1].y, 0);
         else expect(geometry.cards[1].y).toBeGreaterThan(geometry.cards[0].y);
+
         for (const id of [
             "home",
             "how-it-works",
@@ -1653,23 +1888,19 @@ test("public landing scales the approved sample and keeps every section reachabl
         ])
             await expect(page.locator(`#${id}`)).toHaveCount(1);
         await expect(page.locator("#questions details")).toHaveCount(6);
-        for (const asset of [
-            "logo-header.webp",
-            "logo_icon.svg",
-            "preview-pass-qr.svg",
-        ])
+
+        for (const asset of ["logo-header.webp", "logo_icon.svg", "preview-pass-qr.svg"])
             expect((await page.request.get(`/${asset}`)).ok()).toBe(true);
-        for (const asset of [
-            "icons/target.svg",
-            "benefit-challenges.svg",
-            "benefit-points.svg",
-        ])
+
+        for (const asset of ["icons/target.svg", "benefit-challenges.svg", "benefit-points.svg"])
             expect((await page.request.get(`/${asset}`)).status()).toBe(404);
+
         for (const section of await page.locator("main > section:not(#home)").all()) {
             await section.scrollIntoViewIfNeeded();
             await expect(section).toHaveCSS("opacity", "1");
             await expect(section).toHaveCSS("transform", "none");
         }
+
         await expect(page.locator("[data-tagline-word]:not(.is-lit)")).toHaveCount(0);
         await expect(page.locator("[data-tagline-word]").last()).toHaveCSS(
             "color",
@@ -1678,6 +1909,7 @@ test("public landing scales the approved sample and keeps every section reachabl
         await expect(
             page.locator("[data-tagline-word]").filter({ hasText: /^recompensa\.$/ }),
         ).toHaveCSS("color", "rgb(167, 123, 255)");
+
         await page.mouse.move(0, 0);
         await pass.dispatchEvent("pointerleave");
         await expect(pass).toHaveCSS("transform", "none");
@@ -1705,6 +1937,7 @@ test("public landing scales the approved sample and keeps every section reachabl
 test("mobile navigation, FAQ, skip link and authentication routes work", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
+
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Ir al contenido" })).toBeFocused();
     await page.keyboard.press("Enter");
@@ -1741,6 +1974,7 @@ test("footer and header return to the absolute page top while the hero remains n
     ]) {
         await page.setViewportSize({ width, height });
         await page.goto("/");
+
         await expect(page.locator("#page-top")).toHaveCSS("scroll-margin-top", "0px");
         await expect(page.locator("#home")).toHaveCount(1);
         await page.locator("#home").evaluate((el) => el.scrollIntoView({ behavior: "instant" }));
@@ -1754,7 +1988,9 @@ test("footer and header return to the absolute page top while the hero remains n
     await expect(page.locator("#home")).toHaveAttribute("id", "home");
 });
 
-test("landing footer groups links into two rows on mobile and one row from sm", async ({ page }) => {
+test("landing footer groups links into two rows on mobile and one row from sm", async ({
+    page,
+}) => {
     const selectors = {
         footer: "footer",
         logo: 'footer img[src*="logo-header.webp"]',
@@ -1800,8 +2036,9 @@ test("landing footer groups links into two rows on mobile and one row from sm", 
                 registerText: textRect(items.register),
                 loginText: textRect(items.login),
                 backText: textRect(items.back),
-                linkFontSizes: Array.from(footer.querySelectorAll("a"), (link) =>
-                    getComputedStyle(link).fontSize,
+                linkFontSizes: Array.from(
+                    footer.querySelectorAll("a"),
+                    (link) => getComputedStyle(link).fontSize,
                 ),
                 documentOverflow: document.documentElement.scrollWidth > innerWidth,
             };
@@ -1811,9 +2048,11 @@ test("landing footer groups links into two rows on mobile and one row from sm", 
         expect(layout.paddingInline).toEqual([expectedPadding, expectedPadding]);
         expect(layout.logo.width).toBe(128);
         expect(layout.linkFontSizes).toEqual(["14px", "14px", "14px"]);
+
         for (const name of ["register", "login", "back"]) {
             expect(layout[name].height, `${name} target at ${width}px`).toBeGreaterThanOrEqual(44);
         }
+
         expect(layout.documentOverflow).toBe(false);
 
         if (width < 640) {
@@ -1843,6 +2082,7 @@ test("landing footer groups links into two rows on mobile and one row from sm", 
 
 test("registration CTAs retain readable hover contrast and keyboard focus", async ({ page }) => {
     await page.goto("/");
+
     await expect(page.getByRole("link", { name: "Crear mi cuenta" })).toHaveCount(2);
 
     const contrastRatio = ({ foreground, background }) => {
@@ -1873,14 +2113,19 @@ test("registration CTAs retain readable hover contrast and keyboard focus", asyn
         await expect
             .poll(
                 async () => {
-                    const colors = await link.evaluate((el) => ({
-                        foreground: getComputedStyle(el).color,
-                        background: getComputedStyle(el).backgroundColor,
-                        transitioning: el
-                            .getAnimations()
-                            .some((animation) => animation.playState === "running"),
-                    }));
-                    // Initial colors can also pass contrast; wait for the observed hover transition to finish.
+                    const colors = await link.evaluate((element) => {
+                        const style = getComputedStyle(element);
+
+                        return {
+                            foreground: style.color,
+                            background: style.backgroundColor,
+                            transitioning: element
+                                .getAnimations()
+                                .some((animation) => animation.playState === "running"),
+                        };
+                    });
+
+                    // initial colors can also pass contrast; wait for the observed hover transition to finish.
                     if (colors.transitioning) return 0;
                     return contrastRatio(colors);
                 },
@@ -1923,11 +2168,14 @@ test("informational cards lift only for fine pointers without reduced motion", a
         .context()
         .browser()
         .newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
-    const touchPage = await touch.newPage();
-    await touchPage.goto("/");
-    await touchPage.locator("#benefits article").first().dispatchEvent("mouseover");
-    await expect(touchPage.locator("#benefits article").first()).toHaveCSS("transform", "none");
-    await touch.close();
+    try {
+        const touchPage = await touch.newPage();
+        await touchPage.goto("/");
+        await touchPage.locator("#benefits article").first().dispatchEvent("mouseover");
+        await expect(touchPage.locator("#benefits article").first()).toHaveCSS("transform", "none");
+    } finally {
+        await touch.close();
+    }
 
     await page.emulateMedia({ reducedMotion: "reduce" });
     await cards.first().hover();
@@ -1944,8 +2192,8 @@ test("mouse tilts sample diagonally while touch and reduced motion keep it stati
     page,
 }) => {
     await page.goto("/");
-    const pass = page.locator("[data-pass]");
-    const bounds = await page.locator("[data-thumbnail]").boundingBox();
+
+    const { pass, bounds } = await getPassFixture(page);
     await page.mouse.move(bounds.x + bounds.width * 0.8, bounds.y + bounds.height * 0.2);
     await expect
         .poll(() => pass.evaluate((el) => getComputedStyle(el).transform))

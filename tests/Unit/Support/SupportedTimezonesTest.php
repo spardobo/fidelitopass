@@ -4,11 +4,13 @@ use App\Support\SupportedTimezones;
 
 it('offers exactly native default identifiers recognized as ICU system zones', function () {
     expect(extension_loaded('intl'))->toBeTrue();
+
     $expected = [];
 
     foreach (DateTimeZone::listIdentifiers() as $identifier) {
         $system = false;
         $canonical = IntlTimeZone::getCanonicalID($identifier, $system);
+
         if ($canonical !== false && $system) {
             $expected[] = $identifier;
         }
