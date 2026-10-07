@@ -278,6 +278,8 @@ for (const width of REGISTRATION_WIDTHS) {
             exact: true,
         });
 
+        await timezone.selectOption("");
+
         await expect(business).toHaveValue("");
         await expect(timezone).toHaveValue("");
 
@@ -285,12 +287,10 @@ for (const width of REGISTRATION_WIDTHS) {
 
         expect(await timezone.evaluate((select) => select.validity.valueMissing)).toBe(true);
 
-        await expect(
-            page.getByText(
-                "Selecciona la zona horaria de tu negocio. Define los días y las fechas límite de tus promociones.",
-                { exact: true },
-            ),
-        ).toBeVisible();
+        await expect(page.locator("#registration-timezone-guidance")).toBeVisible();
+        await expect(page.locator("#registration-timezone-guidance")).toHaveText(
+            "Las fechas y los horarios tendrán como referencia la hora local de tu negocio.",
+        );
 
         expect(await timezone.evaluate((select) => select.reportValidity())).toBe(false);
 

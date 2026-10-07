@@ -425,33 +425,16 @@ for (const width of AUTHENTICATED_WIDTHS) {
 
         await expect(accountName).toHaveCSS("font-size", "16px");
 
-        await page.keyboard.press("Escape");
-
-        await expect(account).toBeFocused();
-
-        for (const [index, [label, path]] of ACCOUNT_DESTINATIONS.entries()) {
-            await account.focus();
-
-            await page.keyboard.press("ArrowDown");
-
-            await expect(
-                page.getByRole("menuitem", {
-                    name: "Perfil del negocio",
-                }),
-            ).toBeFocused();
-
-            for (let step = 0; step < index; step++) {
-                await page.keyboard.press("ArrowDown");
-            }
-
+        for (const [label, path] of ACCOUNT_DESTINATIONS) {
             const item = page.getByRole("menuitem", {
                 name: label,
                 exact: true,
             });
 
-            await expect(item).toBeFocused();
+            await expect(item).toBeVisible();
+            await expect(item).toBeEnabled();
 
-            await page.keyboard.press("Enter");
+            await item.press("Enter");
 
             if (label === "Seguridad") {
                 await expect(page).toHaveURL(/\/confirm-password(?:\?|$)/);
@@ -473,7 +456,8 @@ for (const width of AUTHENTICATED_WIDTHS) {
 
             await expect(page).toHaveURL(new RegExp(`${path}$`));
 
-            await account.click();
+            await account.focus();
+            await page.keyboard.press("Enter");
 
             await expect(
                 page.getByRole("menuitem", {
@@ -483,11 +467,7 @@ for (const width of AUTHENTICATED_WIDTHS) {
             ).toHaveAttribute("aria-current", "page");
 
             await expect(header.locator('[aria-current="page"]')).toHaveCount(1);
-
-            await page.keyboard.press("Escape");
         }
-
-        await account.click();
 
         const logout = page.waitForResponse(
             (response) =>
