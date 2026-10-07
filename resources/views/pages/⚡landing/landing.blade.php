@@ -92,79 +92,59 @@
                 xl:grid-cols-[minmax(0,.88fr)_minmax(0,1.3fr)] xl:gap-x-12 xl:p-12"
         >
             <div class="mx-auto flex w-full max-w-[576px] flex-col items-center gap-6 text-center xl:mx-0 xl:items-start xl:text-left">
-                <span class="rounded-full border border-app-accent px-3 py-2 text-xs font-semibold uppercase tracking-wider text-app-accent-text">
+                <span class="rounded-full border border-app-accent px-3 py-2 text-xs font-semibold uppercase tracking-wider text-app-accent">
                     {{ __('landing.hero.eyebrow') }}
                 </span>
-                <flux:heading level="1" id="hero-title" class="landing-role-hero max-w-[680px] tracking-tight">
+                <flux:heading level="1" id="hero-title" class="app-role-marketing-title max-w-[680px] tracking-tight">
                     {{ __('landing.hero.heading') }}
                 </flux:heading>
                 <flux:text size="lg" class="app-role-body max-w-[680px] text-[#C4C4C4]!">
                     {{ __('landing.hero.description') }}
                 </flux:text>
-                <flux:button variant="primary" href="{{ route('register') }}" class="landing-button app-role-action app-primary-colors app-focus landing-button-primary min-h-app-control h-auto min-w-0 max-w-full wrap-anywhere whitespace-normal rounded-full py-[.6875rem] transition-transform duration-300 hover:-translate-y-[3px] active:scale-[.98]">
+                <flux:button variant="primary" href="{{ route('register') }}" class="landing-button app-role-action! app-primary-colors app-focus landing-button-primary min-h-app-control h-auto min-w-0 max-w-full wrap-anywhere whitespace-normal rounded-full transition-transform duration-300 hover:-translate-y-[3px] active:scale-[.98]">
                     {{ __('landing.actions.create_account') }}
                 </flux:button>
 
-                <flux:text class="app-role-support landing-role-support text-[#E0E0E0]!">
-                    {{ __('landing.hero.sign_in_prompt') }} <flux:link href="{{ route('login') }}" :accent="false" class="landing-link underline! hover:underline!">
+                    <flux:text class="app-role-support text-[#E0E0E0]!">
+                    {{ __('landing.hero.sign_in_prompt') }} <flux:link href="{{ route('login') }}" :accent="false" class="landing-link text-app-accent! underline! hover:underline!">
                         {{ __('landing.hero.sign_in_link') }}
                     </flux:link>
                 </flux:text>
             </div>
 
             <div class="mx-auto w-full max-w-[576px] xl:mx-0">
-                <div data-thumbnail class="landing-thumbnail relative aspect-[3/2] w-full max-w-[576px]">
-                    <div class="absolute top-0 left-0 h-[384px] w-[576px] origin-top-left [transform:scale(var(--landing-scale,1))]">
-                        <article
-                            aria-label="{{ __('landing.hero.pass_aria') }}"
+                <div data-thumbnail class="landing-thumbnail relative aspect-[3/2] w-full max-w-[576px] @container/pass-preview">
+                    <div class="absolute top-0 left-0 origin-top-left [transform:scale(var(--landing-scale,1))]">
+                        <x-pass-preview
+                            :business-name="__('landing.hero.sample.business')"
+                            :aria-label="__('landing.hero.pass_aria')"
+                            :marketing="true"
                             data-pass
-                            class="landing-pass isolate flex h-[384px] w-[576px] origin-center flex-col gap-6 rounded-2xl bg-app-accent p-6 text-app-on-accent shadow-2xl
+                            class="landing-pass isolate origin-center rounded-2xl bg-app-accent text-app-on-accent shadow-2xl
                                 bg-[linear-gradient(115deg,transparent_12%,rgb(255_255_255/24%)_34%,rgb(255_255_255/8%)_50%,transparent_72%)]
                                 bg-size-[160%_160%] bg-position-[var(--sheen-x,50%)_var(--sheen-y,50%)]
                                 motion-safe:[transition:transform_180ms_cubic-bezier(0.32,0.72,0,1),background-position_180ms_cubic-bezier(0.32,0.72,0,1)]"
                         >
-                            <div class="flex items-start justify-between gap-4">
-                                <flux:heading level="2" class="text-xl! leading-7! font-bold! text-inherit!">
-                                    {{ __('landing.hero.sample.business') }}
-                                </flux:heading>
-                                <img src="{{ asset('logo_icon.svg') }}" alt="" class="size-10" width="40" height="40">
-                            </div>
+                            <x-slot:promotionLabel>{{ __('landing.hero.sample.challenge_label') }}</x-slot:promotionLabel>
+                            <x-slot:promotionDescription>{{ __('landing.hero.sample.challenge_description') }}</x-slot:promotionDescription>
+                            <x-slot:progress>{{ __('landing.hero.sample.progress') }}</x-slot:progress>
+                            <x-slot:extraPoints>{{ __('landing.hero.sample.visit_value') }}</x-slot:extraPoints>
+                            <x-slot:reward>{{ __('landing.hero.sample.reward') }}</x-slot:reward>
+                            <x-slot:deadline>{{ __('landing.hero.sample.deadline') }}</x-slot:deadline>
 
-                            <div class="grid grid-cols-[minmax(0,1fr)_144px] items-start gap-6 border-t border-[#181818]/25 pt-6">
-                                <div class="flex flex-col gap-3">
-                                    <flux:heading level="3" class="landing-role-card">
-                                        {{ __('landing.hero.sample.challenge_label') }}
-                                    </flux:heading>
-                                    <flux:text>
-                                        {{ __('landing.hero.sample.challenge_description') }}
-                                    </flux:text>
-                                    <flux:text class="text-3xl! leading-9! font-bold!">
-                                        {{ __('landing.hero.sample.progress') }}
-                                    </flux:text>
-                                    <flux:text>
-                                        {{ __('landing.hero.sample.visit_value') }}
-                                    </flux:text>
-                                    <div class="border-t border-[#181818]/25 pt-4">
-                                        <flux:text size="lg" class="font-semibold!">
-                                            {{ __('landing.hero.sample.reward') }}
-                                        </flux:text>
-                                        <flux:text>
-                                            {{ __('landing.hero.sample.deadline') }}
-                                        </flux:text>
-                                    </div>
-                                </div>
-                                <div class="flex flex-col items-center gap-3">
-                                    <img src="{{ asset('preview-pass-qr.svg') }}" alt="{{ __('landing.hero.sample.qr_alt') }}" class="landing-pass-qr relative z-1 size-36 shrink-0 bg-white" width="232" height="232">
-                                    <flux:text class="text-center font-semibold!">
-                                        {{ __('landing.hero.sample.manual_code_label') }}
-                                        <br>
-                                        <span class="text-xl tracking-widest">
-                                            {{ __('landing.hero.sample.manual_code') }}
-                                        </span>
-                                    </flux:text>
-                                </div>
-                            </div>
-                        </article>
+                            <x-slot:qr>
+                                <img src="{{ asset('preview-pass-qr.svg') }}" alt="{{ __('landing.hero.sample.qr_alt') }}" class="landing-pass-qr relative z-1 size-32 shrink-0 bg-white" width="232" height="232">
+                            </x-slot:qr>
+                            <x-slot:manualCode>
+                                <flux:text class="font-semibold!">
+                                    {{ __('landing.hero.sample.manual_code_label') }}
+                                    <br>
+                                    <span class="text-xl tracking-widest">
+                                        {{ __('landing.hero.sample.manual_code') }}
+                                    </span>
+                                </flux:text>
+                            </x-slot:manualCode>
+                        </x-pass-preview>
                     </div>
                 </div>
 
@@ -174,10 +154,10 @@
         <!-- benefits -->
         <section id="benefits" aria-labelledby="benefits-title" class="grid justify-items-center gap-8 py-20">
             <div class="max-w-[680px] text-center">
-                <flux:text class="mb-4 font-semibold! text-app-accent-text!">
+                <flux:text class="mb-4 font-semibold! text-app-accent!">
                     {{ __('landing.benefits.eyebrow') }}
                 </flux:text>
-                <flux:heading level="2" id="benefits-title" class="landing-role-section">
+                <flux:heading level="2" id="benefits-title" class="app-role-marketing-section text-app-ink!">
                     {{ __('landing.benefits.proposition_heading') }}
                 </flux:heading>
                 <flux:text size="lg" class="mt-4 text-[#C4C4C4]!">
@@ -187,8 +167,8 @@
 
             <div class="grid w-full gap-6 md:grid-cols-2">
                 <article class="landing-info-card rounded-3xl border-app-priority-border bg-app-emphasis p-8 text-app-ink">
-                    <img src="{{ asset('benefit-challenges.svg') }}" alt="" class="mb-6 size-16" width="64" height="64">
-                    <flux:heading level="3" class="landing-role-card">
+                    <flux:icon.arrow-path-rounded-square variant="outline" aria-hidden="true" class="mb-6 size-16 text-app-accent" />
+                    <flux:heading level="3" class="app-role-marketing-card-title!">
                         {{ __('landing.benefits.challenge_heading') }}
                     </flux:heading>
                     <flux:text size="lg" class="mt-3 text-app-ink-priority!">
@@ -197,8 +177,8 @@
                 </article>
 
                 <article class="landing-info-card rounded-3xl bg-app-surface p-8">
-                    <img src="{{ asset('benefit-points.svg') }}" alt="" class="mb-6 size-16" width="64" height="64">
-                    <flux:heading level="3" class="landing-role-card">
+                    <flux:icon.arrow-trending-up variant="outline" aria-hidden="true" class="mb-6 size-16 text-app-accent" />
+                    <flux:heading level="3" class="app-role-marketing-card-title!">
                         {{ __('landing.benefits.progress_heading') }}
                     </flux:heading>
                     <flux:text size="lg" class="mt-3 text-[#E0E0E0]!">
@@ -213,14 +193,12 @@
             @php($taglineWords = collect(__('landing.tagline.words')))
             <flux:text
                 data-tagline
-                class="mx-auto max-w-3xl text-center text-4xl! leading-[1.222223]! font-semibold! tracking-tight text-balance!
-                    [@media(max-width:50rem)]:text-3xl! [@media(max-width:50rem)]:leading-[1.333334]!
-                    [@media(max-width:40rem)]:text-[1.75rem]! [@media(max-width:40rem)]:leading-[1.285715]!"
+                class="app-role-marketing-statement-title! mx-auto max-w-3xl text-center tracking-tight text-balance!"
             >
                 @foreach (__('landing.tagline.presentation_groups') as $group)
                     <span @class([
                         '[--landing-word-ink:var(--color-app-ink)]' => $group['role'] === 'primary',
-                        '[--landing-word-ink:var(--color-app-accent-text)]' => $group['role'] === 'reward',
+                        '[--landing-word-ink:var(--color-app-accent)]' => $group['role'] === 'reward',
                         '[--landing-word-ink:var(--color-app-ink-help)]' => $group['role'] === 'secondary',
                     ])>
                         @foreach ($taglineWords->splice(0, $group['word_count']) as $word)
@@ -237,10 +215,10 @@
 
         <!-- how it works -->
         <section id="how-it-works" aria-labelledby="steps-title" class="py-20">
-            <flux:text class="font-semibold! text-app-accent-text!">
+            <flux:text class="font-semibold! text-app-accent!">
                 {{ __('landing.steps.eyebrow') }}
             </flux:text>
-            <flux:heading level="2" id="steps-title" class="landing-role-section mt-4 text-inherit!">
+            <flux:heading level="2" id="steps-title" class="app-role-marketing-section mt-4 text-inherit!">
                 {{ __('landing.steps.heading') }}
             </flux:heading>
             <flux:text size="lg" class="mt-4 max-w-[680px] text-[#C4C4C4]!">
@@ -253,10 +231,10 @@
                     [__('landing.steps.validate_heading'), __('landing.steps.validate_detail')],
                 ] as [$heading, $detail])
                     <li class="landing-info-card rounded-3xl bg-app-surface p-8">
-                        <span class="text-3xl text-app-accent-text">
+                        <span class="text-3xl text-app-accent!">
                             {{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}
                         </span>
-                        <flux:heading level="3" class="landing-role-card mt-8">
+                        <flux:heading level="3" class="app-role-marketing-card-title! mt-8">
                             {{ $heading }}
                         </flux:heading>
                         <flux:text size="lg" class="mt-3 text-[#E0E0E0]!">
@@ -268,10 +246,10 @@
         </section>
 
         <section id="challenges" aria-labelledby="challenge-title" class="rounded-3xl border border-app-priority-border bg-app-emphasis p-8 text-app-ink md:p-12">
-            <flux:text class="font-semibold! text-app-accent-text!">
+            <flux:text class="font-semibold! text-app-accent!">
                 {{ __('landing.challenge.eyebrow') }}
             </flux:text>
-            <flux:heading level="2" id="challenge-title" class="landing-role-section mt-4 text-inherit!">
+            <flux:heading level="2" id="challenge-title" class="app-role-marketing-section mt-4 text-inherit!">
                 {{ __('landing.challenge.heading') }}
             </flux:heading>
             <flux:text size="lg" class="mt-4 max-w-[680px] text-app-ink-priority!">
@@ -286,10 +264,10 @@
         </section>
 
         <section id="pass" aria-labelledby="wallet-title" class="py-20">
-            <flux:text class="font-semibold! text-app-accent-text!">
+            <flux:text class="font-semibold! text-app-accent!">
                 {{ __('landing.wallet.eyebrow') }}
             </flux:text>
-            <flux:heading level="2" id="wallet-title" class="landing-role-section mt-4 text-inherit!">
+            <flux:heading level="2" id="wallet-title" class="app-role-marketing-section mt-4 text-inherit!">
                 {{ __('landing.wallet.heading') }}
             </flux:heading>
             <flux:text size="lg" class="mt-4 max-w-[680px] text-[#C4C4C4]!">
@@ -302,7 +280,7 @@
 
         <!-- frequently asked questions -->
         <section id="questions" aria-labelledby="faq-title" class="pb-20">
-            <flux:heading level="2" id="faq-title" class="landing-role-section mb-8 text-inherit!">
+            <flux:heading level="2" id="faq-title" class="app-role-marketing-section mb-8 text-inherit!">
                 {{ __('landing.faq.heading') }}
             </flux:heading>
             <div class="grid gap-3">
@@ -312,7 +290,7 @@
                             <span>
                                 {{ $item['question'] }}
                             </span>
-                            <flux:icon.chevron-down class="size-5 text-app-ink-help transition-transform duration-160 ease-[ease] group-open/faq:[transform:rotate(180deg)] group-open/faq:text-app-accent-text" />
+                            <flux:icon.chevron-down variant="outline" class="size-5 text-app-ink-help transition-transform duration-160 ease-[ease] group-open/faq:[transform:rotate(180deg)] group-open/faq:text-app-accent-text" />
                         </summary>
                         <flux:text size="lg" class="mt-4 border-t border-app-line pt-4 text-[#E0E0E0]!">
                             {{ $item['answer'] }}
@@ -324,29 +302,29 @@
 
         <!-- business call to action -->
         <section id="business" aria-labelledby="business-title" class="rounded-3xl bg-app-accent p-8 text-app-on-accent md:p-12">
-            <flux:heading level="2" id="business-title" class="landing-role-section text-inherit!">
+            <flux:heading level="2" id="business-title" class="app-role-marketing-section text-inherit!">
                 {{ __('landing.business_cta.heading') }}
             </flux:heading>
             <flux:text size="lg" class="mt-4">
                 {{ __('landing.business_cta.description') }}
             </flux:text>
-            <flux:button variant="primary" href="{{ route('register') }}" class="landing-button app-role-action app-focus mt-6 min-h-app-control h-auto whitespace-normal rounded-full bg-app-on-accent! py-[.6875rem] text-white! transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#303030]! active:scale-[.98]">
+            <flux:button variant="primary" href="{{ route('register') }}" class="landing-button app-role-action! app-focus mt-6 min-h-app-control h-auto whitespace-normal rounded-full bg-app-on-accent! text-white! transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#303030]! active:scale-[.98]">
                 {{ __('landing.actions.create_account') }}
             </flux:button>
         </section>
     </main>
 
     <!-- footer -->
-    <footer class="mx-auto flex max-w-[68rem] flex-wrap items-center gap-6 border-t border-app-line px-6 py-6 text-sm text-[#E0E0E0] md:px-8">
-        <img src="{{ asset('logo-header.webp') }}" alt="{{ __('landing.navigation.logo_alt') }}" class="mr-auto w-32" width="480" height="105">
+    <footer class="mx-auto grid max-w-[68rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-t border-app-line px-6 py-6 text-sm text-[#E0E0E0] sm:flex sm:flex-nowrap sm:gap-6 md:px-8">
+        <img src="{{ asset('logo-header.webp') }}" alt="{{ __('landing.navigation.logo_alt') }}" class="col-start-1 row-start-1 mr-auto w-32" width="480" height="105">
 
-        <flux:link href="{{ route('register') }}" :accent="false" variant="ghost" class="landing-link hover:text-[#D8CEF5]">
+        <flux:link href="{{ route('register') }}" :accent="false" variant="ghost" class="landing-link col-start-1 row-start-2 inline-flex min-h-11 items-center hover:text-[#D8CEF5]">
             {{ __('landing.actions.register') }}
         </flux:link>
-        <flux:link href="{{ route('login') }}" :accent="false" variant="ghost" class="landing-link hover:text-[#D8CEF5]">
+        <flux:link href="{{ route('login') }}" :accent="false" variant="ghost" class="landing-link col-start-2 row-start-2 inline-flex min-h-11 w-full items-center justify-end text-right hover:text-[#D8CEF5] sm:w-auto sm:justify-start sm:text-left">
             {{ __('landing.actions.sign_in') }}
         </flux:link>
-        <flux:link href="#page-top" :accent="false" variant="ghost" class="landing-link hover:text-[#D8CEF5]">
+        <flux:link href="#page-top" :accent="false" variant="ghost" class="landing-link col-start-2 row-start-1 inline-flex min-h-11 w-full items-center justify-end whitespace-nowrap text-right hover:text-[#D8CEF5] sm:w-auto sm:justify-start sm:text-left">
             {{ __('landing.navigation.back_to_top') }}
         </flux:link>
     </footer>
@@ -485,10 +463,11 @@
 
             const availableHeightPx = window.innerHeight - headerBottomPx - 2 * baseGapPx;
             const sectionSpacePx = parseFloat(getComputedStyle(benefits).paddingTop) || baseGapPx;
-            const extraGapPx = Math.max(0, Math.min(
+            const boundedExtraGapPx = Math.max(0, Math.min(
                 (availableHeightPx - hero.getBoundingClientRect().height) / 2,
                 sectionSpacePx - baseGapPx,
             ));
+            const extraGapPx = Math.floor(boundedExtraGapPx / 4) * 4;
             setLayoutProperty(hero, '--landing-hero-extra-gap', `${extraGapPx}px`);
             // the page closes with its opening gap without reducing hero availability.
             setLayoutProperty(main, '--landing-closing-gap', `${baseGapPx + extraGapPx}px`);

@@ -1,5 +1,5 @@
 <flux:dropdown position="bottom" align="end">
-    <flux:button variant="ghost" aria-label="{{ __('desktop-user-menu.open_account_menu') }}" data-test="sidebar-menu-button" class="app-button size-11! p-0! rounded-full!">
+    <flux:button variant="ghost" aria-label="{{ __('desktop-user-menu.open_account_menu') }}" data-test="sidebar-menu-button" class="app-button size-11! p-0! rounded-full! cursor-pointer">
         <flux:avatar :name="auth()->user()->name" circle aria-hidden="true" class="size-11 bg-app-emphasis! text-app-accent-text!" />
     </flux:button>
 
@@ -22,6 +22,7 @@
             <flux:menu.item
                 :href="route($destination['route'])"
                 :icon="$destination['icon']"
+                icon:variant="outline"
                 wire:navigate
                 :aria-current="request()->routeIs($destination['route']) ? 'page' : null"
                 class="app-button text-app-ink! aria-[current=page]:text-app-accent-text!"
@@ -33,7 +34,7 @@
         <flux:menu.separator />
         <form method="POST" action="{{ route('logout') }}" class="w-full">
             @csrf
-            <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" data-test="logout-button" class="app-button w-full cursor-pointer text-app-ink!">
+            <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" icon:variant="outline" data-test="logout-button" class="app-button w-full cursor-pointer text-app-ink!">
                 {{ __('desktop-user-menu.log_out') }}
             </flux:menu.item>
         </form>
