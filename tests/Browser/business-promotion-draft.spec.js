@@ -1238,3 +1238,114 @@ test("rejects past draft dates through Livewire without native form interception
         "No debe guardarse",
     );
 });
+
+test("serializes extra-point Add and Remove actions while Livewire is pending", async ({
+    page,
+    request,
+}) => {
+    await registerVerifiedBusiness(page, request);
+    await page.goto("/promotions/create");
+
+    const weekday = page.getByLabel("Día", { exact: true });
+    const addRuleButton = page.getByRole("button", { name: "Añadir puntos extra" });
+    const acceptedRules = page
+        .getByRole("list", { name: "Reglas de puntos extra añadidas" })
+        .locator("li");
+
+    await weekday.selectOption("3");
+    await page.getByLabel("Todo el día", { exact: true }).check();
+    await addRuleButton.click();
+    await expect(acceptedRules).toHaveCount(1);
+    await weekday.selectOption("1");
+    await expect(addRuleButton).toBeEnabled();
+    await addRuleButton.click();
+    await expect(acceptedRules).toHaveCount(2);
+
+    let releaseRemoveRequest;
+    let resolveRemoveStarted;
+    let resolveRemoveContinued;
+    let removeRequestWasStarted = false;
+    const removeStarted = new Promise((resolve) => {
+        resolveRemoveStarted = resolve;
+    });
+    const removeContinued = new Promise((resolve) => {
+        resolveRemoveContinued = resolve;
+    });
+    const removeResponseGate = new Promise((resolve) => {
+        releaseRemoveRequest = resolve;
+    });
+    const removeRequestHandler = async (route) => {
+        resolveRemoveStarted();
+        await removeResponseGate;
+        await route.continue();
+        resolveRemoveContinued();
+    };
+
+    await page.route(LIVEWIRE_UPDATE_PATH, removeRequestHandler);
+
+    try {
+        await page.getByRole("button", { name: "Quitar la regla de Miércoles" }).click();
+        await removeStarted;
+        removeRequestWasStarted = true;
+
+        await expect(addRuleButton).toBeDisabled();
+        const removeButtons = page.getByRole("button", { name: /Quitar la regla de/ });
+        await expect(removeButtons).toHaveCount(2);
+
+        for (const index of [0, 1]) {
+            await expect(removeButtons.nth(index)).toBeDisabled();
+        }
+    } finally {
+        releaseRemoveRequest();
+        if (removeRequestWasStarted) await removeContinued;
+        await page.unroute(LIVEWIRE_UPDATE_PATH, removeRequestHandler);
+    }
+
+    await expect(acceptedRules).toHaveCount(1);
+    await expect(acceptedRules.getByText("Lunes", { exact: true })).toBeVisible();
+    await expect(acceptedRules.getByText("Miércoles", { exact: true })).toHaveCount(0);
+
+    await weekday.selectOption("5");
+    await expect(addRuleButton).toBeEnabled();
+
+    let releaseAddRequest;
+    let resolveAddStarted;
+    let resolveAddContinued;
+    let addRequestWasStarted = false;
+    const addStarted = new Promise((resolve) => {
+        resolveAddStarted = resolve;
+    });
+    const addContinued = new Promise((resolve) => {
+        resolveAddContinued = resolve;
+    });
+    const addResponseGate = new Promise((resolve) => {
+        releaseAddRequest = resolve;
+    });
+    const addRequestHandler = async (route) => {
+        resolveAddStarted();
+        await addResponseGate;
+        await route.continue();
+        resolveAddContinued();
+    };
+
+    await page.route(LIVEWIRE_UPDATE_PATH, addRequestHandler);
+
+    try {
+        await addRuleButton.click();
+        await addStarted;
+        addRequestWasStarted = true;
+
+        await expect(addRuleButton).toBeDisabled();
+        const removeButtons = page.getByRole("button", { name: /Quitar la regla de/ });
+        await expect(removeButtons).toHaveCount(1);
+        await expect(removeButtons.first()).toBeDisabled();
+    } finally {
+        releaseAddRequest();
+        if (addRequestWasStarted) await addContinued;
+        await page.unroute(LIVEWIRE_UPDATE_PATH, addRequestHandler);
+    }
+
+    await expect(acceptedRules).toHaveCount(2);
+    await expect(acceptedRules.getByText("Lunes", { exact: true })).toBeVisible();
+    await expect(acceptedRules.getByText("Viernes", { exact: true })).toBeVisible();
+});
