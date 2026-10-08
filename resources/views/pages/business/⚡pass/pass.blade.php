@@ -1,4 +1,12 @@
 <main class="app-theme app-workspace app-pass-page @container/pass-workspace">
+    @if ($draftSavedNoticePending)
+        <span
+            class="hidden"
+            x-data
+            x-init="$nextTick(() => requestAnimationFrame(() => $flux.toast({ text: @js(__('business.promotion.draft_saved')), variant: 'success' })))"
+        ></span>
+    @endif
+
     @if ($editing)
         <header class="space-y-6">
             <div class="flex min-h-11 items-center">
@@ -122,7 +130,7 @@
                             />
                         </flux:field>
                     </fieldset>
-                    <flux:error id="pass-color-error" name="backgroundColor" />
+                    <flux:error id="pass-color-error" name="backgroundColor" class="app-error" />
 
                     <div class="app-note-with-icon text-app-ink-help">
                         <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
@@ -242,19 +250,28 @@
         </section>
 
         <section aria-labelledby="promotions-heading" class="space-y-4">
-            <div class="space-y-1">
-                <flux:heading level="2" size="lg" id="promotions-heading" class="app-role-section! text-app-ink!">
-                    {{ __('business.pass.promotions_title') }}
-                </flux:heading>
-                <div class="app-note-with-icon text-app-ink-help">
-                    <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
-                        <flux:icon.information-circle variant="outline" class="size-4" />
-                    </span>
-                    <flux:text size="base" class="app-role-support! text-app-ink-help!">{{ __('business.pass.promotions_description') }}</flux:text>
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="space-y-1">
+                    <flux:heading level="2" size="lg" id="promotions-heading" class="app-role-section! text-app-ink!">
+                        {{ __('business.pass.promotions_title') }}
+                    </flux:heading>
+                    <div class="app-note-with-icon text-app-ink-help">
+                        <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
+                            <flux:icon.information-circle variant="outline" class="size-4" />
+                        </span>
+                        <flux:text size="base" class="app-role-support! text-app-ink-help!">{{ __('business.pass.promotions_description') }}</flux:text>
+                    </div>
                 </div>
+
+                @if ($this->draftPromotions->total() > 0 && $this->business->pass_background_color)
+                    <flux:button href="{{ route('business.promotions.create') }}" variant="primary" class="app-button-primary min-h-11 w-full shrink-0 sm:w-auto">
+                        <flux:icon.plus variant="outline" class="me-2 size-4" />
+                        {{ __('business.pass.new_promotion') }}
+                    </flux:button>
+                @endif
             </div>
 
-            @if ($this->business->pass_background_color)
+            @if ($this->draftPromotions->total() === 0 && $this->business->pass_background_color)
                 <article class="flex flex-col gap-4 rounded-2xl border border-app-border bg-app-surface p-4 sm:flex-row sm:items-center sm:p-6">
                     <span class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-accent/40 bg-app-accent/10 text-app-accent">
                         <flux:icon.gift variant="outline" class="size-6" />
@@ -264,13 +281,13 @@
                             <flux:heading level="3" size="base" class="app-role-card! text-app-ink!">{{ __('business.pass.promotions_prerequisite_heading') }}</flux:heading>
                             <flux:text size="lg" class="app-role-body!">{{ __('business.pass.create_promotion_description') }}</flux:text>
                         </div>
-                        <flux:button href="{{ url('/promotions/create') }}" variant="primary" class="app-button-primary min-h-11 w-full self-start sm:w-auto">
+                        <flux:button href="{{ route('business.promotions.create') }}" variant="primary" class="app-button-primary min-h-11 w-full self-start sm:w-auto">
                             <flux:icon.plus variant="outline" class="me-2 size-4" />
                             {{ __('business.pass.create_first_promotion') }}
                         </flux:button>
                     </div>
                 </article>
-            @else
+            @elseif ($this->draftPromotions->total() === 0)
                 <article class="flex flex-col gap-4 rounded-2xl border border-app-border bg-app-surface p-4 sm:flex-row sm:items-center sm:p-6">
                     <span class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-accent/40 bg-app-accent/10 text-app-accent">
                         <flux:icon.gift variant="outline" class="size-6" />
@@ -281,6 +298,70 @@
                         <flux:text size="base" class="app-role-support!">{{ __('business.pass.promotions_prerequisite') }}</flux:text>
                     </div>
                 </article>
+            @elseif (! $this->business->pass_background_color)
+                <div class="app-note-with-icon text-app-ink-help">
+                    <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
+                        <flux:icon.information-circle variant="outline" class="size-4" />
+                    </span>
+                    <flux:text size="base" class="app-role-support! text-app-ink-help!">{{ __('business.pass.promotions_prerequisite') }}</flux:text>
+                </div>
+            @endif
+
+            @if ($this->draftPromotions->total() > 0)
+                <div class="space-y-4">
+                    <flux:heading level="3" size="base" class="app-role-card! text-app-ink!">
+                        {{ __('business.pass.drafts_heading') }}
+                    </flux:heading>
+                    @if ($this->draftPromotions->isNotEmpty())
+                        <ul class="space-y-4" aria-label="{{ __('business.pass.saved_promotion_drafts') }}">
+                            @foreach ($this->draftPromotions as $promotion)
+                                <li
+                                    wire:key="promotion-draft-{{ $promotion->public_id }}"
+                                    data-promotion-public-id="{{ $promotion->public_id }}"
+                                    class="flex min-w-0 flex-col gap-3 rounded-2xl border border-app-border bg-app-surface p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+                                >
+                                    <div class="min-w-0 space-y-2">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <flux:heading level="3" size="base" class="app-role-card! text-app-ink!">
+                                                {{ $promotion->reward_title }}
+                                            </flux:heading>
+                                            <flux:badge color="amber" class="app-role-support! font-medium!">
+                                                {{ __('business.pass.promotion_draft_status') }}
+                                            </flux:badge>
+                                        </div>
+                                        <flux:text class="app-role-support! text-app-ink-secondary!">
+                                            {{ __('business.pass.promotion_draft_period', [
+                                                'start' => $promotion->local_start_date->format('d/m/Y'),
+                                                'end' => $promotion->local_end_date->format('d/m/Y'),
+                                            ]) }}
+                                            ·
+                                            {{ __('business.pass.promotion_draft_target', ['points' => $promotion->target_points]) }}
+                                        </flux:text>
+                                    </div>
+                                    <flux:button
+                                        href="{{ route('business.promotions.edit', ['promotion' => $promotion->public_id]) }}"
+                                        variant="filled"
+                                        class="app-button-secondary min-h-11 w-full shrink-0 sm:w-auto"
+                                    >
+                                        {{ __('business.pass.edit_promotion_draft') }}
+                                    </flux:button>
+                                </li>
+                            @endforeach
+                        </ul>
+
+                    @else
+                        <p class="app-role-support! text-app-ink-secondary!">
+                            {{ __('business.pass.promotions_empty') }}
+                        </p>
+                    @endif
+                    @if ($this->draftPromotions->hasPages())
+                        <flux:pagination :paginator="$this->draftPromotions" />
+                    @endif
+                </div>
+            @else
+                <p class="app-role-support! text-app-ink-secondary!">
+                    {{ __('business.pass.promotions_empty') }}
+                </p>
             @endif
         </section>
     @endif

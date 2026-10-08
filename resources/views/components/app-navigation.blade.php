@@ -1,7 +1,7 @@
 @php
     $destinations = [
         ['label' => __('app-navigation.summary'), 'url' => route('dashboard'), 'icon' => 'home', 'current' => request()->routeIs('dashboard')],
-        ['label' => __('app-navigation.pass'), 'url' => url('/pass'), 'icon' => 'credit-card', 'current' => request()->is('pass', 'pass/*')],
+        ['label' => __('app-navigation.pass'), 'url' => url('/pass'), 'icon' => 'credit-card', 'current' => request()->is('pass', 'pass/*') || request()->routeIs('business.promotions.*')],
         ['label' => __('app-navigation.invite_customers'), 'url' => url('/invite'), 'icon' => 'qr-code', 'current' => request()->is('invite', 'invite/*')],
     ];
 @endphp

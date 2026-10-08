@@ -29,6 +29,9 @@
     --color-app-priority-border: #8465AC;
     --color-app-control: #222222;
     --color-app-control-border: #7D7D7D;
+    --color-app-secondary-button: #383838;
+    --color-app-secondary-button-border: #828282;
+    --color-app-secondary-button-hover: #444444;
     --color-app-danger-ink: #FFB4BE;
     --color-app-success-ink: #BCE7C9;
 
@@ -255,13 +258,15 @@ select:focus[data-flux-control] {
 }
 /* Pase-specific overrides keep shared authenticated and marketing roles unchanged. */
 @layer utilities {
-    .app-pass-page .app-heading {
+    .app-pass-page .app-heading,
+    .app-promotion-page .app-heading {
         font-size: 2rem !important;
         line-height: 2.5rem !important;
         font-weight: 700 !important;
     }
 
-    .app-pass-page [class~="app-role-intro!"] {
+    .app-pass-page [class~="app-role-intro!"],
+    .app-promotion-page [class~="app-role-intro!"] {
         font-size: 1.125rem !important;
         line-height: 1.75rem !important;
         font-weight: 400 !important;
@@ -412,6 +417,10 @@ select:focus[data-flux-control] {
 }
 @utility app-button {
     @apply app-control! app-role-action! app-focus! whitespace-normal!;
+}
+@utility app-button-secondary {
+    @apply app-button! border-app-secondary-button-border! bg-app-secondary-button! text-app-ink!;
+    @apply hover:bg-app-secondary-button-hover! active:bg-app-secondary-button-hover!;
 }
 @utility app-button-toggle {
     @apply app-button! min-w-app-control! text-app-ink-secondary!;
