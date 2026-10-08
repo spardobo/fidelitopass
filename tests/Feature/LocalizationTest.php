@@ -1,11 +1,17 @@
 <?php
 
+use App\Actions\Promotions\SavePromotionDraft;
+use App\Enums\PromotionStatus;
 use App\Models\Business;
+use App\Models\Promotion;
 use App\Models\User;
+use App\Support\DatabaseClock;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
@@ -141,6 +147,97 @@ test('standard numeric validation is translated', function (): void {
     $errors = Validator::make(['name' => 5], ['name' => ['numeric', 'between:10,20']])->errors();
 
     expect($errors->first('name'))->toBe('El campo nombre tiene que estar entre 10 y 20.');
+});
+
+test('promotion draft action resolves its validation messages from the Spanish catalog', function (): void {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create();
+    $instant = CarbonImmutable::now('UTC');
+    $today = $instant->setTimezone($business->timezone)->toDateString();
+    $tomorrow = CarbonImmutable::parse($today, $business->timezone)->addDay()->toDateString();
+    $clock = Mockery::mock(DatabaseClock::class);
+    $clock->shouldReceive('captureForBusinessTimezone')->andReturn([
+        'instant' => $instant->toIso8601String(),
+        'business_date' => $today,
+    ]);
+    $this->instance(DatabaseClock::class, $clock);
+
+    $published = new Promotion;
+    $published->forceFill([
+        'business_id' => $business->id,
+        'local_start_date' => null,
+        'local_end_date' => null,
+        'target_points' => 8,
+        'reward_title' => 'A coffee with pastry',
+        'reward_description' => 'Any small coffee and pastry.',
+        'status' => PromotionStatus::Published,
+        'timezone_snapshot' => $business->timezone,
+        'starts_at' => $instant->addDay()->toIso8601String(),
+        'ends_at' => $instant->addDays(8)->toIso8601String(),
+    ]);
+    $published->save();
+
+    $catalogMessages = [
+        'business.promotion.draft_edit_only' => 'Solo se pueden editar promociones en borrador.',
+        'business.promotion.extra_points_window_order' => 'El horario de puntos extra debe terminar después de su inicio, dentro del mismo día.',
+        'business.promotion.extra_points_all_day_conflict' => 'No se puede combinar una regla de día completo con otros horarios en el mismo día.',
+        'business.promotion.extra_points_overlap' => 'Los horarios de puntos extra no pueden superponerse.',
+    ];
+    foreach ($catalogMessages as $key => $expected) {
+        expect(__($key))->toBe($expected);
+    }
+
+    $messages = [
+        'business.promotion.draft_edit_only' => 'Draft edit test translation.',
+        'business.promotion.extra_points_window_order' => 'Window order test translation.',
+        'business.promotion.extra_points_all_day_conflict' => 'All-day conflict test translation.',
+        'business.promotion.extra_points_overlap' => 'Overlap test translation.',
+    ];
+    $translator = app('translator');
+    foreach ($messages as $key => $override) {
+        $translator->get($key, [], 'es');
+        $translator->addLines([$key => $override], 'es');
+    }
+
+    $action = app(SavePromotionDraft::class);
+    $validInput = [
+        'local_start_date' => $today,
+        'local_end_date' => $tomorrow,
+        'target_points' => 8,
+        'reward_title' => 'A coffee with pastry',
+        'reward_description' => 'Any small coffee and pastry.',
+        'extra_points' => [],
+    ];
+
+    try {
+        $action->handle($owner, $validInput, $published);
+        $this->fail('A published Promotion was accepted as a draft.');
+    } catch (ValidationException $exception) {
+        expect($exception->errors()['promotion'][0])->toBe($messages['business.promotion.draft_edit_only']);
+    }
+
+    $invalidWindows = [
+        'business.promotion.extra_points_window_order' => [
+            ['weekday' => 1, 'start_time' => '10:00', 'end_time' => '09:00', 'multiplier' => 2],
+        ],
+        'business.promotion.extra_points_all_day_conflict' => [
+            ['weekday' => 1, 'start_time' => null, 'end_time' => null, 'multiplier' => 2],
+            ['weekday' => 1, 'start_time' => '09:00', 'end_time' => '10:00', 'multiplier' => 3],
+        ],
+        'business.promotion.extra_points_overlap' => [
+            ['weekday' => 1, 'start_time' => '09:00', 'end_time' => '10:30', 'multiplier' => 2],
+            ['weekday' => 1, 'start_time' => '10:00', 'end_time' => '11:00', 'multiplier' => 3],
+        ],
+    ];
+
+    foreach ($invalidWindows as $key => $windows) {
+        try {
+            $action->handle($owner, [...$validInput, 'extra_points' => $windows]);
+            $this->fail("Invalid windows for {$key} were accepted.");
+        } catch (ValidationException $exception) {
+            expect($exception->errors()['extra_points'][0])->toBe($messages[$key]);
+        }
+    }
 });
 
 test('authentication rejection shows a Spanish message', function (): void {

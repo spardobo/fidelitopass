@@ -59,7 +59,7 @@ class SavePromotionDraft
 
                 if ($draft->status !== PromotionStatus::Draft) {
                     throw ValidationException::withMessages([
-                        'promotion' => 'Solo se pueden editar promociones en borrador.',
+                        'promotion' => __('business.promotion.draft_edit_only'),
                     ]);
                 }
             }
@@ -161,7 +161,7 @@ class SavePromotionDraft
 
             if ($start !== null && $start >= $end) {
                 throw ValidationException::withMessages([
-                    'extra_points' => 'El horario de puntos extra debe terminar después de su inicio, dentro del mismo día.',
+                    'extra_points' => __('business.promotion.extra_points_window_order'),
                 ]);
             }
 
@@ -171,7 +171,7 @@ class SavePromotionDraft
         foreach ($byWeekday as $dayWindows) {
             if (count($dayWindows) > 1 && in_array([null, null], $dayWindows, true)) {
                 throw ValidationException::withMessages([
-                    'extra_points' => 'No se puede combinar una regla de día completo con otros horarios en el mismo día.',
+                    'extra_points' => __('business.promotion.extra_points_all_day_conflict'),
                 ]);
             }
 
@@ -180,7 +180,7 @@ class SavePromotionDraft
             for ($index = 1; $index < count($dayWindows); $index++) {
                 if ($dayWindows[$index][0] < $dayWindows[$index - 1][1]) {
                     throw ValidationException::withMessages([
-                        'extra_points' => 'Los horarios de puntos extra no pueden superponerse.',
+                        'extra_points' => __('business.promotion.extra_points_overlap'),
                     ]);
                 }
             }
