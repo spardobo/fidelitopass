@@ -21,7 +21,10 @@ class Business extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** @return HasMany<Promotion, $this> */
+    /** Define this Business's owned promotion records.
+     *
+     * @return HasMany<Promotion, $this> Promotions belonging to this Business.
+     */
     public function promotions(): HasMany
     {
         return $this->hasMany(Promotion::class);

@@ -74,6 +74,11 @@ it('rejects promotions and multiplier windows without their owning records', fun
     ]],
 ]);
 
+/**
+ * Create a persisted draft used to exercise database-level constraints.
+ *
+ * @return Promotion Existing draft row with valid default dates and reward fields.
+ */
 function promotionForPersistenceConstraints(): Promotion
 {
     return Business::factory()->create()->promotions()->create([

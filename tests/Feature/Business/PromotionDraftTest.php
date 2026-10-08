@@ -5,12 +5,169 @@ use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\PromotionMultiplierWindow;
 use App\Models\User;
+use App\Support\DatabaseClock;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $clock = Mockery::mock(DatabaseClock::class);
+    $clock->shouldReceive('captureForBusinessTimezone')->andReturn([
+        'instant' => '2026-10-07 12:00:00+00',
+        'business_date' => '2026-10-07',
+    ]);
+    $this->instance(DatabaseClock::class, $clock);
+});
+
+it('rejects a past Business-local start date before creating any records', function () {
+    $owner = User::factory()->create();
+    Business::factory()->for($owner)->create(['timezone' => 'America/La_Paz']);
+    $clock = Mockery::mock(DatabaseClock::class);
+    $clock->shouldReceive('captureForBusinessTimezone')->once()
+        ->with('America/La_Paz')
+        ->andReturn(['instant' => '2026-10-07 12:00:00+00', 'business_date' => '2026-10-07']);
+    $this->instance(DatabaseClock::class, $clock);
+
+    expect(fn () => app(SavePromotionDraft::class)->handle($owner, promotionDraftInput([
+        'local_start_date' => '2026-10-06',
+        'local_end_date' => '2026-10-07',
+    ])))->toThrow(ValidationException::class);
+
+    $this->assertDatabaseCount('promotions', 0);
+    $this->assertDatabaseCount('promotion_multiplier_windows', 0);
+});
+
+it('accepts a draft starting on the current Business-local date', function () {
+    $owner = User::factory()->create();
+    Business::factory()->for($owner)->create(['timezone' => 'Asia/Kolkata']);
+    $clock = Mockery::mock(DatabaseClock::class);
+    $clock->shouldReceive('captureForBusinessTimezone')->once()
+        ->with('Asia/Kolkata')
+        ->andReturn(['instant' => '2026-10-07 12:00:00+00', 'business_date' => '2026-10-07']);
+    $this->instance(DatabaseClock::class, $clock);
+
+    $promotion = app(SavePromotionDraft::class)->handle($owner, promotionDraftInput([
+        'local_start_date' => '2026-10-07',
+        'local_end_date' => '2026-10-07',
+    ]));
+
+    expect($promotion->local_start_date->toDateString())->toBe('2026-10-07')
+        ->and($promotion->local_end_date->toDateString())->toBe('2026-10-07');
+});
+
+it('does not save a stale draft after its Business-local start date passes', function () {
+    $owner = User::factory()->create();
+    Business::factory()->for($owner)->create(['timezone' => 'Europe/Madrid']);
+    $clock = Mockery::mock(DatabaseClock::class);
+    $clock->shouldReceive('captureForBusinessTimezone')->twice()
+        ->with('Europe/Madrid')
+        ->andReturn(
+            ['instant' => '2026-10-07 12:00:00+00', 'business_date' => '2026-10-07'],
+            ['instant' => '2026-10-09 12:00:00+00', 'business_date' => '2026-10-09'],
+        );
+    $this->instance(DatabaseClock::class, $clock);
+    $action = app(SavePromotionDraft::class);
+    $promotion = $action->handle($owner, promotionDraftInput([
+        'local_start_date' => '2026-10-08',
+        'local_end_date' => '2026-10-14',
+        'extra_points' => [promotionWindow(1, '09:00', '10:00', 2)],
+    ]));
+    $previousUpdatedAt = $promotion->updated_at;
+
+    expect(fn () => $action->handle($owner, promotionDraftInput([
+        'reward_title' => 'Must remain unchanged',
+        'local_start_date' => '2026-10-08',
+        'local_end_date' => '2026-10-14',
+        'extra_points' => [],
+    ]), $promotion))->toThrow(ValidationException::class);
+
+    expect($promotion->fresh()->reward_title)->toBe('A coffee with pastry')
+        ->and($promotion->fresh()->updated_at->equalTo($previousUpdatedAt))->toBeTrue();
+    $this->assertDatabaseCount('promotion_multiplier_windows', 1);
+});
+
+it('revalidates an existing draft using the Business timezone that is current at save time', function () {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create(['timezone' => 'America/La_Paz']);
+    $clock = Mockery::mock(DatabaseClock::class);
+    $clock->shouldReceive('captureForBusinessTimezone')->once()
+        ->with('America/La_Paz')
+        ->andReturn(['instant' => '2026-10-07 12:00:00+00', 'business_date' => '2026-10-07']);
+    $clock->shouldReceive('captureForBusinessTimezone')->once()
+        ->with('Europe/Madrid')
+        ->andReturn(['instant' => '2026-10-09 12:00:00+00', 'business_date' => '2026-10-09']);
+    $this->instance(DatabaseClock::class, $clock);
+    $action = app(SavePromotionDraft::class);
+    $promotion = $action->handle($owner, promotionDraftInput([
+        'local_start_date' => '2026-10-08',
+        'local_end_date' => '2026-10-14',
+    ]));
+    $business->update(['timezone' => 'Europe/Madrid']);
+
+    expect(fn () => $action->handle($owner, promotionDraftInput([
+        'local_start_date' => '2026-10-08',
+        'local_end_date' => '2026-10-14',
+    ]), $promotion))->toThrow(ValidationException::class);
+
+    expect($promotion->fresh()->local_start_date->toDateString())->toBe('2026-10-08');
+});
+
+it('reports missing stored timed-window fields separately', function (array $window, string $errorKey) {
+    $owner = User::factory()->create();
+    Business::factory()->for($owner)->create();
+
+    try {
+        app(SavePromotionDraft::class)->handle($owner, promotionDraftInput([
+            'extra_points' => [$window],
+        ]));
+
+        $this->fail('An incomplete timed window was accepted.');
+    } catch (ValidationException $exception) {
+        expect($exception->errors())->toHaveKey($errorKey)
+            ->and($exception->errors())->not->toHaveKey('extra_points');
+    }
+})->with([
+    'end time is required when start is present' => [promotionWindow(1, '09:00', null, 2), 'extra_points.0.end_time'],
+    'start time is required when end is present' => [promotionWindow(1, null, '10:00', 2), 'extra_points.0.start_time'],
+]);
+
+it('captures one PostgreSQL clock reading after locking the Business and Promotion', function () {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create(['timezone' => 'Europe/Madrid']);
+    $this->app->forgetInstance(DatabaseClock::class);
+    $clock = app(DatabaseClock::class);
+    $today = $clock->captureForBusinessTimezone($business->timezone)['business_date'];
+    $start = (new DateTimeImmutable($today, new DateTimeZone('UTC')))->modify('+1 day')->format('Y-m-d');
+    $end = (new DateTimeImmutable($start, new DateTimeZone('UTC')))->modify('+7 days')->format('Y-m-d');
+    $promotion = app(SavePromotionDraft::class)->handle($owner, promotionDraftInput([
+        'local_start_date' => $start,
+        'local_end_date' => $end,
+    ]));
+    $operationQueries = [];
+
+    DB::listen(function (QueryExecuted $query) use (&$operationQueries): void {
+        if (str_contains(strtolower($query->sql), 'for update') || str_contains($query->sql, 'clock_timestamp()')) {
+            $operationQueries[] = $query->sql;
+        }
+    });
+
+    app(SavePromotionDraft::class)->handle($owner, promotionDraftInput([
+        'local_start_date' => $start,
+        'local_end_date' => $end,
+        'reward_title' => 'Updated after current locks',
+    ]), $promotion);
+
+    $clockIndexes = array_keys(array_filter($operationQueries, static fn (string $sql): bool => str_contains($sql, 'clock_timestamp()')));
+    $lockIndexes = array_keys(array_filter($operationQueries, static fn (string $sql): bool => str_contains(strtolower($sql), 'for update')));
+
+    expect($clockIndexes)->toHaveCount(1)
+        ->and($lockIndexes)->toHaveCount(2)
+        ->and(max($lockIndexes))->toBeLessThan($clockIndexes[0]);
+});
 
 it('creates independent drafts owned by the authenticated business and stores local dates', function () {
     $owner = User::factory()->create();
@@ -194,7 +351,12 @@ it('rolls back promotion edits and rule replacement when a child write fails', f
     ]);
 });
 
-/** @return array<string, mixed> */
+/**
+ * Build a valid default draft payload with optional field overrides.
+ *
+ * @param  array<string, mixed>  $overrides  Draft field values replacing the valid defaults.
+ * @return array<string, mixed> Draft fields and child rule entries ready for action validation.
+ */
 function promotionDraftInput(array $overrides = []): array
 {
     return array_replace([
@@ -207,7 +369,15 @@ function promotionDraftInput(array $overrides = []): array
     ], $overrides);
 }
 
-/** @return array{weekday: int, start_time: ?string, end_time: ?string, multiplier: int} */
+/**
+ * Build one multiplier-window entry for action and persistence tests.
+ *
+ * @param  int  $weekday  ISO weekday from 1 (Monday) through 7 (Sunday).
+ * @param  string|null  $start  Window start in HH:MM format, or null for all day.
+ * @param  string|null  $end  Window end in HH:MM format, or null for all day.
+ * @param  int  $multiplier  Supported total multiplier value.
+ * @return array{weekday: int, start_time: string|null, end_time: string|null, multiplier: int} Complete rule entry.
+ */
 function promotionWindow(int $weekday, ?string $start, ?string $end, int $multiplier): array
 {
     return [

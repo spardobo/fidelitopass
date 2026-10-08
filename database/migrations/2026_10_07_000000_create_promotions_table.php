@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Create the Promotion table and enforce its date, target, and status constraints.
+     */
     public function up(): void
     {
         Schema::create('promotions', function (Blueprint $table) {
@@ -28,6 +31,9 @@ return new class extends Migration
         DB::statement("ALTER TABLE promotions ADD CONSTRAINT promotions_valid_status CHECK (status IN ('draft', 'published', 'cancelled'))");
     }
 
+    /**
+     * Drop the Promotion table when rolling back this migration.
+     */
     public function down(): void
     {
         Schema::dropIfExists('promotions');
