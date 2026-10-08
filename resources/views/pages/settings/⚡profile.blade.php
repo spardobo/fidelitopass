@@ -11,14 +11,16 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Profile settings')] class extends Component {
+new #[Title('Profile settings')] class extends Component
+{
     use ProfileValidationRules;
 
     public string $name = '';
+
     public string $email = '';
 
     /**
-     * Mount the component.
+     * Initialize the editable name and email fields from the authenticated user without persisting changes.
      */
     public function mount(): void
     {

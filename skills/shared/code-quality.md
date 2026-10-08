@@ -31,12 +31,20 @@ Use names, types and structure first; distinguish these purposes instead of subs
 | Purpose               | Gate                                                                                                           |
 | --------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Responsibility group  | Locate a major cohesive group of multiple collaborating elements: state, configuration, functions or handlers. |
-| API/function contract | Explain public use or information not expressed by signatures; apply the language owner's documentation scope. |
+| Callable contract | Follow the mandatory named-callable documentation contract below; language references own syntax and application details. |
 | Internal rationale    | Explain a non-obvious constraint, required order, edge condition or units near the affected step.              |
 
 For useful major PHP/JavaScript responsibility groups outside function, method, closure and callback bodies, use a three-line `//` box with matching dashed separator lines around a short lowercase English label, indented with surrounding code. Leave one blank line before and after the box. Inside bodies, use logical paragraphs and only necessary rationale comments. Keep each docblock immediately attached to its declaration, with declaration attributes permitted in PHP; never put a box between them. Do not box each helper, one isolated function or an empty decorative section. Small configuration groups may use a plain lowercase comment. Do not impose fixed labels, separator widths, helper counts or universal templates.
 
 Use lowercase English semantic region comments in Blade only where they locate useful content/action regions, not every element. Keep explanations out of headings and place contracts in docblocks. Preserve meaningful existing contracts; avoid narration per operation and comments that restate code. Do not use source assertions for comment wording, boxes or placement as behavioral evidence.
+
+## Callable documentation
+
+Document every project-owned named function and method, including private helpers, constructors and accessors, in one PHPDoc or JSDoc block attached to its declaration. The block describes the callable and each parameter's type and purpose. For value-returning callables, add a precise `@return` or `@returns` type and a meaningful result description, including for generic or shaped results. Do not add a plain `void` return tag; describe necessary effects in the callable description. Keep meaningful asynchronous `Promise<void>` contracts because they describe completion and rejection behavior. Document only expected, applicable exceptions that cross the callable boundary; do not invent or mechanically list incidental framework exceptions.
+
+Native signatures remain required and do not replace parameter descriptions. Preserve useful generic and array/object shape types, units, preconditions, side effects, ownership, trust boundaries and cleanup obligations where they affect callers. For asynchronous JavaScript, describe meaningful promise rejection behavior in the promise return contract; document synchronous throws only when they are expected and applicable.
+
+This rule applies to named project-owned callables, not every anonymous closure or inline test callback. Document an anonymous callable only when it represents a named/reused contract or carries behavior, data shape, rejection or resource obligations that would otherwise be unclear. Use English technical documentation and keep each block attached to its declaration.
 
 ## Scoped review
 
