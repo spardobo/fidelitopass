@@ -1,6 +1,8 @@
 <?php
 
 use App\Support\SupportedTimezones;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -14,6 +16,13 @@ new #[Layout('layouts::app'), Title('business.profile_title')] class extends Com
 
     public string $timezone = '';
 
+    /**
+     * Resolve and authorize the authenticated owner's Business.
+     * Initialize editable name and timezone fields from the authorized record.
+     *
+     * @throws ModelNotFoundException When the authenticated user has no Business.
+     * @throws AuthorizationException When the authenticated user cannot update the Business.
+     */
     public function mount(): void
     {
         $business = Auth::user()->business()->firstOrFail();

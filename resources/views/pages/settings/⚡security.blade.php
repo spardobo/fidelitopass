@@ -17,11 +17,14 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 /* @end-chisel-2fa */
 
-new #[Title('Security settings')] class extends Component {
+new #[Title('Security settings')] class extends Component
+{
     use PasswordValidationRules;
 
     public string $current_password = '';
+
     public string $password = '';
+
     public string $password_confirmation = '';
 
     /* @chisel-2fa */
@@ -49,7 +52,10 @@ new #[Title('Security settings')] class extends Component {
     /* @end-chisel-passkeys */
 
     /**
-     * Mount the component.
+     * Initialize feature-gated two-factor and passkey settings for the authenticated user.
+     * Clear unconfirmed two-factor setup when confirmation is required, then load the enabled-feature state and passkeys.
+     *
+     * @param  DisableTwoFactorAuthentication  $disableTwoFactorAuthentication  Fortify action used to clear unconfirmed two-factor setup when confirmation is required.
      */
     public function mount(DisableTwoFactorAuthentication $disableTwoFactorAuthentication): void
     {

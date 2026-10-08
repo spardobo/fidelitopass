@@ -41,7 +41,9 @@ Apply [shared code quality](../../shared/code-quality.md) before these client-sp
 - Extract a helper for a reused responsibility, non-obvious operation, actual ownership boundary or significant reduction in caller context. A single use is not disqualifying, but line-count reduction, one-time setup or a shorter main alone is not a reason. Preserve geometry-read timing, DOM-write ordering and pending-work ownership; add no speculative helper collection or generic factory.
 - Name the domain action, value or resource when a more concrete name is available; avoid introducing generic `helper`, `utils`, `manager`, `process` or `execute` names for meaningful responsibilities. Extract constants when the name captures a rule, shared meaning, configuration or important threshold; keep scenario-specific literals/selectors near their use when that is clearer, and do not create generic `CONFIG`, `COLORS` or `SELECTORS` bags just to centralize literals.
 - Apply the shared owner's three distinct comment purposes. Use its three-line lowercase English responsibility boxes only for useful major groups of multiple collaborating items, never per helper. Keep contracts in docblocks and internal rationale beside the relevant step; do not duplicate the shared heading policy.
-- Preserve useful JSDoc. Add it for an exported/reused API or non-obvious data/resource contract only when the signature and code do not make the contract clear; document shapes, units, preconditions, effects and cleanup obligations when useful. Do not narrate obvious signatures or annotate every helper.
+- Follow the [shared callable contract](../../../skills/shared/code-quality.md#callable-documentation) for descriptions, parameters, results and applicable failures.
+- Use JSDoc to express JavaScript contracts that native syntax cannot provide, including imported Playwright types and useful object or array shapes. Keep JSDoc in JavaScript syntax; never use TypeScript-only syntax in `.js` or `.mjs`.
+- Do not add boilerplate to anonymous closures or inline test callbacks unless they represent a named/reused contract or carry otherwise unclear data, rejection or resource obligations.
 
 ## Resource ownership and disposal
 
@@ -109,7 +111,7 @@ Follow the source-boundary and tooling rules above. Use camelCase names, concret
 
 Within a function, method, factory or callback, organize statements into logical paragraphs with one blank line; separator boxes belong outside bodies. Named functions improve actual responsibilities, not every expression. A component-local script can stay local regardless of length when ownership and testing remain clear.
 
-Apply the callable documentation scope in [Readable execution and contracts](#readable-execution-and-contracts). Preserve useful JSDoc types, including reusable typedefs when the actual tooling benefits; do not create a class or repeat a giant object shape solely to avoid a valid annotation. Describe promise rejection separately from handled operational errors. A fire-and-forget void expression does not handle a rejection.
+Apply the callable documentation scope in [Readable execution and contracts](#readable-execution-and-contracts). Preserve useful JSDoc types, including reusable typedefs when the actual tooling benefits; do not create a class or repeat a giant object shape solely to avoid a valid annotation. A fire-and-forget void expression does not handle a rejection.
 
 For custom fetch code, validate response status and external payload at its boundary. Keep empty success distinct from failure. Abort does not undo a server write or prove a response is current. Never use forEach(async ...) when completion must be awaited; select sequential or parallel work by actual dependency and limit concurrency when volume warrants it.
 

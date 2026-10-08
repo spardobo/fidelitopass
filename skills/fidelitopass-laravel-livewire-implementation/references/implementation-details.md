@@ -7,7 +7,7 @@ Apply [shared code quality](../../shared/code-quality.md) alongside this PHP-spe
 - [Laravel boundaries](#laravel-boundaries)
 - [Livewire structure](#livewire-structure-and-authority)
 - [Types and contracts](#php-source-and-types)
-- [Public API PHPDoc](#public-api-phpdoc)
+- [PHPDoc syntax](#phpdoc-syntax)
 - [Owner selection](#domain-and-persistence-owner-selection)
 - [Readable paragraphs](#readable-php-paragraphs-and-naming)
 
@@ -36,12 +36,11 @@ Apply [shared code quality](../../shared/code-quality.md) alongside this PHP-spe
 - Preserve meaningful generic collection types and array shapes for static analysis/IDE use where native types are insufficient. Do not replace specific contracts with uninformative `array` or `Collection` annotations.
 - Apply shared responsibility boxes only to useful major multi-element groups; use docblocks for API contracts and nearby lowercase English comments for internal rationale.
 
-## Public API PHPDoc
+## PHPDoc syntax
 
-- Give a reusable service, Action or Job a concise class contract when its responsibility, invariants or side effects are not clear from its name and shape. Public/domain operations document meaningful preconditions, results, rejection/exception behavior and transaction/provider effects, even when fully typed. A trivial constructor or accessor does not need ceremonial documentation.
-- Document private methods when they own a non-obvious algorithm, invariant, unit, shape or effect. Improve names, types and structure first; comments are not a substitute for readable code.
-- Keep each docblock attached to its declaration. Use native types first and annotations for meaningful generic collections, array shapes or exceptions; do not repeat native types in empty tags. Preserve useful property/type annotations required by the actual IDE/analyzer instead of banning valid PHPDoc syntax.
-- Use short English summaries consistently, preferably descriptive present tense. Internal rationale comments begin in lowercase; preserve proper names and technical symbols. Do not police grammatical style instead of contract accuracy.
+- Follow the [shared callable contract](../../../skills/shared/code-quality.md#callable-documentation) for PHP callable descriptions, parameters, results and applicable exceptions.
+- Use PHPDoc where native syntax cannot express useful PHPStan/Larastan generics, collection key/value types or array shapes; preserve accurate framework relation types. For constructors with promoted properties, document the constructor parameter rather than inventing a return annotation.
+- Preserve class-level contracts for reusable services, Actions and Jobs when their responsibility, invariants or side effects are not clear from their name and shape.
 
 ## Domain and persistence owner selection
 

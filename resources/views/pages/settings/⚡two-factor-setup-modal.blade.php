@@ -8,7 +8,8 @@ use Livewire\Attributes\On;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 
-new class extends Component {
+new class extends Component
+{
     #[Locked]
     public bool $requiresConfirmation;
 
@@ -26,7 +27,9 @@ new class extends Component {
     public string $code = '';
 
     /**
-     * Mount the component.
+     * Initialize only the confirmation requirement supplied by the parent component; setup secrets and QR data are loaded later.
+     *
+     * @param  bool  $requiresConfirmation  Whether the user must confirm two-factor setup.
      */
     public function mount(bool $requiresConfirmation): void
     {
