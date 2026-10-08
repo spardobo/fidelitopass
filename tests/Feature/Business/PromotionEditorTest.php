@@ -140,7 +140,14 @@ it('does not expose an editor for a promotion that has left draft status', funct
     $owner = User::factory()->create();
     Business::factory()->for($owner)->create();
     $promotion = app(SavePromotionDraft::class)->handle($owner, promotionEditorDraftInput());
-    $promotion->forceFill(['status' => PromotionStatus::Published])->save();
+    $promotion->forceFill([
+        'local_start_date' => null,
+        'local_end_date' => null,
+        'status' => PromotionStatus::Published,
+        'timezone_snapshot' => 'America/La_Paz',
+        'starts_at' => '2026-11-01 04:00:00+00',
+        'ends_at' => '2026-11-08 04:00:00+00',
+    ])->save();
 
     $this->actingAs($owner)
         ->get(route('business.promotions.edit', $promotion->public_id))
