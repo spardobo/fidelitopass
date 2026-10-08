@@ -284,6 +284,12 @@ As a customer, I want the Promotion rules to stay stable after play begins so th
 - **When** the owner requests cancellation.
 - **Then** it remains historical rather than being cancelled.
 
+**Scenario: Repeated cancellation**
+
+- **Given** a Promotion that was already cancelled.
+- **When** the owner requests cancellation again.
+- **Then** the request is rejected with localized feedback and the original cancellation instant remains unchanged.
+
 **Verification:** Feature tests for transition and authorization.
 
 **Editor:** One full-page editor with **Información general** and **Puntos extra** sections, an Add form, Remove list, and shared cancel/save draft/publish actions. Moving between sections retains unsaved values; save and publish persist the aggregate atomically, warn about incomplete unadded rules, show errors in the relevant section and confirm navigation away from a dirty editor. Pass appearance is saved independently of Promotion terms.
