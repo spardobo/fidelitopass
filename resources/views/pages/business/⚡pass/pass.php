@@ -1,17 +1,27 @@
 <?php
 
+use App\Enums\PromotionStatus;
 use App\Models\Business;
+use App\Models\Promotion;
+use Flux\Flux;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new #[Layout('layouts::app'), Title('business.pass.title')] class extends Component
 {
+    use WithPagination;
+
     private const PREVIEW_FALLBACK = '#A77BFF';
 
     private const MINIMUM_PREVIEW_CONTRAST = 4.5;
@@ -43,14 +53,35 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     #[Locked]
     public bool $editing = false;
 
+    #[Locked]
+    public bool $draftSavedNoticePending = false;
+
+    /**
+     * Initialize the appearance editor after authorizing the Business and loading its current color.
+     * Consume any one-time Promotion-save notice for the Pase page.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     */
     public function mount(): void
     {
         $business = $this->authorizedBusiness();
 
         $this->editing = request()->routeIs('business.pass.appearance');
         $this->backgroundColor = $business->pass_background_color ?? self::PREVIEW_FALLBACK;
+
+        $this->draftSavedNoticePending = (bool) Session::pull('business.promotion.draft_saved');
     }
 
+    /**
+     * Set a supported appearance color for the local preview without persisting it.
+     *
+     * @param  string  $color  Hex value selected from the configured preset palette.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     * @throws ValidationException When the supplied color is not an allowed preset.
+     */
     public function selectColor(string $color): void
     {
         $this->authorizedBusiness();
@@ -64,6 +95,13 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
         $this->backgroundColor = $color;
     }
 
+    /**
+     * Validate and persist the selected appearance, then show a success toast and return to Pase.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     * @throws ValidationException When the selected color is invalid.
+     */
     public function save(): void
     {
         $business = $this->authorizedBusiness();
@@ -77,9 +115,16 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
         ]);
 
         $this->resetValidation();
+        Flux::toast(__('business.pass.saved_status'), null, 5000, 'success');
         $this->redirectRoute('business.pass', navigate: true);
     }
 
+    /**
+     * Restore the persisted appearance, clear validation state, and leave without saving pending changes.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     */
     public function cancel(): void
     {
         $business = $this->authorizedBusiness();
@@ -137,6 +182,25 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     public function business(): Business
     {
         return $this->authorizedBusiness();
+    }
+
+    /**
+     * Return only the authenticated Business's draft promotions in stable, paginated order.
+     *
+     * @return LengthAwarePaginator<int, Promotion> Owned drafts ordered by local start date, update time, and ID.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     */
+    #[Computed]
+    public function draftPromotions(): LengthAwarePaginator
+    {
+        return $this->authorizedBusiness()->promotions()
+            ->where('status', PromotionStatus::Draft->value)
+            ->orderByRaw('local_start_date ASC NULLS LAST')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->paginate(10);
     }
 
     #[Computed]

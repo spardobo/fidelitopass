@@ -407,7 +407,8 @@ it('saves a valid appearance and restores the persisted value when cancelled', f
     Livewire::test('pages::business.pass')
         ->set('backgroundColor', '#a77bff')
         ->call('save')
-        ->assertHasNoErrors();
+        ->assertHasNoErrors()
+        ->assertDispatched('toast-show');
 
     expect($business->fresh()->pass_background_color)->toBe('#A77BFF');
 
@@ -427,7 +428,8 @@ it('rejects malformed appearance colors without changing the saved value', funct
     Livewire::test('pages::business.pass')
         ->set('backgroundColor', '#12')
         ->call('save')
-        ->assertHasErrors(['backgroundColor']);
+        ->assertHasErrors(['backgroundColor'])
+        ->assertNotDispatched('toast-show');
 
     expect($business->fresh()->pass_background_color)->toBe('#2C3E50');
 });
