@@ -5,6 +5,7 @@ use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
 use App\Support\DatabaseClock;
+use App\Support\PromotionDraftValidator;
 use Flux\Flux;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -122,7 +123,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
                 'multiplier' => (int) $validated['draftMultiplier'],
             ];
 
-            app(SavePromotionDraft::class)->validateExtraPointWindows([
+            app(PromotionDraftValidator::class)->validateExtraPointWindows([
                 ...$this->normalizedExtraPoints(),
                 $rule,
             ]);
