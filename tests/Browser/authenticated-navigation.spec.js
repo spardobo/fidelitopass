@@ -359,6 +359,61 @@ async function getLocalReference(page, width, testInfo) {
     return reference;
 }
 
+/**
+ * Verify the shared decorative mark preserves preview geometry and inherited ink.
+ *
+ * @param {import('@playwright/test').Page} page Browser page containing a pass preview.
+ * @param {import('@playwright/test').TestInfo} testInfo Screenshot destination owner.
+ * @param {string} context Preview context used to identify visual evidence.
+ * @returns {Promise<void>} Resolves when geometry, decorative semantics and inherited colors match; rejects on a failed rendering assertion.
+ */
+async function expectPassBrandMark(page, testInfo, context) {
+    const mark = page.locator(".app-pass-brand-mark").first();
+
+    await expect(mark).toBeVisible();
+    await mark.screenshot({ path: testInfo.outputPath(`${context}-brand-mark.png`) });
+    await expect(mark).toHaveJSProperty("tagName", "svg");
+    await expect(mark).toHaveAttribute("aria-hidden", "true");
+    await expect(mark).toHaveAttribute("focusable", "false");
+    await expect(mark).toHaveCSS("width", "32px");
+    await expect(mark).toHaveCSS("height", "32px");
+
+    const geometry = await mark.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const card = element.closest("article");
+        const outline = element.querySelector("rect");
+        const dot = element.querySelector("circle");
+        const shape = outline.getBBox();
+        const circle = dot.getBBox();
+        const transform = element.getScreenCTM();
+        const center = new DOMPoint(22, 16.5).matrixTransform(transform);
+
+        return {
+            color: getComputedStyle(card).color,
+            stroke: getComputedStyle(outline).stroke,
+            fill: getComputedStyle(dot).fill,
+            box: { x: box.x, y: box.y, width: box.width, height: box.height },
+            center: { x: center.x, y: center.y },
+            scale: transform.a,
+            shape: { x: shape.x, y: shape.y, width: shape.width, height: shape.height },
+            circle: { x: circle.x, y: circle.y, width: circle.width, height: circle.height },
+            overflow: document.documentElement.scrollWidth > window.innerWidth,
+        };
+    });
+
+    expect(geometry.stroke).toBe(geometry.color);
+    expect(geometry.fill).toBe(geometry.color);
+    expect(geometry.shape).toEqual({ x: 3, y: 3.5, width: 38, height: 26 });
+    expect(geometry.circle).toEqual({ x: 17.5, y: 12, width: 9, height: 9 });
+    expect(geometry.scale).toBeCloseTo(geometry.box.width / 44, 3);
+    expect(geometry.center.x).toBeCloseTo(geometry.box.x + geometry.box.width / 2, 2);
+    expect(geometry.center.y).toBeCloseTo(geometry.box.y + geometry.box.height / 2, 2);
+    expect(geometry.box.width).toBeCloseTo(geometry.box.height, 1);
+    expect(geometry.box.x).toBeGreaterThanOrEqual(0);
+    expect(geometry.box.x + geometry.box.width).toBeLessThanOrEqual(page.viewportSize().width);
+    expect(geometry.overflow).toBe(false);
+}
+
 for (const width of AUTHENTICATED_WIDTHS) {
     test(`authenticated navigation and local reference at ${width}px`, async ({
         page,
@@ -375,6 +430,9 @@ for (const width of AUTHENTICATED_WIDTHS) {
         });
 
         const reference = await getLocalReference(page, width, testInfo);
+
+        await page.goto("/");
+        await expectPassBrandMark(page, testInfo, "landing");
 
         await registerVerifiedBusiness(page, request);
 
@@ -563,6 +621,12 @@ for (const width of AUTHENTICATED_WIDTHS) {
             await link.click();
 
             await expect(page).toHaveURL(new RegExp(`${path}$`));
+
+            if (path === "/pass") {
+                await expectPassBrandMark(page, testInfo, "business-pass");
+                await page.goto("/pass/appearance");
+                await expectPassBrandMark(page, testInfo, "appearance-editor");
+            }
 
             await page.goto("/dashboard");
         }

@@ -96,23 +96,6 @@
     }
 }
 
-.app-pass-brand-mark {
-    display: inline-block;
-    flex-shrink: 0;
-    background-color: currentColor;
-    mask-position: center;
-    mask-repeat: no-repeat;
-    mask-size: contain;
-    -webkit-mask-position: center;
-    -webkit-mask-repeat: no-repeat;
-    -webkit-mask-size: contain;
-}
-
-.app-pass-brand-mark {
-    mask-image: url('/icons/pass-brand-mark.svg');
-    -webkit-mask-image: url('/icons/pass-brand-mark.svg');
-}
-
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }

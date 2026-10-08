@@ -165,7 +165,7 @@ it('uses a compact illustrative pass without customer data or credentials', func
     }
 });
 
-it('renders the Flux outline preview glyph and decorative public brand asset', function () {
+it('renders the Flux outline preview glyph and decorative inline brand mark', function () {
     $business = Business::factory()->create();
 
     $response = $this->actingAs($business->user)
@@ -186,14 +186,12 @@ it('renders the Flux outline preview glyph and decorative public brand asset', f
         $preview,
     );
     $brandMark = $xpath->query(
-        './/span[contains(concat(" ", normalize-space(@class), " "), " app-pass-brand-mark ")]',
+        './/svg[contains(concat(" ", normalize-space(@class), " "), " app-pass-brand-mark ")]',
         $preview,
     );
-    $customInlineSvgs = $xpath->query('.//svg[.//*[local-name() = "circle"]]', $preview);
 
     expect($promotionIcon)->toHaveCount(1);
     expect($brandMark)->toHaveCount(1);
-    expect($customInlineSvgs)->toHaveCount(0);
     expect($promotionIcon->item(0)->getAttribute('aria-hidden'))->toBe('true');
     expect($promotionIcon->item(0)->getAttribute('viewbox'))->toBe('0 0 24 24');
     expect($promotionIcon->item(0)->getAttribute('stroke-width'))->toBe('1.5');
@@ -201,6 +199,7 @@ it('renders the Flux outline preview glyph and decorative public brand asset', f
     expect($promotionIcon->item(0)->getElementsByTagName('path')->item(0)->getAttribute('d'))
         ->toStartWith('M9.568 3H5.25');
     expect($brandMark->item(0)->getAttribute('aria-hidden'))->toBe('true');
+    expect($brandMark->item(0)->getAttribute('focusable'))->toBe('false');
     $menuIcons = $xpath->query('//svg[@data-flux-menu-item-icon]');
     expect($menuIcons->length)->toBeGreaterThan(0);
     foreach ($menuIcons as $menuIcon) {
@@ -212,7 +211,6 @@ it('renders the Flux outline preview glyph and decorative public brand asset', f
     expect(file_exists(resource_path('views/components/app-icon.blade.php')))->toBeFalse();
     expect(file_exists(public_path('benefit-challenges.svg')))->toBeFalse();
     expect(file_exists(public_path('benefit-points.svg')))->toBeFalse();
-    expect(file_exists(public_path('icons/pass-brand-mark.svg')))->toBeTrue();
 });
 
 it('uses shared marketing and preview typography roles on the public landing', function () {
