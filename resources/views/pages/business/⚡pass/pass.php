@@ -56,9 +56,12 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     #[Locked]
     public bool $draftSavedNoticePending = false;
 
+    #[Locked]
+    public string $publicationNotice = '';
+
     /**
      * Initialize the appearance editor after authorizing the Business and loading its current color.
-     * Consume any one-time Promotion-save notice for the Pase page.
+     * Consume one-time Promotion draft-save or publication feedback for the Pase page.
      *
      * @throws AuthorizationException When the actor cannot update the Business.
      * @throws ModelNotFoundException When the actor has no Business.
@@ -71,6 +74,10 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
         $this->backgroundColor = $business->pass_background_color ?? self::PREVIEW_FALLBACK;
 
         $this->draftSavedNoticePending = (bool) Session::pull('business.promotion.draft_saved');
+        $publicationNotice = Session::pull('business.promotion.publication_notice');
+        $this->publicationNotice = $publicationNotice === 'published'
+            ? 'published'
+            : '';
     }
 
     /**
