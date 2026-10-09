@@ -210,6 +210,9 @@ it('independently paginates all upcoming promotions and drafts in open disclosur
     ));
     $component = Livewire::actingAs($owner)->test('pages::business.pass');
     $initialHtml = $component->html();
+    $document = new DOMDocument;
+    @$document->loadHTML($initialHtml);
+    $xpath = new DOMXPath($document);
 
     $component->assertSee(__('business.pass.scheduled_promotions_heading', ['count' => 6]))
         ->assertSee(__('business.pass.drafts_heading', ['count' => 6]))
@@ -223,7 +226,7 @@ it('independently paginates all upcoming promotions and drafts in open disclosur
         ->assertDontSee('Borrador 6');
 
     expect(substr_count($initialHtml, '<details'))->toBe(2)
-        ->and(substr_count($initialHtml, 'wire:ignore.self'))->toBe(2)
+        ->and($xpath->query('//details/@*[name() = "wire:ignore.self"]')->length)->toBe(2)
         ->and(substr_count($initialHtml, ' open'))->toBe(2);
 
     $component->call('setPage', 2, 'scheduledPage')

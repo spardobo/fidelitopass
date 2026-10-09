@@ -352,6 +352,17 @@
                             ·
                             {{ __('business.pass.promotion_published_target', ['points' => $activePromotion['promotion']->target_points]) }}
                         </flux:text>
+                        <flux:button
+                            id="promotion-detail-trigger-{{ $activePromotion['promotion']->public_id }}"
+                            type="button"
+                            wire:click="showPromotionDetail('{{ $activePromotion['promotion']->public_id }}')"
+                            wire:loading.attr="disabled"
+                            wire:target="showPromotionDetail"
+                            variant="filled"
+                            class="app-button-secondary min-h-11 w-full sm:w-auto"
+                        >
+                            {{ __('business.pass.view_promotion_detail') }}
+                        </flux:button>
                     </article>
                 </div>
             @endif
@@ -392,6 +403,17 @@
                                         {{ __('business.pass.promotion_published_target', ['points' => $scheduledPromotion['promotion']->target_points]) }}
                                     </flux:text>
                                 </div>
+                                <flux:button
+                                    id="promotion-detail-trigger-{{ $scheduledPromotion['promotion']->public_id }}"
+                                    type="button"
+                                    wire:click="showPromotionDetail('{{ $scheduledPromotion['promotion']->public_id }}')"
+                                    wire:loading.attr="disabled"
+                                    wire:target="showPromotionDetail"
+                                    variant="filled"
+                                    class="app-button-secondary min-h-11 w-full sm:w-auto"
+                                >
+                                    {{ __('business.pass.view_promotion_detail') }}
+                                </flux:button>
                             </li>
                         @endforeach
                     </ul>
@@ -463,4 +485,51 @@
             @endif
         </section>
     @endif
+
+    <flux:modal
+        name="promotion-detail"
+        scroll="body"
+        x-on:close="
+            const originId = 'promotion-detail-trigger-' + $wire.selectedPromotionId;
+            $wire.dismissPromotionDetail().then(() => {
+                $el.closest('main').querySelector('#' + originId)?.focus({ preventScroll: true });
+            });
+        "
+        class="app-theme w-[calc(100vw-2rem)] sm:w-[calc(100vw-3rem)] max-w-xl! min-w-0! max-h-[calc(100dvh-2rem)]! sm:max-h-[calc(100dvh-3rem)]! flex flex-col overflow-hidden!"
+    >
+        @if ($detail = $this->promotionDetail)
+            <div data-promotion-detail-phase="{{ $detail['phase'] }}" class="flex min-h-0 flex-1 flex-col">
+                <header class="shrink-0 space-y-2 pb-3 pe-10">
+                    <flux:heading level="2" class="app-role-title! text-app-ink!">
+                        {{ __('business.pass.promotion_detail_title') }}
+                    </flux:heading>
+                    <flux:badge class="app-role-support!">
+                        {{ __('business.pass.promotion_'.$detail['phase'].'_status') }}
+                    </flux:badge>
+                    <flux:text class="app-role-support! text-app-ink-secondary!">
+                        {{ __('business.pass.promotion_detail_description') }}
+                    </flux:text>
+                </header>
+
+                <div data-test="promotion-detail-scroll-body" tabindex="0" autofocus class="min-h-0 flex-1 overflow-y-auto py-3">
+                    <x-promotion-summary
+                        :reward-title="$detail['promotion']->reward_title"
+                        :reward-description="$detail['promotion']->reward_description"
+                        :target-points="$detail['promotion']->target_points"
+                        :start-date="$detail['start_date']"
+                        :end-date="$detail['end_date']"
+                        :extra-points="$detail['extra_points']"
+                    />
+                </div>
+
+                <footer class="flex shrink-0 justify-end pt-3">
+                    <flux:modal.close class="w-full sm:w-auto">
+                        <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
+                            {{ __('business.pass.close_promotion_detail') }}
+                        </flux:button>
+                    </flux:modal.close>
+                </footer>
+            </div>
+        @endif
+    </flux:modal>
 </main>
