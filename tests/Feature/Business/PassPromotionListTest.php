@@ -30,7 +30,14 @@ it('shows only the current business drafts with public edit links', function () 
     $ownedDraft = $action->handle($owner, passPromotionInput('Café de cortesía'));
     $foreignDraft = $action->handle($otherOwner, passPromotionInput('Ajeno'));
     $published = $action->handle($owner, passPromotionInput('Ya publicada'));
-    $published->forceFill(['status' => PromotionStatus::Published])->save();
+    $published->forceFill([
+        'status' => PromotionStatus::Published,
+        'local_start_date' => null,
+        'local_end_date' => null,
+        'timezone_snapshot' => 'Europe/Madrid',
+        'starts_at' => '2026-10-31 23:00:00+00',
+        'ends_at' => '2026-11-07 23:00:00+00',
+    ])->save();
 
     $response = $this->actingAs($owner)
         ->get(route('business.pass'))

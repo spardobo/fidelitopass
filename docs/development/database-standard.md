@@ -322,6 +322,7 @@ Add direct actor attribution only when it is itself a domain fact, such as the o
 Use Laravel migrations as the schema authority.
 
 - Do not modify migrations already applied to shared/production data.
-- For new schema, check the target PostgreSQL database and applied migration history before migration; preserve existing data and use forward-only changes where migrations have already been applied. Test data preservation and relevant constraints proportionately.
+- The current database is development-only. Its data may be deleted and regenerated to match the evolving implementation; do not repeatedly inspect or preserve old development rows, or add compatibility backfills solely for that disposable data.
+- If a shared or production database is introduced, check its PostgreSQL schema and applied migration history before migration. Preserve its existing data and use forward-only changes where migrations have already been applied. Test data preservation and relevant constraints proportionately.
 - Custom SQL requires a clear reason and focused migration tests.
 - Avoid framework-independent schema abstractions that duplicate Laravel's migration API.
