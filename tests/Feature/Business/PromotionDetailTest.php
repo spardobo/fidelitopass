@@ -56,6 +56,7 @@ it('opens frozen owned terms with the current database phase', function (string 
     $palette = match ($phase) {
         'active' => 'green',
         'scheduled' => 'blue',
+        'cancelled' => 'red',
         default => 'zinc',
     };
     expect($badge->getAttribute('class'))->toContain('bg-'.$palette.'-400/')->not->toContain('bg-'.$palette.'-500');

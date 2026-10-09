@@ -505,7 +505,7 @@
                                         <flux:heading level="4" size="base" class="app-role-support! min-w-0 break-words font-medium! text-app-ink!">
                                             {{ $historicalPromotion['promotion']->reward_title }}
                                         </flux:heading>
-                                        <flux:badge size="sm">
+                                        <flux:badge :color="$historicalPromotion['phase'] === 'cancelled' ? 'red' : null" size="sm">
                                             {{ __('business.pass.promotion_'.$historicalPromotion['phase'].'_status') }}
                                         </flux:badge>
                                     </div>
@@ -513,17 +513,16 @@
                                         {{ $historicalPromotion['period'] }}
                                     </flux:text>
                                 </div>
-                                <flux:button
+                                <button
                                     id="promotion-detail-trigger-{{ $historicalPromotion['promotion']->public_id }}"
                                     type="button"
                                     wire:click="showPromotionDetail('{{ $historicalPromotion['promotion']->public_id }}')"
                                     wire:loading.attr="disabled"
                                     wire:target="showPromotionDetail"
-                                    variant="ghost"
-                                    class="app-control! app-role-support! app-focus! shrink-0 self-start px-0! font-medium! text-app-accent-text! hover:bg-transparent! hover:underline focus-visible:underline underline-offset-4 sm:self-center"
+                                    class="app-control! app-role-support! app-focus! inline-flex shrink-0 cursor-pointer items-center self-start bg-transparent font-medium! text-app-accent-text! underline-offset-4 hover:underline focus-visible:underline disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 sm:self-center"
                                 >
                                     {{ __('business.pass.view_promotion_detail') }}
-                                </flux:button>
+                                </button>
                             </li>
                         @endforeach
                     </ul>
@@ -558,7 +557,7 @@
                         <flux:icon.document-text variant="outline" class="size-9" />
                     </span>
                     <div class="min-w-0 space-y-1">
-                        <flux:badge :color="match ($detail['phase']) { 'active' => 'green', 'scheduled' => 'blue', default => null }" class="app-role-support! font-medium!">
+                        <flux:badge :color="match ($detail['phase']) { 'active' => 'green', 'scheduled' => 'blue', 'cancelled' => 'red', default => null }" class="app-role-support! font-medium!">
                             {{ __('business.pass.promotion_'.$detail['phase'].'_status') }}
                         </flux:badge>
                         <flux:heading level="2" id="promotion-detail-heading" tabindex="-1" class="app-role-title! break-words text-app-ink!">
