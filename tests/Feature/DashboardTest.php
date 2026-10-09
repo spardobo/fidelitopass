@@ -184,11 +184,28 @@ class DashboardTest extends TestCase
     {
         $business = Business::factory()->create(['timezone' => 'Asia/Tokyo', 'pass_background_color' => '#A77BFF']);
         $promotion = $this->promotion($business, 'published', '2020-01-01 04:00:00+00', '2098-01-01 04:00:00+00');
+        $promotion->update(['reward_description' => 'Preparado al momento con café de especialidad.']);
         $promotion->extraPoints()->create(['weekday' => 2, 'multiplier' => 3, 'start_time' => '14:00', 'end_time' => '17:00']);
 
-        $this->actingAs($business->user)->get(route('dashboard'))
-            ->assertSeeTextInOrder(['Promoción activa', 'Un café de cortesía', 'Meta por pase', '8 puntos', '01/01/2020 – 31/12/2097', 'America/La_Paz', 'Martes', '3 puntos por visita', '14:00–17:00', 'Preparación del negocio'])
+        $response = $this->actingAs($business->user)->get(route('dashboard'));
+
+        $response->assertSeeTextInOrder(['Promoción activa', 'Un café de cortesía', 'Meta por pase', '8 puntos', '01/01/2020 – 31/12/2097', 'America/La_Paz', 'Martes', '3 puntos por visita', '14:00–17:00', 'Preparación del negocio'])
             ->assertDontSee('Asia/Tokyo');
+        $document = new \DOMDocument;
+        $document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//section[@aria-labelledby="active-promotion-title" and @aria-describedby="active-promotion-description"]')->length);
+        $this->assertSame('Preparado al momento con café de especialidad.', trim($xpath->query('//*[@id="active-promotion-description"]')->item(0)?->textContent ?? ''));
+        $this->assertSame(['Meta por pase', 'Vigencia', 'Zona horaria'], array_map(
+            fn (\DOMNode $node): string => trim($node->textContent),
+            iterator_to_array($xpath->query('//section[@aria-labelledby="active-promotion-title"]//dt')),
+        ));
+        $this->assertSame(['8 puntos', '01/01/2020 – 31/12/2097', 'America/La_Paz'], array_map(
+            fn (\DOMNode $node): string => trim($node->textContent),
+            iterator_to_array($xpath->query('//section[@aria-labelledby="active-promotion-title"]//dd')),
+        ));
+        $this->assertSame(1, $xpath->query('//main//a[normalize-space(.)="Ir a Pase"]')->length);
+        $this->assertSame(0, $xpath->query('//section[@aria-labelledby="active-promotion-title"]//svg[not(@aria-hidden="true")]')->length);
     }
 
     public function test_ended_and_cancelled_publications_preserve_preparation_and_only_brief_history(): void
@@ -234,12 +251,19 @@ class DashboardTest extends TestCase
         $this->assertSame(['0', '0', '0', '0'], $this->metricValues($response->getContent()));
         $response->assertSee('Todavía no tiene visitas confirmadas')->assertDontSee('Reintentar');
         $document = new \DOMDocument;
-        $document->loadHTML($response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
         $xpath = new \DOMXPath($document);
         $this->assertSame(1, $xpath->query('//section[@aria-labelledby="activity-title" and @aria-describedby="activity-scope"]')->length);
         $this->assertSame(1, $xpath->query('//*[@id="activity-title"]')->length);
         $this->assertSame(1, $xpath->query('//*[@id="activity-scope"]')->length);
         $this->assertSame(4, $xpath->query('//section[@aria-labelledby="activity-title"]//dl/div[dt and count(dd)=2]')->length);
+        $this->assertSame(['Pases con actividad', 'Puntos acumulados', 'Recompensas desbloqueadas', 'Recompensas canjeadas'], array_map(
+            fn (\DOMNode $node): string => trim($node->textContent),
+            iterator_to_array($xpath->query('//section[@aria-labelledby="activity-title"]//dt')),
+        ));
+        $this->assertSame(0, $xpath->query('//section[@aria-labelledby="active-promotion-title" and @aria-describedby]')->length);
+        $this->assertSame(0, $xpath->query('//*[@id="active-promotion-description"]')->length);
+        $this->assertSame(0, $xpath->query('//section[@aria-labelledby="activity-title"]//dl[@aria-describedby]')->length);
     }
 
     public function test_active_statistics_present_persisted_facts_before_upcoming_and_preparation(): void
@@ -300,6 +324,14 @@ class DashboardTest extends TestCase
             ->assertSee('Actualizando…')
             ->assertDontSee('Este fallo no desactiva la invitación ni el registro de visitas.');
         $this->assertSame(['—', '—', '—', '—'], $this->metricValues($component->html()));
+        $document = new \DOMDocument;
+        $document->loadHTML('<?xml encoding="UTF-8">'.$component->html(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//*[@role="status" and @aria-labelledby="statistics-error" and @aria-describedby="statistics-recovery"]')->length);
+        $this->assertSame('No pudimos cargar las estadísticas de esta promoción.', trim($xpath->query('//*[@id="statistics-error"]')->item(0)?->textContent ?? ''));
+        $this->assertSame('Inténtalo de nuevo en unos momentos.', trim($xpath->query('//*[@id="statistics-recovery"]')->item(0)?->textContent ?? ''));
+        $this->assertSame(1, $xpath->query('//section[@aria-labelledby="activity-title"]//dl[@aria-describedby="statistics-error statistics-recovery"]')->length);
+        $this->assertSame(1, $xpath->query('//button[@aria-describedby="statistics-recovery"]')->length);
 
         $fail = false;
         $first->forceFill(['status' => 'cancelled', 'cancelled_at' => now()])->save();
@@ -309,6 +341,7 @@ class DashboardTest extends TestCase
         $component->call('$refresh')->assertSee('Recompensa nueva')->assertDontSee('Un café de cortesía')
             ->assertDontSee('No pudimos cargar las estadísticas');
         $this->assertSame(['0', '0', '0', '0'], $this->metricValues($component->html()));
+        $component->assertDontSee('statistics-error', false)->assertDontSee('statistics-recovery', false);
     }
 
     public function test_refresh_removes_metrics_when_the_database_clock_reaches_the_exclusive_end(): void

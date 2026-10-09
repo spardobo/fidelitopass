@@ -17,8 +17,12 @@
     </header>
 
     @if ($currentPromotion)
-        <section aria-labelledby="active-promotion-title" class="space-y-6 rounded-[20px] border border-app-priority-border bg-app-emphasis p-6 sm:p-8">
-            <div class="flex flex-wrap items-center justify-between gap-4">
+        <section
+            aria-labelledby="active-promotion-title"
+            @if ($currentPromotion->reward_description) aria-describedby="active-promotion-description" @endif
+            class="space-y-4 rounded-[20px] border border-app-priority-border bg-app-emphasis p-6"
+        >
+            <div class="flex flex-wrap items-center gap-3">
                 <p class="app-role-support font-medium text-app-ink-priority">
                     {{ __('summary.active') }}
                 </p>
@@ -26,32 +30,52 @@
                     {{ __('summary.active_status') }}
                 </flux:badge>
             </div>
-            <div class="space-y-2">
-                <flux:heading level="2" id="active-promotion-title" class="app-role-section! text-app-ink!">
-                    {{ $currentPromotion->reward_title }}
-                </flux:heading>
-                @if ($currentPromotion->reward_description)
-                    <p class="app-role-body text-app-ink-secondary">
-                        {{ $currentPromotion->reward_description }}
-                    </p>
-                @endif
-            </div>
-            <dl class="grid gap-6 md:grid-cols-[1fr_1.5fr_1.5fr]">
-                @foreach ([
-                    'target' => __('summary.points', ['count' => $currentPromotion->target_points]),
-                    'validity' => $activePeriod,
-                    'timezone' => $currentPromotion->timezone_snapshot,
-                ] as $label => $value)
-                    <div wire:key="promotion-fact-{{ $label }}" class="min-w-0 space-y-2">
-                        <dt class="app-role-support text-app-ink-priority">
-                            {{ __('summary.'.$label) }}
-                        </dt>
-                        <dd class="app-role-body font-semibold">
-                            {{ $value }}
-                        </dd>
+            <div class="flex items-start gap-4">
+                <span aria-hidden="true" class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-priority-border bg-app-scheduled-surface text-app-ink-priority">
+                    <flux:icon.gift variant="outline" class="size-6" />
+                </span>
+                <div class="min-w-0 flex-1 space-y-4">
+                    <div class="space-y-2">
+                        <flux:heading level="2" id="active-promotion-title" class="app-role-section! text-app-ink!">
+                            {{ $currentPromotion->reward_title }}
+                        </flux:heading>
+                        @if ($currentPromotion->reward_description)
+                            <p id="active-promotion-description" class="app-role-body text-app-ink-secondary">
+                                {{ $currentPromotion->reward_description }}
+                            </p>
+                        @endif
                     </div>
-                @endforeach
-            </dl>
+                    <dl class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
+                        <div class="min-w-0 space-y-1">
+                            <dt class="app-role-support flex items-center gap-2 text-app-ink-priority">
+                                <flux:icon.credit-card variant="outline" aria-hidden="true" class="size-4 shrink-0" />
+                                {{ __('summary.target') }}
+                            </dt>
+                            <dd class="app-role-body font-medium">
+                                {{ __('summary.points', ['count' => $currentPromotion->target_points]) }}
+                            </dd>
+                        </div>
+                        <div class="min-w-0 space-y-1">
+                            <dt class="app-role-support flex items-center gap-2 text-app-ink-priority">
+                                <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-4 shrink-0" />
+                                {{ __('summary.validity') }}
+                            </dt>
+                            <dd class="app-role-body font-medium">
+                                {{ $activePeriod }}
+                            </dd>
+                        </div>
+                        <div class="min-w-0 space-y-1">
+                            <dt class="app-role-support flex items-center gap-2 text-app-ink-priority">
+                                <flux:icon.clock variant="outline" aria-hidden="true" class="size-4 shrink-0" />
+                                {{ __('summary.timezone') }}
+                            </dt>
+                            <dd class="app-role-body font-medium">
+                                {{ $currentPromotion->timezone_snapshot }}
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
             <div class="space-y-2 border-t border-app-priority-border pt-4 text-app-ink-priority">
                 @forelse ($currentPromotion->extraPoints as $rule)
                     <p wire:key="summary-extra-{{ $rule->id }}" class="app-role-support flex items-start gap-2">
@@ -73,7 +97,7 @@
         </section>
 
         <section aria-labelledby="activity-title" aria-describedby="activity-scope" class="space-y-4">
-            <div class="space-y-1">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
                 <flux:heading level="2" id="activity-title" class="app-role-section! text-app-ink!">
                     {{ __('summary.activity') }}
                 </flux:heading>
@@ -82,16 +106,25 @@
                 </p>
             </div>
             @if ($statistics === 'unavailable')
-                <div role="status" class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-app-warning-border bg-app-warning-surface p-4 text-app-warning-ink">
-                    <div class="min-w-0 space-y-1">
-                        <p class="app-role-body font-semibold">
-                            {{ __('summary.statistics_unavailable') }}
-                        </p>
-                        <p class="app-role-support">
-                            {{ __('summary.statistics_recovery') }}
-                        </p>
+                <div
+                    role="status" aria-labelledby="statistics-error" aria-describedby="statistics-recovery"
+                    class="flex flex-wrap items-center justify-between gap-4 rounded-[20px] border border-app-warning-border bg-app-warning-surface p-4 text-app-warning-ink"
+                >
+                    <div class="flex min-w-0 items-start gap-3">
+                        <flux:icon.information-circle variant="outline" aria-hidden="true" class="size-6 shrink-0" />
+                        <div class="min-w-0 space-y-1">
+                            <p id="statistics-error" class="app-role-body font-semibold">
+                                {{ __('summary.statistics_unavailable') }}
+                            </p>
+                            <p id="statistics-recovery" class="app-role-support">
+                                {{ __('summary.statistics_recovery') }}
+                            </p>
+                        </div>
                     </div>
-                    <flux:button wire:click="$refresh" wire:loading.attr="disabled" wire:target="$refresh" class="app-button-secondary">
+                    <flux:button
+                        wire:click="$refresh" wire:loading.attr="disabled" wire:target="$refresh"
+                        aria-describedby="statistics-recovery" class="app-button-secondary shrink-0"
+                    >
                         <span wire:loading.remove wire:target="$refresh">
                             {{ __('summary.retry') }}
                         </span>
@@ -101,17 +134,22 @@
                     </flux:button>
                 </div>
             @endif
-            <dl class="grid grid-cols-1 gap-4 [@media(width>36rem)]:grid-cols-2 [@media(width>64rem)]:grid-cols-4">
+            <dl
+                @if ($statistics === 'unavailable') aria-describedby="statistics-error statistics-recovery" @endif
+                class="grid grid-cols-1 gap-4 [@media(width>36rem)]:grid-cols-2 [@media(width>64rem)]:grid-cols-4"
+            >
                 @foreach (['active_passes' => 'credit-card', 'awarded_points' => 'bolt', 'unlocked_rewards' => 'gift', 'redeemed_rewards' => 'check-badge'] as $metric => $icon)
                     <div wire:key="summary-metric-{{ $metric }}" class="flex min-w-0 flex-col gap-4 rounded-[20px] border border-app-border bg-app-surface p-6">
-                        <dt class="app-role-action flex flex-1 items-start justify-between gap-2">
-                            {{ __('summary.'.$metric) }}
+                        <dt class="app-role-action flex min-h-12 items-start justify-between gap-2">
+                            <span class="min-w-0">
+                                {{ __('summary.'.$metric) }}
+                            </span>
                             <flux:icon :name="$icon" variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-ink-help" />
                         </dt>
                         <dd class="app-role-metric">
                             {{ $statistics === 'available' ? \Illuminate\Support\Number::format($metrics[$metric], locale: app()->getLocale()) : '—' }}
                         </dd>
-                        <dd class="app-role-support text-app-ink-secondary">
+                        <dd class="app-role-support flex-1 text-app-ink-secondary">
                             {{ __('summary.'.$metric.'_description') }}
                         </dd>
                     </div>
