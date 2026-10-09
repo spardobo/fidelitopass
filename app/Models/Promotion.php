@@ -60,4 +60,14 @@ class Promotion extends Model
     {
         return $this->hasMany(PromotionMultiplierWindow::class);
     }
+
+    /**
+     * Defines the anonymous pass associations retained for this Promotion.
+     *
+     * @return HasMany<PromotionParticipation, $this> This Promotion's participation records.
+     */
+    public function participations(): HasMany
+    {
+        return $this->hasMany(PromotionParticipation::class);
+    }
 }

@@ -29,4 +29,24 @@ class Business extends Model
     {
         return $this->hasMany(Promotion::class);
     }
+
+    /**
+     * Defines this Business's persistent anonymous Customer passes.
+     *
+     * @return HasMany<CustomerPass, $this> Anonymous pass identities owned by this Business.
+     */
+    public function customerPasses(): HasMany
+    {
+        return $this->hasMany(CustomerPass::class);
+    }
+
+    /**
+     * Defines the Business-owned pass and Promotion associations.
+     *
+     * @return HasMany<PromotionParticipation, $this> Participation records owned by this Business.
+     */
+    public function promotionParticipations(): HasMany
+    {
+        return $this->hasMany(PromotionParticipation::class);
+    }
 }
