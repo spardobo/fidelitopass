@@ -260,13 +260,13 @@
         @php
             $promotionListings = $this->currentPromotionListings;
             $hasPublishedPromotions = $promotionListings['active'] !== null || $promotionListings['scheduled']->total() > 0;
-            $hasPromotionRows = $hasPublishedPromotions || $this->draftPromotions->total() > 0;
+            $hasPromotionRows = $hasPublishedPromotions || $this->draftPromotions->total() > 0 || $promotionListings['history']->total() > 0;
         @endphp
 
         <section aria-labelledby="promotions-heading" class="space-y-4">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="space-y-1">
-                    <flux:heading level="2" size="lg" id="promotions-heading" class="app-role-section! text-app-ink!">
+                    <flux:heading level="2" size="lg" id="promotions-heading" tabindex="-1" class="app-role-section! text-app-ink!">
                         {{ __('business.pass.promotions_title') }}
                     </flux:heading>
                     <div class="app-note-with-icon text-app-ink-help">
@@ -352,6 +352,17 @@
                             ·
                             {{ __('business.pass.promotion_published_target', ['points' => $activePromotion['promotion']->target_points]) }}
                         </flux:text>
+                        <flux:button
+                            id="promotion-detail-trigger-{{ $activePromotion['promotion']->public_id }}"
+                            type="button"
+                            wire:click="showPromotionDetail('{{ $activePromotion['promotion']->public_id }}')"
+                            wire:loading.attr="disabled"
+                            wire:target="showPromotionDetail"
+                            variant="filled"
+                            class="app-button-secondary min-h-11 w-full sm:w-auto"
+                        >
+                            {{ __('business.pass.view_promotion_detail') }}
+                        </flux:button>
                     </article>
                 </div>
             @endif
@@ -392,6 +403,17 @@
                                         {{ __('business.pass.promotion_published_target', ['points' => $scheduledPromotion['promotion']->target_points]) }}
                                     </flux:text>
                                 </div>
+                                <flux:button
+                                    id="promotion-detail-trigger-{{ $scheduledPromotion['promotion']->public_id }}"
+                                    type="button"
+                                    wire:click="showPromotionDetail('{{ $scheduledPromotion['promotion']->public_id }}')"
+                                    wire:loading.attr="disabled"
+                                    wire:target="showPromotionDetail"
+                                    variant="filled"
+                                    class="app-button-secondary min-h-11 w-full sm:w-auto"
+                                >
+                                    {{ __('business.pass.view_promotion_detail') }}
+                                </flux:button>
                             </li>
                         @endforeach
                     </ul>
@@ -456,11 +478,142 @@
                         <flux:pagination :paginator="$this->draftPromotions" />
                     @endif
                 </details>
-            @elseif (! $hasPublishedPromotions)
+            @elseif (! $hasPromotionRows)
                 <p class="app-role-support! text-app-ink-secondary!">
                     {{ __('business.pass.promotions_empty') }}
                 </p>
             @endif
+
+            @if ($promotionListings['history']->total() > 0)
+                <details wire:key="promotion-history-disclosure" wire:ignore.self class="group space-y-3">
+                    <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 app-focus">
+                        <span role="heading" aria-level="3" class="app-role-card! text-app-ink!">
+                            {{ __('business.pass.history_promotions_heading', ['count' => $promotionListings['history']->total()]) }}
+                        </span>
+                        <flux:icon.chevron-down variant="outline" class="size-5 shrink-0 text-app-ink-secondary transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+                    </summary>
+                    <ul aria-label="{{ __('business.pass.history_promotions_heading', ['count' => $promotionListings['history']->total()]) }}" class="divide-y divide-app-line">
+                        @foreach ($promotionListings['history'] as $historicalPromotion)
+                            <li
+                                wire:key="promotion-history-{{ $historicalPromotion['promotion']->public_id }}"
+                                data-promotion-phase="{{ $historicalPromotion['phase'] }}"
+                                data-promotion-public-id="{{ $historicalPromotion['promotion']->public_id }}"
+                                class="flex min-w-0 flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                                <div class="min-w-0 space-y-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <flux:heading level="4" size="base" class="app-role-support! min-w-0 break-words font-medium! text-app-ink!">
+                                            {{ $historicalPromotion['promotion']->reward_title }}
+                                        </flux:heading>
+                                        <flux:badge :color="$historicalPromotion['phase'] === 'cancelled' ? 'red' : null" size="sm">
+                                            {{ __('business.pass.promotion_'.$historicalPromotion['phase'].'_status') }}
+                                        </flux:badge>
+                                    </div>
+                                    <flux:text class="app-role-support! text-app-ink-secondary!">
+                                        {{ $historicalPromotion['period'] }}
+                                    </flux:text>
+                                </div>
+                                <button
+                                    id="promotion-detail-trigger-{{ $historicalPromotion['promotion']->public_id }}"
+                                    type="button"
+                                    wire:click="showPromotionDetail('{{ $historicalPromotion['promotion']->public_id }}')"
+                                    wire:loading.attr="disabled"
+                                    wire:target="showPromotionDetail"
+                                    class="app-control! app-role-support! app-focus! inline-flex shrink-0 cursor-pointer items-center self-start bg-transparent font-medium! text-app-accent-text! underline-offset-4 hover:underline focus-visible:underline disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 sm:self-center"
+                                >
+                                    {{ __('business.pass.view_promotion_detail') }}
+                                </button>
+                            </li>
+                        @endforeach
+                    </ul>
+                    @if ($promotionListings['history']->hasPages())
+                        <flux:pagination :paginator="$promotionListings['history']" />
+                    @endif
+                </details>
+            @endif
         </section>
     @endif
+
+    <flux:modal
+        name="promotion-detail"
+        scroll="body"
+        x-on:promotion-cancellation-focus.window="$nextTick(() => requestAnimationFrame(() => $el.querySelector('#' + $event.detail.target)?.focus()))"
+        x-on:close="
+            const originId = 'promotion-detail-trigger-' + $wire.selectedPromotionId;
+            $wire.dismissPromotionDetail().then(() => {
+                const root = $el.closest('main');
+                const origin = root.querySelector('#' + originId);
+                const canFocusOrigin = origin && !origin.closest('details:not([open])') && origin.getClientRects().length > 0;
+                const focusTarget = canFocusOrigin ? origin : root.querySelector('#promotions-heading');
+                focusTarget?.focus({ preventScroll: true });
+            });
+        "
+        class="app-theme w-[calc(100vw-2rem)] sm:w-[calc(100vw-3rem)] max-w-xl! min-w-0! max-h-[calc(100dvh-2rem)]! sm:max-h-[calc(100dvh-3rem)]! flex flex-col overflow-hidden!"
+    >
+        @if ($detail = $this->promotionDetail)
+            <div data-promotion-detail-phase="{{ $detail['phase'] }}" class="flex min-h-0 flex-1 flex-col">
+                <header class="flex shrink-0 min-w-0 items-center gap-4 pb-2 pe-10">
+                    <span class="flex size-16 shrink-0 items-center justify-center rounded-full bg-app-emphasis text-app-accent" aria-hidden="true">
+                        <flux:icon.document-text variant="outline" class="size-9" />
+                    </span>
+                    <div class="min-w-0 space-y-1">
+                        <flux:badge :color="match ($detail['phase']) { 'active' => 'green', 'scheduled' => 'blue', 'cancelled' => 'red', default => null }" class="app-role-support! font-medium!">
+                            {{ __('business.pass.promotion_'.$detail['phase'].'_status') }}
+                        </flux:badge>
+                        <flux:heading level="2" id="promotion-detail-heading" tabindex="-1" class="app-role-title! break-words text-app-ink!">
+                            {{ __('business.pass.promotion_detail_title') }}
+                        </flux:heading>
+                        <flux:text class="app-role-support! break-words text-app-ink-secondary!">
+                            {{ __('business.pass.promotion_detail_description') }}
+                        </flux:text>
+                    </div>
+                </header>
+
+                <div data-test="promotion-detail-scroll-body" tabindex="0" autofocus class="min-h-0 flex-1 overflow-y-auto py-3">
+                    <x-promotion-summary
+                        :reward-title="$detail['promotion']->reward_title"
+                        :reward-description="$detail['promotion']->reward_description"
+                        :target-points="$detail['promotion']->target_points"
+                        :start-date="$detail['start_date']"
+                        :end-date="$detail['end_date']"
+                        :extra-points="$detail['extra_points']"
+                    />
+
+                    @error('promotionCancellation')
+                        <p id="promotion-cancellation-error" tabindex="-1" role="alert" class="mt-4 app-error">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                    @if ($confirmingPromotionCancellation && in_array($detail['phase'], ['active', 'scheduled'], true))
+                        <flux:callout variant="danger" icon="exclamation-triangle" aria-labelledby="promotion-cancellation-heading" role="region" class="mt-4">
+                            <flux:heading level="3" id="promotion-cancellation-heading" tabindex="-1" class="app-role-card! text-app-ink!">
+                                {{ __('business.pass.cancel_promotion_heading') }}
+                            </flux:heading>
+                            <flux:text class="app-role-support! text-app-ink-secondary!">
+                                {{ __('business.pass.cancel_promotion_warning') }}
+                            </flux:text>
+                        </flux:callout>
+                    @endif
+                </div>
+
+                <footer class="flex shrink-0 flex-col-reverse justify-end gap-3 pt-3 sm:flex-row">
+                    <flux:modal.close class="w-full sm:w-auto">
+                        <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
+                            {{ __('business.pass.close_promotion_detail') }}
+                        </flux:button>
+                    </flux:modal.close>
+                    @if ($confirmingPromotionCancellation && in_array($detail['phase'], ['active', 'scheduled'], true))
+                        <flux:button type="button" wire:click="confirmPromotionCancellation" variant="danger" class="app-button min-h-11 w-full sm:w-auto">
+                            {{ __('business.pass.confirm_cancel_promotion') }}
+                        </flux:button>
+                    @elseif (in_array($detail['phase'], ['active', 'scheduled'], true))
+                        <flux:button type="button" id="cancel-promotion" wire:click="requestPromotionCancellation" variant="primary" class="app-button-primary min-h-11 w-full sm:w-auto">
+                            {{ __('business.pass.cancel_promotion') }}
+                        </flux:button>
+                    @endif
+                </footer>
+            </div>
+        @endif
+    </flux:modal>
 </main>

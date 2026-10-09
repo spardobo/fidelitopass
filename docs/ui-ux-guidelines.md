@@ -37,7 +37,7 @@ These are distinct **roles**, not a near-colour palette to consolidate, except w
 | Success ink; surface; border | `#BCE7C9`; `#263D2E`; `#507F5E` | Confirmed operation and completed preparation, with text/icon |
 | Warning ink; surface; border | `#E6D4AB`; `#3A3326`; `#736248` | Draft / pending badge, with label |
 | Danger ink; surface; border | `#FFB4BE`; `#382426`; `#91525A` | Error / cancelled status, with explanation |
-| Scheduled badge | `#403152` | Scheduled status with explicit text |
+| Scheduled surface | `#403152` | Scheduled context outside the scoped Pase status-badge mapping below |
 | Danger hover; ready operational hover | `#482B32`; `#46355E` | Danger button hover; enabled header registration action hover, not accent hover |
 
 Focus is context-dependent: main-content inputs/selects/textareas use a `2px` **`#A77BFF`** outline with `3px` offset and accent border; general focus uses a `2px` **`#CDB0FF`** outline with `3px` offset outside that context absent a stronger component rule. Do not claim one universal focus colour or copy mockup selectors into Flux. Verify actual installed DOM and focus in browser.
@@ -245,11 +245,29 @@ Avoid advanced analytics, segmentation, trends, or customer lists in MVP.
 
 Open a dedicated full-page Promotion editor within Pase, with **Información general** and optional **Puntos extra** sections. Use native date controls and accessible Flux Free/basic fields; do not use a modal, tabs, or Pro-only date picker for Promotion editing. Appearance colour selection uses the native browser/OS colour control rather than an in-app modal.
 
-Keep publication review within Pase as a compact native confirmation modal over the mounted editor. Closing it preserves editor values and scroll position. Bound its content to the viewport, scroll only the summary body, and keep confirmation actions visible without scrolling the page. Compose its header from an outline rocket in a 64px accent-tinted circle, an accent eyebrow, a clear heading and a concise subtitle. Group the Reward title/description and three fact rows—target, inclusive local validity, and extra-point count—in one neutral bordered summary card with fixed-width desktop labels and restrained dividers. Center each fact icon vertically in its row while labels and values start at the same edge. Keep the extra-point count aligned with its label in a 44px disclosure row; expanded cards remain below the row. Do not show a green readiness badge: the review confirms owner-entered terms, not publication availability. Use an accent callout for the whole-Promotion immutability warning and a secondary edit action beside the primary confirmation.
+Keep publication review within Pase as a compact native confirmation modal over the mounted editor. Closing it preserves editor values and scroll position. Bound its content to the viewport, scroll only the summary body, and keep confirmation actions visible without scrolling the page. Compose its header from a 36px outline rocket in a 64px accent-tinted circle, an accent eyebrow, a clear heading and a concise subtitle. Group the Reward title/description and three fact rows—target, inclusive local validity, and extra-point count—in one neutral bordered summary card with fixed-width desktop labels and restrained dividers. Use the same body-scale semibold value typography for target, dates and extra-point count in review and published detail. Center each fact icon vertically in its row while labels and values start at the same edge. Keep the extra-point count aligned with its label in a 44px disclosure row; expanded cards remain below the row. Do not show a green readiness badge: the review confirms owner-entered terms, not publication availability. Use an accent callout for the whole-Promotion immutability warning and a secondary edit action beside the primary confirmation.
 
 Keep configured timezone out of routine review and show a warning only when it changes. Keep extra-point count visible in a native disclosure that starts collapsed, with compact cards when expanded. Do not repeat the scheduled start date outside the validity range; do not imply immediate activation for a future Promotion. Reveal the accent scrollbar on hover or keyboard focus for fine pointers; keep native touch scrolling usable and respect reduced-motion preferences. Keep the review keyboard-accessible and validate focus/dismissal behavior in the browser. Do not add a separate review route or a second confirmation modal.
 
 When publication fails, close the confirmation modal and stay in the editor with its submitted values, page position and focus preserved. Show specific localized domain feedback for expected rejections, field feedback for invalid submitted data, and a safe generic message for unexpected failures. A timezone change requires reopening the review and confirming again. Only successful publication redirects to Pase.
+
+### Published Promotion detail and cancellation
+
+Open **Ver detalle** from active, scheduled and historical entries in a separate native modal over Pase. Reuse the publication-summary presentation for the saved Reward, target, original inclusive local dates and all extra-point rules. Derive the displayed dates from the Promotion's frozen timezone, not the current Business timezone. Do not expose editable published terms or reuse unsaved editor values.
+
+Use a 36px outline document icon in a 64px accent-tinted circle. Keep the detail badge consistent with the corresponding list entry. Pase status badges use muted native green for active, blue for scheduled, red for cancelled and neutral zinc for ended, with explicit status text. This scoped status mapping does not recolor other application surfaces.
+
+Only active or scheduled detail offers **Cancelar promoción**. Its initial action uses the primary accent treatment and reveals an inline danger warning in the same modal. The final **Sí, cancelar promoción** action uses danger styling. Keep **Volver al pase** as the single secondary action; do not open another confirmation modal. Closing or dismissing before final confirmation does not cancel anything. Stale, repeated or ended requests show safe localized feedback without changing the original terms or first cancellation instant.
+
+Bound the modal to the viewport. Scroll only its body and keep its footer actions reachable at narrow widths without page-level horizontal overflow. Support Escape and native close controls. Restore focus to the visible originating detail action; if cancellation removes or hides that action in collapsed history, focus the Promotions heading without opening history.
+
+### Promotion history
+
+Place ended and cancelled Promotions in a bottom history disclosure, collapsed by default. Preserve its open or closed state across detail dismissal, cancellation and pagination. Keep scheduled, draft and history pagination independent. Order history by the original start instant ascending, then stable Promotion ID ascending; cancellation time does not move a row to the beginning.
+
+Use compact divided rows without an outer card or individual row cards. Each row shows only the Reward title, status, original date range and **Ver detalle**. Do not repeat the description or point target; those remain in detail. Use `14/20px` support typography for the title, date and action, and the native small status badge size.
+
+Keep **Ver detalle** a semantic button with accent-text ink, intrinsic width, a pointer cursor and a minimum 44px touch target. Use underline and a visible keyboard-focus outline for interaction feedback. Its background stays transparent at rest, hover, focus and active states; do not add a ghost-button hover fill.
 
 ### Información general
 

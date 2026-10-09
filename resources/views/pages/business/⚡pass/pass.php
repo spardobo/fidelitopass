@@ -1,8 +1,10 @@
 <?php
 
+use App\Actions\Promotions\CancelPromotion;
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
+use App\Models\PromotionMultiplierWindow;
 use App\Support\DatabaseClock;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
@@ -12,6 +14,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -19,6 +22,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 new #[Layout('layouts::app'), Title('business.pass.title')] class extends Component
 {
@@ -60,6 +64,12 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
 
     #[Locked]
     public string $publicationNotice = '';
+
+    #[Locked]
+    public ?string $selectedPromotionId = null;
+
+    #[Locked]
+    public bool $confirmingPromotionCancellation = false;
 
     /**
      * Initializes the appearance editor after authorizing the Business and loading its current color.
@@ -143,6 +153,182 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
         $this->redirectRoute('business.pass', navigate: true);
     }
 
+    /**
+     * Opens persisted Promotion terms after resolving the selected identity within the owned Business.
+     *
+     * @param  mixed  $publicId  Untrusted public identifier requested by a Pase detail trigger.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     * @throws HttpException When the Promotion identifier is invalid or unavailable.
+     */
+    public function showPromotionDetail(mixed $publicId): void
+    {
+        abort_unless(is_string($publicId) && Str::isUuid($publicId), 404);
+        $this->confirmingPromotionCancellation = false;
+        $this->resetValidation('promotionCancellation');
+        $this->selectedPromotionId = $publicId;
+        unset($this->promotionDetail);
+
+        $this->promotionDetail;
+        Flux::modal('promotion-detail')->show();
+    }
+
+    /**
+     * Clears only the selected detail without changing appearance or listing pagination.
+     */
+    public function dismissPromotionDetail(): void
+    {
+        $this->selectedPromotionId = null;
+        $this->confirmingPromotionCancellation = false;
+        $this->resetValidation('promotionCancellation');
+        unset($this->promotionDetail);
+    }
+
+    /**
+     * Arms inline cancellation only after freshly resolving an owned eligible Promotion.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     * @throws HttpException When the selected Promotion is invalid or unavailable.
+     */
+    public function requestPromotionCancellation(): void
+    {
+        $this->confirmingPromotionCancellation = false;
+        $this->resetValidation('promotionCancellation');
+        unset($this->promotionDetail);
+        $detail = $this->promotionDetail;
+
+        if ($detail === null || ! in_array($detail['phase'], ['active', 'scheduled'], true)) {
+            $message = match ($detail['phase'] ?? null) {
+                'cancelled' => __('business.promotion.already_cancelled'),
+                'ended' => __('business.promotion.cancel_ended'),
+                default => __('business.pass.cancel_confirmation_required'),
+            };
+            $this->showCancellationError($message);
+
+            return;
+        }
+
+        $this->confirmingPromotionCancellation = true;
+        $this->dispatch('promotion-cancellation-focus', target: 'promotion-cancellation-heading');
+    }
+
+    /**
+     * Consumes server confirmation and delegates the locked transition to its existing Action.
+     *
+     * @param  CancelPromotion  $cancelPromotion  Authoritative cancellation boundary.
+     *
+     * @throws AuthorizationException When the actor cannot update the selected Promotion.
+     * @throws ModelNotFoundException When the actor or owned Promotion is unavailable.
+     * @throws HttpException When the selected Promotion is invalid or unavailable.
+     */
+    public function confirmPromotionCancellation(CancelPromotion $cancelPromotion): void
+    {
+        unset($this->promotionDetail);
+        $detail = $this->promotionDetail;
+        $this->resetValidation('promotionCancellation');
+
+        if (! $this->confirmingPromotionCancellation || $detail === null) {
+            $this->showCancellationError(__('business.pass.cancel_confirmation_required'));
+
+            return;
+        }
+
+        $this->confirmingPromotionCancellation = false;
+
+        try {
+            $cancelPromotion->handle(Auth::user(), $detail['promotion']);
+        } catch (ValidationException $exception) {
+            $message = $exception->errors()['promotion'][0] ?? '';
+            $safeMessages = [
+                __('business.promotion.already_cancelled'),
+                __('business.promotion.cancel_only_published'),
+                __('business.promotion.cancel_ended'),
+            ];
+            $this->showCancellationError(in_array($message, $safeMessages, true)
+                ? $message : __('business.pass.cancel_error_unexpected'));
+
+            return;
+        } catch (AuthorizationException|ModelNotFoundException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->showCancellationError(__('business.pass.cancel_error_unexpected'));
+
+            return;
+        }
+
+        unset($this->promotionDetail, $this->currentPromotionListings);
+        $this->resetPage('historyPage');
+        Flux::toast(__('business.pass.promotion_cancelled_notice'), null, 5000, 'success');
+        $this->dispatch('promotion-cancellation-focus', target: 'promotion-detail-heading');
+    }
+
+    /**
+     * Presents safe cancellation feedback and refreshes the selected phase and current listings.
+     *
+     * @param  string  $message  Localized allowlisted domain feedback or generic failure text.
+     */
+    private function showCancellationError(string $message): void
+    {
+        unset($this->promotionDetail, $this->currentPromotionListings);
+        $this->addError('promotionCancellation', $message);
+        $this->dispatch('promotion-cancellation-focus', target: 'promotion-cancellation-error');
+    }
+
+    /**
+     * Reloads owned frozen terms and derives the current phase from a fresh PostgreSQL instant.
+     *
+     * @return array{
+     *     promotion: Promotion, phase: string, start_date: string, end_date: string,
+     *     extra_points: list<array{weekday: int, start_time: string|null, end_time: string|null, multiplier: int}>
+     * }|null Persisted detail for this request, or no selection.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     * @throws HttpException When the selected Promotion is invalid or unavailable.
+     */
+    #[Computed]
+    public function promotionDetail(): ?array
+    {
+        if ($this->selectedPromotionId === null) {
+            return null;
+        }
+
+        abort_unless(Str::isUuid($this->selectedPromotionId), 404);
+        $business = $this->authorizedBusiness();
+        $promotion = $business->promotions()
+            ->where('public_id', $this->selectedPromotionId)
+            ->whereIn('status', [PromotionStatus::Published->value, PromotionStatus::Cancelled->value])
+            ->with(['extraPoints' => fn ($query) => $query->orderBy('weekday')->orderBy('start_time')->orderBy('id')])
+            ->first();
+        abort_if($promotion === null, 404);
+
+        $instant = CarbonImmutable::parse(
+            app(DatabaseClock::class)->captureForBusinessTimezone($business->timezone)['instant'],
+        );
+        $phase = match (true) {
+            $promotion->status === PromotionStatus::Cancelled => 'cancelled',
+            $instant->lessThan($promotion->starts_at) => 'scheduled',
+            $instant->greaterThanOrEqualTo($promotion->ends_at) => 'ended',
+            default => 'active',
+        };
+
+        return [
+            'promotion' => $promotion,
+            'phase' => $phase,
+            'start_date' => $promotion->starts_at->setTimezone($promotion->timezone_snapshot)->format('d/m/Y'),
+            'end_date' => $promotion->ends_at->setTimezone($promotion->timezone_snapshot)->subDay()->format('d/m/Y'),
+            'extra_points' => $promotion->extraPoints->map(fn (PromotionMultiplierWindow $rule): array => [
+                'weekday' => $rule->weekday,
+                'start_time' => $rule->start_time === null ? null : substr($rule->start_time, 0, 5),
+                'end_time' => $rule->end_time === null ? null : substr($rule->end_time, 0, 5),
+                'multiplier' => $rule->multiplier,
+            ])->all(),
+        ];
+    }
+
     #[Computed]
     public function previewColor(): string
     {
@@ -213,13 +399,14 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Returns the owned currently active Promotion and every future scheduled Promotion.
-     * Capture one database instant so both lifecycle groups share the same boundary.
+     * Returns owned active, scheduled and historical Promotions with independent pagination.
+     * Captures one database instant so every lifecycle group shares the same boundary.
      *
      * @return array{
      *     active: array{promotion: Promotion, period: string}|null,
-     *     scheduled: LengthAwarePaginator<int, array{promotion: Promotion, period: string}>
-     * } Current published rows with inclusive dates formatted in their frozen publication timezone.
+     *     scheduled: LengthAwarePaginator<int, array{promotion: Promotion, period: string}>,
+     *     history: LengthAwarePaginator<int, array{promotion: Promotion, period: string, phase: string}>
+     * } Published and cancelled rows with inclusive dates in their frozen publication timezone.
      *
      * @throws AuthorizationException When the actor cannot update the Business.
      * @throws ModelNotFoundException When the actor has no Business.
@@ -257,6 +444,21 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
                 'promotion' => $promotion,
                 'period' => $formatPeriod($promotion),
             ]);
+        $history = $business->promotions()
+            ->where(function ($query) use ($instant): void {
+                $query->where('status', PromotionStatus::Cancelled->value)
+                    ->orWhere(fn ($published) => $published
+                        ->where('status', PromotionStatus::Published->value)
+                        ->where('ends_at', '<=', $instant));
+            })
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->paginate(3, ['*'], 'historyPage')
+            ->through(fn (Promotion $promotion): array => [
+                'promotion' => $promotion,
+                'period' => $formatPeriod($promotion),
+                'phase' => $promotion->status === PromotionStatus::Cancelled ? 'cancelled' : 'ended',
+            ]);
 
         return [
             'active' => $activePromotion === null ? null : [
@@ -264,6 +466,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
                 'period' => $formatPeriod($activePromotion),
             ],
             'scheduled' => $scheduled,
+            'history' => $history,
         ];
     }
 

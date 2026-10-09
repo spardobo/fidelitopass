@@ -48,11 +48,17 @@ it('keeps ended published promotions out of the current draft listing', function
         ->assertDontSee(__('business.pass.promotions_prerequisite_heading'))
         ->assertDontSee(__('business.pass.create_first_promotion'))
         ->assertDontSee('Ajeno')
-        ->assertDontSee('Ya finalizada');
+        ->assertSee('Ya finalizada');
 
     expect($response->getContent())
         ->toContain('data-promotion-public-id="'.$ownedDraft->public_id.'"')
         ->not->toContain('data-promotion-public-id="'.$foreignDraft->public_id.'"');
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+
+    expect($xpath->query('//details[@*[name()="wire:key"]="promotion-drafts-disclosure"]//*[@data-promotion-public-id="'.$published->public_id.'"]')->length)->toBe(0);
+    expect($published->fresh()->status)->toBe(PromotionStatus::Published);
 });
 
 it('lists the active Promotion, every scheduled Promotion, and drafts with frozen local dates', function () {
@@ -138,8 +144,8 @@ it('lists the active Promotion, every scheduled Promotion, and drafts with froze
         ->assertSee('Segunda programada')
         ->assertSee('Tercera programada')
         ->assertSee('Borrador visible')
-        ->assertDontSee('Promoción terminada')
-        ->assertDontSee('Promoción cancelada')
+        ->assertSee('Promoción terminada')
+        ->assertSee('Promoción cancelada')
         ->assertDontSee('Promoción de otro negocio')
         ->assertSee(__('business.pass.promotion_draft_period', ['start' => '03/11/2018', 'end' => '04/11/2018']))
         ->assertSee(__('business.pass.promotion_draft_period', ['start' => '06/11/2018', 'end' => '07/11/2018']))
@@ -161,8 +167,8 @@ it('lists the active Promotion, every scheduled Promotion, and drafts with froze
         ->toContain('data-promotion-public-id="'.$firstScheduled->public_id.'"')
         ->toContain('data-promotion-public-id="'.$secondScheduled->public_id.'"')
         ->toContain('data-promotion-public-id="'.$thirdScheduled->public_id.'"')
-        ->not->toContain('data-promotion-public-id="'.$ended->public_id.'"')
-        ->not->toContain('data-promotion-public-id="'.$cancelled->public_id.'"')
+        ->toContain('data-promotion-public-id="'.$ended->public_id.'"')
+        ->toContain('data-promotion-public-id="'.$cancelled->public_id.'"')
         ->not->toContain('data-promotion-public-id="'.$foreign->public_id.'"');
 });
 
@@ -188,7 +194,7 @@ it('does not show the empty state when only a scheduled Promotion is listed', fu
         ->assertDontSee(route('business.promotions.edit', $scheduled->public_id), false);
 });
 
-it('independently paginates all upcoming promotions and drafts in open disclosures', function () {
+it('independently paginates scheduled, draft and historical Promotions while retaining detail state', function () {
     $owner = User::factory()->create();
     $business = Business::factory()->for($owner)->create(['pass_background_color' => '#A77BFF']);
     $scheduledPromotions = collect(range(1, 6))->map(fn (int $number): Promotion => createPublishedPassPromotion(
@@ -208,8 +214,18 @@ it('independently paginates all upcoming promotions and drafts in open disclosur
             ],
         ),
     ));
+    $history = collect(range(1, 6))->map(fn (int $number): Promotion => createPublishedPassPromotion(
+        $business,
+        'Histórica '.$number,
+        CarbonImmutable::parse('2026-09-01 12:00:00+00')->addDays($number)->toIso8601String(),
+        CarbonImmutable::parse('2026-09-02 12:00:00+00')->addDays($number)->toIso8601String(),
+        'UTC',
+    ));
     $component = Livewire::actingAs($owner)->test('pages::business.pass');
     $initialHtml = $component->html();
+    $document = new DOMDocument;
+    @$document->loadHTML($initialHtml);
+    $xpath = new DOMXPath($document);
 
     $component->assertSee(__('business.pass.scheduled_promotions_heading', ['count' => 6]))
         ->assertSee(__('business.pass.drafts_heading', ['count' => 6]))
@@ -222,8 +238,8 @@ it('independently paginates all upcoming promotions and drafts in open disclosur
         ->assertDontSee('Borrador 4')
         ->assertDontSee('Borrador 6');
 
-    expect(substr_count($initialHtml, '<details'))->toBe(2)
-        ->and(substr_count($initialHtml, 'wire:ignore.self'))->toBe(2)
+    expect(substr_count($initialHtml, '<details'))->toBe(3)
+        ->and($xpath->query('//details/@*[name() = "wire:ignore.self"]')->length)->toBe(3)
         ->and(substr_count($initialHtml, ' open'))->toBe(2);
 
     $component->call('setPage', 2, 'scheduledPage')
@@ -242,10 +258,163 @@ it('independently paginates all upcoming promotions and drafts in open disclosur
         ->assertDontSee('Borrador 3')
         ->assertSee(__('business.pass.drafts_heading', ['count' => 6]));
 
+    $component->assertSee('Histórica 1')
+        ->assertSee('Histórica 3')
+        ->assertDontSee('Histórica 4')
+        ->call('setPage', 2, 'historyPage')
+        ->assertSee('Histórica 4')
+        ->assertSee('Histórica 6')
+        ->assertDontSee('Histórica 3')
+        ->assertSee('Programada 4')
+        ->assertSee('Borrador 4')
+        ->call('showPromotionDetail', $history[3]->public_id)
+        ->call('dismissPromotionDetail')
+        ->assertSet('paginators.historyPage', 2);
+
     expect($component->get('paginators.scheduledPage'))->toBe(2)
         ->and($component->get('paginators.page'))->toBe(2)
         ->and($scheduledPromotions)->toHaveCount(6)
         ->and($drafts)->toHaveCount(6);
+});
+
+it('keeps historical-only Businesses out of the never-created state with collapsed detail access', function (PromotionStatus $status) {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create(['pass_background_color' => '#A77BFF']);
+    $promotion = createPublishedPassPromotion(
+        $business,
+        '<script>Original reward</script>',
+        '2018-11-03 03:00:00+00',
+        '2018-11-05 02:00:00+00',
+        'America/Sao_Paulo',
+        $status,
+        $status === PromotionStatus::Cancelled ? '2018-11-04 12:00:00+00' : null,
+    );
+    $business->update(['timezone' => 'Pacific/Auckland']);
+
+    $component = Livewire::actingAs($owner)->test('pages::business.pass')
+        ->assertSee(__('business.pass.history_promotions_heading', ['count' => 1]))
+        ->assertSee('03/11/2018 – 04/11/2018')
+        ->assertSee('<script>Original reward</script>')
+        ->assertDontSee('<script>Original reward</script>', false)
+        ->assertDontSee(__('business.pass.promotions_empty_heading'))
+        ->assertDontSee(__('business.pass.promotions_empty'))
+        ->assertDontSee(__('business.pass.create_first_promotion'))
+        ->assertSee(__('business.pass.new_promotion'))
+        ->assertSee('wire:click="showPromotionDetail(\''.$promotion->public_id.'\')"', false);
+    $document = new DOMDocument;
+    @$document->loadHTML($component->html());
+    $xpath = new DOMXPath($document);
+    $history = $xpath->query('//details[@*[name()="wire:key"]="promotion-history-disclosure"]');
+
+    expect($history->length)->toBe(1);
+    expect($history->item(0)->hasAttribute('open'))->toBeFalse();
+    expect($history->item(0)->hasAttribute('wire:ignore.self'))->toBeTrue();
+    expect($xpath->query('//details[@*[name()="wire:key"]="promotion-history-disclosure"]//*[@data-flux-badge]')->item(0)->getAttribute('class'))
+        ->toContain($status === PromotionStatus::Cancelled ? 'bg-red-400/' : 'bg-zinc-400/');
+
+    $component->call('showPromotionDetail', $promotion->public_id)
+        ->assertSee('data-promotion-detail-phase="'.($status === PromotionStatus::Cancelled ? 'cancelled' : 'ended').'"', false)
+        ->assertDontSee(__('business.pass.cancel_promotion'))
+        ->call('dismissPromotionDetail')
+        ->assertSet('selectedPromotionId', null);
+})->with(['ended' => PromotionStatus::Published, 'cancelled' => PromotionStatus::Cancelled]);
+
+it('groups both historical phases inside the tenant boundary and orders by original start then ascending ID', function () {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create(['pass_background_color' => '#A77BFF']);
+    $ended = createPublishedPassPromotion(
+        $business,
+        'Ended at boundary',
+        '2026-10-06 12:00:00+00',
+        '2026-10-07 12:00:00+00',
+        'UTC',
+    );
+    $cancelled = createPublishedPassPromotion(
+        $business,
+        'Cancelled before start',
+        '2026-10-10 12:00:00+00',
+        '2026-10-11 12:00:00+00',
+        'UTC',
+        PromotionStatus::Cancelled,
+        '2026-10-07 12:00:00+00',
+    );
+    $tied = createPublishedPassPromotion(
+        $business,
+        'Cancelled with the same original start',
+        '2026-10-10 12:00:00+00',
+        '2026-10-11 12:00:00+00',
+        'UTC',
+        PromotionStatus::Cancelled,
+        '2026-10-01 12:00:00+00',
+    );
+    $foreignBusiness = Business::factory()->create();
+    createPublishedPassPromotion(
+        $foreignBusiness,
+        'Foreign ended',
+        '2026-10-06 12:00:00+00',
+        '2026-10-07 12:00:00+00',
+        'UTC',
+    );
+    createPublishedPassPromotion(
+        $foreignBusiness,
+        'Foreign cancelled',
+        '2026-10-10 12:00:00+00',
+        '2026-10-11 12:00:00+00',
+        'UTC',
+        PromotionStatus::Cancelled,
+        '2026-10-07 12:00:00+00',
+    );
+    $this->travelTo('2040-01-01');
+    $clock = Mockery::mock(DatabaseClock::class);
+    $clock->shouldReceive('captureForBusinessTimezone')->once()->andReturn([
+        'instant' => '2026-10-07 12:00:00+00',
+        'business_date' => '2026-10-07',
+    ]);
+    $this->instance(DatabaseClock::class, $clock);
+
+    Livewire::actingAs($owner)->test('pages::business.pass')
+        ->assertSeeHtmlInOrder(collect([$ended, $cancelled, $tied])
+            ->map(fn (Promotion $promotion): string => 'data-promotion-public-id="'.$promotion->public_id.'"')
+            ->all())
+        ->assertSee('data-promotion-phase="ended"', false)
+        ->assertSee('data-promotion-phase="cancelled"', false)
+        ->assertDontSee('Foreign ended')
+        ->assertDontSee('Foreign cancelled');
+});
+
+it('lists ended then cancelled future Promotions by their original planned starts rather than cancellation instants', function () {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create(['pass_background_color' => '#A77BFF']);
+    $ended = createPublishedPassPromotion(
+        $business,
+        'Ended three days ago',
+        '2026-10-01 12:00:00+00',
+        '2026-10-04 12:00:00+00',
+        'UTC',
+    );
+    $startsInTwoDays = createPublishedPassPromotion(
+        $business,
+        'Originally starts in two days',
+        '2026-10-09 12:00:00+00',
+        '2026-10-20 12:00:00+00',
+        'UTC',
+        PromotionStatus::Cancelled,
+        '2026-10-07 11:00:00+00',
+    );
+    $startsInFourDays = createPublishedPassPromotion(
+        $business,
+        'Originally starts in four days',
+        '2026-10-11 12:00:00+00',
+        '2026-10-12 12:00:00+00',
+        'UTC',
+        PromotionStatus::Cancelled,
+        '2026-10-06 12:00:00+00',
+    );
+
+    Livewire::actingAs($owner)->test('pages::business.pass')
+        ->assertSeeHtmlInOrder(collect([$ended, $startsInTwoDays, $startsInFourDays])
+            ->map(fn (Promotion $promotion): string => 'data-promotion-public-id="'.$promotion->public_id.'"')
+            ->all());
 });
 
 it('keeps the promotions empty state and does not render placeholder draft rows', function () {

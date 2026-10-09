@@ -15,6 +15,37 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
+it('renders supplied summary terms without a Livewire editor', function () {
+    $this->blade(
+        '<x-promotion-summary :reward-title="$title" :reward-description="$description" target-points="12" start-date="02/12/2026" end-date="09/12/2026" :extra-points="$rules" />',
+        [
+            'title' => '<script>Reward</script>',
+            'description' => '<strong>Original terms</strong>',
+            'rules' => [
+                reviewPromotionWindow(1, null, null, 2),
+                reviewPromotionWindow(3, '10:00', '13:00', 3),
+                reviewPromotionWindow(5, '18:00', '20:00', 5),
+            ],
+        ],
+    )
+        ->assertSee('<script>Reward</script>')
+        ->assertSee('<strong>Original terms</strong>')
+        ->assertDontSee('<script>Reward</script>', false)
+        ->assertDontSee('<strong>Original terms</strong>', false)
+        ->assertSee('12 puntos')
+        ->assertSee('02/12/2026')
+        ->assertSee('09/12/2026')
+        ->assertSee('3 configuraciones')
+        ->assertSee('Lunes · Todo el día')
+        ->assertSee('Miércoles · 10:00–13:00')
+        ->assertSee('Viernes · 18:00–20:00')
+        ->assertSee('×2')
+        ->assertSee('×3')
+        ->assertSee('×5')
+        ->assertDontSee('Confirmar publicación')
+        ->assertDontSee('Después de publicar');
+});
+
 it('opens a compact publication modal over the unchanged editor without saving', function () {
     freezePromotionReviewClock();
     $owner = User::factory()->create();
