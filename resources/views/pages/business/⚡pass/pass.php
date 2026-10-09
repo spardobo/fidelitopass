@@ -3,6 +3,7 @@
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
+use App\Models\PromotionMultiplierWindow;
 use App\Support\DatabaseClock;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -19,6 +21,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 new #[Layout('layouts::app'), Title('business.pass.title')] class extends Component
 {
@@ -60,6 +63,9 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
 
     #[Locked]
     public string $publicationNotice = '';
+
+    #[Locked]
+    public ?string $selectedPromotionId = null;
 
     /**
      * Initializes the appearance editor after authorizing the Business and loading its current color.
@@ -141,6 +147,86 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
         $this->backgroundColor = $business->pass_background_color ?? self::PREVIEW_FALLBACK;
         $this->resetValidation();
         $this->redirectRoute('business.pass', navigate: true);
+    }
+
+    /**
+     * Opens persisted Promotion terms after resolving the selected identity within the owned Business.
+     *
+     * @param  mixed  $publicId  Untrusted public identifier requested by a Pase detail trigger.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     * @throws HttpException When the Promotion identifier is invalid or unavailable.
+     */
+    public function showPromotionDetail(mixed $publicId): void
+    {
+        abort_unless(is_string($publicId) && Str::isUuid($publicId), 404);
+        $this->selectedPromotionId = $publicId;
+        unset($this->promotionDetail);
+
+        $this->promotionDetail;
+        Flux::modal('promotion-detail')->show();
+    }
+
+    /**
+     * Clears only the selected detail without changing appearance or listing pagination.
+     */
+    public function dismissPromotionDetail(): void
+    {
+        $this->selectedPromotionId = null;
+        unset($this->promotionDetail);
+    }
+
+    /**
+     * Reloads owned frozen terms and derives the current phase from a fresh PostgreSQL instant.
+     *
+     * @return array{
+     *     promotion: Promotion, phase: string, start_date: string, end_date: string,
+     *     extra_points: list<array{weekday: int, start_time: string|null, end_time: string|null, multiplier: int}>
+     * }|null Persisted detail for this request, or no selection.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     * @throws HttpException When the selected Promotion is invalid or unavailable.
+     */
+    #[Computed]
+    public function promotionDetail(): ?array
+    {
+        if ($this->selectedPromotionId === null) {
+            return null;
+        }
+
+        abort_unless(Str::isUuid($this->selectedPromotionId), 404);
+        $business = $this->authorizedBusiness();
+        $promotion = $business->promotions()
+            ->where('public_id', $this->selectedPromotionId)
+            ->whereIn('status', [PromotionStatus::Published->value, PromotionStatus::Cancelled->value])
+            ->with(['extraPoints' => fn ($query) => $query->orderBy('weekday')->orderBy('start_time')->orderBy('id')])
+            ->first();
+        abort_if($promotion === null, 404);
+
+        $instant = CarbonImmutable::parse(
+            app(DatabaseClock::class)->captureForBusinessTimezone($business->timezone)['instant'],
+        );
+        $phase = match (true) {
+            $promotion->status === PromotionStatus::Cancelled => 'cancelled',
+            $instant->lessThan($promotion->starts_at) => 'scheduled',
+            $instant->greaterThanOrEqualTo($promotion->ends_at) => 'ended',
+            default => 'active',
+        };
+
+        return [
+            'promotion' => $promotion,
+            'phase' => $phase,
+            'start_date' => $promotion->starts_at->setTimezone($promotion->timezone_snapshot)->format('d/m/Y'),
+            'end_date' => $promotion->ends_at->setTimezone($promotion->timezone_snapshot)->subDay()->format('d/m/Y'),
+            'extra_points' => $promotion->extraPoints->map(fn (PromotionMultiplierWindow $rule): array => [
+                'weekday' => $rule->weekday,
+                'start_time' => $rule->start_time === null ? null : substr($rule->start_time, 0, 5),
+                'end_time' => $rule->end_time === null ? null : substr($rule->end_time, 0, 5),
+                'multiplier' => $rule->multiplier,
+            ])->all(),
+        ];
     }
 
     #[Computed]
