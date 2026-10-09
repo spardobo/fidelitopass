@@ -492,17 +492,17 @@
                         </span>
                         <flux:icon.chevron-down variant="outline" class="size-5 shrink-0 text-app-ink-secondary transition-transform group-open:rotate-180 motion-reduce:transition-none" />
                     </summary>
-                    <ul aria-label="{{ __('business.pass.history_promotions_heading', ['count' => $promotionListings['history']->total()]) }}" class="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-border bg-app-surface">
+                    <ul aria-label="{{ __('business.pass.history_promotions_heading', ['count' => $promotionListings['history']->total()]) }}" class="divide-y divide-app-line">
                         @foreach ($promotionListings['history'] as $historicalPromotion)
                             <li
                                 wire:key="promotion-history-{{ $historicalPromotion['promotion']->public_id }}"
                                 data-promotion-phase="{{ $historicalPromotion['phase'] }}"
                                 data-promotion-public-id="{{ $historicalPromotion['promotion']->public_id }}"
-                                class="flex min-w-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                                class="flex min-w-0 flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
                             >
                                 <div class="min-w-0 space-y-1">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <flux:heading level="4" size="base" class="app-role-body! min-w-0 break-words font-medium! text-app-ink!">
+                                        <flux:heading level="4" size="base" class="app-role-support! min-w-0 break-words font-medium! text-app-ink!">
                                             {{ $historicalPromotion['promotion']->reward_title }}
                                         </flux:heading>
                                         <flux:badge class="app-role-support! font-medium!">
@@ -519,8 +519,8 @@
                                     wire:click="showPromotionDetail('{{ $historicalPromotion['promotion']->public_id }}')"
                                     wire:loading.attr="disabled"
                                     wire:target="showPromotionDetail"
-                                    variant="filled"
-                                    class="app-button-secondary min-h-11 w-full shrink-0 sm:w-auto"
+                                    variant="ghost"
+                                    class="app-button min-h-11 w-full shrink-0 text-app-ink-secondary! sm:w-auto"
                                 >
                                     {{ __('business.pass.view_promotion_detail') }}
                                 </flux:button>
