@@ -235,7 +235,14 @@ it('refuses to edit a promotion after it leaves draft status', function () {
     $owner = User::factory()->create();
     Business::factory()->for($owner)->create();
     $promotion = app(SavePromotionDraft::class)->handle($owner, promotionDraftInput());
-    DB::table('promotions')->where('id', $promotion->id)->update(['status' => 'published']);
+    DB::table('promotions')->where('id', $promotion->id)->update([
+        'local_start_date' => null,
+        'local_end_date' => null,
+        'status' => 'published',
+        'timezone_snapshot' => 'America/La_Paz',
+        'starts_at' => '2026-11-01 04:00:00+00',
+        'ends_at' => '2026-11-08 04:00:00+00',
+    ]);
 
     expect(fn () => app(SavePromotionDraft::class)->handle($owner, promotionDraftInput([
         'reward_title' => 'Must not be saved',

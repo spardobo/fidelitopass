@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 class Promotion extends Model
 {
     /**
-     * Define the date, points, and status casts used by the promotion aggregate.
+     * Define the date, publication instant, points, and status casts used by the promotion aggregate.
      *
      * @return array<string, string|class-string> Attribute names mapped to Eloquent cast definitions.
      */
@@ -23,6 +23,9 @@ class Promotion extends Model
         return [
             'local_start_date' => 'immutable_date',
             'local_end_date' => 'immutable_date',
+            'starts_at' => 'immutable_datetime',
+            'ends_at' => 'immutable_datetime',
+            'cancelled_at' => 'immutable_datetime',
             'target_points' => 'integer',
             'status' => PromotionStatus::class,
         ];
