@@ -17,7 +17,7 @@ new #[Layout('layouts::app'), Title('business.profile_title')] class extends Com
     public string $timezone = '';
 
     /**
-     * Resolve and authorize the authenticated owner's Business.
+     * Resolves and authorize the authenticated owner's Business.
      * Initialize editable name and timezone fields from the authorized record.
      *
      * @throws ModelNotFoundException When the authenticated user has no Business.

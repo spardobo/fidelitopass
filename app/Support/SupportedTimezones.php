@@ -14,7 +14,7 @@ use IntlTimeZone;
 class SupportedTimezones
 {
     /**
-     * Return the supported IANA time zone identifiers.
+     * Returns the supported IANA time zone identifiers.
      *
      * Identifiers come from PHP's installed time zone database and are retained
      * only when ICU recognizes them as system time zones. If the Intl extension

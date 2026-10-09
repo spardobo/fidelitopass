@@ -16,14 +16,14 @@ use Illuminate\Validation\ValidationException;
 class CancelPromotion
 {
     /**
-     * Create the cancellation action with its authoritative PostgreSQL clock.
+     * Creates the cancellation action with its authoritative PostgreSQL clock.
      *
      * @param  DatabaseClock  $databaseClock  Clock used after the Business and Promotion locks are held.
      */
     public function __construct(private readonly DatabaseClock $databaseClock) {}
 
     /**
-     * Cancel an owner-authorized scheduled or active Promotion without changing its frozen publication facts.
+     * Cancels an owner-authorized scheduled or active Promotion without changing its frozen publication facts.
      *
      * Locks the Business before its Promotion, captures one operation instant after both locks, and rejects
      * drafts, repeats, and originally ended windows without changing the stored aggregate.

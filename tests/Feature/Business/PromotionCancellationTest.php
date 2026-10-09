@@ -178,7 +178,7 @@ it('releases a scheduled Promotion future window immediately after cancellation'
 });
 
 /**
- * Publish one Promotion through the real action for cancellation fixtures.
+ * Publishes one Promotion through the real action for cancellation fixtures.
  *
  * @param  User  $owner  Business owner publishing the fixture.
  * @param  string  $startDate  Inclusive Business-local start date in Y-m-d format.
@@ -194,7 +194,7 @@ function cancellationPublishedPromotion(User $owner, string $startDate, string $
 }
 
 /**
- * Create one Promotion draft with complete terms and optional multiplier rules.
+ * Creates one Promotion draft with complete terms and optional multiplier rules.
  *
  * @param  User  $owner  Business owner creating the draft fixture.
  * @param  string  $startDate  Inclusive Business-local start date in Y-m-d format.
@@ -215,7 +215,7 @@ function cancellationDraft(User $owner, string $startDate, string $endDate, arra
 }
 
 /**
- * Select a date two Business-local days ahead using PostgreSQL's current calendar date.
+ * Selects a date two Business-local days ahead using PostgreSQL's current calendar date.
  *
  * @param  Business  $business  Business whose current timezone defines the fixture date.
  * @return string Future Business-local calendar date in Y-m-d format.
@@ -229,7 +229,7 @@ function cancellationFutureDate(Business $business): string
 }
 
 /**
- * Capture a rejected cancellation for assertions on its localized field message.
+ * Captures a rejected cancellation for assertions on its localized field message.
  *
  * @param  Closure(): mixed  $operation  Cancellation attempt expected to fail validation.
  * @return ValidationException Captured rejection whose localized field errors can be asserted.

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 class DatabaseClock
 {
     /**
-     * Capture one PostgreSQL wall-clock instant and derive the Business-local calendar date from it.
+     * Captures one PostgreSQL wall-clock instant and derive the Business-local calendar date from it.
      *
      * Mutating callers must capture the operation time after acquiring the Business lock.
      * Read-only minimum-date hints may capture without a lock and cannot authorize a write.

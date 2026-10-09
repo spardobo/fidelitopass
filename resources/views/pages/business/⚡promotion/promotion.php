@@ -61,7 +61,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     public string $draftEndTime = '';
 
     /**
-     * Initialize the editor from the route-bound public Promotion ID and current Business timezone.
+     * Initializes the editor from the route-bound public Promotion ID and current Business timezone.
      * Authorize its context, set the local minimum date, and copy an existing draft into form state.
      *
      * @param  Promotion|null  $promotion  Promotion resolved by the route's public identifier, if editing.
@@ -86,7 +86,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Validate the rule-builder entry and append it without persisting the draft.
+     * Validates the rule-builder entry and append it without persisting the draft.
      * On success, sort the accepted list and reset the builder.
      *
      * @throws AuthorizationException When the actor is not authorized to add a rule in this editor.
@@ -147,7 +147,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Remove one accepted extra-point rule by its current list index, reindex the list, and clear related validation errors.
+     * Removes one accepted extra-point rule by its current list index, reindex the list, and clear related validation errors.
      *
      * @param  int  $index  Zero-based index of the rule displayed in the accepted list.
      *
@@ -169,7 +169,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Reset only the unaccepted rule-builder entry and its validation errors, leaving accepted rules and promotion fields unchanged.
+     * Resets only the unaccepted rule-builder entry and its validation errors, leaving accepted rules and promotion fields unchanged.
      *
      * @throws AuthorizationException When the actor is not authorized to discard a rule draft in this editor.
      * @throws ModelNotFoundException When the actor has no Business or the Promotion is not owned by them.
@@ -186,7 +186,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Validate pending builder state and persist the complete draft.
+     * Validates pending builder state and persist the complete draft.
      * Retain inline errors and show a toast on failure; flash success before returning to Pase.
      *
      * @param  SavePromotionDraft  $savePromotionDraft  Transactional action that validates and saves the draft aggregate.
@@ -226,7 +226,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Validate the complete unsaved aggregate and show its read-only publication review.
+     * Validates the complete unsaved aggregate and show its read-only publication review.
      *
      * @throws AuthorizationException When the actor cannot create or edit the Promotion.
      * @throws ModelNotFoundException When the Business or selected Promotion is unavailable.
@@ -261,7 +261,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Dismiss the read-only publication review without validating or changing submitted terms.
+     * Dismisses the read-only publication review without validating or changing submitted terms.
      *
      * Dismissal checks ownership but permits an already-published owned Promotion, so stale tabs can close safely.
      *
@@ -281,7 +281,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Publish the full current submission only after its server-authoritative timezone was reviewed.
+     * Publishes the full current submission only after its server-authoritative timezone was reviewed.
      *
      * Publication failures close the review and return the user to the same editor state; successful
      * publication redirects to Pase. A timezone change requires a fresh review and confirmation.
@@ -373,7 +373,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Recheck editor authorization and return to Pase without persisting unsaved form state.
+     * Rechecks editor authorization and return to Pase without persisting unsaved form state.
      *
      * @throws AuthorizationException When the actor cannot access this editor.
      * @throws ModelNotFoundException When the Business or selected Promotion cannot be resolved for this actor.
@@ -387,7 +387,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Resolve and authorize the current actor's Business for editor reads.
+     * Resolves and authorize the current actor's Business for editor reads.
      *
      * @return Business Business owned by the authenticated actor.
      *
@@ -404,7 +404,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Report whether the current editor is bound to an existing public Promotion ID.
+     * Reports whether the current editor is bound to an existing public Promotion ID.
      *
      * @return bool True while editing a draft; false while creating one.
      */
@@ -415,7 +415,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Return deterministic UTC boundaries derived from the reviewed inclusive local dates.
+     * Returns deterministic UTC boundaries derived from the reviewed inclusive local dates.
      *
      * @return array{starts_at: string, ends_at: string} Inclusive UTC start and exclusive UTC end labels.
      */
@@ -436,7 +436,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Prepare local dates, the current timezone, UTC boundaries, and scheduled state for review.
+     * Prepares local dates, the current timezone, UTC boundaries, and scheduled state for review.
      *
      * @return array{start_date: string, end_date: string, timezone: string, starts_at: string, ends_at: string, is_scheduled: bool} Read-only publication summary for the current submission.
      */
@@ -457,7 +457,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Convert a validated Business-local calendar date to the start of that date.
+     * Converts a validated Business-local calendar date to the start of that date.
      *
      * @param  string  $localDate  Validated ISO calendar date without a time or offset.
      * @param  string  $timezone  Current Business IANA timezone used for the preview.
@@ -469,7 +469,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Return the full current editor submission in the action's input shape.
+     * Returns the full current editor submission in the action's input shape.
      *
      * @return array<string, mixed> Untrusted terms and the complete configured multiplier-rule list.
      */
@@ -486,7 +486,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Copy validated action input into component state for a faithful review and subsequent confirmation.
+     * Copies validated action input into component state for a faithful review and subsequent confirmation.
      *
      * @param  array<string, mixed>  $data  Normalized Promotion terms and multiplier windows.
      */
@@ -501,7 +501,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Build the display strings for the currently accepted extra-point rules.
+     * Builds the display strings for the currently accepted extra-point rules.
      *
      * @return array<int, string> Localized weekday, time period, and multiplier summaries.
      */
@@ -519,7 +519,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Authorize create or update access and resolve the existing draft when applicable.
+     * Authorizes create or update access and resolve the existing draft when applicable.
      *
      * @return Promotion|null Owned draft being edited, or null for the create flow.
      *
@@ -541,7 +541,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Load the current actor's Promotion by public ID and reject non-draft records.
+     * Loads the current actor's Promotion by public ID and reject non-draft records.
      *
      * @return Promotion|null Owned draft with its extra-point windows loaded, or null when no ID is set.
      *
@@ -561,7 +561,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Load the current actor's Promotion by public ID and authorize its ownership without assuming its status.
+     * Loads the current actor's Promotion by public ID and authorize its ownership without assuming its status.
      *
      * Publication confirmation uses this lookup so a stale second-tab attempt reaches the transactional
      * action's localized status rejection; ordinary editor actions apply the draft-only guard separately.
@@ -588,7 +588,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Copy persisted draft values and its rules into component form state without changing the model.
+     * Copies persisted draft values and its rules into component form state without changing the model.
      *
      * @param  Promotion  $promotion  Owned draft with its extra-point relationship loaded.
      */
@@ -603,7 +603,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Format a persisted calendar-date attribute for an HTML date input without timezone conversion.
+     * Formats a persisted calendar-date attribute for an HTML date input without timezone conversion.
      *
      * @param  Promotion  $promotion  Draft whose date attribute is being read.
      * @param  string  $attribute  Date attribute name, expected to be a local start or end date.
@@ -621,7 +621,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Convert persisted multiplier windows to ordered editor values.
+     * Converts persisted multiplier windows to ordered editor values.
      *
      * @param  Promotion  $promotion  Draft with its extra-point relationship loaded.
      * @return array<int, array{weekday: int|string, start_time: ?string, end_time: ?string, multiplier: int|string}> Ordered rule fields formatted for the editor controls.
@@ -646,7 +646,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Normalize client-controlled Livewire rule entries into the action's input keys.
+     * Normalizes client-controlled Livewire rule entries into the action's input keys.
      *
      * The returned values are still untrusted; the save action performs authoritative validation.
      *
@@ -674,7 +674,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Sort accepted rules in place by ISO weekday and then start time for stable display and submission.
+     * Sorts accepted rules in place by ISO weekday and then start time for stable display and submission.
      */
     private function sortExtraPoints(): void
     {
@@ -688,7 +688,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Determine whether the builder contains values that have not been accepted as a rule.
+     * Determines whether the builder contains values that have not been accepted as a rule.
      *
      * @return bool True when saving would otherwise discard an unsubmitted builder entry.
      */
@@ -702,7 +702,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Map action validation paths to component fields, show the failure toast, and rethrow for Livewire.
+     * Maps action validation paths to component fields, show the failure toast, and rethrow for Livewire.
      *
      * @param  ValidationException  $exception  Validation failure raised by the draft action or rule validator.
      * @return never This method always throws the translated validation exception.
@@ -717,7 +717,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Convert action validation paths to the component's camel-case field names.
+     * Converts action validation paths to the component's camel-case field names.
      *
      * @return array<string, list<string>> Validation messages keyed by Livewire component property path.
      */
@@ -735,7 +735,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Clear server review authority and close its native Flux modal after a failed publication attempt.
+     * Clears server review authority and close its native Flux modal after a failed publication attempt.
      */
     private function closePublicationReview(): void
     {
@@ -745,7 +745,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
-     * Restore pending weekday, multiplier, mode, and time values to their unconfigured defaults.
+     * Restores pending weekday, multiplier, mode, and time values to their unconfigured defaults.
      */
     private function resetRuleDraft(): void
     {

@@ -177,7 +177,7 @@ function escapesRepository(root, destination) {
 }
 
 /**
- * Check local link and inline path targets in README.md, docs and skills.
+ * Checks local link and inline path targets in README.md, docs and skills.
  * Markdown heading anchors require manual review; filesystem errors propagate.
  *
  * @param {string} root Repository root path, absolute or relative to the working directory.
@@ -223,7 +223,7 @@ export function validateMarkdownLinks(root) {
 }
 
 /**
- * Check the requirement summary, register, headings and references in README.md, docs and skills.
+ * Checks the requirement summary, register, headings and references in README.md, docs and skills.
  * Filesystem errors propagate; a missing requirements register returns a diagnostic.
  *
  * @param {string} root Repository root path, absolute or relative to the working directory.
@@ -424,7 +424,7 @@ function validValidation(validation) {
 }
 
 /**
- * Check current learning record structure, unique IDs, repository paths and status requirements.
+ * Checks current learning record structure, unique IDs, repository paths and status requirements.
  * Evidence truth and Markdown anchors require human review. Missing, broken or looping learning paths
  * return diagnostics; other filesystem errors propagate.
  *
@@ -528,7 +528,7 @@ export function validateLearningRecords(root, content) {
 }
 
 /**
- * Check documentation links, requirement identifiers and the learning registry when present.
+ * Checks documentation links, requirement identifiers and the learning registry when present.
  * Evidence truth and Markdown anchors require human review. Missing, broken or looping learning paths
  * return diagnostics; other filesystem errors propagate.
  *

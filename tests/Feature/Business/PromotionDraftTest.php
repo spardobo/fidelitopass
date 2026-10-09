@@ -359,7 +359,7 @@ it('rolls back promotion edits and rule replacement when a child write fails', f
 });
 
 /**
- * Build a valid default draft payload with optional field overrides.
+ * Builds a valid default draft payload with optional field overrides.
  *
  * @param  array<string, mixed>  $overrides  Draft field values replacing the valid defaults.
  * @return array<string, mixed> Draft fields and child rule entries ready for action validation.
@@ -377,7 +377,7 @@ function promotionDraftInput(array $overrides = []): array
 }
 
 /**
- * Build one multiplier-window entry for action and persistence tests.
+ * Builds one multiplier-window entry for action and persistence tests.
  *
  * @param  int  $weekday  ISO weekday from 1 (Monday) through 7 (Sunday).
  * @param  string|null  $start  Window start in HH:MM format, or null for all day.

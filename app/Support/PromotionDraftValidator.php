@@ -8,7 +8,7 @@ use Illuminate\Validation\ValidationException;
 class PromotionDraftValidator
 {
     /**
-     * Validate untrusted Promotion draft fields and normalize multiplier-window values.
+     * Validates untrusted Promotion draft fields and normalize multiplier-window values.
      *
      * @param  array<string, mixed>  $input  Client-provided draft fields and rule entries.
      * @return array<string, mixed> Validated draft values with normalized child rule fields.
@@ -37,7 +37,7 @@ class PromotionDraftValidator
     }
 
     /**
-     * Ensure a submitted start date is not earlier than the supplied Business-local current date.
+     * Ensures a submitted start date is not earlier than the supplied Business-local current date.
      *
      * @param  string  $startDate  ISO calendar date submitted for the draft.
      * @param  string  $businessToday  ISO calendar date captured for the Business timezone.
@@ -54,7 +54,7 @@ class PromotionDraftValidator
     }
 
     /**
-     * Reject invalid same-day combinations while allowing disjoint or touching multiplier windows.
+     * Rejects invalid same-day combinations while allowing disjoint or touching multiplier windows.
      *
      * @param  array<int, array{weekday: int|string, start_time?: string|null, end_time?: string|null, multiplier: int|string}>  $windows  Validated rule windows with scalar values in project-supported formats.
      *

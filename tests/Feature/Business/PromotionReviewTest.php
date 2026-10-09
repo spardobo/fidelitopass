@@ -546,7 +546,7 @@ it('allows a stale publication review to close without treating dismissal as a d
 });
 
 /**
- * Build valid Promotion input for review/publication tests.
+ * Builds valid Promotion input for review/publication tests.
  *
  * @param  array<string, mixed>  $overrides  Submitted fields that replace the valid defaults.
  * @return array<string, mixed> Complete valid Promotion terms and multiplier rules.
@@ -564,7 +564,7 @@ function reviewPromotionInput(array $overrides = []): array
 }
 
 /**
- * Build one valid multiplier rule for review/publication tests.
+ * Builds one valid multiplier rule for review/publication tests.
  *
  * @param  int  $weekday  ISO weekday number for the recurring rule.
  * @param  string|null  $startTime  Inclusive local start time, or null for all day.
@@ -583,14 +583,14 @@ function reviewPromotionWindow(int $weekday, ?string $startTime, ?string $endTim
 }
 
 /**
- * Freeze the component and publication-action clock to a stable future test date.
+ * Freezes the component and publication-action clock to a stable future test date.
  */
 function freezePromotionReviewClock(): void
 {
     app()->instance(DatabaseClock::class, new class extends DatabaseClock
     {
         /**
-         * Return the same operation instant and its date in the requested Business timezone.
+         * Returns the same operation instant and its date in the requested Business timezone.
          *
          * @param  string  $timezone  IANA timezone used for the deterministic business date.
          * @return array{instant: string, business_date: string} Fixed instant and derived local date.

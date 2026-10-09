@@ -144,7 +144,7 @@ it('rejects promotions and multiplier windows without their owning records', fun
 ]);
 
 /**
- * Create a persisted draft used to exercise database-level constraints.
+ * Creates a persisted draft used to exercise database-level constraints.
  *
  * @return Promotion Existing draft row with valid default dates and reward fields.
  */
@@ -159,7 +159,7 @@ function promotionForPersistenceConstraints(): Promotion
 }
 
 /**
- * Create a persisted published Promotion used to exercise database-level publication constraints.
+ * Creates a persisted published Promotion used to exercise database-level publication constraints.
  *
  * @return Promotion Existing published row with complete frozen window facts.
  */

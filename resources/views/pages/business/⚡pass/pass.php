@@ -62,7 +62,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     public string $publicationNotice = '';
 
     /**
-     * Initialize the appearance editor after authorizing the Business and loading its current color.
+     * Initializes the appearance editor after authorizing the Business and loading its current color.
      * Consume one-time Promotion draft-save or publication feedback for the Pase page.
      *
      * @throws AuthorizationException When the actor cannot update the Business.
@@ -83,7 +83,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Set a supported appearance color for the local preview without persisting it.
+     * Sets a supported appearance color for the local preview without persisting it.
      *
      * @param  string  $color  Hex value selected from the configured preset palette.
      *
@@ -105,7 +105,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Validate and persist the selected appearance, then show a success toast and return to Pase.
+     * Validates and persist the selected appearance, then show a success toast and return to Pase.
      *
      * @throws AuthorizationException When the actor cannot update the Business.
      * @throws ModelNotFoundException When the actor has no Business.
@@ -129,7 +129,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Restore the persisted appearance, clear validation state, and leave without saving pending changes.
+     * Restores the persisted appearance, clear validation state, and leave without saving pending changes.
      *
      * @throws AuthorizationException When the actor cannot update the Business.
      * @throws ModelNotFoundException When the actor has no Business.
@@ -194,7 +194,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Return only the authenticated Business's draft promotions in stable, paginated order.
+     * Returns only the authenticated Business's draft promotions in stable, paginated order.
      *
      * @return LengthAwarePaginator<int, Promotion> Owned drafts ordered by local start date, update time, and ID.
      *
@@ -213,7 +213,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Return the owned currently active Promotion and every future scheduled Promotion.
+     * Returns the owned currently active Promotion and every future scheduled Promotion.
      * Capture one database instant so both lifecycle groups share the same boundary.
      *
      * @return array{

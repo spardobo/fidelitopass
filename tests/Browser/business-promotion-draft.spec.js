@@ -8,7 +8,7 @@ const PASSWORD = "ValidPassword84!strong";
 const MAILPIT_URL = "http://fidelitopass-mailpit-dev:8025";
 const LIVEWIRE_UPDATE_PATH = /\/livewire-[^/]+\/update$/;
 
-/** Shift an ISO calendar date by whole days without host-timezone conversion.
+/** Shifts an ISO calendar date by whole days without host-timezone conversion.
  * @param {string} date ISO date in YYYY-MM-DD form.
  * @param {number} days Signed number of calendar days to shift.
  * @returns {string} Shifted ISO calendar date.
@@ -20,7 +20,7 @@ function shiftCalendarDate(date, days) {
     return shifted.toISOString().slice(0, 10);
 }
 
-/** Format the textual validity summary, omitting the first year when both dates share it.
+/** Formats the textual validity summary, omitting the first year when both dates share it.
  * @param {string} start Promotion start date in YYYY-MM-DD form, or an empty value.
  * @param {string} end Promotion end date in YYYY-MM-DD form, or an empty value.
  * @returns {string} Spanish validity summary or its unconfigured placeholder.
@@ -29,7 +29,7 @@ function expectedValidityRange(start, end) {
     if (!start || !end) return "Fechas por definir";
 
     const includeStartYear = start.slice(0, 4) !== end.slice(0, 4);
-    /** Format one ISO date with an optional year for the range summary.
+    /** Formats one ISO date with an optional year for the range summary.
      * @param {string} date Date in YYYY-MM-DD form.
      * @param {boolean} includeYear Whether to include the calendar year.
      * @returns {string} Localized Spanish date without abbreviation punctuation.
@@ -47,7 +47,7 @@ function expectedValidityRange(start, end) {
     return `${formatDate(start, includeStartYear)} – ${formatDate(end, true)}`;
 }
 
-/** Derive stable date cases from the editor's server-provided minimum date.
+/** Derives stable date cases from the editor's server-provided minimum date.
  * @param {import('@playwright/test').Page} page Editor page exposing its start-date minimum.
  * @returns {Promise<{minimum: string, past: string, futureStart: string, futureEnd: string, sameYearStart: string, sameYearEnd: string, yearEnd: string, nextYear: string}>} Resolves with deterministic calendar cases; rejects if the editor has no server-provided minimum date.
  */
@@ -68,7 +68,7 @@ async function promotionDateCases(page) {
     };
 }
 
-/** Assert that promotion routes select exactly the Pase navigation item.
+/** Asserts that promotion routes select exactly the Pase navigation item.
  * @param {import('@playwright/test').Page} page Browser page currently showing a promotion route.
  * @returns {Promise<void>} Resolves when Pase is the single current page; rejects when the navigation assertions fail.
  */
@@ -82,7 +82,7 @@ async function expectPassNavigationToBeActive(page) {
     );
 }
 
-/** Register a disposable verified Business account for an isolated browser journey.
+/** Registers a disposable verified Business account for an isolated browser journey.
  * @param {import('@playwright/test').Page} page Browser page used for signup and verification.
  * @param {import('@playwright/test').APIRequestContext} request API client used to retrieve the verification message from Mailpit.
  * @returns {Promise<void>} Leaves the page authenticated on the dashboard; rejects when signup, verification, or redirect checks fail.
@@ -124,7 +124,7 @@ async function registerVerifiedBusiness(page, request) {
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
 }
 
-/** Read computed typography for editor labels and the schedule legend.
+/** Reads computed typography for editor labels and the schedule legend.
  * @param {import('@playwright/test').Page} page Rendered Promotion editor page.
  * @returns {Promise<Record<string, {fontSize: string, lineHeight: string, fontWeight: string, color: string}>>} Resolves with computed label styles; rejects if a required label cannot be measured.
  */
@@ -257,7 +257,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     const saveButton = page.getByRole("button", { name: "Guardar borrador" });
     const reviewButton = page.getByRole("button", { name: /Revisar publicación/ });
     const addRuleButton = page.getByRole("button", { name: "Añadir puntos extra" });
-    /** Read semantic and computed style details for one editor action button.
+    /** Reads semantic and computed style details for one editor action button.
      * @param {import('@playwright/test').Locator} button Button whose neutral or accent treatment is being compared.
      * @returns {Promise<{background: string, borderColor: string, color: string, minHeight: string, borderRadius: string, usesNeutralAppButton: boolean}>} Resolves with computed button styles; rejects if the locator is detached before measurement.
      */
@@ -359,7 +359,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
             const section = badge.closest("section");
             const style = getComputedStyle(badge);
             const context = document.createElement("canvas").getContext("2d");
-            /** Resolve a CSS color to its RGB channel values through canvas.
+            /** Resolves a CSS color to its RGB channel values through canvas.
              * @param {string} color CSS color string.
              * @returns {number[]} Three RGB channel values.
              */
@@ -370,7 +370,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
 
                 return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3);
             };
-            /** Calculate relative luminance from three RGB channels.
+            /** Calculates relative luminance from three RGB channels.
              * @param {[number, number, number]} channels Red, green, and blue values from 0 to 255.
              * @returns {number} WCAG relative luminance for the supplied color.
              */
@@ -421,7 +421,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(windowHelp).toBeVisible();
     await expect(windowHelp.locator("xpath=..").locator("svg")).toBeVisible();
 
-    /** Measure rule-builder labels, controls, and add action relative to their panel.
+    /** Measures rule-builder labels, controls, and add action relative to their panel.
      * @returns {Promise<{weekdayLabel: number, multiplierLabel: number, weekdayControl: number, multiplierControl: number, addButton: number}>} Resolves with panel-relative coordinates; rejects if required controls cannot be measured.
      */
     const fieldTops = async () =>
@@ -429,7 +429,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
             const section = document
                 .querySelector("#promotion-extra-points-heading")
                 .closest("section");
-            /** Get a visible element's top coordinate relative to the extra-points panel.
+            /** Gets a visible element's top coordinate relative to the extra-points panel.
              * @param {string} selector CSS selector for an element in the panel.
              * @returns {number} Panel-relative top coordinate in CSS pixels.
              */
@@ -556,7 +556,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await page.getByLabel("Puntos por visita", { exact: true }).selectOption("3");
     await page.getByLabel("Por horario", { exact: true }).check();
     await expect(page.getByLabel("Hora de inicio")).toBeVisible();
-    /** Measure timed-window fields in the extra-points panel's local coordinate frame.
+    /** Measures timed-window fields in the extra-points panel's local coordinate frame.
      * @returns {Promise<{startLabel: number, endLabel: number, startInput: number, endInput: number, addButton: number}>} Resolves with panel-relative coordinates; rejects if required controls cannot be measured.
      */
     const timeFieldTops = async () =>
@@ -564,7 +564,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
             const section = document
                 .querySelector("#promotion-extra-points-heading")
                 .closest("section");
-            /** Get an element's top coordinate relative to the extra-points panel.
+            /** Gets an element's top coordinate relative to the extra-points panel.
              * @param {string} selector CSS selector for a panel element.
              * @returns {number} Panel-relative top coordinate in CSS pixels.
              */
@@ -913,7 +913,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
         const editor = document.querySelector('[data-test="promotion-editor"]');
         const general = document.querySelector("#promotion-general-heading").closest("section");
         const summary = document.querySelector("#promotion-summary-heading").closest("section");
-        /** Return a DOM element's serializable rectangle coordinates.
+        /** Returns a DOM element's serializable rectangle coordinates.
          * @param {Element} element Measured editor element.
          * @returns {{x: number, y: number, width: number, height: number}} Viewport-relative bounding box.
          */
@@ -1040,7 +1040,7 @@ test("disables competing Promotion actions while a save request is pending", asy
     let routeHandler;
     let saveResponse;
 
-    /** Hold the editor's Livewire save request until the test releases the gate.
+    /** Holds the editor's Livewire save request until the test releases the gate.
      * @param {import('@playwright/test').Route} route Intercepted Livewire update route carrying the save action.
      * @returns {Promise<void>} Continues the route after the gate resolves; rejects if Playwright cannot continue the intercepted request.
      */
@@ -1123,7 +1123,7 @@ test("disables competing Promotion actions while a save request is pending", asy
     const modalSaveResponseGate = new Promise((resolve) => {
         releaseModalSave = resolve;
     });
-    /** Hold a Livewire save response until the test releases its synchronization gate.
+    /** Holds a Livewire save response until the test releases its synchronization gate.
      * @param {import('@playwright/test').Route} route Intercepted Livewire update request.
      * @returns {Promise<void>} Resolves after continuing the intercepted request; rejects if the route continuation fails.
      */
@@ -1369,7 +1369,7 @@ test("contains keyboard focus and restores the Promotion review opener after dis
     await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
     await page.evaluate(() => window.scrollTo({ top: 250 }));
 
-    /** Open the review after server validation and wait for its dialog.
+    /** Opens the review after server validation and wait for its dialog.
      * @returns {Promise<void>} Resolves when the publication review is visible.
      */
     const openReview = async () => {
@@ -1377,7 +1377,7 @@ test("contains keyboard focus and restores the Promotion review opener after dis
         await expect(dialog).toBeVisible();
     };
 
-    /** Dismiss through one browser control and verify state, focus, scroll and unsaved values remain.
+    /** Dismisses through one browser control and verify state, focus, scroll and unsaved values remain.
      * @param {() => Promise<void>} dismiss Invokes one native or secondary dismissal path.
      * @returns {Promise<void>} Resolves when the editor is restored without losing its current viewport or value.
      */
@@ -1455,7 +1455,7 @@ test("keeps an overlapping publication in the editor with its review closed", as
     const dates = await promotionDateCases(page);
     const dialog = page.locator('dialog[data-modal="promotion-publication-review"]');
 
-    /** Enter the required terms and publish a promotion using this test's disposable Business.
+    /** Enters the required terms and publish a promotion using this test's disposable Business.
      * @param {string} title Reward title for this test-owned publication.
      * @returns {Promise<void>} Resolves after the app confirms the publication on Pase.
      */

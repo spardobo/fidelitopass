@@ -38,7 +38,7 @@ function clearLocalizedError(event) {
 }
 
 /**
- * Select copy from native flags only;
+ * Selects copy from native flags only;
  * never reimplement the browser's constraints.
  */
 function nativeMessage(control, messages) {

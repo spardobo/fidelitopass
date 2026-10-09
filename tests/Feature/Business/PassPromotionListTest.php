@@ -389,7 +389,7 @@ it('orders drafts by earliest local start date before paginating, then uses dete
 });
 
 /**
- * Build the fixed default draft input with the requested reward title.
+ * Builds the fixed default draft input with the requested reward title.
  *
  * @param  string  $title  Reward title used to identify the generated Promotion.
  * @return array{local_start_date: string, local_end_date: string, target_points: int, reward_title: string, reward_description: string, extra_points: list<never>} Draft fields with the requested title and no extra-point windows.
@@ -407,7 +407,7 @@ function passPromotionInput(string $title): array
 }
 
 /**
- * Persist a valid published-state fixture with an immutable UTC window and timezone snapshot.
+ * Persists a valid published-state fixture with an immutable UTC window and timezone snapshot.
  *
  * @param  Business  $business  Business that owns the generated Promotion.
  * @param  string  $title  Reward title used to identify the generated Promotion.

@@ -543,7 +543,7 @@ it('uses the current business timezone after a draft is mounted', function () {
 });
 
 /**
- * Build a valid draft payload used by Livewire editor feature tests.
+ * Builds a valid draft payload used by Livewire editor feature tests.
  *
  * @param  array<string, mixed>  $overrides  Draft values replacing the valid defaults.
  * @return array<string, mixed> Valid draft fields and configured extra-point rules.
@@ -561,7 +561,7 @@ function promotionEditorDraftInput(array $overrides = []): array
 }
 
 /**
- * Build one rule entry while allowing tests to supply untrusted weekday scalar input.
+ * Builds one rule entry while allowing tests to supply untrusted weekday scalar input.
  *
  * @param  int|string  $weekday  ISO weekday value in integer or client-submitted string form.
  * @param  string|null  $start  Window start in HH:MM format, or null for all day.
