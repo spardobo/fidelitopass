@@ -10,7 +10,7 @@ new class extends Component
     public array $recoveryCodes = [];
 
     /**
-     * Load enabled two-factor recovery codes into display state; decryption errors are recorded in the component error bag.
+     * Loads enabled two-factor recovery codes into display state; decryption errors are recorded in the component error bag.
      */
     public function mount(): void
     {

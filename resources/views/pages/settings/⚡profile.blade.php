@@ -20,7 +20,7 @@ new #[Title('Profile settings')] class extends Component
     public string $email = '';
 
     /**
-     * Initialize the editable name and email fields from the authenticated user without persisting changes.
+     * Initializes the editable name and email fields from the authenticated user without persisting changes.
      */
     public function mount(): void
     {

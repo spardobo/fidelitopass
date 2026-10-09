@@ -27,7 +27,7 @@ new class extends Component
     public string $code = '';
 
     /**
-     * Initialize only the confirmation requirement supplied by the parent component; setup secrets and QR data are loaded later.
+     * Initializes only the confirmation requirement supplied by the parent component; setup secrets and QR data are loaded later.
      *
      * @param  bool  $requiresConfirmation  Whether the user must confirm two-factor setup.
      */

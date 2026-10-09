@@ -18,7 +18,7 @@ class UserFactory extends Factory
     protected static ?string $password;
 
     /**
-     * defines the model's default state.
+     * Defines the model's default state.
      *
      * @return array<string, mixed>
      */
