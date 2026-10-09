@@ -3,6 +3,8 @@
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
+use App\Support\DatabaseClock;
+use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -207,7 +209,62 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
             ->orderByRaw('local_start_date ASC NULLS LAST')
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
-            ->paginate(10);
+            ->paginate(3);
+    }
+
+    /**
+     * Return the owned currently active Promotion and every future scheduled Promotion.
+     * Capture one database instant so both lifecycle groups share the same boundary.
+     *
+     * @return array{
+     *     active: array{promotion: Promotion, period: string}|null,
+     *     scheduled: LengthAwarePaginator<int, array{promotion: Promotion, period: string}>
+     * } Current published rows with inclusive dates formatted in their frozen publication timezone.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     */
+    #[Computed]
+    public function currentPromotionListings(): array
+    {
+        $business = $this->authorizedBusiness();
+        $instant = CarbonImmutable::parse(
+            app(DatabaseClock::class)->captureForBusinessTimezone($business->timezone)['instant'],
+        );
+
+        $activePromotion = $business->promotions()
+            ->where('status', PromotionStatus::Published->value)
+            ->where('starts_at', '<=', $instant)
+            ->where('ends_at', '>', $instant)
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->first();
+
+        $formatPeriod = static function (Promotion $promotion): string {
+            $timezone = $promotion->timezone_snapshot;
+            $start = $promotion->starts_at->setTimezone($timezone)->format('d/m/Y');
+            $end = $promotion->ends_at->setTimezone($timezone)->subDay()->format('d/m/Y');
+
+            return __('business.pass.promotion_published_period', ['start' => $start, 'end' => $end]);
+        };
+        $scheduled = $business->promotions()
+            ->where('status', PromotionStatus::Published->value)
+            ->where('starts_at', '>', $instant)
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->paginate(3, ['*'], 'scheduledPage')
+            ->through(fn (Promotion $promotion): array => [
+                'promotion' => $promotion,
+                'period' => $formatPeriod($promotion),
+            ]);
+
+        return [
+            'active' => $activePromotion === null ? null : [
+                'promotion' => $activePromotion,
+                'period' => $formatPeriod($activePromotion),
+            ],
+            'scheduled' => $scheduled,
+        ];
     }
 
     #[Computed]
