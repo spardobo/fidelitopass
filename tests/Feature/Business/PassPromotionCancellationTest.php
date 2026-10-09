@@ -62,7 +62,7 @@ it('cancels a confirmed eligible Promotion while retaining frozen detail and Pas
         ->toBe($rules);
 })->with(['active' => '2026-01-01 00:00:00+00', 'scheduled' => '2026-01-03 00:00:00+00']);
 
-it('requires server confirmation and dismisses it without changing the Promotion or closing detail', function () {
+it('requires server confirmation and closes detail without changing the Promotion', function () {
     $owner = User::factory()->create();
     $business = Business::factory()->for($owner)->create();
     $promotion = passCancellationPromotion($business);
@@ -75,9 +75,11 @@ it('requires server confirmation and dismisses it without changing the Promotion
         ->assertSee(__('business.pass.cancel_confirmation_required'))
         ->call('requestPromotionCancellation')
         ->assertHasNoErrors()
-        ->call('dismissPromotionCancellation')
+        ->call('dismissPromotionDetail')
         ->assertSet('confirmingPromotionCancellation', false)
-        ->assertSet('selectedPromotionId', $promotion->public_id)
+        ->assertSet('selectedPromotionId', null)
+        ->assertHasNoErrors()
+        ->call('showPromotionDetail', $promotion->public_id)
         ->call('confirmPromotionCancellation')
         ->assertHasErrors('promotionCancellation')
         ->call('requestPromotionCancellation')
@@ -88,6 +90,51 @@ it('requires server confirmation and dismisses it without changing the Promotion
 
     expect($promotion->fresh()->getRawOriginal())->toBe($before);
 });
+
+it('changes the cancellation action from primary to destructive only at final confirmation', function () {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create();
+    $promotion = passCancellationPromotion($business);
+    $component = Livewire::actingAs($owner)->test('pages::business.pass')
+        ->call('showPromotionDetail', $promotion->public_id);
+    $document = new DOMDocument;
+    @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
+    $requestButton = (new DOMXPath($document))->query('//*[@id="cancel-promotion"]')->item(0);
+
+    expect($requestButton->getAttribute('class'))->toContain('app-button-primary', 'bg-[var(--color-accent)]')
+        ->not->toContain('bg-red-500');
+    expect(trim($requestButton->textContent))->toBe(__('business.pass.cancel_promotion'));
+
+    $component->call('requestPromotionCancellation');
+    @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
+    $confirmButton = (new DOMXPath($document))->query('//*[@data-promotion-detail-phase]//footer//button[@*[name()="wire:click"]="confirmPromotionCancellation"]')->item(0);
+
+    expect($confirmButton->getAttribute('class'))->toContain('app-button', 'bg-red-500')
+        ->not->toContain('app-button-primary');
+    expect(trim($confirmButton->textContent))->toBe(__('business.pass.confirm_cancel_promotion'));
+});
+
+it('keeps return to Pase as the only secondary action before and during cancellation confirmation', function (bool $confirming) {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create();
+    $promotion = passCancellationPromotion($business);
+    $component = Livewire::actingAs($owner)->test('pages::business.pass')
+        ->call('showPromotionDetail', $promotion->public_id);
+
+    if ($confirming) {
+        $component->call('requestPromotionCancellation');
+    }
+
+    $document = new DOMDocument;
+    @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
+    $xpath = new DOMXPath($document);
+    $closeButtons = $xpath->query('//*[@data-promotion-detail-phase]//footer//ui-close//button');
+
+    expect($closeButtons->length)->toBe(1);
+    expect(trim($closeButtons->item(0)->textContent))->toBe(__('business.pass.close_promotion_detail'));
+    expect($xpath->query('//*[@data-promotion-detail-phase]//footer//button')->length)->toBe(2);
+    $component->assertDontSee('Conservar promoción');
+})->with(['detail' => false, 'confirmation' => true]);
 
 it('rejects client hydration of the cancellation confirmation', function () {
     $owner = User::factory()->create();

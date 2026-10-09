@@ -547,24 +547,19 @@
                 </div>
 
                 <footer class="flex shrink-0 flex-col-reverse justify-end gap-3 pt-3 sm:flex-row">
-                    @if ($confirmingPromotionCancellation && in_array($detail['phase'], ['active', 'scheduled'], true))
-                        <flux:button type="button" wire:click="dismissPromotionCancellation" wire:loading.attr="disabled" wire:target="confirmPromotionCancellation" class="app-button-secondary min-h-11 w-full sm:w-auto">
-                            {{ __('business.pass.keep_promotion') }}
+                    <flux:modal.close class="w-full sm:w-auto">
+                        <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
+                            {{ __('business.pass.close_promotion_detail') }}
                         </flux:button>
+                    </flux:modal.close>
+                    @if ($confirmingPromotionCancellation && in_array($detail['phase'], ['active', 'scheduled'], true))
                         <flux:button type="button" wire:click="confirmPromotionCancellation" variant="danger" class="app-button min-h-11 w-full sm:w-auto">
                             {{ __('business.pass.confirm_cancel_promotion') }}
                         </flux:button>
-                    @else
-                        <flux:modal.close class="w-full sm:w-auto">
-                            <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
-                                {{ __('business.pass.close_promotion_detail') }}
-                            </flux:button>
-                        </flux:modal.close>
-                        @if (in_array($detail['phase'], ['active', 'scheduled'], true))
-                            <flux:button type="button" id="cancel-promotion" wire:click="requestPromotionCancellation" variant="danger" class="app-button min-h-11 w-full sm:w-auto">
-                                {{ __('business.pass.cancel_promotion') }}
-                            </flux:button>
-                        @endif
+                    @elseif (in_array($detail['phase'], ['active', 'scheduled'], true))
+                        <flux:button type="button" id="cancel-promotion" wire:click="requestPromotionCancellation" variant="primary" class="app-button-primary min-h-11 w-full sm:w-auto">
+                            {{ __('business.pass.cancel_promotion') }}
+                        </flux:button>
                     @endif
                 </footer>
             </div>

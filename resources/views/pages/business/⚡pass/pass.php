@@ -215,16 +215,6 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Dismisses cancellation without closing detail or changing persisted facts.
-     */
-    public function dismissPromotionCancellation(): void
-    {
-        $this->confirmingPromotionCancellation = false;
-        $this->resetValidation('promotionCancellation');
-        $this->dispatch('promotion-cancellation-focus', target: 'cancel-promotion');
-    }
-
-    /**
      * Consumes server confirmation and delegates the locked transition to its existing Action.
      *
      * @param  CancelPromotion  $cancelPromotion  Authoritative cancellation boundary.

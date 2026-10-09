@@ -100,7 +100,6 @@ return [
         'cancel_promotion_heading' => '¿Cancelar esta promoción?',
         'cancel_promotion_warning' => 'La promoción dejará de estar disponible. Sus condiciones originales se conservarán en el historial. Esta acción no se puede deshacer.',
         'confirm_cancel_promotion' => 'Sí, cancelar promoción',
-        'keep_promotion' => 'Conservar promoción',
         'cancel_confirmation_required' => 'Primero revise y confirme la cancelación de esta promoción.',
         'cancel_error_unexpected' => 'No se pudo cancelar la promoción. Intente nuevamente.',
         'promotion_cancelled_notice' => 'La promoción fue cancelada.',
