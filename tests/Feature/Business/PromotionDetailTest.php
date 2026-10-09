@@ -121,6 +121,31 @@ it('exposes detail triggers for active and scheduled rows and retains Pase state
         ->assertSet('paginators.page', 2);
 });
 
+it('keeps historical rows concise while preserving full original terms in detail', function (PromotionStatus $status) {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create();
+    $promotion = detailPromotion($business, [
+        'status' => $status,
+        'cancelled_at' => $status === PromotionStatus::Cancelled ? '2018-11-03 04:00:00+00' : null,
+    ]);
+    $this->detailInstant = '2018-11-05 02:00:00+00';
+
+    $component = Livewire::actingAs($owner)->test('pages::business.pass');
+    $document = new DOMDocument;
+    @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
+    $row = (new DOMXPath($document))->query('//details[@*[name()="wire:key"]="promotion-history-disclosure"]//li[@data-promotion-public-id="'.$promotion->public_id.'"]')->item(0);
+
+    expect($row)->not->toBeNull();
+    expect($row->textContent)->toContain(
+        'Premio original', '03/11/2018 – 04/11/2018', __('business.pass.view_promotion_detail'),
+        $status === PromotionStatus::Cancelled ? __('business.pass.promotion_cancelled_status') : __('business.pass.promotion_ended_status'),
+    )->not->toContain('Condiciones originales', '12 puntos');
+
+    $component->call('showPromotionDetail', $promotion->public_id)
+        ->assertSee('Condiciones originales')
+        ->assertSee('12 puntos');
+})->with(['ended' => PromotionStatus::Published, 'cancelled' => PromotionStatus::Cancelled]);
+
 it('returns 404 for foreign draft missing or malformed detail identifiers', function (string $selection) {
     $owner = User::factory()->create();
     $business = Business::factory()->for($owner)->create();
