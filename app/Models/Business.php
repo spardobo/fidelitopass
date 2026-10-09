@@ -39,4 +39,14 @@ class Business extends Model
     {
         return $this->hasMany(CustomerPass::class);
     }
+
+    /**
+     * Defines the Business-owned pass and Promotion associations.
+     *
+     * @return HasMany<PromotionParticipation, $this> Participation records owned by this Business.
+     */
+    public function promotionParticipations(): HasMany
+    {
+        return $this->hasMany(PromotionParticipation::class);
+    }
 }

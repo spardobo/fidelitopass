@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /** Persistent anonymous identity owned by one Business, independent of its Promotions. */
@@ -34,5 +35,15 @@ class CustomerPass extends Model
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);
+    }
+
+    /**
+     * Defines the Promotions associated with this persistent anonymous identity.
+     *
+     * @return HasMany<PromotionParticipation, $this> This pass's Promotion participation records.
+     */
+    public function promotionParticipations(): HasMany
+    {
+        return $this->hasMany(PromotionParticipation::class);
     }
 }
