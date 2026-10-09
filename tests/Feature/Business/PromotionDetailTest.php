@@ -33,7 +33,7 @@ it('opens frozen owned terms with the current database phase', function (string 
     $this->detailInstant = $instant;
     $this->travelTo('2040-01-01');
 
-    Livewire::actingAs($owner)->test('pages::business.pass')
+    $component = Livewire::actingAs($owner)->test('pages::business.pass')
         ->call('showPromotionDetail', $promotion->public_id)
         ->assertDispatched('modal-show', name: 'promotion-detail')
         ->assertSee('data-promotion-detail-phase="'.$phase.'"', false)
@@ -44,6 +44,16 @@ it('opens frozen owned terms with the current database phase', function (string 
         ->assertSee(__('business.promotion.review_no_extra_points'))
         ->assertDontSee('Confirmar publicación')
         ->assertDontSee('Cancelar promoción');
+
+    $document = new DOMDocument;
+    @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
+    $badge = (new DOMXPath($document))->query('//*[@data-promotion-detail-phase]//*[@data-flux-badge]')->item(0);
+    $palette = match ($phase) {
+        'active' => 'green',
+        'scheduled' => 'blue',
+        default => 'zinc',
+    };
+    expect($badge->getAttribute('class'))->toContain('bg-'.$palette.'-400/')->not->toContain('bg-'.$palette.'-500');
 })->with([
     'scheduled before inclusive start' => ['2018-11-03 02:59:59+00', PromotionStatus::Published, 'scheduled'],
     'active at inclusive start' => ['2018-11-03 03:00:00+00', PromotionStatus::Published, 'active'],
