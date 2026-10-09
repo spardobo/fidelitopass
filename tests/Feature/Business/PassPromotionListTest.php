@@ -310,7 +310,7 @@ it('keeps historical-only Businesses out of the never-created state with collaps
     expect($history->item(0)->hasAttribute('open'))->toBeFalse();
     expect($history->item(0)->hasAttribute('wire:ignore.self'))->toBeTrue();
     expect($xpath->query('//details[@*[name()="wire:key"]="promotion-history-disclosure"]//*[@data-flux-badge]')->item(0)->getAttribute('class'))
-        ->toContain('bg-zinc-400/');
+        ->toContain($status === PromotionStatus::Cancelled ? 'bg-red-400/' : 'bg-zinc-400/');
 
     $component->call('showPromotionDetail', $promotion->public_id)
         ->assertSee('data-promotion-detail-phase="'.($status === PromotionStatus::Cancelled ? 'cancelled' : 'ended').'"', false)
