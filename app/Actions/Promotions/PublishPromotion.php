@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 class PublishPromotion
 {
     /**
-     * Create the publication action with its authoritative PostgreSQL clock.
+     * Creates the publication action with its authoritative PostgreSQL clock.
      *
      * @param  DatabaseClock  $databaseClock  Clock used after publication locks are acquired.
      * @param  PromotionDraftValidator  $draftValidator  Shared pure validation for submitted terms, rules, and local dates.
@@ -28,7 +28,7 @@ class PublishPromotion
     ) {}
 
     /**
-     * Publish an owner-authorized draft after confirming its current Business timezone.
+     * Publishes an owner-authorized draft after confirming its current Business timezone.
      *
      * Locks the Business and selected draft in that order, captures one post-lock operation instant,
      * rejects stale local dates and overlapping effective occupancy, then freezes the same Promotion row.
@@ -48,7 +48,7 @@ class PublishPromotion
     }
 
     /**
-     * Publish the complete submitted aggregate, creating it directly or replacing a selected draft atomically.
+     * Publishes the complete submitted aggregate, creating it directly or replacing a selected draft atomically.
      *
      * Validates the untrusted fields before persistence, then locks the Business before an optional owned draft.
      * One post-lock PostgreSQL instant supplies date validation and the publication audit timestamps.
@@ -75,7 +75,7 @@ class PublishPromotion
     }
 
     /**
-     * Publish either the persisted draft terms or a validated submitted aggregate in one transaction.
+     * Publishes either the persisted draft terms or a validated submitted aggregate in one transaction.
      *
      * @param  User  $actor  Verified Business owner requesting publication.
      * @param  Promotion|null  $promotion  Existing draft selected for publication, or null to create.
@@ -168,7 +168,7 @@ class PublishPromotion
     }
 
     /**
-     * Report whether another published or cancelled Promotion occupies any part of the candidate window.
+     * Reports whether another published or cancelled Promotion occupies any part of the candidate window.
      *
      * Cancelled intervals end at the earlier of cancellation or their original exclusive end; cancellations
      * before the original start produce no occupancy. Strict inequalities preserve half-open touching windows.

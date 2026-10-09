@@ -58,7 +58,7 @@ it('rejects replacement publication when it wins the Business lock before cancel
 });
 
 /**
- * Run two real action processes with a controlled Business lock order and verify PostgreSQL blocks the second.
+ * Runs two real action processes with a controlled Business lock order and verify PostgreSQL blocks the second.
  *
  * @param  'cancel'|'publish'  $firstOperation  Action that owns the Business lock first.
  * @param  'cancel'|'publish'  $secondOperation  Action started while the first process owns that lock.
@@ -159,7 +159,7 @@ function cancellationPublicationRace(string $firstOperation, string $secondOpera
 }
 
 /**
- * Start a worker that executes the requested action, optionally holding Business first until released by the test.
+ * Starts a worker that executes the requested action, optionally holding Business first until released by the test.
  *
  * @param  int  $actorId  Owner authorized to run the action.
  * @param  int  $businessId  Business row used to serialize both actions.
@@ -245,7 +245,7 @@ function cancellationRaceWorker(int $actorId, int $businessId, int $promotionId,
 }
 
 /**
- * Wait until a worker announces its PostgreSQL backend or fail after a bounded deadline.
+ * Waits until a worker announces its PostgreSQL backend or fail after a bounded deadline.
  *
  * @param  Process  $process  Started worker process whose output is polled.
  * @return int PostgreSQL backend process identifier announced by the worker.
@@ -276,7 +276,7 @@ function cancellationRaceBackendId(Process $process): int
 }
 
 /**
- * Require PostgreSQL to report the first worker as a granted waiter-visible Business lock holder.
+ * Requires PostgreSQL to report the first worker as a granted waiter-visible Business lock holder.
  *
  * @param  int  $backendId  PostgreSQL backend expected to own the Business row lock.
  *
@@ -301,7 +301,7 @@ function cancellationRaceWaitForBusinessLock(int $backendId): void
 }
 
 /**
- * Require the second backend to be waiting on a PostgreSQL lock held by the first backend.
+ * Requires the second backend to be waiting on a PostgreSQL lock held by the first backend.
  *
  * @param  int  $waitingBackendId  Backend running the second application action.
  * @param  int  $holderBackendId  Backend whose Business lock serializes the operation order.
@@ -327,7 +327,7 @@ function cancellationRaceWaitForBlockedBy(int $waitingBackendId, int $holderBack
 }
 
 /**
- * Read the final action outcome emitted by a completed worker.
+ * Reads the final action outcome emitted by a completed worker.
  *
  * @param  Process  $process  Completed worker process.
  * @return string Action result, including rejection for expected validation failures.

@@ -248,7 +248,7 @@ it('serializes competing aggregate updates in Business then Promotion lock order
 });
 
 /**
- * Build a draft input for competing database-connection operations.
+ * Builds a draft input for competing database-connection operations.
  *
  * @param  string  $title  Reward title distinguishing this candidate update.
  * @param  int  $target  Positive visit target for the generated draft.
@@ -268,7 +268,7 @@ function concurrentDraftInput(string $title, int $target, array $windows): array
 }
 
 /**
- * Build one complete multiplier-window payload for a concurrency case.
+ * Builds one complete multiplier-window payload for a concurrency case.
  *
  * @param  int  $weekday  ISO weekday from 1 (Monday) through 7 (Sunday).
  * @param  string|null  $start  Inclusive window start in 24-hour HH:MM format, or null for all day.

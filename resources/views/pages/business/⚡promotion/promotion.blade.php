@@ -16,7 +16,7 @@
             'draftStartTime' => $draftStartTime,
             'draftEndTime' => $draftEndTime,
         ]),
-        /** Compare current server-owned editor fields with their mounted baseline.
+        /** Compares current server-owned editor fields with their mounted baseline.
          * @returns {boolean} True when any promotion field or pending rule-builder value differs from its baseline.
          */
         hasUnsavedChanges() {
@@ -373,7 +373,7 @@
                 x-data="{
                     notDefined: @js(__('business.promotion.not_defined')),
                     datesNotDefined: @js(__('business.promotion.dates_not_defined')),
-                    /** Format an ISO calendar date without converting it through the browser timezone.
+                    /** Formats an ISO calendar date without converting it through the browser timezone.
                      * @param {string | null} date ISO calendar date, or an empty value when unset.
                      * @param {boolean} includeYear Whether to include the four-digit calendar year.
                      * @returns {string} Localized date text, or the configured not-defined placeholder for an unset date.
@@ -389,7 +389,7 @@
 
                         return new Intl.DateTimeFormat('es', options).format(calendarDate).replace(/\./g, '');
                     },
-                    /** Format the promotion's inclusive validity range from ISO calendar dates.
+                    /** Formats the promotion's inclusive validity range from ISO calendar dates.
                      * @param {string | null} start ISO start date, or an empty value when unset.
                      * @param {string | null} end ISO end date, or an empty value when unset.
                      * @returns {string} Localized range with the year once for same-year dates, both years otherwise, or the dates-not-defined placeholder when either date is unset.

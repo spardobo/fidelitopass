@@ -247,7 +247,7 @@ it('rejects submitted publication for a non-owned or already-published promotion
 });
 
 /**
- * Return a Promotion start date safely after the current Business-local date.
+ * Returns a Promotion start date safely after the current Business-local date.
  *
  * @param  string  $timezone  IANA timezone used to query today's Business-local calendar date.
  * @return string Future ISO calendar date suitable for publication tests.
@@ -261,7 +261,7 @@ function submittedPublicationFutureDate(string $timezone): string
 }
 
 /**
- * Build one complete untrusted submitted aggregate for publication tests.
+ * Builds one complete untrusted submitted aggregate for publication tests.
  *
  * @param  string  $startDate  ISO local start date for the submitted Promotion.
  * @param  string  $title  Reward title included in the submitted terms.

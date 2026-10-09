@@ -9,7 +9,7 @@ use App\Models\User;
 class PromotionPolicy
 {
     /**
-     * Decide whether a verified Business owner may create a Promotion for that Business.
+     * Decides whether a verified Business owner may create a Promotion for that Business.
      *
      * @param  User  $user  Authenticated actor requesting creation.
      * @param  Business  $business  Business selected as the Promotion owner.
@@ -21,7 +21,7 @@ class PromotionPolicy
     }
 
     /**
-     * Decide whether a verified Business owner may update the specified Promotion.
+     * Decides whether a verified Business owner may update the specified Promotion.
      *
      * @param  User  $user  Authenticated actor requesting the update.
      * @param  Promotion  $promotion  Promotion whose ownership is checked.

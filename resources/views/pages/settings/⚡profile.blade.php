@@ -1,10 +1,10 @@
 <?php
 
 use App\Concerns\ProfileValidationRules;
+use Flux\Flux;
 /* @chisel-email-verification */
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 /* @end-chisel-email-verification */
-use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\Computed;
@@ -20,7 +20,7 @@ new #[Title('Profile settings')] class extends Component
     public string $email = '';
 
     /**
-     * Initialize the editable name and email fields from the authenticated user without persisting changes.
+     * Initializes the editable name and email fields from the authenticated user without persisting changes.
      */
     public function mount(): void
     {

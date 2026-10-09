@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PromotionMultiplierWindow extends Model
 {
     /**
-     * Define integer casts for the weekday and multiplier columns.
+     * Defines integer casts for the weekday and multiplier columns.
      *
      * @return array<string, string> Attribute names mapped to their Eloquent cast definitions.
      */
@@ -23,7 +23,7 @@ class PromotionMultiplierWindow extends Model
     }
 
     /**
-     * Define the parent Promotion relationship for this multiplier window.
+     * Defines the parent Promotion relationship for this multiplier window.
      *
      * @return BelongsTo<Promotion, $this> Promotion that owns the window.
      */

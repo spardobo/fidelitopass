@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 class Promotion extends Model
 {
     /**
-     * Define the date, publication instant, points, and status casts used by the promotion aggregate.
+     * Defines the date, publication instant, points, and status casts used by the promotion aggregate.
      *
      * @return array<string, string|class-string> Attribute names mapped to Eloquent cast definitions.
      */
@@ -32,7 +32,7 @@ class Promotion extends Model
     }
 
     /**
-     * Register a creation hook that assigns a stable public identifier when one is missing.
+     * Registers a creation hook that assigns a stable public identifier when one is missing.
      */
     protected static function booted(): void
     {
@@ -42,7 +42,7 @@ class Promotion extends Model
     }
 
     /**
-     * Define the owning Business relationship.
+     * Defines the owning Business relationship.
      *
      * @return BelongsTo<Business, $this> Business that owns this Promotion.
      */
@@ -52,7 +52,7 @@ class Promotion extends Model
     }
 
     /**
-     * Define the Promotion-owned multiplier windows.
+     * Defines the Promotion-owned multiplier windows.
      *
      * @return HasMany<PromotionMultiplierWindow, $this> Extra-point rules attached to this Promotion.
      */

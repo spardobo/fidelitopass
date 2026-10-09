@@ -156,7 +156,7 @@ it('publishes at touching boundaries and outside cancelled occupancy', function 
 ]);
 
 /**
- * Save one valid draft with its supplied local dates and optional multiplier windows.
+ * Saves one valid draft with its supplied local dates and optional multiplier windows.
  *
  * @param  list<array{weekday: int, start_time: string, end_time: string, multiplier: int}>  $windows  Multiplier windows stored with the draft.
  * @return Promotion Persisted draft selected for publication.
@@ -174,7 +174,7 @@ function publicationDraftForTest(User $owner, string $startDate, string $endDate
 }
 
 /**
- * Create a complete draft row directly for cases that application validation must reject at publication.
+ * Creates a complete draft row directly for cases that application validation must reject at publication.
  *
  * @return Promotion Persisted draft with otherwise valid required fields.
  */
@@ -196,7 +196,7 @@ function publicationDraftRowForTest(Business $business, string $startDate, strin
 }
 
 /**
- * Persist a published or cancelled UTC interval used to check effective occupancy.
+ * Persists a published or cancelled UTC interval used to check effective occupancy.
  */
 function publicationOccupancyForTest(Business $business, string $startsAt, string $endsAt, ?string $cancelledAt): void
 {

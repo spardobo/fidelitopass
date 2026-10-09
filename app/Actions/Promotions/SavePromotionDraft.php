@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 class SavePromotionDraft
 {
     /**
-     * Create the action with its authoritative database clock.
+     * Creates the action with its authoritative database clock.
      *
      * @param  DatabaseClock  $databaseClock  Clock used to capture the database instant and Business-local date.
      * @param  PromotionDraftValidator  $draftValidator  Shared pure validation rules for Promotion draft input.
@@ -28,7 +28,7 @@ class SavePromotionDraft
     ) {}
 
     /**
-     * Validate and atomically create or replace an owner-authorized draft and its complete rule set.
+     * Validates and atomically create or replace an owner-authorized draft and its complete rule set.
      *
      * Locks the Business before an existing Promotion, checks ownership and draft status, captures one
      * Business-local database date, then persists the parent and child windows in one transaction.

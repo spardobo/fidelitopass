@@ -56,7 +56,7 @@ const ACCOUNT_DESTINATIONS = [
 ];
 
 /**
- * Wait for all document fonts to finish loading.
+ * Waits for all document fonts to finish loading.
  *
  * @param {import('@playwright/test').Page} page Browser page.
  * @returns {Promise<void>} Resolves when the FontFaceSet is ready and rejects if page evaluation fails.
@@ -66,7 +66,7 @@ async function waitForFonts(page) {
 }
 
 /**
- * Verify that a control is fully contained within the viewport width.
+ * Verifies that a control is fully contained within the viewport width.
  *
  * @param {import('@playwright/test').Locator} control Element being measured.
  * @param {number} width Viewport width in pixels.
@@ -82,7 +82,7 @@ async function expectInsideViewport(control, width) {
 }
 
 /**
- * Verify that a control meets the minimum touch-target height.
+ * Verifies that a control meets the minimum touch-target height.
  *
  * @param {import('@playwright/test').Locator} control Interactive element.
  * @returns {Promise<void>} Resolves when the target meets the minimum height; rejects when geometry is unavailable or too short.
@@ -93,7 +93,7 @@ async function expectMinimumTouchTarget(control) {
     expect(box.height).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_SIZE);
 }
 
-/** Verify the mobile visit action is centered on its own row with an accessible QR icon.
+/** Verifies the mobile visit action is centered on its own row with an accessible QR icon.
  * @param {import('@playwright/test').Locator} header Authenticated application header.
  * @param {number} width Viewport width used for the centering assertion.
  * @returns {Promise<void>} Resolves when focus, touch-target, icon, and row checks pass; rejects when any assertion fails.
@@ -114,7 +114,7 @@ async function expectCenteredMobileVisitAction(header, width) {
     await expect(action).toHaveCSS("outline-offset", "3px");
 
     const geometry = await action.evaluate((element) => {
-        /** Convert an element's bounding rectangle to serializable coordinates.
+        /** Converts an element's bounding rectangle to serializable coordinates.
          * @param {Element} node Element being measured.
          * @returns {{x: number, y: number, width: number, height: number}} Viewport-relative rectangle.
          */
@@ -143,7 +143,7 @@ async function expectCenteredMobileVisitAction(header, width) {
     expect(geometry.iconHidden).toBe("true");
 }
 
-/** Verify the desktop visit action remains inline between navigation and account controls.
+/** Verifies the desktop visit action remains inline between navigation and account controls.
  * @param {import('@playwright/test').Locator} header Authenticated application header.
  * @returns {Promise<void>} Resolves when desktop alignment checks pass; rejects when an alignment assertion fails.
  */
@@ -153,7 +153,7 @@ async function expectDesktopVisitActionRow(header) {
         exact: true,
     });
     const geometry = await action.evaluate((element) => {
-        /** Convert an element's bounding rectangle to serializable coordinates.
+        /** Converts an element's bounding rectangle to serializable coordinates.
          * @param {Element} node Element being measured.
          * @returns {{x: number, y: number, width: number, height: number}} Viewport-relative rectangle.
          */
@@ -185,7 +185,7 @@ async function expectDesktopVisitActionRow(header) {
 }
 
 /**
- * Register a new business and verify its email address through Mailpit.
+ * Registers a new business and verify its email address through Mailpit.
  *
  * @param {import('@playwright/test').Page} page Browser page.
  * @param {import('@playwright/test').APIRequestContext} request API request context.
@@ -263,7 +263,7 @@ async function registerVerifiedBusiness(page, request) {
 }
 
 /**
- * Measure header layout, navigation geometry, typography, and visual properties.
+ * Measures header layout, navigation geometry, typography, and visual properties.
  *
  * @param {import('@playwright/test').Page} page Browser page.
  * @param {boolean} mockup Whether to measure the reference mockup instead of the application.
@@ -323,7 +323,7 @@ async function measureShell(page, mockup) {
 }
 
 /**
- * Load and measure the local reference mockup when available.
+ * Loads and measure the local reference mockup when available.
  *
  * @param {import('@playwright/test').Page} page Browser page.
  * @param {number} width Viewport width used to select navigation and name the screenshot.
@@ -360,7 +360,7 @@ async function getLocalReference(page, width, testInfo) {
 }
 
 /**
- * Verify the shared decorative mark preserves preview geometry and inherited ink.
+ * Verifies the shared decorative mark preserves preview geometry and inherited ink.
  *
  * @param {import('@playwright/test').Page} page Browser page containing a pass preview.
  * @param {import('@playwright/test').TestInfo} testInfo Screenshot destination owner.
