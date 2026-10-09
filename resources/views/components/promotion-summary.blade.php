@@ -60,7 +60,7 @@
                 <span class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1">
                     {{ __('business.promotion.review_extra_points') }}
                 </span>
-                <span class="app-role-support! col-start-2 flex min-w-0 items-start justify-between gap-2 font-semibold! text-app-ink sm:col-start-3 sm:row-start-1">
+                <span class="app-role-body! col-start-2 flex min-w-0 items-start justify-between gap-2 font-semibold text-app-ink sm:col-start-3 sm:row-start-1">
                     {{ trans_choice('business.promotion.configuration_count', count($extraPoints)) }}
                     <flux:icon.chevron-down data-extra-rules-chevron variant="outline" class="size-4 shrink-0 self-center text-app-accent" aria-hidden="true" />
                 </span>
