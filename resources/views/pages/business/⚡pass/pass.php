@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Promotions\CancelPromotion;
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
@@ -66,6 +67,9 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
 
     #[Locked]
     public ?string $selectedPromotionId = null;
+
+    #[Locked]
+    public bool $confirmingPromotionCancellation = false;
 
     /**
      * Initializes the appearance editor after authorizing the Business and loading its current color.
@@ -161,6 +165,8 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     public function showPromotionDetail(mixed $publicId): void
     {
         abort_unless(is_string($publicId) && Str::isUuid($publicId), 404);
+        $this->confirmingPromotionCancellation = false;
+        $this->resetValidation('promotionCancellation');
         $this->selectedPromotionId = $publicId;
         unset($this->promotionDetail);
 
@@ -174,7 +180,110 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     public function dismissPromotionDetail(): void
     {
         $this->selectedPromotionId = null;
+        $this->confirmingPromotionCancellation = false;
+        $this->resetValidation('promotionCancellation');
         unset($this->promotionDetail);
+    }
+
+    /**
+     * Arms inline cancellation only after freshly resolving an owned eligible Promotion.
+     *
+     * @throws AuthorizationException When the actor cannot update the Business.
+     * @throws ModelNotFoundException When the actor has no Business.
+     * @throws HttpException When the selected Promotion is invalid or unavailable.
+     */
+    public function requestPromotionCancellation(): void
+    {
+        $this->confirmingPromotionCancellation = false;
+        $this->resetValidation('promotionCancellation');
+        unset($this->promotionDetail);
+        $detail = $this->promotionDetail;
+
+        if ($detail === null || ! in_array($detail['phase'], ['active', 'scheduled'], true)) {
+            $message = match ($detail['phase'] ?? null) {
+                'cancelled' => __('business.promotion.already_cancelled'),
+                'ended' => __('business.promotion.cancel_ended'),
+                default => __('business.pass.cancel_confirmation_required'),
+            };
+            $this->showCancellationError($message);
+
+            return;
+        }
+
+        $this->confirmingPromotionCancellation = true;
+        $this->dispatch('promotion-cancellation-focus', target: 'promotion-cancellation-heading');
+    }
+
+    /**
+     * Dismisses cancellation without closing detail or changing persisted facts.
+     */
+    public function dismissPromotionCancellation(): void
+    {
+        $this->confirmingPromotionCancellation = false;
+        $this->resetValidation('promotionCancellation');
+        $this->dispatch('promotion-cancellation-focus', target: 'cancel-promotion');
+    }
+
+    /**
+     * Consumes server confirmation and delegates the locked transition to its existing Action.
+     *
+     * @param  CancelPromotion  $cancelPromotion  Authoritative cancellation boundary.
+     *
+     * @throws AuthorizationException When the actor cannot update the selected Promotion.
+     * @throws ModelNotFoundException When the actor or owned Promotion is unavailable.
+     * @throws HttpException When the selected Promotion is invalid or unavailable.
+     */
+    public function confirmPromotionCancellation(CancelPromotion $cancelPromotion): void
+    {
+        unset($this->promotionDetail);
+        $detail = $this->promotionDetail;
+        $this->resetValidation('promotionCancellation');
+
+        if (! $this->confirmingPromotionCancellation || $detail === null) {
+            $this->showCancellationError(__('business.pass.cancel_confirmation_required'));
+
+            return;
+        }
+
+        $this->confirmingPromotionCancellation = false;
+
+        try {
+            $cancelPromotion->handle(Auth::user(), $detail['promotion']);
+        } catch (ValidationException $exception) {
+            $message = $exception->errors()['promotion'][0] ?? '';
+            $safeMessages = [
+                __('business.promotion.already_cancelled'),
+                __('business.promotion.cancel_only_published'),
+                __('business.promotion.cancel_ended'),
+            ];
+            $this->showCancellationError(in_array($message, $safeMessages, true)
+                ? $message : __('business.pass.cancel_error_unexpected'));
+
+            return;
+        } catch (AuthorizationException|ModelNotFoundException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->showCancellationError(__('business.pass.cancel_error_unexpected'));
+
+            return;
+        }
+
+        unset($this->promotionDetail, $this->currentPromotionListings);
+        Flux::toast(__('business.pass.promotion_cancelled_notice'), null, 5000, 'success');
+        $this->dispatch('promotion-cancellation-focus', target: 'promotion-detail-heading');
+    }
+
+    /**
+     * Presents safe cancellation feedback and refreshes the selected phase and current listings.
+     *
+     * @param  string  $message  Localized allowlisted domain feedback or generic failure text.
+     */
+    private function showCancellationError(string $message): void
+    {
+        unset($this->promotionDetail, $this->currentPromotionListings);
+        $this->addError('promotionCancellation', $message);
+        $this->dispatch('promotion-cancellation-focus', target: 'promotion-cancellation-error');
     }
 
     /**

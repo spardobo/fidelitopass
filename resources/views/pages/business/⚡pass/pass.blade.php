@@ -266,7 +266,7 @@
         <section aria-labelledby="promotions-heading" class="space-y-4">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="space-y-1">
-                    <flux:heading level="2" size="lg" id="promotions-heading" class="app-role-section! text-app-ink!">
+                    <flux:heading level="2" size="lg" id="promotions-heading" tabindex="-1" class="app-role-section! text-app-ink!">
                         {{ __('business.pass.promotions_title') }}
                     </flux:heading>
                     <div class="app-note-with-icon text-app-ink-help">
@@ -489,10 +489,12 @@
     <flux:modal
         name="promotion-detail"
         scroll="body"
+        x-on:promotion-cancellation-focus.window="$nextTick(() => requestAnimationFrame(() => $el.querySelector('#' + $event.detail.target)?.focus()))"
         x-on:close="
             const originId = 'promotion-detail-trigger-' + $wire.selectedPromotionId;
             $wire.dismissPromotionDetail().then(() => {
-                $el.closest('main').querySelector('#' + originId)?.focus({ preventScroll: true });
+                const root = $el.closest('main');
+                (root.querySelector('#' + originId) ?? root.querySelector('#promotions-heading'))?.focus({ preventScroll: true });
             });
         "
         class="app-theme w-[calc(100vw-2rem)] sm:w-[calc(100vw-3rem)] max-w-xl! min-w-0! max-h-[calc(100dvh-2rem)]! sm:max-h-[calc(100dvh-3rem)]! flex flex-col overflow-hidden!"
@@ -525,14 +527,45 @@
                         :end-date="$detail['end_date']"
                         :extra-points="$detail['extra_points']"
                     />
+
+                    @error('promotionCancellation')
+                        <p id="promotion-cancellation-error" tabindex="-1" role="alert" class="mt-4 app-error">
+                            {{ $message }}
+                        </p>
+                    @enderror
+
+                    @if ($confirmingPromotionCancellation && in_array($detail['phase'], ['active', 'scheduled'], true))
+                        <flux:callout variant="danger" icon="exclamation-triangle" aria-labelledby="promotion-cancellation-heading" role="region" class="mt-4">
+                            <flux:heading level="3" id="promotion-cancellation-heading" tabindex="-1" class="app-role-card! text-app-ink!">
+                                {{ __('business.pass.cancel_promotion_heading') }}
+                            </flux:heading>
+                            <flux:text class="app-role-support! text-app-ink-secondary!">
+                                {{ __('business.pass.cancel_promotion_warning') }}
+                            </flux:text>
+                        </flux:callout>
+                    @endif
                 </div>
 
-                <footer class="flex shrink-0 justify-end pt-3">
-                    <flux:modal.close class="w-full sm:w-auto">
-                        <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
-                            {{ __('business.pass.close_promotion_detail') }}
+                <footer class="flex shrink-0 flex-col-reverse justify-end gap-3 pt-3 sm:flex-row">
+                    @if ($confirmingPromotionCancellation && in_array($detail['phase'], ['active', 'scheduled'], true))
+                        <flux:button type="button" wire:click="dismissPromotionCancellation" wire:loading.attr="disabled" wire:target="confirmPromotionCancellation" class="app-button-secondary min-h-11 w-full sm:w-auto">
+                            {{ __('business.pass.keep_promotion') }}
                         </flux:button>
-                    </flux:modal.close>
+                        <flux:button type="button" wire:click="confirmPromotionCancellation" variant="danger" class="app-button min-h-11 w-full sm:w-auto">
+                            {{ __('business.pass.confirm_cancel_promotion') }}
+                        </flux:button>
+                    @else
+                        <flux:modal.close class="w-full sm:w-auto">
+                            <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
+                                {{ __('business.pass.close_promotion_detail') }}
+                            </flux:button>
+                        </flux:modal.close>
+                        @if (in_array($detail['phase'], ['active', 'scheduled'], true))
+                            <flux:button type="button" id="cancel-promotion" wire:click="requestPromotionCancellation" variant="danger" class="app-button min-h-11 w-full sm:w-auto">
+                                {{ __('business.pass.cancel_promotion') }}
+                            </flux:button>
+                        @endif
+                    @endif
                 </footer>
             </div>
         @endif
