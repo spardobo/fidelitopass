@@ -505,7 +505,7 @@
                                         <flux:heading level="4" size="base" class="app-role-support! min-w-0 break-words font-medium! text-app-ink!">
                                             {{ $historicalPromotion['promotion']->reward_title }}
                                         </flux:heading>
-                                        <flux:badge class="app-role-support! font-medium!">
+                                        <flux:badge size="sm">
                                             {{ __('business.pass.promotion_'.$historicalPromotion['phase'].'_status') }}
                                         </flux:badge>
                                     </div>
@@ -520,7 +520,7 @@
                                     wire:loading.attr="disabled"
                                     wire:target="showPromotionDetail"
                                     variant="ghost"
-                                    class="app-button min-h-11 w-full shrink-0 text-app-ink-secondary! sm:w-auto"
+                                    class="app-control! app-role-support! app-focus! shrink-0 self-start px-0! font-medium! text-app-accent-text! hover:bg-transparent! hover:underline focus-visible:underline underline-offset-4 sm:self-center"
                                 >
                                     {{ __('business.pass.view_promotion_detail') }}
                                 </flux:button>
