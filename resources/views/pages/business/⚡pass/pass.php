@@ -451,8 +451,8 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
                         ->where('status', PromotionStatus::Published->value)
                         ->where('ends_at', '<=', $instant));
             })
-            ->orderByRaw('COALESCE(cancelled_at, ends_at) DESC')
-            ->orderByDesc('id')
+            ->orderBy('starts_at')
+            ->orderBy('id')
             ->paginate(3, ['*'], 'historyPage')
             ->through(fn (Promotion $promotion): array => [
                 'promotion' => $promotion,

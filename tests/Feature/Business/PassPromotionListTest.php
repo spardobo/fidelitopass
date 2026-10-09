@@ -258,16 +258,16 @@ it('independently paginates scheduled, draft and historical Promotions while ret
         ->assertDontSee('Borrador 3')
         ->assertSee(__('business.pass.drafts_heading', ['count' => 6]));
 
-    $component->assertSee('Histórica 6')
-        ->assertSee('Histórica 4')
-        ->assertDontSee('Histórica 3')
-        ->call('setPage', 2, 'historyPage')
+    $component->assertSee('Histórica 1')
         ->assertSee('Histórica 3')
-        ->assertSee('Histórica 1')
         ->assertDontSee('Histórica 4')
+        ->call('setPage', 2, 'historyPage')
+        ->assertSee('Histórica 4')
+        ->assertSee('Histórica 6')
+        ->assertDontSee('Histórica 3')
         ->assertSee('Programada 4')
         ->assertSee('Borrador 4')
-        ->call('showPromotionDetail', $history[0]->public_id)
+        ->call('showPromotionDetail', $history[3]->public_id)
         ->call('dismissPromotionDetail')
         ->assertSet('paginators.historyPage', 2);
 
@@ -319,7 +319,7 @@ it('keeps historical-only Businesses out of the never-created state with collaps
         ->assertSet('selectedPromotionId', null);
 })->with(['ended' => PromotionStatus::Published, 'cancelled' => PromotionStatus::Cancelled]);
 
-it('groups both historical phases inside the tenant boundary and orders by conclusion then ID', function () {
+it('groups both historical phases inside the tenant boundary and orders by original start then ascending ID', function () {
     $owner = User::factory()->create();
     $business = Business::factory()->for($owner)->create(['pass_background_color' => '#A77BFF']);
     $ended = createPublishedPassPromotion(
@@ -338,12 +338,14 @@ it('groups both historical phases inside the tenant boundary and orders by concl
         PromotionStatus::Cancelled,
         '2026-10-07 12:00:00+00',
     );
-    $older = createPublishedPassPromotion(
+    $tied = createPublishedPassPromotion(
         $business,
-        'Earlier conclusion',
-        '2026-10-01 12:00:00+00',
-        '2026-10-02 12:00:00+00',
+        'Cancelled with the same original start',
+        '2026-10-10 12:00:00+00',
+        '2026-10-11 12:00:00+00',
         'UTC',
+        PromotionStatus::Cancelled,
+        '2026-10-01 12:00:00+00',
     );
     $foreignBusiness = Business::factory()->create();
     createPublishedPassPromotion(
@@ -371,13 +373,48 @@ it('groups both historical phases inside the tenant boundary and orders by concl
     $this->instance(DatabaseClock::class, $clock);
 
     Livewire::actingAs($owner)->test('pages::business.pass')
-        ->assertSeeHtmlInOrder(collect([$cancelled, $ended, $older])
+        ->assertSeeHtmlInOrder(collect([$ended, $cancelled, $tied])
             ->map(fn (Promotion $promotion): string => 'data-promotion-public-id="'.$promotion->public_id.'"')
             ->all())
         ->assertSee('data-promotion-phase="ended"', false)
         ->assertSee('data-promotion-phase="cancelled"', false)
         ->assertDontSee('Foreign ended')
         ->assertDontSee('Foreign cancelled');
+});
+
+it('lists ended then cancelled future Promotions by their original planned starts rather than cancellation instants', function () {
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create(['pass_background_color' => '#A77BFF']);
+    $ended = createPublishedPassPromotion(
+        $business,
+        'Ended three days ago',
+        '2026-10-01 12:00:00+00',
+        '2026-10-04 12:00:00+00',
+        'UTC',
+    );
+    $startsInTwoDays = createPublishedPassPromotion(
+        $business,
+        'Originally starts in two days',
+        '2026-10-09 12:00:00+00',
+        '2026-10-20 12:00:00+00',
+        'UTC',
+        PromotionStatus::Cancelled,
+        '2026-10-07 11:00:00+00',
+    );
+    $startsInFourDays = createPublishedPassPromotion(
+        $business,
+        'Originally starts in four days',
+        '2026-10-11 12:00:00+00',
+        '2026-10-12 12:00:00+00',
+        'UTC',
+        PromotionStatus::Cancelled,
+        '2026-10-06 12:00:00+00',
+    );
+
+    Livewire::actingAs($owner)->test('pages::business.pass')
+        ->assertSeeHtmlInOrder(collect([$ended, $startsInTwoDays, $startsInFourDays])
+            ->map(fn (Promotion $promotion): string => 'data-promotion-public-id="'.$promotion->public_id.'"')
+            ->all());
 });
 
 it('keeps the promotions empty state and does not render placeholder draft rows', function () {
