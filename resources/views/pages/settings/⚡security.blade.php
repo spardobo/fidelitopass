@@ -7,8 +7,6 @@ use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
-use Livewire\Attributes\Title;
-use Livewire\Component;
 /* @chisel-passkeys */
 use Laravel\Passkeys\Actions\DeletePasskey;
 use Livewire\Attributes\Locked;
@@ -16,6 +14,8 @@ use Livewire\Attributes\Locked;
 /* @chisel-2fa */
 use Livewire\Attributes\On;
 /* @end-chisel-2fa */
+use Livewire\Attributes\Title;
+use Livewire\Component;
 
 new #[Title('Security settings')] class extends Component
 {
