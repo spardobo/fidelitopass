@@ -358,9 +358,8 @@
                             >
                                 {{ __('business.promotion.save_draft') }}
                             </flux:button>
-                            <flux:button type="button" variant="primary" disabled class="app-button-primary min-h-11 opacity-60">
+                            <flux:button data-test="promotion-review-trigger" type="button" wire:click="reviewPublication" wire:loading.attr="disabled" wire:target="reviewPublication,save" variant="primary" icon:trailing="arrow-right" class="app-button-primary min-h-11">
                                 {{ __('business.promotion.review_publication') }}
-                                <flux:icon.arrow-right variant="outline" class="ms-2 size-4" />
                             </flux:button>
                         </div>
                     </div>
@@ -482,6 +481,199 @@
             </aside>
         </div>
     </form>
+
+    <flux:modal
+        name="promotion-publication-review"
+        x-on:close="
+            $wire.dismissPublicationReview().then(() => {
+                $root
+                    .closest('[data-test=promotion-editor]')
+                    .querySelector('[data-test=promotion-review-trigger]')
+                    .focus({ preventScroll: true });
+            })
+        "
+        scroll="body"
+        class="app-theme w-[calc(100vw-2rem)] sm:w-[calc(100vw-3rem)] max-w-xl! min-w-0! max-h-[calc(100dvh-2rem)]! sm:max-h-[calc(100dvh-3rem)]! flex flex-col overflow-hidden!"
+    >
+        @if ($reviewingPublication)
+            <div class="flex min-h-0 flex-1 flex-col">
+                <header class="flex shrink-0 min-w-0 items-center gap-4 pb-2 pe-10">
+                    <span class="flex size-16 shrink-0 items-center justify-center rounded-full bg-app-emphasis text-app-accent" aria-hidden="true">
+                        <flux:icon.rocket-launch variant="outline" class="size-9" />
+                    </span>
+                    <div class="min-w-0 space-y-1">
+                        <p class="app-role-support! font-semibold! uppercase tracking-wide text-app-accent-text">
+                            {{ __('business.promotion.review_eyebrow') }}
+                        </p>
+                        <flux:heading level="2" class="app-role-title! break-words text-app-ink!">
+                            {{ __('business.promotion.review_heading') }}
+                        </flux:heading>
+                        <flux:text class="app-role-support! break-words text-app-ink-secondary!">
+                            {{ __('business.promotion.review_description') }}
+                        </flux:text>
+                    </div>
+                </header>
+
+                <div data-test="promotion-review-scroll-body" data-promotion-review-scroll-body tabindex="0" autofocus class="min-h-0 flex-1 space-y-4 overflow-y-auto py-3">
+                    <div data-test="promotion-review-summary" class="min-w-0 space-y-3 rounded-2xl border border-app-border bg-app-surface p-4 sm:p-6">
+                        <div class="min-w-0 space-y-1">
+                            <flux:heading level="3" class="app-role-card! break-words text-app-ink!">
+                                {{ $rewardTitle }}
+                            </flux:heading>
+                            @if ($rewardDescription !== '')
+                                <flux:text class="app-role-support! break-words text-app-ink-secondary!">{{ $rewardDescription }}</flux:text>
+                            @endif
+                        </div>
+
+                        <dl class="border-t border-app-line">
+                            <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+                                <span class="row-span-2 flex items-center justify-center sm:row-span-1" aria-hidden="true">
+                                    <flux:icon.trophy variant="outline" class="size-5 shrink-0 text-app-accent" />
+                                </span>
+                                <dt class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1 sm:self-center">
+                                    {{ __('business.promotion.review_goal') }}
+                                </dt>
+                                <dd class="app-role-body! col-start-2 min-w-0 break-words font-semibold text-app-ink sm:col-start-3 sm:row-start-1">
+                                    {{ $targetPoints }} {{ __('business.promotion.points_unit') }}
+                                </dd>
+                            </div>
+                            <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-app-line py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+                                <span class="row-span-2 flex items-center justify-center sm:row-span-1" aria-hidden="true">
+                                    <flux:icon.calendar-days variant="outline" class="size-5 shrink-0 text-app-accent" />
+                                </span>
+                                <dt class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1 sm:self-center">
+                                    {{ __('business.promotion.review_validity') }}
+                                </dt>
+                                <dd class="app-role-body! col-start-2 min-w-0 break-words font-semibold text-app-ink sm:col-start-3 sm:row-start-1">
+                                    {{ $this->publicationReview['start_date'] }} – {{ $this->publicationReview['end_date'] }}
+                                    <p class="app-role-support! mt-1 font-normal! text-app-ink-help">{{ __('business.promotion.inclusive_end_date') }}</p>
+                                </dd>
+                            </div>
+                        </dl>
+
+                        @if ($extraPoints === [])
+                            <p class="app-role-support! border-t border-app-line pt-3 text-app-ink-secondary">
+                                {{ __('business.promotion.review_no_extra_points') }}
+                            </p>
+                        @else
+                            <details data-test="promotion-review-extra-rules" data-promotion-review-extra-rules class="min-w-0 border-t border-app-line">
+                                <summary class="app-focus grid min-h-11 cursor-pointer list-none grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1 rounded-md py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+                                    <span data-test="promotion-review-extra-icon" class="row-span-2 flex self-stretch items-center justify-center sm:row-span-1" aria-hidden="true">
+                                        <flux:icon.sparkles variant="outline" class="size-5 shrink-0 text-app-accent" />
+                                    </span>
+                                    <span class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1">
+                                        {{ __('business.promotion.review_extra_points') }}
+                                    </span>
+                                    <span class="app-role-support! col-start-2 flex min-w-0 items-start justify-between gap-2 font-semibold! text-app-ink sm:col-start-3 sm:row-start-1">
+                                        {{ trans_choice('business.promotion.configuration_count', count($extraPoints)) }}
+                                        <flux:icon.chevron-down data-extra-rules-chevron variant="outline" class="size-4 shrink-0 self-center text-app-accent" aria-hidden="true" />
+                                    </span>
+                                </summary>
+                                <ul aria-label="{{ __('business.promotion.review_extra_points') }}" class="space-y-2 pb-3">
+                                    @foreach ($extraPoints as $rule)
+                                        <li wire:key="review-rule-{{ $rule['weekday'] }}-{{ $rule['start_time'] ?? 'all-day' }}" class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-app-border bg-app-control px-3 py-2">
+                                            <span class="app-role-support! min-w-0 break-words text-app-ink-secondary">
+                                                {{ __('business.promotion.weekdays.'.$rule['weekday']) }} · {{ $rule['start_time'] === null ? __('business.promotion.all_day') : $rule['start_time'].'–'.$rule['end_time'] }}
+                                            </span>
+                                            <flux:badge color="violet" class="app-role-support! shrink-0 font-medium!">
+                                                ×{{ $rule['multiplier'] }}
+                                            </flux:badge>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </details>
+                        @endif
+                    </div>
+
+                    <aside class="flex min-w-0 items-center gap-3 rounded-xl border border-app-priority-border bg-app-emphasis p-4 app-role-support! text-app-ink-priority">
+                        <flux:icon.lock-closed variant="outline" class="size-5 shrink-0" aria-hidden="true" />
+                        <div class="min-w-0 space-y-1">
+                            <p class="font-semibold!">{{ __('business.promotion.publication_note_title') }}</p>
+                            <p class="break-words">{{ __('business.promotion.publication_note') }}</p>
+                        </div>
+                    </aside>
+                    <flux:error name="promotion" class="app-error" />
+                </div>
+
+                <footer data-test="promotion-review-actions" class="flex shrink-0 flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
+                    <flux:modal.close class="w-full sm:w-auto">
+                        <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
+                            {{ __('business.promotion.return_to_editor') }}
+                        </flux:button>
+                    </flux:modal.close>
+                    <flux:button
+                        type="button"
+                        wire:click="confirmPublication"
+                        wire:loading.attr="disabled"
+                        wire:target="confirmPublication"
+                        variant="primary"
+                        class="app-button-primary min-h-11 w-full sm:w-auto"
+                    >
+                        {{ __('business.promotion.confirm_publish') }}
+                    </flux:button>
+                </footer>
+            </div>
+        @endif
+    </flux:modal>
+
+    <style>
+        [data-promotion-review-scroll-body] {
+            scrollbar-gutter: stable;
+            scrollbar-color: var(--color-app-accent) transparent;
+            scrollbar-width: thin;
+        }
+
+        [data-promotion-review-extra-rules][open] [data-extra-rules-chevron] {
+            transform: rotate(180deg);
+        }
+
+        [data-extra-rules-chevron] {
+            transition: transform 180ms ease;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            [data-promotion-review-scroll-body] {
+                scrollbar-color: transparent transparent;
+                transition: scrollbar-color 180ms ease;
+            }
+
+            [data-promotion-review-scroll-body]:hover,
+            [data-promotion-review-scroll-body]:focus,
+            [data-promotion-review-scroll-body]:focus-within {
+                scrollbar-color: var(--color-app-accent) transparent;
+            }
+
+            [data-promotion-review-scroll-body]::-webkit-scrollbar {
+                width: 0.5rem;
+            }
+
+            [data-promotion-review-scroll-body]::-webkit-scrollbar-track {
+                background: transparent;
+            }
+
+            [data-promotion-review-scroll-body]::-webkit-scrollbar-thumb {
+                border: 2px solid transparent;
+                border-radius: 9999px;
+                background-color: transparent;
+                background-clip: content-box;
+                transition: background-color 180ms ease;
+            }
+
+            [data-promotion-review-scroll-body]:hover::-webkit-scrollbar-thumb,
+            [data-promotion-review-scroll-body]:focus-within::-webkit-scrollbar-thumb,
+            [data-promotion-review-scroll-body]:active::-webkit-scrollbar-thumb {
+                background-color: var(--color-app-accent);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            [data-promotion-review-scroll-body],
+            [data-promotion-review-scroll-body]::-webkit-scrollbar-thumb,
+            [data-extra-rules-chevron] {
+                transition: none;
+            }
+        }
+    </style>
 
     <flux:modal name="discard-promotion-draft" class="app-theme space-y-6">
         <div class="space-y-2">

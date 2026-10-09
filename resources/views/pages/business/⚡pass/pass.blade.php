@@ -7,6 +7,14 @@
         ></span>
     @endif
 
+    @if ($publicationNotice !== '')
+        <span
+            class="hidden"
+            x-data
+            x-init="$nextTick(() => requestAnimationFrame(() => $flux.toast({ text: @js(__('business.promotion.publication_notice_'.$publicationNotice)), variant: 'success' })))"
+        ></span>
+    @endif
+
     @if ($editing)
         <header class="space-y-6">
             <div class="flex min-h-11 items-center">
@@ -249,6 +257,12 @@
             </div>
         </section>
 
+        @php
+            $promotionListings = $this->currentPromotionListings;
+            $hasPublishedPromotions = $promotionListings['active'] !== null || $promotionListings['scheduled']->total() > 0;
+            $hasPromotionRows = $hasPublishedPromotions || $this->draftPromotions->total() > 0;
+        @endphp
+
         <section aria-labelledby="promotions-heading" class="space-y-4">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="space-y-1">
@@ -263,7 +277,7 @@
                     </div>
                 </div>
 
-                @if ($this->draftPromotions->total() > 0 && $this->business->pass_background_color)
+                @if ($hasPromotionRows && $this->business->pass_background_color)
                     <flux:button href="{{ route('business.promotions.create') }}" variant="primary" class="app-button-primary min-h-11 w-full shrink-0 sm:w-auto">
                         <flux:icon.plus variant="outline" class="me-2 size-4" />
                         {{ __('business.pass.new_promotion') }}
@@ -271,7 +285,7 @@
                 @endif
             </div>
 
-            @if ($this->draftPromotions->total() === 0 && $this->business->pass_background_color)
+            @if (! $hasPromotionRows && $this->business->pass_background_color)
                 <article class="flex flex-col gap-4 rounded-2xl border border-app-border bg-app-surface p-4 sm:flex-row sm:items-center sm:p-6">
                     <span class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-accent/40 bg-app-accent/10 text-app-accent">
                         <flux:icon.gift variant="outline" class="size-6" />
@@ -287,7 +301,7 @@
                         </flux:button>
                     </div>
                 </article>
-            @elseif ($this->draftPromotions->total() === 0)
+            @elseif (! $hasPromotionRows)
                 <article class="flex flex-col gap-4 rounded-2xl border border-app-border bg-app-surface p-4 sm:flex-row sm:items-center sm:p-6">
                     <span class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-accent/40 bg-app-accent/10 text-app-accent">
                         <flux:icon.gift variant="outline" class="size-6" />
@@ -307,16 +321,100 @@
                 </div>
             @endif
 
-            @if ($this->draftPromotions->total() > 0)
-                <div class="space-y-4">
+            @if ($promotionListings['active'] !== null)
+                @php($activePromotion = $promotionListings['active'])
+                <div class="space-y-3">
                     <flux:heading level="3" size="base" class="app-role-card! text-app-ink!">
-                        {{ __('business.pass.drafts_heading') }}
+                        {{ __('business.pass.active_promotion_heading') }}
                     </flux:heading>
+                    <article
+                        data-promotion-phase="active"
+                        data-promotion-public-id="{{ $activePromotion['promotion']->public_id }}"
+                        class="min-w-0 space-y-3 rounded-2xl border border-app-accent/60 bg-app-surface p-4 sm:p-6"
+                    >
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0 space-y-1">
+                                <flux:heading level="4" size="base" class="app-role-card! text-app-ink!">
+                                    {{ $activePromotion['promotion']->reward_title }}
+                                </flux:heading>
+                                @if ($activePromotion['promotion']->reward_description !== '')
+                                    <flux:text class="app-role-support! text-app-ink-secondary!">
+                                        {{ $activePromotion['promotion']->reward_description }}
+                                    </flux:text>
+                                @endif
+                            </div>
+                            <flux:badge color="green" class="app-role-support! font-medium!">
+                                {{ __('business.pass.promotion_active_status') }}
+                            </flux:badge>
+                        </div>
+                        <flux:text class="app-role-support! text-app-ink-secondary!">
+                            {{ $activePromotion['period'] }}
+                            ·
+                            {{ __('business.pass.promotion_published_target', ['points' => $activePromotion['promotion']->target_points]) }}
+                        </flux:text>
+                    </article>
+                </div>
+            @endif
+
+            @if ($promotionListings['scheduled']->total() > 0)
+                <details wire:key="scheduled-promotions-disclosure" wire:ignore.self open class="group space-y-3">
+                    <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 app-focus">
+                        <span role="heading" aria-level="3" class="app-role-card! text-app-ink!">
+                            {{ __('business.pass.scheduled_promotions_heading', ['count' => $promotionListings['scheduled']->total()]) }}
+                        </span>
+                        <flux:icon.chevron-down variant="outline" class="size-5 shrink-0 text-app-ink-secondary transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+                    </summary>
+                    <ul class="space-y-3" aria-label="{{ __('business.pass.scheduled_promotions_heading', ['count' => $promotionListings['scheduled']->total()]) }}">
+                        @foreach ($promotionListings['scheduled'] as $scheduledPromotion)
+                            <li
+                                wire:key="promotion-scheduled-{{ $scheduledPromotion['promotion']->public_id }}"
+                                data-promotion-phase="scheduled"
+                                data-promotion-public-id="{{ $scheduledPromotion['promotion']->public_id }}"
+                                class="flex min-w-0 flex-col gap-3 rounded-2xl border border-app-border bg-app-surface p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+                            >
+                                <div class="min-w-0 space-y-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <flux:heading level="4" size="base" class="app-role-card! text-app-ink!">
+                                            {{ $scheduledPromotion['promotion']->reward_title }}
+                                        </flux:heading>
+                                        <flux:badge color="blue" class="app-role-support! font-medium!">
+                                            {{ __('business.pass.promotion_scheduled_status') }}
+                                        </flux:badge>
+                                    </div>
+                                    @if ($scheduledPromotion['promotion']->reward_description !== '')
+                                        <flux:text class="app-role-support! text-app-ink-secondary!">
+                                            {{ $scheduledPromotion['promotion']->reward_description }}
+                                        </flux:text>
+                                    @endif
+                                    <flux:text class="app-role-support! text-app-ink-secondary!">
+                                        {{ $scheduledPromotion['period'] }}
+                                        ·
+                                        {{ __('business.pass.promotion_published_target', ['points' => $scheduledPromotion['promotion']->target_points]) }}
+                                    </flux:text>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                    @if ($promotionListings['scheduled']->hasPages())
+                        <flux:pagination :paginator="$promotionListings['scheduled']" />
+                    @endif
+                </details>
+            @endif
+
+            @if ($this->draftPromotions->total() > 0)
+                <details wire:key="promotion-drafts-disclosure" wire:ignore.self open class="group space-y-3">
+                    <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 app-focus">
+                        <span role="heading" aria-level="3" class="app-role-card! text-app-ink!">
+                            {{ __('business.pass.drafts_heading', ['count' => $this->draftPromotions->total()]) }}
+                        </span>
+                        <flux:icon.chevron-down variant="outline" class="size-5 shrink-0 text-app-ink-secondary transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+                    </summary>
                     @if ($this->draftPromotions->isNotEmpty())
                         <ul class="space-y-4" aria-label="{{ __('business.pass.saved_promotion_drafts') }}">
                             @foreach ($this->draftPromotions as $promotion)
                                 <li
                                     wire:key="promotion-draft-{{ $promotion->public_id }}"
+                                    data-promotion-phase="draft"
                                     data-promotion-public-id="{{ $promotion->public_id }}"
                                     class="flex min-w-0 flex-col gap-3 rounded-2xl border border-app-border bg-app-surface p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6"
                                 >
@@ -357,8 +455,8 @@
                     @if ($this->draftPromotions->hasPages())
                         <flux:pagination :paginator="$this->draftPromotions" />
                     @endif
-                </div>
-            @else
+                </details>
+            @elseif (! $hasPublishedPromotions)
                 <p class="app-role-support! text-app-ink-secondary!">
                     {{ __('business.pass.promotions_empty') }}
                 </p>
