@@ -7,6 +7,14 @@
         ></span>
     @endif
 
+    @if ($publicationNotice !== '')
+        <span
+            class="hidden"
+            x-data
+            x-init="$nextTick(() => requestAnimationFrame(() => $flux.toast({ text: @js(__('business.promotion.publication_notice_'.$publicationNotice)), variant: 'success' })))"
+        ></span>
+    @endif
+
     @if ($editing)
         <header class="space-y-6">
             <div class="flex min-h-11 items-center">

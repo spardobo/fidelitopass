@@ -1,11 +1,13 @@
 <?php
 
+use App\Actions\Promotions\PublishPromotion;
 use App\Actions\Promotions\SavePromotionDraft;
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
 use App\Support\DatabaseClock;
 use App\Support\PromotionDraftValidator;
+use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -28,6 +30,12 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
 
     #[Locked]
     public string $minimumStartDate = '';
+
+    #[Locked]
+    public bool $reviewingPublication = false;
+
+    #[Locked]
+    public string $reviewedTimezone = '';
 
     public string $rewardTitle = '';
 
@@ -218,6 +226,153 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     }
 
     /**
+     * Validate the complete unsaved aggregate and show its read-only publication review.
+     *
+     * @throws AuthorizationException When the actor cannot create or edit the Promotion.
+     * @throws ModelNotFoundException When the Business or selected Promotion is unavailable.
+     * @throws HttpException When the selected Promotion is no longer a draft.
+     * @throws ValidationException When submitted terms or multiplier windows are invalid.
+     */
+    public function reviewPublication(): void
+    {
+        $this->authorizeEditor();
+        $this->resetValidation();
+
+        if ($this->hasPendingRuleInput()) {
+            $this->addError('extraPoints', __('business.promotion.incomplete_rule'));
+            Flux::toast(__('business.promotion.validation_notice'), null, 5000, 'danger');
+
+            return;
+        }
+
+        try {
+            $validated = app(PromotionDraftValidator::class)->validateInput($this->submittedInput());
+        } catch (ValidationException $exception) {
+            $this->throwActionValidationException($exception);
+        }
+
+        $this->applyValidatedInput($validated);
+        $business = $this->business();
+        $this->minimumStartDate = app(DatabaseClock::class)
+            ->captureForBusinessTimezone($business->timezone)['business_date'];
+        $this->reviewedTimezone = $business->timezone;
+        $this->reviewingPublication = true;
+        $this->dispatch('modal-show', name: 'promotion-publication-review');
+    }
+
+    /**
+     * Dismiss the read-only publication review without validating or changing submitted terms.
+     *
+     * Dismissal checks ownership but permits an already-published owned Promotion, so stale tabs can close safely.
+     *
+     * @throws AuthorizationException When the actor cannot access the Business or selected Promotion.
+     * @throws ModelNotFoundException When the Business or selected Promotion is unavailable.
+     */
+    public function dismissPublicationReview(): void
+    {
+        if ($this->promotionPublicId === null) {
+            $this->authorizeEditor();
+        } else {
+            $this->resolveOwnedPromotion();
+        }
+
+        $this->reviewingPublication = false;
+        $this->reviewedTimezone = '';
+    }
+
+    /**
+     * Publish the full current submission only after its server-authoritative timezone was reviewed.
+     *
+     * Publication failures close the review and return the user to the same editor state; successful
+     * publication redirects to Pase. A timezone change requires a fresh review and confirmation.
+     *
+     * @param  PublishPromotion  $publishPromotion  Transactional publication action for the full aggregate.
+     *
+     * @throws AuthorizationException When the actor cannot create or edit the Promotion.
+     * @throws ModelNotFoundException When the Business or selected Promotion is unavailable.
+     * @throws HttpException When the selected Promotion is no longer a draft.
+     * @throws ValidationException When submitted terms or multiplier windows are invalid.
+     */
+    public function confirmPublication(PublishPromotion $publishPromotion): void
+    {
+        $promotion = $this->promotionPublicId === null
+            ? $this->authorizeEditor()
+            : $this->resolveOwnedPromotion();
+        $this->resetValidation();
+
+        if (! $this->reviewingPublication || $this->reviewedTimezone === '') {
+            $this->addError('promotion', __('business.promotion.review_required'));
+
+            return;
+        }
+
+        if ($this->hasPendingRuleInput()) {
+            $this->addError('extraPoints', __('business.promotion.incomplete_rule'));
+            Flux::toast(__('business.promotion.validation_notice'), null, 5000, 'danger');
+            $this->closePublicationReview();
+
+            return;
+        }
+
+        try {
+            $publishPromotion->handleSubmitted(
+                Auth::user(),
+                $this->submittedInput(),
+                $this->reviewedTimezone,
+                $promotion,
+            );
+        } catch (ValidationException $exception) {
+            $messages = $exception->errors();
+            if (($messages['promotion'][0] ?? null) === __('business.promotion.timezone_changed_since_review')) {
+                $business = $this->business();
+                $this->minimumStartDate = app(DatabaseClock::class)
+                    ->captureForBusinessTimezone($business->timezone)['business_date'];
+                Flux::toast(__('business.promotion.timezone_review_refreshed'), null, 5000, 'danger');
+                $this->closePublicationReview();
+
+                return;
+            }
+
+            if (array_key_exists('promotion', $messages)) {
+                $message = $messages['promotion'][0] ?? '';
+                $safeDomainMessages = [
+                    __('business.promotion.only_drafts_can_be_published'),
+                    __('business.promotion.publication_window_overlaps'),
+                ];
+                $toastMessage = in_array($message, $safeDomainMessages, true)
+                    ? $message
+                    : __('business.promotion.publication_error_unexpected');
+                Flux::toast($toastMessage, null, 5000, 'danger');
+                $this->closePublicationReview();
+
+                return;
+            }
+
+            foreach ($this->actionValidationMessages($exception) as $field => $fieldMessages) {
+                foreach ($fieldMessages as $message) {
+                    $this->addError($field, $message);
+                }
+            }
+
+            Flux::toast(__('business.promotion.validation_notice'), null, 5000, 'danger');
+            $this->closePublicationReview();
+
+            return;
+        } catch (AuthorizationException|ModelNotFoundException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            report($exception);
+            Flux::toast(__('business.promotion.publication_error_unexpected'), null, 5000, 'danger');
+            $this->closePublicationReview();
+
+            return;
+        }
+
+        Session::flash('business.promotion.publication_notice', 'published');
+        $this->redirectRoute('business.pass', navigate: true);
+    }
+
+    /**
      * Recheck editor authorization and return to Pase without persisting unsaved form state.
      *
      * @throws AuthorizationException When the actor cannot access this editor.
@@ -257,6 +412,92 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     public function isEditing(): bool
     {
         return $this->promotionPublicId !== null;
+    }
+
+    /**
+     * Return deterministic UTC boundaries derived from the reviewed inclusive local dates.
+     *
+     * @return array{starts_at: string, ends_at: string} Inclusive UTC start and exclusive UTC end labels.
+     */
+    #[Computed]
+    public function publicationUtcBounds(): array
+    {
+        $timezone = $this->business()->timezone;
+        $start = $this->localDateBoundary($this->localStartDate, $timezone);
+        $exclusiveEndDate = CarbonImmutable::createFromFormat('!Y-m-d', $this->localEndDate, 'UTC')
+            ->addDay()
+            ->format('Y-m-d');
+        $end = $this->localDateBoundary($exclusiveEndDate, $timezone);
+
+        return [
+            'starts_at' => $start->utc()->format('Y-m-d H:i:s').' UTC',
+            'ends_at' => $end->utc()->format('Y-m-d H:i:s').' UTC',
+        ];
+    }
+
+    /**
+     * Prepare local dates, the current timezone, UTC boundaries, and scheduled state for review.
+     *
+     * @return array{start_date: string, end_date: string, timezone: string, starts_at: string, ends_at: string, is_scheduled: bool} Read-only publication summary for the current submission.
+     */
+    #[Computed]
+    public function publicationReview(): array
+    {
+        $timezone = $this->business()->timezone;
+        $bounds = $this->publicationUtcBounds;
+
+        return [
+            'start_date' => $this->localDateBoundary($this->localStartDate, $timezone)->format('d/m/Y'),
+            'end_date' => $this->localDateBoundary($this->localEndDate, $timezone)->format('d/m/Y'),
+            'timezone' => $timezone,
+            'starts_at' => $bounds['starts_at'],
+            'ends_at' => $bounds['ends_at'],
+            'is_scheduled' => $this->localStartDate > $this->minimumStartDate,
+        ];
+    }
+
+    /**
+     * Convert a validated Business-local calendar date to the start of that date.
+     *
+     * @param  string  $localDate  Validated ISO calendar date without a time or offset.
+     * @param  string  $timezone  Current Business IANA timezone used for the preview.
+     * @return CarbonImmutable Business-local midnight before conversion to UTC.
+     */
+    private function localDateBoundary(string $localDate, string $timezone): CarbonImmutable
+    {
+        return CarbonImmutable::createFromFormat('!Y-m-d', $localDate, $timezone);
+    }
+
+    /**
+     * Return the full current editor submission in the action's input shape.
+     *
+     * @return array<string, mixed> Untrusted terms and the complete configured multiplier-rule list.
+     */
+    private function submittedInput(): array
+    {
+        return [
+            'local_start_date' => $this->localStartDate,
+            'local_end_date' => $this->localEndDate,
+            'target_points' => $this->targetPoints,
+            'reward_title' => $this->rewardTitle,
+            'reward_description' => $this->rewardDescription,
+            'extra_points' => $this->normalizedExtraPoints(),
+        ];
+    }
+
+    /**
+     * Copy validated action input into component state for a faithful review and subsequent confirmation.
+     *
+     * @param  array<string, mixed>  $data  Normalized Promotion terms and multiplier windows.
+     */
+    private function applyValidatedInput(array $data): void
+    {
+        $this->localStartDate = $data['local_start_date'];
+        $this->localEndDate = $data['local_end_date'];
+        $this->targetPoints = (string) $data['target_points'];
+        $this->rewardTitle = $data['reward_title'];
+        $this->rewardDescription = $data['reward_description'] ?? '';
+        $this->extraPoints = $data['extra_points'];
     }
 
     /**
@@ -310,6 +551,28 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
      */
     private function resolvePromotion(): ?Promotion
     {
+        $promotion = $this->resolveOwnedPromotion();
+
+        if ($promotion !== null) {
+            abort_unless($promotion->status === PromotionStatus::Draft, 404);
+        }
+
+        return $promotion;
+    }
+
+    /**
+     * Load the current actor's Promotion by public ID and authorize its ownership without assuming its status.
+     *
+     * Publication confirmation uses this lookup so a stale second-tab attempt reaches the transactional
+     * action's localized status rejection; ordinary editor actions apply the draft-only guard separately.
+     *
+     * @return Promotion|null Owned Promotion, or null when the editor is creating a new one.
+     *
+     * @throws AuthorizationException When the actor cannot update the Promotion.
+     * @throws ModelNotFoundException When the public ID is not owned by the current Business.
+     */
+    private function resolveOwnedPromotion(): ?Promotion
+    {
         if ($this->promotionPublicId === null) {
             return null;
         }
@@ -320,7 +583,6 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
             ->firstOrFail();
 
         Gate::authorize('update', $promotion);
-        abort_unless($promotion->status === PromotionStatus::Draft, 404);
 
         return $promotion;
     }
@@ -449,6 +711,18 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
      */
     private function throwActionValidationException(ValidationException $exception): never
     {
+        Flux::toast(__('business.promotion.validation_notice'), null, 5000, 'danger');
+
+        throw ValidationException::withMessages($this->actionValidationMessages($exception));
+    }
+
+    /**
+     * Convert action validation paths to the component's camel-case field names.
+     *
+     * @return array<string, list<string>> Validation messages keyed by Livewire component property path.
+     */
+    private function actionValidationMessages(ValidationException $exception): array
+    {
         $messages = [];
 
         foreach ($exception->errors() as $path => $fieldMessages) {
@@ -457,9 +731,17 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
             $messages[$componentPath] = [...($messages[$componentPath] ?? []), ...$fieldMessages];
         }
 
-        Flux::toast(__('business.promotion.validation_notice'), null, 5000, 'danger');
+        return $messages;
+    }
 
-        throw ValidationException::withMessages($messages);
+    /**
+     * Clear server review authority and close its native Flux modal after a failed publication attempt.
+     */
+    private function closePublicationReview(): void
+    {
+        $this->reviewingPublication = false;
+        $this->reviewedTimezone = '';
+        Flux::modal('promotion-publication-review')->close();
     }
 
     /**

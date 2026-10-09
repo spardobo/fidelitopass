@@ -46,7 +46,7 @@ it('renders the create editor with draft date guidance and unavailable publicati
         ->assertSee('La fecha de fin incluye ese día completo. La recompensa también vence al terminar la promoción.')
         ->assertSee('required', false)
         ->assertSee('aria-hidden="true" class="text-app-danger-ink me-1">*</span> ', false)
-        ->assertSee('Revisar publicación')
+        ->assertSee(__('business.promotion.review_publication'))
         ->assertSee('disabled', false)
         ->assertDontSee('La publicación no está disponible en esta versión.');
 });

@@ -1349,3 +1349,157 @@ test("serializes extra-point Add and Remove actions while Livewire is pending", 
     await expect(acceptedRules.getByText("Lunes", { exact: true })).toBeVisible();
     await expect(acceptedRules.getByText("Viernes", { exact: true })).toBeVisible();
 });
+
+test("contains keyboard focus and restores the Promotion review opener after dismissal", async ({
+    page,
+    request,
+}) => {
+    await registerVerifiedBusiness(page, request);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/promotions/create");
+
+    const dates = await promotionDateCases(page);
+    const rewardTitle = page.getByLabel("¿Qué recompensa recibirá tu cliente?");
+    const reviewButton = page.getByRole("button", { name: "Publicar promoción" });
+    const dialog = page.locator('dialog[data-modal="promotion-publication-review"]');
+
+    await rewardTitle.fill("Café de cortesía");
+    await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
+    await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
+    await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+    await page.evaluate(() => window.scrollTo({ top: 250 }));
+
+    /** Open the review after server validation and wait for its dialog.
+     * @returns {Promise<void>} Resolves when the publication review is visible.
+     */
+    const openReview = async () => {
+        await reviewButton.click();
+        await expect(dialog).toBeVisible();
+    };
+
+    /** Dismiss through one browser control and verify state, focus, scroll and unsaved values remain.
+     * @param {() => Promise<void>} dismiss Invokes one native or secondary dismissal path.
+     * @returns {Promise<void>} Resolves when the editor is restored without losing its current viewport or value.
+     */
+    const dismissAndExpectFocusReturn = async (dismiss) => {
+        const scrollTop = await page.evaluate(() => window.scrollY);
+
+        await dismiss();
+        await expect(dialog).not.toBeVisible();
+        await expect(dialog.locator("[data-promotion-review-scroll-body]")).toHaveCount(0);
+        await expect(reviewButton).toBeFocused();
+        expect(await page.evaluate(() => window.scrollY)).toBe(scrollTop);
+        await expect(rewardTitle).toHaveValue("Café de cortesía");
+    };
+
+    await openReview();
+
+    await expect(dialog.locator("[data-promotion-review-scroll-body]")).toBeFocused();
+
+    const focusSequence = [];
+
+    for (let index = 0; index < 8; index++) {
+        await page.keyboard.press("Tab");
+        const focusedElement = await page.evaluate(() => {
+            const activeElement = document.activeElement;
+            const reviewDialog = document.querySelector(
+                'dialog[data-modal="promotion-publication-review"]',
+            );
+
+            return {
+                dialogContainsFocus: reviewDialog.contains(activeElement),
+                pageHasFocus: document.hasFocus(),
+                activeTag: activeElement.tagName,
+                activeName:
+                    activeElement.getAttribute("aria-label") ||
+                    activeElement.textContent.trim().slice(0, 40),
+            };
+        });
+
+        focusSequence.push(focusedElement);
+
+        if (!focusedElement.dialogContainsFocus) break;
+    }
+
+    expect(
+        focusSequence.every(
+            (focusedElement) => focusedElement.dialogContainsFocus || !focusedElement.pageHasFocus,
+        ),
+        JSON.stringify(focusSequence),
+    ).toBe(true);
+
+    await dismissAndExpectFocusReturn(() => page.keyboard.press("Escape"));
+
+    await openReview();
+    await dismissAndExpectFocusReturn(() =>
+        page.getByRole("button", { name: "Seguir editando" }).click(),
+    );
+
+    await openReview();
+    await dismissAndExpectFocusReturn(() =>
+        dialog.getByRole("button", { name: "Cerrar ventana" }).click(),
+    );
+
+    await openReview();
+    await dismissAndExpectFocusReturn(() => page.mouse.click(4, 4));
+});
+
+test("keeps an overlapping publication in the editor with its review closed", async ({
+    page,
+    request,
+}) => {
+    await registerVerifiedBusiness(page, request);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/promotions/create");
+
+    const dates = await promotionDateCases(page);
+    const dialog = page.locator('dialog[data-modal="promotion-publication-review"]');
+
+    /** Enter the required terms and publish a promotion using this test's disposable Business.
+     * @param {string} title Reward title for this test-owned publication.
+     * @returns {Promise<void>} Resolves after the app confirms the publication on Pase.
+     */
+    const publish = async (title) => {
+        await page.goto("/promotions/create");
+        await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill(title);
+        await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
+        await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
+        await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+        await page.getByRole("button", { name: "Publicar promoción" }).click();
+        await expect(dialog).toBeVisible();
+        await page.getByRole("button", { name: "Confirmar publicación" }).click();
+        await expect(page).toHaveURL(/\/pass$/);
+    };
+
+    await publish("Promoción ya publicada");
+    await expect(page.getByText("Promoción publicada.", { exact: true })).toBeVisible();
+
+    await page.goto("/promotions/create");
+    const rewardTitle = page.getByLabel("¿Qué recompensa recibirá tu cliente?");
+    const reviewButton = page.getByRole("button", { name: "Publicar promoción" });
+
+    await rewardTitle.fill("Promoción que se superpone");
+    await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
+    await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
+    await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+    await page.evaluate(() => window.scrollTo({ top: 250 }));
+    await reviewButton.click();
+    await expect(dialog).toBeVisible();
+
+    const scrollTop = await page.evaluate(() => window.scrollY);
+
+    await page.getByRole("button", { name: "Confirmar publicación" }).click();
+
+    await expect(dialog).not.toBeVisible();
+    await expect(page).toHaveURL(/\/promotions\/create$/);
+    await expect(
+        page.getByText("El período de esta promoción se superpone con otra promoción publicada.", {
+            exact: true,
+        }),
+    ).toBeVisible();
+    await expect(reviewButton).toBeFocused();
+    await expect(rewardTitle).toHaveValue("Promoción que se superpone");
+    await expect(page.getByLabel("Fecha de inicio")).toHaveValue(dates.futureStart);
+    await expect(page.getByLabel("Fecha de fin")).toHaveValue(dates.futureEnd);
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrollTop);
+});
