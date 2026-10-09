@@ -260,7 +260,7 @@
         @php
             $promotionListings = $this->currentPromotionListings;
             $hasPublishedPromotions = $promotionListings['active'] !== null || $promotionListings['scheduled']->total() > 0;
-            $hasPromotionRows = $hasPublishedPromotions || $this->draftPromotions->total() > 0;
+            $hasPromotionRows = $hasPublishedPromotions || $this->draftPromotions->total() > 0 || $promotionListings['history']->total() > 0;
         @endphp
 
         <section aria-labelledby="promotions-heading" class="space-y-4">
@@ -478,10 +478,59 @@
                         <flux:pagination :paginator="$this->draftPromotions" />
                     @endif
                 </details>
-            @elseif (! $hasPublishedPromotions)
+            @elseif (! $hasPromotionRows)
                 <p class="app-role-support! text-app-ink-secondary!">
                     {{ __('business.pass.promotions_empty') }}
                 </p>
+            @endif
+
+            @if ($promotionListings['history']->total() > 0)
+                <details wire:key="promotion-history-disclosure" wire:ignore.self class="group space-y-3">
+                    <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 app-focus">
+                        <span role="heading" aria-level="3" class="app-role-card! text-app-ink!">
+                            {{ __('business.pass.history_promotions_heading', ['count' => $promotionListings['history']->total()]) }}
+                        </span>
+                        <flux:icon.chevron-down variant="outline" class="size-5 shrink-0 text-app-ink-secondary transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+                    </summary>
+                    <ul aria-label="{{ __('business.pass.history_promotions_heading', ['count' => $promotionListings['history']->total()]) }}" class="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-border bg-app-surface">
+                        @foreach ($promotionListings['history'] as $historicalPromotion)
+                            <li
+                                wire:key="promotion-history-{{ $historicalPromotion['promotion']->public_id }}"
+                                data-promotion-phase="{{ $historicalPromotion['phase'] }}"
+                                data-promotion-public-id="{{ $historicalPromotion['promotion']->public_id }}"
+                                class="flex min-w-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                                <div class="min-w-0 space-y-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <flux:heading level="4" size="base" class="app-role-body! min-w-0 break-words font-medium! text-app-ink!">
+                                            {{ $historicalPromotion['promotion']->reward_title }}
+                                        </flux:heading>
+                                        <flux:badge class="app-role-support! font-medium!">
+                                            {{ __('business.pass.promotion_'.$historicalPromotion['phase'].'_status') }}
+                                        </flux:badge>
+                                    </div>
+                                    <flux:text class="app-role-support! text-app-ink-secondary!">
+                                        {{ $historicalPromotion['period'] }}
+                                    </flux:text>
+                                </div>
+                                <flux:button
+                                    id="promotion-detail-trigger-{{ $historicalPromotion['promotion']->public_id }}"
+                                    type="button"
+                                    wire:click="showPromotionDetail('{{ $historicalPromotion['promotion']->public_id }}')"
+                                    wire:loading.attr="disabled"
+                                    wire:target="showPromotionDetail"
+                                    variant="filled"
+                                    class="app-button-secondary min-h-11 w-full shrink-0 sm:w-auto"
+                                >
+                                    {{ __('business.pass.view_promotion_detail') }}
+                                </flux:button>
+                            </li>
+                        @endforeach
+                    </ul>
+                    @if ($promotionListings['history']->hasPages())
+                        <flux:pagination :paginator="$promotionListings['history']" />
+                    @endif
+                </details>
             @endif
         </section>
     @endif
@@ -494,7 +543,10 @@
             const originId = 'promotion-detail-trigger-' + $wire.selectedPromotionId;
             $wire.dismissPromotionDetail().then(() => {
                 const root = $el.closest('main');
-                (root.querySelector('#' + originId) ?? root.querySelector('#promotions-heading'))?.focus({ preventScroll: true });
+                const origin = root.querySelector('#' + originId);
+                const canFocusOrigin = origin && !origin.closest('details:not([open])') && origin.getClientRects().length > 0;
+                const focusTarget = canFocusOrigin ? origin : root.querySelector('#promotions-heading');
+                focusTarget?.focus({ preventScroll: true });
             });
         "
         class="app-theme w-[calc(100vw-2rem)] sm:w-[calc(100vw-3rem)] max-w-xl! min-w-0! max-h-[calc(100dvh-2rem)]! sm:max-h-[calc(100dvh-3rem)]! flex flex-col overflow-hidden!"
