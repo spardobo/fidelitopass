@@ -15,6 +15,9 @@ docker run --rm --init --ipc=host \
     --user "$(id -u):$(id -g)" \
     --env HOME=/tmp \
     --env CI="${CI:-}" \
+    --env PLAYWRIGHT_BASE_URL \
+    --env PLAYWRIGHT_MAILPIT_URL \
+    --env PLAYWRIGHT_PROMOTION_FIXTURE \
     --env NPM_CONFIG_UPDATE_NOTIFIER=false \
     --network fidelitopass-network \
     --volume "$repository_root:/work" \
