@@ -5,7 +5,7 @@ const USER_NAME = "Promotion Owner";
 const BUSINESS_NAME = "Jaqaku";
 const TIMEZONE = "America/La_Paz";
 const PASSWORD = "ValidPassword84!strong";
-const MAILPIT_URL = "http://fidelitopass-mailpit-dev:8025";
+const MAILPIT_URL = process.env.PLAYWRIGHT_MAILPIT_URL ?? "http://fidelitopass-mailpit-dev:8025";
 const LIVEWIRE_UPDATE_PATH = /\/livewire-[^/]+\/update$/;
 
 /** Shifts an ISO calendar date by whole days without host-timezone conversion.
@@ -158,6 +158,223 @@ async function readPromotionLabelStyles(page) {
     });
 }
 
+test("isolated owner inspects frozen Promotions, history and safe cancellation", async ({
+    page,
+}) => {
+    test.skip(!process.env.PLAYWRIGHT_PROMOTION_FIXTURE, "Requires the isolated Promotion runner");
+    test.setTimeout(90_000);
+    const fixture = JSON.parse(process.env.PLAYWRIGHT_PROMOTION_FIXTURE);
+    const consoleErrors = [];
+    page.on("pageerror", (error) => consoleErrors.push(error.message));
+
+    await page.goto("/login");
+    await page.locator('input[name="email"]').fill(fixture.email);
+    await page.locator('input[name="password"]').fill(PASSWORD);
+    await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/pass");
+    await expectPassNavigationToBeActive(page);
+    await page.evaluate(() => document.fonts.ready);
+
+    const history = page.locator('details[wire\\:key="promotion-history-disclosure"]');
+    const scheduled = page.locator('details[wire\\:key="scheduled-promotions-disclosure"]');
+    const drafts = page.locator('details[wire\\:key="promotion-drafts-disclosure"]');
+    const dialog = page.locator('dialog[data-modal="promotion-detail"]');
+    const activeOpener = page.locator(`#promotion-detail-trigger-${fixture.promotions.Activa}`);
+    await expect(history).not.toHaveAttribute("open", "");
+    await activeOpener.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Activa", exact: true })).toBeVisible();
+    await expect(dialog.locator("dd").nth(1)).toContainText(
+        `${fixture.startDate} – ${fixture.endDate}`,
+    );
+    await expect(dialog.locator("input, textarea, select")).toHaveCount(0);
+    await expect(dialog.locator("header > span")).toHaveCSS("width", "64px");
+    await expect(dialog.locator("header > span > svg")).toHaveCSS("width", "36px");
+    const rules = dialog.locator("details[data-promotion-review-extra-rules]");
+    await expect(rules).not.toHaveAttribute("open", "");
+    const count = rules.locator("summary > span").last();
+    await expect(count).toContainText("3 configuraciones");
+    for (const value of [dialog.locator("dd").first(), dialog.locator("dd").nth(1), count]) {
+        await expect(value).toHaveCSS("font-size", "16px");
+        await expect(value).toHaveCSS("font-weight", "600");
+    }
+    await rules.locator("summary").click();
+    await expect(rules.locator("li")).toHaveCount(3);
+    for (const multiplier of ["×2", "×3", "×5"]) {
+        await expect(rules.getByText(multiplier, { exact: true })).toBeVisible();
+    }
+    const requestCancellation = dialog.getByRole("button", {
+        name: "Cancelar promoción",
+        exact: true,
+    });
+    await expect(requestCancellation).toHaveCSS("background-color", "rgb(167, 123, 255)");
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(activeOpener).toBeFocused();
+
+    await activeOpener.click();
+    await requestCancellation.click();
+    await expect(dialog.locator("#promotion-cancellation-heading")).toBeFocused();
+    await expect(dialog.getByRole("button", { name: "Sí, cancelar promoción" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Cerrar ventana" }).click();
+    await expect(activeOpener).toBeFocused();
+    await activeOpener.click();
+    await expect(dialog.getByRole("button", { name: "Sí, cancelar promoción" })).toHaveCount(0);
+    await expect(dialog.locator("[data-promotion-detail-phase]")).toHaveAttribute(
+        "data-promotion-detail-phase",
+        "active",
+    );
+    await dialog.getByRole("button", { name: "Volver al pase" }).click();
+    await expect(activeOpener).toBeFocused();
+
+    // all lifecycle badges are measured on the actual authenticated page, not cloned markup.
+    const badgeColors = {};
+    for (const [title, phase] of [
+        ["Activa", "active"],
+        ["Programada 1", "scheduled"],
+        ["Finalizada 1", "ended"],
+        ["Cancelada 1", "cancelled"],
+    ]) {
+        if (phase === "ended") await history.locator("summary").click();
+        const row = page.locator(`[data-promotion-public-id="${fixture.promotions[title]}"]`);
+        const listBadge = row.locator("[data-flux-badge]");
+        badgeColors[phase] = await listBadge.evaluate(
+            (badge) => getComputedStyle(badge).backgroundColor,
+        );
+        await row.getByRole("button", { name: "Ver detalle" }).click();
+        await expect(dialog.locator("[data-promotion-detail-phase]")).toHaveAttribute(
+            "data-promotion-detail-phase",
+            phase,
+        );
+        await expect(dialog.locator("header [data-flux-badge]")).toHaveCSS(
+            "background-color",
+            badgeColors[phase],
+        );
+        if (["ended", "cancelled"].includes(phase)) {
+            await expect(
+                dialog.getByRole("button", { name: "Cancelar promoción", exact: true }),
+            ).toHaveCount(0);
+        }
+        await page.keyboard.press("Escape");
+        await expect(row.getByRole("button", { name: "Ver detalle" })).toBeFocused();
+    }
+    expect(new Set(Object.values(badgeColors)).size).toBe(4);
+    await expect(history.locator("li h4")).toHaveText([
+        "Finalizada 1",
+        "Finalizada 2",
+        "Cancelada 1",
+    ]);
+    const historicalRow = history.locator("li").first();
+    await expect(historicalRow.locator("h4")).toHaveCSS("font-size", "14px");
+    await expect(historicalRow.locator("p")).toHaveCSS("font-size", "14px");
+    await expect(historicalRow.locator("[data-flux-badge]")).toHaveCSS("font-size", "12px");
+    await expect(historicalRow).not.toContainText("Condiciones originales");
+    await expect(historicalRow).toHaveCSS("border-left-width", "0px");
+    await expect(history.locator("ul")).toHaveCSS("border-left-width", "0px");
+    const historicalAction = historicalRow.getByRole("button", { name: "Ver detalle" });
+    await expect(historicalAction).toHaveCSS("font-size", "14px");
+    await expect(historicalAction).toHaveCSS("color", "rgb(205, 176, 255)");
+    await expect(historicalAction).toHaveCSS("cursor", "pointer");
+    expect((await historicalAction.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await expect(historicalAction).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await historicalAction.hover();
+    await expect(historicalAction).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await historicalAction.focus();
+    await expect(historicalAction).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await page.mouse.down();
+    await expect(historicalAction).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
+
+    await history.getByRole("button", { name: /Siguiente/ }).click();
+    await expect(history.locator("li h4")).toHaveText(["Cancelada 2"]);
+    await expect(scheduled.locator("li h4")).toHaveText([
+        "Programada 1",
+        "Programada 2",
+        "Programada 3",
+    ]);
+    await scheduled.getByRole("button", { name: /Siguiente/ }).click();
+    await expect(scheduled.locator("li h4")).toHaveText(["Programada 4"]);
+    await expect(history.locator("li h4")).toHaveText(["Cancelada 2"]);
+    await drafts.getByRole("button", { name: /Siguiente/ }).click();
+    await expect(drafts.locator("li h3")).toHaveText(["Borrador 4"]);
+    await expect(scheduled.locator("li h4")).toHaveText(["Programada 4"]);
+    await history.locator("summary").click();
+    await scheduled.getByRole("button", { name: /Anterior/ }).click();
+    await expect(history).not.toHaveAttribute("open", "");
+    await expect(drafts.locator("li h3")).toHaveText(["Borrador 4"]);
+
+    await page.goto("/pass");
+    await page.setViewportSize({ width: 375, height: 667 });
+    await activeOpener.click();
+    await rules.locator("summary").click();
+    await requestCancellation.click();
+    const finalCancellation = dialog.getByRole("button", { name: "Sí, cancelar promoción" });
+    await expect(finalCancellation).not.toHaveCSS("background-color", "rgb(167, 123, 255)");
+    const overflow = await dialog.evaluate((element) => {
+        const body = element.querySelector('[data-test="promotion-detail-scroll-body"]');
+        const footer = element.querySelector("footer").getBoundingClientRect();
+        const pageWidth = document.documentElement.clientWidth;
+        const windowScroll = window.scrollY;
+        body.scrollTop = body.scrollHeight;
+        return {
+            pageWidth,
+            contentWidth: document.documentElement.scrollWidth,
+            bodyScrollable: body.scrollHeight > body.clientHeight,
+            footerBottom: footer.bottom,
+            viewportHeight: innerHeight,
+            windowScroll,
+            afterScroll: window.scrollY,
+        };
+    });
+    expect(overflow.contentWidth).toBeLessThanOrEqual(overflow.pageWidth);
+    expect(overflow.bodyScrollable).toBe(true);
+    expect(overflow.footerBottom).toBeLessThanOrEqual(overflow.viewportHeight);
+    expect(overflow.afterScroll).toBe(overflow.windowScroll);
+    await finalCancellation.click();
+    await expect(dialog.locator("[data-promotion-detail-phase]")).toHaveAttribute(
+        "data-promotion-detail-phase",
+        "cancelled",
+    );
+    await expect(dialog.getByRole("heading", { name: "Activa", exact: true })).toBeVisible();
+    await expect(dialog.locator("dd").nth(1)).toContainText(
+        `${fixture.startDate} – ${fixture.endDate}`,
+    );
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(page.locator("#promotions-heading")).toBeFocused();
+    await expect(history).not.toHaveAttribute("open", "");
+
+    // a second authenticated tab cancels after the first has armed its confirmation.
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const scheduledOpener = page.locator(
+        `#promotion-detail-trigger-${fixture.promotions["Programada 1"]}`,
+    );
+    await scheduledOpener.click();
+    await requestCancellation.click();
+    const competingTab = await page.context().newPage();
+    await competingTab.goto("/pass");
+    await competingTab
+        .locator(`#promotion-detail-trigger-${fixture.promotions["Programada 1"]}`)
+        .click();
+    const competingDialog = competingTab.locator('dialog[data-modal="promotion-detail"]');
+    await competingDialog.getByRole("button", { name: "Cancelar promoción", exact: true }).click();
+    await competingDialog.getByRole("button", { name: "Sí, cancelar promoción" }).click();
+    await expect(competingDialog.locator("[data-promotion-detail-phase]")).toHaveAttribute(
+        "data-promotion-detail-phase",
+        "cancelled",
+    );
+    await finalCancellation.click();
+    await expect(dialog.getByRole("alert")).toHaveText("Esta promoción ya fue cancelada.");
+    await expect(dialog.locator("[data-promotion-detail-phase]")).toHaveAttribute(
+        "data-promotion-detail-phase",
+        "cancelled",
+    );
+    await competingTab.close();
+    expect(consoleErrors).toEqual([]);
+});
+
 test("owner reviews and responsively renders a Promotion draft editor", async ({
     page,
     request,
@@ -255,7 +472,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
         expect(labelStyle).toEqual(desktopLabelStyles.reward);
     }
     const saveButton = page.getByRole("button", { name: "Guardar borrador" });
-    const reviewButton = page.getByRole("button", { name: /Revisar publicación/ });
+    const reviewButton = page.getByRole("button", { name: "Publicar promoción", exact: true });
     const addRuleButton = page.getByRole("button", { name: "Añadir puntos extra" });
     /** Reads semantic and computed style details for one editor action button.
      * @param {import('@playwright/test').Locator} button Button whose neutral or accent treatment is being compared.
@@ -406,7 +623,14 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
         });
     expect(optionalBadgeColors.background).not.toBe("rgba(0, 0, 0, 0)");
     expect(optionalBadgeColors.contrast).toBeGreaterThanOrEqual(4.5);
-    await expect(page.getByRole("button", { name: /Revisar publicación/ })).toBeDisabled();
+    await expect(reviewButton).toBeEnabled();
+    await reviewButton.click();
+    await expect(
+        page.getByText("El campo recompensa es obligatorio.", { exact: true }),
+    ).toBeVisible();
+    await expect(
+        page.locator('dialog[data-modal="promotion-publication-review"]'),
+    ).not.toBeVisible();
     await expect(page.getByText("La publicación no está disponible en esta versión.")).toHaveCount(
         0,
     );
@@ -840,7 +1064,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     expect(savedDraftCard.listGapClass).toBe(true);
     await expect(savedDraft).toContainText("Borrador");
     await expect(savedDraft).toContainText("12 puntos para obtener la recompensa");
-    await expect(page.getByRole("heading", { name: "Borradores", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Borradores (1)", exact: true })).toBeVisible();
     const newPromotionLink = page.getByRole("link", { name: "Nueva promoción" });
     await expect(newPromotionLink).toBeVisible();
     await expect(page.getByRole("heading", { name: "Tu primera razón para volver" })).toHaveCount(
@@ -1367,6 +1591,8 @@ test("contains keyboard focus and restores the Promotion review opener after dis
     await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
     await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
     await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+    await page.getByLabel("Día", { exact: true }).selectOption("1");
+    await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await page.evaluate(() => window.scrollTo({ top: 250 }));
 
     /** Opens the review after server validation and wait for its dialog.
@@ -1395,6 +1621,14 @@ test("contains keyboard focus and restores the Promotion review opener after dis
     await openReview();
 
     await expect(dialog.locator("[data-promotion-review-scroll-body]")).toBeFocused();
+    for (const value of [
+        dialog.locator("dd").first(),
+        dialog.locator("dd").nth(1),
+        dialog.locator("details summary > span").last(),
+    ]) {
+        await expect(value).toHaveCSS("font-size", "16px");
+        await expect(value).toHaveCSS("font-weight", "600");
+    }
 
     const focusSequence = [];
 
