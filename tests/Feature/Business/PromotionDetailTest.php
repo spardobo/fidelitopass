@@ -42,8 +42,13 @@ it('opens frozen owned terms with the current database phase', function (string 
         ->assertSee('12 puntos')
         ->assertSee('03/11/2018 – 04/11/2018')
         ->assertSee(__('business.promotion.review_no_extra_points'))
-        ->assertDontSee('Confirmar publicación')
-        ->assertDontSee('Cancelar promoción');
+        ->assertDontSee('Confirmar publicación');
+
+    if (in_array($phase, ['scheduled', 'active'], true)) {
+        $component->assertSee('Cancelar promoción');
+    } else {
+        $component->assertDontSee('Cancelar promoción');
+    }
 
     $document = new DOMDocument;
     @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
