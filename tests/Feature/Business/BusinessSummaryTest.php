@@ -66,13 +66,18 @@ it('derives half-open phases and keeps only relevant scheduled and terminal iden
 it('ignores drafts for preparation and picks the earliest scheduled and latest terminal Promotion', function () {
     summaryDatabaseTime();
     $business = Business::factory()->create();
+    $foreign = Business::factory()->create();
+    $foreign->promotions()->create(['local_start_date' => '2030-01-05', 'local_end_date' => '2030-01-06', 'target_points' => 8, 'reward_title' => 'Foreign draft']);
+    expect((new BusinessSummary)->read($business->user)['hasPromotionDraft'])->toBeFalse();
     $business->promotions()->create([
         'local_start_date' => '2030-01-05',
         'local_end_date' => '2030-01-06',
         'target_points' => 8,
         'reward_title' => 'Draft',
     ]);
-    expect((new BusinessSummary)->read($business->user)['promotionPrepared'])->toBeFalse();
+    $draft = (new BusinessSummary)->read($business->user);
+    expect($draft['promotionPrepared'])->toBeFalse();
+    expect($draft['hasPromotionDraft'])->toBeTrue();
     summaryPromotion($business, ['starts_at' => '2030-01-05 00:00:00+00', 'ends_at' => '2030-01-06 00:00:00+00']);
     $next = summaryPromotion($business, ['starts_at' => '2030-01-03 00:00:00+00', 'ends_at' => '2030-01-04 00:00:00+00']);
     summaryPromotion($business, ['starts_at' => '2029-12-01 00:00:00+00', 'ends_at' => '2029-12-02 00:00:00+00']);
@@ -83,6 +88,7 @@ it('ignores drafts for preparation and picks the earliest scheduled and latest t
     expect($summary['nextScheduled']->id)->toBe($next->id);
     expect($summary['lastPromotion']->id)->toBe($last->id);
     expect($summary['promotionPrepared'])->toBeTrue();
+    expect($summary['hasPromotionDraft'])->toBeTrue();
 });
 
 it('counts accepted activity and independent entitlements without fanout or historical recomputation', function () {

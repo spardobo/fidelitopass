@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Promotion;
+use App\Models\User;
 use App\Support\BusinessSummary;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -17,7 +18,9 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
      */
     public function rendering(View $view): void
     {
-        $summary = app(BusinessSummary::class)->read(Auth::user());
+        $actor = Auth::user();
+        abort_unless($actor instanceof User, 401);
+        $summary = app(BusinessSummary::class)->read($actor);
         $active = $summary['currentPromotion'];
         $next = $summary['nextScheduled'];
 

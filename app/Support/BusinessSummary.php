@@ -18,7 +18,7 @@ use stdClass;
  * Reads owner-scoped Summary facts without authorizing or executing Visit/Reward operations.
  *
  * @phpstan-type Metrics array{active_passes: int, awarded_points: int, unlocked_rewards: int, redeemed_rewards: int}
- * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, lastPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
+ * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, lastPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, hasPromotionDraft: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
  */
 class BusinessSummary
 {
@@ -77,6 +77,7 @@ class BusinessSummary
             'lastPromotion' => $this->promotion($snapshot->last_promotion),
             'appearancePrepared' => $business->pass_background_color !== null,
             'promotionPrepared' => (bool) $snapshot->promotion_prepared,
+            'hasPromotionDraft' => (bool) $snapshot->has_promotion_draft,
             'statistics' => $currentPromotion === null ? 'waiting' : ($statisticsUnavailable ? 'unavailable' : 'available'),
             'metrics' => $snapshot->metrics === null ? null : json_decode($snapshot->metrics, true, flags: JSON_THROW_ON_ERROR),
         ];
@@ -120,6 +121,7 @@ class BusinessSummary
             active_promotion AS (SELECT * FROM phases WHERE phase = 'active' ORDER BY starts_at, id LIMIT 1)
             SELECT row_to_json(b)::text AS business, c.instant AS as_of,
                 EXISTS(SELECT 1 FROM phases) AS promotion_prepared,
+                EXISTS(SELECT 1 FROM promotions p WHERE p.business_id = b.id AND p.status = 'draft') AS has_promotion_draft,
                 (SELECT row_to_json(p)::text FROM active_promotion p) AS current_promotion,
                 (SELECT row_to_json(p)::text FROM phases p WHERE phase = 'scheduled'
                     ORDER BY starts_at, id LIMIT 1) AS next_scheduled,

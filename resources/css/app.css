@@ -39,6 +39,9 @@
     --color-app-success-surface: #263D2E;
     --color-app-success-border: #507F5E;
     --color-app-scheduled-surface: #403152;
+    --color-app-warning-ink: #E6D4AB;
+    --color-app-warning-surface: #3A3326;
+    --color-app-warning-border: #736248;
 
     --spacing-app-control: 2.75rem;
     --radius-app-control: .6875rem;
