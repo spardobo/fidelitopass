@@ -92,7 +92,7 @@ it('ignores drafts for preparation and picks the earliest scheduled and latest t
     expect($summary['hasPromotionDraft'])->toBeTrue();
 });
 
-it('loads the latest owned draft and its terms and rules in one snapshot without completing publication', function () {
+it('keeps the latest owned draft metadata outside published cards without completing publication', function () {
     summaryDatabaseTime();
     $business = Business::factory()->create();
     $attributes = ['local_start_date' => '2030-02-01', 'local_end_date' => '2030-02-28', 'target_points' => 12, 'reward_title' => 'Draft reward', 'reward_description' => 'Draft description'];
@@ -101,7 +101,6 @@ it('loads the latest owned draft and its terms and rules in one snapshot without
     $draft->forceFill(['updated_at' => '2030-01-02 00:00:00'])->save();
     $latest = $business->promotions()->create($attributes);
     $latest->forceFill(['updated_at' => '2030-01-02 00:00:00'])->save();
-    $rule = $latest->extraPoints()->create(['weekday' => 3, 'multiplier' => 5]);
     Business::factory()->create()->promotions()->create($attributes);
     $owner = $business->user;
     DB::connection()->enableQueryLog();
@@ -109,36 +108,40 @@ it('loads the latest owned draft and its terms and rules in one snapshot without
     $summary = (new BusinessSummary)->read($owner);
 
     expect($summary['draftPromotion']->id)->toBe($latest->id);
-    expect($summary['primaryPromotion']->id)->toBe($latest->id);
-    expect($summary['primaryPromotion']->phase)->toBe('draft');
-    expect($summary['primaryPromotion']->reward_description)->toBe('Draft description');
-    expect($summary['primaryPromotion']->local_start_date->format('Y-m-d'))->toBe('2030-02-01');
-    expect($summary['primaryPromotion']->extraPoints->sole()->id)->toBe($rule->id);
+    expect($summary['draftPromotion']->phase)->toBe('draft');
+    expect($summary['draftPromotion']->reward_description)->toBe('Draft description');
+    expect($summary['draftPromotion']->local_start_date->format('Y-m-d'))->toBe('2030-02-01');
+    expect($summary['primaryPromotion'])->toBeNull();
+    expect($summary['upcomingPromotion'])->toBeNull();
+    expect($summary['hasPromotionDraft'])->toBeTrue();
     expect($summary['promotionPrepared'])->toBeFalse();
     expect($summary['metrics'])->toBeNull();
     expect(DB::getQueryLog())->toHaveCount(1);
     DB::connection()->disableQueryLog();
 });
 
-it('selects primary context in active scheduled draft terminal order with preloaded rules', function () {
+it('selects only active or scheduled primary context while retaining independent preparation facts', function () {
     summaryDatabaseTime();
     $business = Business::factory()->create();
     $terminal = summaryPromotion($business, ['starts_at' => '2029-12-01 00:00:00+00', 'ends_at' => '2029-12-02 00:00:00+00']);
-    $terminal->extraPoints()->create(['weekday' => 1, 'multiplier' => 2]);
     $draft = $business->promotions()->create(['local_start_date' => '2030-02-01', 'local_end_date' => '2030-02-28', 'target_points' => 8, 'reward_title' => 'Draft']);
     $scheduled = summaryPromotion($business, ['starts_at' => '2030-01-03 00:00:00+00', 'ends_at' => '2030-01-04 00:00:00+00']);
-    $active = summaryPromotion($business);
+    $active = summaryPromotion($business, ['starts_at' => '2030-01-01 00:00:00+00']);
     $reader = new BusinessSummary;
 
     expect($reader->read($business->user)['primaryPromotion']->id)->toBe($active->id);
     $active->delete();
     expect($reader->read($business->user)['primaryPromotion']->id)->toBe($scheduled->id);
     $scheduled->delete();
-    expect($reader->read($business->user)['primaryPromotion']->id)->toBe($draft->id);
+    $summary = $reader->read($business->user);
+    expect($summary['primaryPromotion'])->toBeNull();
+    expect($summary['upcomingPromotion'])->toBeNull();
+    expect($summary['hasPromotionDraft'])->toBeTrue();
+    expect($summary['promotionPrepared'])->toBeTrue();
     $draft->delete();
     $summary = $reader->read($business->user);
-    expect($summary['primaryPromotion']->id)->toBe($terminal->id);
-    expect($summary['primaryPromotion']->extraPoints->sole()->multiplier)->toBe(2);
+    expect($summary['primaryPromotion'])->toBeNull();
+    expect($summary['lastPromotion']->id)->toBe($terminal->id);
     $terminal->delete();
     expect($reader->read($business->user)['primaryPromotion'])->toBeNull();
 });
@@ -244,6 +247,11 @@ it('preloads only the selected next Promotions frozen rules in the same statemen
     expect($summary['nextScheduled']->extraPoints->sole()->id)->toBe($rule->id);
     expect($summary['nextScheduled']->extraPoints->sole()->multiplier)->toBe(3);
     expect($summary['nextScheduled']->extraPoints->sole()->start_time)->toBe('14:00:00');
+    expect($summary['primaryPromotion']->id)->toBe($hasActive ? $active->id : $next->id);
+    expect($summary['upcomingPromotion']->id)->toBe($hasActive ? $next->id : $later->id);
+    expect($summary['upcomingPromotion']->extraPoints->sole()->multiplier)->toBe($hasActive ? 3 : 5);
+    expect($summary['statistics'])->toBe($hasActive ? 'available' : 'waiting');
+    expect($summary['metrics'] === null)->toBe(! $hasActive);
     expect(DB::getQueryLog())->toHaveCount(1);
     DB::connection()->disableQueryLog();
 })->with(['scheduled only' => false, 'active and upcoming' => true]);
@@ -254,6 +262,7 @@ it('re-evaluates scheduled active and ended phases on each fresh read', function
     $promotion = summaryPromotion($business, ['starts_at' => '2030-01-02 00:00:00+00']);
     $reader = new BusinessSummary;
     expect($reader->read($business->user)['nextScheduled']->id)->toBe($promotion->id);
+    expect($reader->read($business->user)['upcomingPromotion'])->toBeNull();
 
     summaryDatabaseTime('2030-01-02 00:00:00+00');
     expect($reader->read($business->user)['currentPromotion']->id)->toBe($promotion->id);
@@ -312,19 +321,21 @@ it('keeps fresh Promotion context on statistics outage and retries without previ
     expect($retried['metrics']['awarded_points'])->toBe(5);
 });
 
-it('reselects context after a failed aggregate attempt instead of mixing previous facts', function () {
+it('reselects chronological context after a failed aggregate attempt instead of mixing previous facts', function (string $fallbackTime, bool $becomesActive) {
     summaryDatabaseTime();
     $business = Business::factory()->create();
     $first = summaryPromotion($business);
     $replacement = summaryPromotion($business, ['starts_at' => '2030-01-03 00:00:00+00', 'ends_at' => '2030-01-04 00:00:00+00']);
+    $next = summaryPromotion($business, ['starts_at' => '2030-01-04 00:00:00+00', 'ends_at' => '2030-01-05 00:00:00+00']);
+    $next->extraPoints()->create(['weekday' => 4, 'multiplier' => 5]);
     $failed = false;
-    DB::connection()->beforeExecuting(function (string $sql) use (&$failed, $first): void {
+    DB::connection()->beforeExecuting(function (string $sql) use (&$failed, $first, $fallbackTime): void {
         if (! $failed && str_contains($sql, 'COUNT(DISTINCT')) {
             $failed = true;
             DB::table('promotions')->where('id', $first->id)->update([
                 'status' => 'cancelled', 'cancelled_at' => '2030-01-02 12:00:00+00',
             ]);
-            summaryDatabaseTime('2030-01-03 00:00:00+00');
+            summaryDatabaseTime($fallbackTime);
 
             throw new QueryException('pgsql', $sql, [], new PDOException('Statistics read cancelled', 57014));
         }
@@ -332,12 +343,18 @@ it('reselects context after a failed aggregate attempt instead of mixing previou
 
     $summary = (new BusinessSummary)->read($business->user);
 
-    expect($summary['currentPromotion']->id)->toBe($replacement->id);
+    expect($summary['currentPromotion']?->id)->toBe($becomesActive ? $replacement->id : null);
+    expect($summary['primaryPromotion']->id)->toBe($replacement->id);
+    expect($summary['upcomingPromotion']->id)->toBe($next->id);
+    expect($summary['upcomingPromotion']->extraPoints->sole()->multiplier)->toBe(5);
     expect($summary['lastPromotion']->id)->toBe($first->id);
-    expect($summary['asOf']->toIso8601String())->toBe('2030-01-03T00:00:00+00:00');
-    expect($summary['statistics'])->toBe('unavailable');
+    expect($summary['asOf']->format('Y-m-d H:i:sP'))->toBe($fallbackTime);
+    expect($summary['statistics'])->toBe($becomesActive ? 'unavailable' : 'waiting');
     expect($summary['metrics'])->toBeNull();
-});
+})->with([
+    'scheduled primary and second future after cancellation' => ['2030-01-02 12:00:00+00:00', false],
+    'scheduled becomes active at refreshed instant' => ['2030-01-03 00:00:00+00:00', true],
+]);
 
 it('propagates a context-only fallback outage without repeated reads or invented statistics', function () {
     summaryDatabaseTime();

@@ -23,8 +23,7 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
         abort_unless($actor instanceof User, 401);
         $summary = app(BusinessSummary::class)->read($actor);
         $primary = $summary['primaryPromotion'];
-        $next = $summary['nextScheduled'];
-        $upcoming = $next?->id === $primary?->id ? null : $next;
+        $upcoming = $summary['upcomingPromotion'];
         $phase = $primary?->phase ?? 'none';
         $preparation = [
             'appearance' => $summary['appearancePrepared'],
@@ -38,7 +37,6 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
             ...$summary,
             'primaryPhase' => $phase,
             'primaryPeriod' => $primary === null ? null : $this->period($primary),
-            'upcomingPromotion' => $upcoming,
             'nextPeriod' => $upcoming === null ? null : $this->period($upcoming),
             'preparation' => $preparation,
             'preparationCompleted' => count(array_filter($preparation)),
@@ -46,20 +44,13 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
     }
 
     /**
-     * Formats draft local dates as entered, or frozen published inclusive dates in their snapshot timezone.
+     * Formats frozen published inclusive dates in their snapshot timezone.
      *
-     * @param  Promotion  $promotion  Server-resolved draft, published or cancelled terms.
+     * @param  Promotion  $promotion  Server-resolved active or scheduled published terms.
      * @return string Local validity range, preserving exclusive-end calendar semantics.
      */
     private function period(Promotion $promotion): string
     {
-        if ($promotion->phase === 'draft') {
-            return __('summary.period', [
-                'start' => $promotion->local_start_date->format('d/m/Y'),
-                'end' => $promotion->local_end_date->format('d/m/Y'),
-            ]);
-        }
-
         $timezone = $promotion->timezone_snapshot;
 
         return __('summary.period', [

@@ -64,7 +64,7 @@
                 {{ __('summary.promotion') }}
             </flux:heading>
             @if ($primaryPromotion)
-                <flux:badge :color="match ($primaryPhase) { 'active' => 'green', 'scheduled' => 'blue', 'draft' => 'amber', 'cancelled' => 'red', default => null }" class="app-role-support! font-medium!">
+                <flux:badge :color="$primaryPhase === 'active' ? 'green' : 'blue'" class="app-role-support! font-medium!">
                     {{ __('business.pass.promotion_'.$primaryPhase.'_status') }}
                 </flux:badge>
             @endif
@@ -123,17 +123,13 @@
                 </div>
             </dl>
         </div>
-        @if (in_array($primaryPhase, ['draft', 'scheduled', 'ended', 'cancelled'], true))
+        @if ($primaryPhase === 'scheduled')
             <div class="app-note-with-icon text-app-ink-help">
                 <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
                     <flux:icon.information-circle variant="outline" class="size-4" />
                 </span>
                 <p class="app-role-support">
-                    @if ($primaryPhase === 'scheduled')
-                        {{ __('summary.scheduled_waiting', ['date' => $primaryPromotion->starts_at->setTimezone($primaryPromotion->timezone_snapshot)->format('d/m/Y')]) }}
-                    @else
-                        {{ __('summary.'.($primaryPhase === 'draft' ? 'promotion_draft' : 'history_description')) }}
-                    @endif
+                    {{ __('summary.scheduled_waiting', ['date' => $primaryPromotion->starts_at->setTimezone($primaryPromotion->timezone_snapshot)->format('d/m/Y')]) }}
                 </p>
             </div>
         @endif
@@ -212,7 +208,7 @@
                             <flux:icon.information-circle variant="outline" class="size-4" />
                         </span>
                         <p @if ($context === 'next-promotion') id="next-promotion-empty" @endif class="app-role-support">
-                            {{ __('summary.'.($context === 'points' ? 'points_waiting' : ($primaryPhase === 'scheduled' ? 'next_in_primary' : 'next_empty'))) }}
+                            {{ __('summary.'.($context === 'points' ? 'points_waiting' : 'next_empty')) }}
                         </p>
                     </div>
                 @elseif ($context === 'points')
