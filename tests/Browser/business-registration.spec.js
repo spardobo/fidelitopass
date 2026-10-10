@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const MAILPIT_URL = "http://fidelitopass-mailpit-dev:8025";
+const MAILPIT_URL = process.env.PLAYWRIGHT_MAILPIT_URL ?? "http://fidelitopass-mailpit-dev:8025";
 
 const VIEWPORT_HEIGHT = 800;
 const MIN_TOUCH_TARGET_SIZE = 44;
@@ -13,6 +13,7 @@ const INVALID_TIMEZONE = "Invalid/Timezone";
 const COLORS = {
     canvas: "rgb(36, 36, 36)",
     authenticatedSurface: "rgb(39, 39, 39)",
+    accountSurface: "rgb(46, 46, 46)",
     authCard: "rgb(46, 46, 46)",
     authCardBorder: "rgb(82, 82, 82)",
     controlBackground: "rgb(34, 34, 34)",
@@ -120,7 +121,18 @@ async function expectReadable(page) {
     expect(contrast(colors.heading, colors.background)).toBeGreaterThanOrEqual(4.5);
 }
 
-async function expectAuthenticatedSurface(page, surface) {
+/**
+ * Checks canvas, font, responsive bounds and the scoped surface palette.
+ * @param {import('@playwright/test').Page} page Current authenticated page.
+ * @param {string} surface CSS selector for the surface under test.
+ * @param {string} expectedColor Expected computed surface background.
+ * @returns {Promise<void>} Resolves after rendering assertions; rejects on mismatch.
+ */
+async function expectAuthenticatedSurface(
+    page,
+    surface,
+    expectedColor = COLORS.authenticatedSurface,
+) {
     const appearance = await page.evaluate((selector) => {
         const card = document.querySelector(selector);
 
@@ -139,7 +151,7 @@ async function expectAuthenticatedSurface(page, surface) {
 
     expect(appearance.canvas).toBe(COLORS.canvas);
 
-    expect(appearance.card).toBe(COLORS.authenticatedSurface);
+    expect(appearance.card).toBe(expectedColor);
 
     expect(appearance.overflow).toBe(false);
 }
@@ -544,17 +556,18 @@ for (const width of [1280, 375]) {
 
         await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
 
+        const summaryHeader = page.locator("main.app-workspace > header");
+
         await expect(
-            page.getByRole("heading", {
-                name: "Resumen",
+            summaryHeader.getByRole("heading", {
+                level: 1,
+                name: "Tu negocio, de un vistazo",
                 exact: true,
             }),
         ).toBeVisible();
 
         await expect(
-            page.getByRole("heading", {
-                name: business,
-            }),
+            summaryHeader.getByText(`${business} · Tu negocio`, { exact: true }),
         ).toBeVisible();
 
         await expectReadable(page);
@@ -563,9 +576,13 @@ for (const width of [1280, 375]) {
 
         await expectReadable(page);
 
-        await expect(page.getByText(`Zona horaria: ${DEFAULT_TIMEZONE}`)).toBeVisible();
+        await expect(page.getByText(/^Zona horaria:/)).toHaveCount(0);
 
-        await expectAuthenticatedSurface(page, "section[aria-label]");
+        await expectAuthenticatedSurface(
+            page,
+            'section[aria-labelledby="points-title"]',
+            COLORS.accountSurface,
+        );
 
         await page.screenshot({
             path: testInfo.outputPath(`app-header-dashboard-${width}.png`),
@@ -635,17 +652,18 @@ for (const width of [1280, 375]) {
         await page.reload();
 
         await expect(
-            page.getByRole("heading", {
-                name: editedBusiness,
-                exact: true,
-            }),
+            summaryHeader.getByText(`${editedBusiness} · Tu negocio`, { exact: true }),
         ).toBeVisible();
+        await expect(page.getByText(/^Zona horaria:/)).toHaveCount(0);
 
+        await menuButton.click();
+        await page.getByRole("menuitem", { name: "Perfil del negocio", exact: true }).click();
+        await expect(page).toHaveURL(/\/business\/profile(?:\?|$)/);
+        await page.reload();
         await expect(
-            page.getByText(`Zona horaria: ${EDITED_TIMEZONE}`, {
-                exact: true,
-            }),
-        ).toBeVisible();
+            page.getByRole("textbox", { name: "Nombre del negocio", exact: true }),
+        ).toHaveValue(editedBusiness);
+        await expect(page.getByLabel("Zona horaria")).toHaveValue(EDITED_TIMEZONE);
 
         await menuButton.click();
 
