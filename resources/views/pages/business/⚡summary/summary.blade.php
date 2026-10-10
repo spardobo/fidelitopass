@@ -30,42 +30,40 @@
                     {{ __('business.pass.promotion_active_status') }}
                 </flux:badge>
             </div>
-            <div class="flex items-start gap-4">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
                 <span aria-hidden="true" class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-priority-border bg-app-scheduled-surface text-app-ink-priority">
                     <flux:icon.gift variant="outline" class="size-6" />
                 </span>
-                <div class="min-w-0 flex-1 space-y-4">
-                    <div class="space-y-2">
-                        <flux:heading level="2" id="active-promotion-title" class="app-role-section! text-app-ink!">
-                            {{ $currentPromotion->reward_title }}
-                        </flux:heading>
-                        @if ($currentPromotion->reward_description)
-                            <p id="active-promotion-description" class="app-role-support! break-words text-app-ink-secondary!">
-                                {{ $currentPromotion->reward_description }}
-                            </p>
-                        @endif
-                    </div>
-                    <dl class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
-                        <div class="min-w-0 space-y-1">
-                            <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                                <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                {{ __('business.promotion.review_goal') }}
-                            </dt>
-                            <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                                {{ __('summary.points', ['count' => $currentPromotion->target_points]) }}
-                            </dd>
-                        </div>
-                        <div class="min-w-0 space-y-1">
-                            <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                                <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                {{ __('business.promotion.review_validity') }}
-                            </dt>
-                            <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                                {{ $activePeriod }}
-                            </dd>
-                        </div>
-                    </dl>
+                <div class="flex min-w-0 flex-col gap-1">
+                    <flux:heading level="2" id="active-promotion-title" class="app-role-section! text-app-ink!">
+                        {{ $currentPromotion->reward_title }}
+                    </flux:heading>
+                    @if ($currentPromotion->reward_description)
+                        <p id="active-promotion-description" class="app-role-support! break-words text-app-ink-secondary!">
+                            {{ $currentPromotion->reward_description }}
+                        </p>
+                    @endif
                 </div>
+                <dl class="col-start-2 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
+                    <div class="min-w-0 space-y-1">
+                        <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
+                            <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
+                            {{ __('business.promotion.review_goal') }}
+                        </dt>
+                        <dd class="app-role-body! break-words font-semibold! text-app-ink">
+                            {{ __('summary.points', ['count' => $currentPromotion->target_points]) }}
+                        </dd>
+                    </div>
+                    <div class="min-w-0 space-y-1">
+                        <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
+                            <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
+                            {{ __('business.promotion.review_validity') }}
+                        </dt>
+                        <dd class="app-role-body! break-words font-semibold! text-app-ink">
+                            {{ $activePeriod }}
+                        </dd>
+                    </div>
+                </dl>
             </div>
         </section>
 
@@ -192,11 +190,11 @@
                             {{ __('business.pass.promotion_scheduled_status') }}
                         </flux:badge>
                     </div>
-                    <div class="flex items-start gap-4">
+                    <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
                         <span aria-hidden="true" class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-app-priority-border bg-app-scheduled-surface text-app-ink-priority">
                             <flux:icon.gift variant="outline" class="size-5" />
                         </span>
-                        <div class="min-w-0 flex-1 space-y-4">
+                        <div class="flex min-w-0 flex-col gap-1">
                             <flux:heading level="3" class="app-role-card! text-app-ink!">
                                 {{ $nextScheduled->reward_title }}
                             </flux:heading>
@@ -205,27 +203,27 @@
                                     {{ $nextScheduled->reward_description }}
                                 </p>
                             @endif
-                            <dl class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
-                                <div class="min-w-0 space-y-1">
-                                    <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                                        <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                        {{ __('business.promotion.review_goal') }}
-                                    </dt>
-                                    <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                                        {{ __('summary.points', ['count' => $nextScheduled->target_points]) }}
-                                    </dd>
-                                </div>
-                                <div class="min-w-0 space-y-1">
-                                    <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                                        <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                        {{ __('business.promotion.review_validity') }}
-                                    </dt>
-                                    <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                                        {{ $nextPeriod }}
-                                    </dd>
-                                </div>
-                            </dl>
                         </div>
+                        <dl class="col-start-2 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
+                            <div class="min-w-0 space-y-1">
+                                <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
+                                    <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
+                                    {{ __('business.promotion.review_goal') }}
+                                </dt>
+                                <dd class="app-role-body! break-words font-semibold! text-app-ink">
+                                    {{ __('summary.points', ['count' => $nextScheduled->target_points]) }}
+                                </dd>
+                            </div>
+                            <div class="min-w-0 space-y-1">
+                                <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
+                                    <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
+                                    {{ __('business.promotion.review_validity') }}
+                                </dt>
+                                <dd class="app-role-body! break-words font-semibold! text-app-ink">
+                                    {{ $nextPeriod }}
+                                </dd>
+                            </div>
+                        </dl>
                     </div>
                     @if ($nextScheduled->extraPoints->isEmpty())
                         <p class="app-role-support! border-t border-app-line pt-3 text-app-ink-secondary">
@@ -328,11 +326,11 @@
                     {{ __('business.pass.promotion_scheduled_status') }}
                 </flux:badge>
             </div>
-            <div class="flex items-start gap-4">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
                 <span aria-hidden="true" class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-priority-border bg-app-scheduled-surface text-app-ink-priority">
                     <flux:icon.gift variant="outline" class="size-6" />
                 </span>
-                <div class="min-w-0 flex-1 space-y-4">
+                <div class="flex min-w-0 flex-col gap-1">
                     <flux:heading level="3" class="app-role-card! text-app-ink!">
                         {{ $nextScheduled->reward_title }}
                     </flux:heading>
@@ -341,27 +339,27 @@
                             {{ $nextScheduled->reward_description }}
                         </p>
                     @endif
-                    <dl class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
-                        <div class="min-w-0 space-y-1">
-                            <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                                <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                {{ __('business.promotion.review_goal') }}
-                            </dt>
-                            <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                                {{ __('summary.points', ['count' => $nextScheduled->target_points]) }}
-                            </dd>
-                        </div>
-                        <div class="min-w-0 space-y-1">
-                            <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                                <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                {{ __('business.promotion.review_validity') }}
-                            </dt>
-                            <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                                {{ $nextPeriod }}
-                            </dd>
-                        </div>
-                    </dl>
                 </div>
+                <dl class="col-start-2 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
+                    <div class="min-w-0 space-y-1">
+                        <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
+                            <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
+                            {{ __('business.promotion.review_goal') }}
+                        </dt>
+                        <dd class="app-role-body! break-words font-semibold! text-app-ink">
+                            {{ __('summary.points', ['count' => $nextScheduled->target_points]) }}
+                        </dd>
+                    </div>
+                    <div class="min-w-0 space-y-1">
+                        <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
+                            <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
+                            {{ __('business.promotion.review_validity') }}
+                        </dt>
+                        <dd class="app-role-body! break-words font-semibold! text-app-ink">
+                            {{ $nextPeriod }}
+                        </dd>
+                    </div>
+                </dl>
             </div>
             @if ($nextScheduled->extraPoints->isEmpty())
                 <p class="app-role-support! border-t border-app-line pt-3 text-app-ink-secondary">

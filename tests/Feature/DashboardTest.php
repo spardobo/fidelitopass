@@ -215,6 +215,7 @@ class DashboardTest extends TestCase
             $this->assertStringContainsString('Miércoles · 09:00–12:00', $panel->textContent);
             $this->assertStringContainsString('×5', $panel->textContent);
             $this->assertSame('Café de especialidad recién preparado.', trim($xpath->query('//p[@id="next-promotion-description"]')->item(0)?->textContent ?? ''));
+            $this->assertSame(1, $xpath->query('//p[@id="next-promotion-description"]/parent::div[h3 and not(dl)]')->length);
             $this->assertSame(1, $xpath->query('//section[@aria-labelledby="next-promotion-title" and @aria-describedby="next-promotion-description"] | //section[@aria-labelledby="next-promotion-title" and @aria-describedby="next-promotion-description scheduled-waiting"]')->length);
             $this->assertStringNotContainsString('Visita habitual', $panel->textContent);
             $this->assertStringNotContainsString('1 punto', $panel->textContent);
