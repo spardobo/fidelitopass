@@ -144,6 +144,112 @@ async function readPromotionLabelStyles(page) {
     });
 }
 
+/** Checks shared scrollbar appearance without changing the modal's scroll layout.
+ * @param {import('@playwright/test').Page} page Authenticated browser page containing the open modal.
+ * @param {import('@playwright/test').Locator} dialog Native modal dialog under inspection.
+ * @param {import('@playwright/test').Locator} body Existing keyboard-accessible modal scroll body.
+ * @param {boolean} hasTouch Whether the context uses a coarse touch pointer rather than a fine pointer.
+ * @returns {Promise<void>} Resolves when computed appearance and scrolling assertions pass; rejects on a mismatch.
+ */
+async function expectModalScrollbarAppearance(page, dialog, body, hasTouch) {
+    const accent = "rgb(167, 123, 255) rgba(0, 0, 0, 0)";
+    const hidden = "rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)";
+    const finePointer = await page.evaluate(
+        () => matchMedia("(hover: hover) and (pointer: fine)").matches,
+    );
+    expect(finePointer).toBe(!hasTouch);
+    await expect(dialog).toHaveCSS("scrollbar-width", "thin");
+    await expect(body).toHaveCSS("scrollbar-width", "thin");
+    await expect(body).toHaveCSS("overflow-y", "auto");
+    await expect(body).toHaveCSS("padding-inline-end", "8px");
+    await expect(body.locator("summary")).toHaveCSS("scrollbar-gutter", "auto");
+    await expect(page.locator("main")).toHaveCSS("scrollbar-width", "auto");
+
+    await dialog.locator("footer button").last().focus();
+    await page.mouse.move(4, 4);
+    await expect(body).toHaveCSS("scrollbar-color", hasTouch ? accent : hidden);
+
+    if (!hasTouch) {
+        await body.hover();
+        await expect(body).toHaveCSS("scrollbar-color", accent);
+        await page.mouse.move(4, 4);
+        await expect(body).toHaveCSS("scrollbar-color", hidden);
+    }
+
+    await body.focus();
+    await expect(body).toBeFocused();
+    await expect(body).toHaveCSS("scrollbar-color", accent);
+    await body.locator("summary").focus();
+    await expect(body).toHaveCSS("scrollbar-color", accent);
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(body).toHaveCSS("scrollbar-color", accent);
+    const thumbTransition = await body.evaluate(
+        (element) => getComputedStyle(element, "::-webkit-scrollbar-thumb").transitionDuration,
+    );
+    expect(thumbTransition).toBe("0s");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+
+    await body.locator("summary").click();
+    const scroll = await body.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+        return {
+            position: element.scrollTop,
+            overflow: element.scrollHeight > element.clientHeight,
+            horizontalOverflow: element.scrollWidth > element.clientWidth,
+            pageOverflow:
+                document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        };
+    });
+    expect(scroll.overflow).toBe(true);
+    expect(scroll.position).toBeGreaterThan(0);
+    expect(scroll.horizontalOverflow).toBe(false);
+    expect(scroll.pageOverflow).toBe(false);
+    await expect(dialog.locator("footer")).toBeInViewport();
+}
+
+for (const hasTouch of [false, true]) {
+    test.describe(`shared modal scrollbars with ${hasTouch ? "coarse touch" : "fine"} pointers`, () => {
+        test.use({ hasTouch, viewport: { width: 375, height: 667 } });
+
+        test("matches publication review and saved detail appearance", async ({
+            page,
+            request,
+        }) => {
+            await registerVerifiedBusiness(page, request);
+            await page.goto("/promotions/create");
+            const dates = await promotionDateCases(page);
+            await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill("Café de cortesía");
+            await page
+                .getByLabel("Detalle de la recompensa")
+                .fill("Una recompensa para compartir.");
+            await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
+            await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
+            await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+            for (const weekday of ["1", "3", "5"]) {
+                await page.getByLabel("Día", { exact: true }).selectOption(weekday);
+                await page.getByRole("button", { name: "Añadir puntos extra" }).click();
+            }
+
+            await page.getByRole("button", { name: "Publicar promoción" }).click();
+            const review = page.locator('dialog[data-modal="promotion-publication-review"]');
+            await expect(review).toBeVisible();
+            const reviewBody = review.locator('[data-test="promotion-review-scroll-body"]');
+            await expect(reviewBody).toHaveCSS("scrollbar-gutter", "stable");
+            await expectModalScrollbarAppearance(page, review, reviewBody, hasTouch);
+
+            await review.getByRole("button", { name: "Confirmar publicación" }).click();
+            await expect(page).toHaveURL(/\/pass$/);
+            await page.getByRole("button", { name: "Ver detalle", exact: true }).click();
+            const detail = page.locator('dialog[data-modal="promotion-detail"]');
+            await expect(detail).toBeVisible();
+            const detailBody = detail.locator('[data-test="promotion-detail-scroll-body"]');
+            await expect(detailBody).toHaveCSS("scrollbar-gutter", "auto");
+            await expectModalScrollbarAppearance(page, detail, detailBody, hasTouch);
+        });
+    });
+}
+
 test("isolated owner inspects frozen Promotions, history and safe cancellation", async ({
     page,
 }) => {
