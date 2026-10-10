@@ -34,7 +34,7 @@ it('distinguishes incomplete preparation from an active successfully empty Promo
 
     expect($active['currentPromotion']->id)->toBe($promotion->id);
     expect($active['statistics'])->toBe('available');
-    expect($active['metrics'])->toBe(['active_passes' => 0, 'awarded_points' => 0, 'unlocked_rewards' => 0, 'redeemed_rewards' => 0]);
+    expect($active['metrics'])->toBe(['active_passes' => 0, 'returning_passes' => 0, 'unlocked_rewards' => 0, 'redeemed_rewards' => 0]);
     expect($active['appearancePrepared'])->toBeTrue();
     expect($active['promotionPrepared'])->toBeTrue();
 });
@@ -146,7 +146,7 @@ it('selects only active or scheduled primary context while retaining independent
     expect($reader->read($business->user)['primaryPromotion'])->toBeNull();
 });
 
-it('counts accepted activity and independent entitlements without fanout or historical recomputation', function () {
+it('counts accepted activity and independent entitlements without fanout or cross-Promotion recurrence', function () {
     summaryDatabaseTime();
     $business = Business::factory()->create();
     $promotion = summaryPromotion($business);
@@ -166,18 +166,55 @@ it('counts accepted activity and independent entitlements without fanout or hist
 
     $old = summaryPromotion($business, ['starts_at' => '2029-12-01 00:00:00+00', 'ends_at' => '2029-12-02 00:00:00+00']);
     summaryVisit($old, $first, 100);
+    summaryVisit($old, $first, 1);
+    summaryVisit($old, $second, 1);
+    summaryVisit($old, $inactivePass, 1);
+    summaryVisit($old, $inactivePass, 1);
     summaryEntitlement($old, $first);
 
     $otherBusiness = Business::factory()->create();
     $foreign = summaryPromotion($otherBusiness);
     $foreignPass = CustomerPass::factory()->for($otherBusiness)->create();
     summaryVisit($foreign, $foreignPass, 200);
+    summaryVisit($foreign, $foreignPass, 1);
     summaryEntitlement($foreign, $foreignPass);
 
     $summary = (new BusinessSummary)->read($business->user);
 
-    expect($summary['metrics'])->toBe(['active_passes' => 2, 'awarded_points' => 9, 'unlocked_rewards' => 2, 'redeemed_rewards' => 1]);
+    expect($summary['metrics'])->toBe(['active_passes' => 2, 'returning_passes' => 1, 'unlocked_rewards' => 2, 'redeemed_rewards' => 1]);
 });
+
+it('counts each returning pass once from accepted same-day Visits rather than awarded points', function (array $visitCounts, int $expectedReturning) {
+    summaryDatabaseTime();
+    $business = Business::factory()->create();
+    $promotion = summaryPromotion($business);
+    foreach ($visitCounts as $visitCount) {
+        $pass = CustomerPass::factory()->for($business)->create();
+        for ($visit = 0; $visit < $visitCount; $visit++) {
+            summaryVisit($promotion, $pass, 5);
+        }
+    }
+    $owner = $business->user;
+    DB::connection()->enableQueryLog();
+
+    $summary = (new BusinessSummary)->read($owner);
+
+    $queries = DB::getQueryLog();
+    DB::connection()->disableQueryLog();
+    expect($summary['metrics'])->toBe([
+        'active_passes' => count(array_filter($visitCounts)),
+        'returning_passes' => $expectedReturning,
+        'unlocked_rewards' => 0,
+        'redeemed_rewards' => 0,
+    ]);
+    expect($queries)->toHaveCount(1);
+})->with([
+    'no accepted Visits' => [[0], 0],
+    'one x5 Visit is not a return' => [[1], 0],
+    'second Visit on the same day' => [[2], 1],
+    'third Visit does not count twice' => [[3], 1],
+    'distinct passes count only once' => [[2, 3, 1, 0], 2],
+]);
 
 it('resolves ownership freshly rather than trusting cached Business relations', function () {
     summaryDatabaseTime();
@@ -312,13 +349,15 @@ it('keeps fresh Promotion context on statistics outage and retries without previ
     $fail = false;
     $first->forceFill(['status' => 'cancelled', 'cancelled_at' => '2030-01-02 12:00:00+00'])->save();
     $replacement = summaryPromotion($business);
-    summaryVisit($replacement, CustomerPass::factory()->for($business)->create(), 5);
+    $returning = CustomerPass::factory()->for($business)->create();
+    summaryVisit($replacement, $returning, 5);
+    summaryVisit($replacement, $returning, 1);
 
     $retried = $reader->read($business->user);
 
     expect($retried['currentPromotion']->id)->toBe($replacement->id);
     expect($retried['statistics'])->toBe('available');
-    expect($retried['metrics']['awarded_points'])->toBe(5);
+    expect($retried['metrics']['returning_passes'])->toBe(1);
 });
 
 it('reselects chronological context after a failed aggregate attempt instead of mixing previous facts', function (string $fallbackTime, bool $becomesActive) {

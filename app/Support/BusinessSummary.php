@@ -18,7 +18,7 @@ use stdClass;
 /**
  * Reads owner-scoped Summary facts without authorizing or executing Visit/Reward operations.
  *
- * @phpstan-type Metrics array{active_passes: int, awarded_points: int, unlocked_rewards: int, redeemed_rewards: int}
+ * @phpstan-type Metrics array{active_passes: int, returning_passes: int, unlocked_rewards: int, redeemed_rewards: int}
  * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, draftPromotion: Promotion|null, lastPromotion: Promotion|null, primaryPromotion: Promotion|null, upcomingPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, hasPromotionDraft: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
  */
 class BusinessSummary
@@ -116,8 +116,11 @@ class BusinessSummary
             (SELECT json_build_object(
                 'active_passes', (SELECT COUNT(DISTINCT v.customer_pass_id) FROM visits v
                     WHERE v.business_id = p.business_id AND v.promotion_id = p.id),
-                'awarded_points', (SELECT COALESCE(SUM(v.awarded_points), 0) FROM visits v
-                    WHERE v.business_id = p.business_id AND v.promotion_id = p.id),
+                'returning_passes', (SELECT COUNT(*) FROM (
+                    SELECT v.customer_pass_id FROM visits v
+                    WHERE v.business_id = p.business_id AND v.promotion_id = p.id
+                    GROUP BY v.customer_pass_id HAVING COUNT(*) >= 2
+                ) returning_passes),
                 'unlocked_rewards', (SELECT COUNT(*) FROM reward_entitlements r
                     WHERE r.business_id = p.business_id AND r.promotion_id = p.id),
                 'redeemed_rewards', (SELECT COUNT(*) FROM reward_entitlements r

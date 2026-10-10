@@ -128,7 +128,7 @@ The Business dashboard shows operational information only:
 
 - Current active Promotion, or an honest waiting/scheduled state when none is active.
 - Distinct Customer passes with an accepted Visit in that active Promotion (not passes issued).
-- Sum of stored points awarded for accepted Visits in that Promotion.
+- Distinct Customer passes with at least two accepted Visits in that active Promotion, each counted once. Same-day repeat Visits count; extra points do not count as additional Visits.
 - Reward entitlements unlocked in that Promotion, including redeemed ones.
 - Reward entitlements definitively redeemed in that Promotion.
 

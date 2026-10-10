@@ -88,7 +88,7 @@ return [
         'promotions_empty' => 'Todavía no hay promociones para mostrar.',
         'active_promotion_heading' => 'Promoción activa',
         'scheduled_promotions_heading' => 'Próximas promociones (:count)',
-        'history_promotions_heading' => 'Historial de promociones (:count)',
+        'promotions_current_empty' => 'No hay promociones activas, programadas ni borradores. Consulta las anteriores en Resumen.',
         'promotion_active_status' => 'Activa',
         'promotion_scheduled_status' => 'Programada',
         'promotion_ended_status' => 'Finalizada',

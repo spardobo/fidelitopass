@@ -1,11 +1,11 @@
-@props(['detail', 'closeLabel', 'focusFallback'])
+@props(['detail', 'closeLabel', 'focusFallback', 'focusOriginPrefix' => 'promotion-detail-trigger-'])
 
 <flux:modal
     {{ $attributes }}
     name="promotion-detail"
     scroll="body"
     x-on:close="
-        const originId = 'promotion-detail-trigger-' + $wire.selectedPromotionId;
+        const originId = @js($focusOriginPrefix) + $wire.selectedPromotionId;
         $wire.dismissPromotionDetail().then(() => {
             const root = $el.closest('main');
             const origin = root.querySelector('#' + originId);

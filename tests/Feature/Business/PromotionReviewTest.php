@@ -17,7 +17,7 @@ uses(RefreshDatabase::class);
 
 it('renders supplied summary terms without a Livewire editor', function () {
     $this->blade(
-        '<x-promotion-summary :reward-title="$title" :reward-description="$description" target-points="12" start-date="02/12/2026" end-date="09/12/2026" :extra-points="$rules" />',
+        '<x-promotion-summary :reward-title="$title" :reward-description="$description" target-points="12" start-date="2026-12-02" end-date="2026-12-09" :extra-points="$rules" />',
         [
             'title' => '<script>Reward</script>',
             'description' => '<strong>Original terms</strong>',
@@ -33,8 +33,8 @@ it('renders supplied summary terms without a Livewire editor', function () {
         ->assertDontSee('<script>Reward</script>', false)
         ->assertDontSee('<strong>Original terms</strong>', false)
         ->assertSee('12 puntos')
-        ->assertSee('02/12/2026')
-        ->assertSee('09/12/2026')
+        ->assertSee('12/02/2026')
+        ->assertSee('12/09/2026')
         ->assertSee('3 configuraciones')
         ->assertSee('Lunes · Todo el día')
         ->assertSee('Miércoles · 10:00–13:00')
@@ -44,6 +44,32 @@ it('renders supplied summary terms without a Livewire editor', function () {
         ->assertSee('×5')
         ->assertDontSee('Confirmar publicación')
         ->assertDontSee('Después de publicar');
+});
+
+it('renders fixed padded calendar dates before JavaScript without truncating the year', function () {
+    $this->blade('<x-regional-date date="0099-01-02" end-date="2026-12-09" />')
+        ->assertSee('datetime="0099-01-02"', false)
+        ->assertSee('datetime="2026-12-09"', false)
+        ->assertSee('01/02/0099')
+        ->assertSee('12/09/2026');
+});
+
+it('keeps malformed editor dates available for server validation without parsing preview input', function () {
+    freezePromotionReviewClock();
+    $owner = User::factory()->create();
+    $business = Business::factory()->for($owner)->create(['pass_background_color' => '#A77BFF']);
+
+    Livewire::actingAs($owner)->test('pages::business.promotion')
+        ->set('rewardTitle', 'Café de cortesía')
+        ->set('targetPoints', '8')
+        ->set('localEndDate', '2026-11-07')
+        ->set('localStartDate', 'not-a-date')
+        ->call('reviewPublication')
+        ->assertHasErrors('localStartDate')
+        ->assertSet('localStartDate', 'not-a-date')
+        ->assertSet('localEndDate', '2026-11-07');
+
+    expect($business->promotions()->count())->toBe(0);
 });
 
 it('opens a compact publication modal over the unchanged editor without saving', function () {
@@ -76,12 +102,13 @@ it('opens a compact publication modal over the unchanged editor without saving',
         ->assertSee('Café de cortesía')
         ->assertSee('Café americano mediano')
         ->assertSee('8 puntos')
-        ->assertSee('01/11/2026')
-        ->assertSee('07/11/2026')
+        ->assertSee('datetime="2026-11-01"', false)
+        ->assertSee('11/01/2026')
+        ->assertSee('11/07/2026')
         ->assertDontSee('Zona horaria del negocio')
         ->assertDontSee('America/La_Paz')
         ->assertDontSee('1 punto por visita')
-        ->assertDontSee('La promoción comenzará el 01/11/2026.')
+        ->assertDontSee('La promoción comenzará el 11/01/2026.')
         ->assertSee('1 punto')
         ->assertSee('Martes')
         ->assertSee('3 puntos')
@@ -152,7 +179,9 @@ it('opens a compact publication modal over the unchanged editor without saving',
         expect($extraRules->hasAttribute('open'))->toBeFalse();
     }
 
-    expect($component->get('publicationReview')['starts_at'])->toBe('2026-11-01 04:00:00 UTC')
+    expect($component->get('publicationReview')['start_date'])->toBe('2026-11-01')
+        ->and($component->get('publicationReview')['end_date'])->toBe('2026-11-07')
+        ->and($component->get('publicationReview')['starts_at'])->toBe('2026-11-01 04:00:00 UTC')
         ->and($component->get('publicationReview')['ends_at'])->toBe('2026-11-08 04:00:00 UTC');
 
     expect($owner->business->promotions()->count())->toBe(0);
@@ -299,8 +328,8 @@ it('refreshes the review timezone and requires a second explicit confirmation', 
         ->assertDispatched('modal-show', name: 'promotion-publication-review')
         ->assertSet('reviewedTimezone', 'America/Los_Angeles')
         ->assertHasNoErrors()
-        ->assertSee('01/11/2026')
-        ->assertSee('07/11/2026');
+        ->assertSee('11/01/2026')
+        ->assertSee('11/07/2026');
 
     expect($component->get('publicationReview')['starts_at'])->toBe('2026-11-01 07:00:00 UTC')
         ->and($component->get('publicationReview')['ends_at'])->toBe('2026-11-08 08:00:00 UTC')
@@ -481,8 +510,8 @@ it('shows the PostgreSQL-compatible exclusive UTC boundary across a skipped loca
         ->set('localEndDate', '2018-11-04')
         ->call('reviewPublication')
         ->assertHasNoErrors()
-        ->assertSee('03/11/2018')
-        ->assertSee('04/11/2018')
+        ->assertSee('11/03/2018')
+        ->assertSee('11/04/2018')
         ->assertDontSee('2018-11-03 03:00:00 UTC')
         ->assertDontSee('2018-11-05 02:00:00 UTC');
 

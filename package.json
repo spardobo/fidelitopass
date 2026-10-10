@@ -14,7 +14,8 @@
         "test:documentation-validator": "node --test scripts/quality/documentation/validate-documentation.test.mjs",
         "test:e2e": "playwright test",
         "test:e2e:list": "playwright test --list",
-        "prepare": "husky"
+        "prepare": "husky",
+        "test:regional-dates": "node --test tests/JavaScript/regional-dates.test.mjs"
     },
     "dependencies": {
         "@fontsource-variable/onest": "^5.3.1",
