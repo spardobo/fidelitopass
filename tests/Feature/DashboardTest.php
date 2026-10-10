@@ -95,10 +95,10 @@ class DashboardTest extends TestCase
         ]);
 
         $this->actingAs($business->user)->get(route('dashboard'))
-            ->assertSeeTextInOrder(['Preparación del negocio', 'Borrador guardado', 'Todavía no hay una promoción activa'])
+            ->assertSeeTextInOrder(['Preparación del negocio', 'Borrador', 'Todavía no hay una promoción activa'])
             ->assertSee('1 de 2 completados')
             ->assertSee('Tu pase ya tiene el estilo de tu negocio.')
-            ->assertSee('Borrador guardado')
+            ->assertSee('Borrador')
             ->assertSee('Tu promoción está guardada como borrador. Publícala cuando esté lista.')
             ->assertDontSee('Borrador privado');
     }
@@ -111,7 +111,7 @@ class DashboardTest extends TestCase
             ->assertSeeTextInOrder(['Preparación del negocio', '2. Crea tu primera promoción', 'Todavía no hay una promoción activa'])
             ->assertSee('1 de 2 completados')->assertSee('Tu pase ya tiene el estilo de tu negocio.')
             ->assertSee('Elige una recompensa, los puntos necesarios y las fechas de tu promoción.')
-            ->assertDontSee('Borrador guardado')
+            ->assertDontSee('Borrador')
             ->assertDontSee('Actividad de esta promoción');
     }
 
@@ -170,12 +170,12 @@ class DashboardTest extends TestCase
         $this->assertSame('Próxima promoción', trim($xpath->query('//h2[@id="next-promotion-title"]')->item(0)?->textContent ?? ''));
         $this->assertSame('Un café de cortesía', trim($xpath->query('//section[@aria-labelledby="next-promotion-title"]//h3')->item(0)?->textContent ?? ''));
         $facts = $xpath->query('//section[@aria-labelledby="next-promotion-title"]//dl/div');
-        $this->assertSame(3, $facts->length);
-        $this->assertSame(['Meta por pase', 'Vigencia', 'Visita habitual'], array_map(
+        $this->assertSame(2, $facts->length);
+        $this->assertSame(['Meta', 'Vigencia'], array_map(
             fn (\DOMNode $node): string => trim($node->textContent),
             iterator_to_array($xpath->query('//section[@aria-labelledby="next-promotion-title"]//dt')),
         ));
-        $this->assertSame(['8 puntos', '01/10/2098 – 31/10/2098', '1 punto'], array_map(
+        $this->assertSame(['8 puntos', '01/10/2098 – 31/10/2098'], array_map(
             fn (\DOMNode $node): string => trim($node->textContent),
             iterator_to_array($xpath->query('//section[@aria-labelledby="next-promotion-title"]//dd')),
         ));
@@ -184,6 +184,9 @@ class DashboardTest extends TestCase
         $this->assertStringNotContainsString('Zona horaria', $xpath->query('//main')->item(0)->textContent);
         $this->assertStringNotContainsString('America/La_Paz', $xpath->query('//main')->item(0)->textContent);
         $this->assertSame(0, $xpath->query('//*[@id="scheduled-waiting"]//svg[not(@aria-hidden="true")]')->length);
+        $this->assertSame(0, $xpath->query('//p[@id="next-promotion-description"]')->length);
+        $this->assertSame(1, $xpath->query('//section[@aria-labelledby="next-promotion-title"]/p[normalize-space(.)="Sin puntos extra"]')->length);
+        $this->assertSame(0, $xpath->query('//section[@aria-labelledby="next-promotion-title"]/section[@aria-label="Puntos extra"]')->length);
         $this->assertSame([], $this->metricValues($response->getContent()));
     }
 
@@ -194,6 +197,7 @@ class DashboardTest extends TestCase
     {
         $business = Business::factory()->create();
         $next = $this->promotion($business, 'published', '2098-10-01 04:00:00+00', '2098-11-01 04:00:00+00');
+        $next->update(['reward_description' => 'Café de especialidad recién preparado.']);
         $next->extraPoints()->create(['weekday' => 3, 'multiplier' => 5, 'start_time' => '09:00', 'end_time' => '12:00']);
 
         foreach ([false, true] as $hasActive) {
@@ -210,8 +214,10 @@ class DashboardTest extends TestCase
 
             $this->assertStringContainsString('Miércoles · 09:00–12:00', $panel->textContent);
             $this->assertStringContainsString('×5', $panel->textContent);
-            $this->assertStringContainsString('Visita habitual', $panel->textContent);
-            $this->assertStringContainsString('1 punto', $panel->textContent);
+            $this->assertSame('Café de especialidad recién preparado.', trim($xpath->query('//p[@id="next-promotion-description"]')->item(0)?->textContent ?? ''));
+            $this->assertSame(1, $xpath->query('//section[@aria-labelledby="next-promotion-title" and @aria-describedby="next-promotion-description"] | //section[@aria-labelledby="next-promotion-title" and @aria-describedby="next-promotion-description scheduled-waiting"]')->length);
+            $this->assertStringNotContainsString('Visita habitual', $panel->textContent);
+            $this->assertStringNotContainsString('1 punto', $panel->textContent);
             $this->assertSame(1, $xpath->query('//section[@aria-labelledby="next-promotion-title"]/section[@aria-label="Puntos extra"]//ul/li')->length);
             $this->assertStringNotContainsString('Lunes', $panel->textContent);
             $this->assertStringNotContainsString('Cada visita confirmada suma 1 punto.', $panel->textContent);
@@ -229,7 +235,7 @@ class DashboardTest extends TestCase
 
         $response = $this->actingAs($business->user)->get(route('dashboard'));
 
-        $response->assertSeeTextInOrder(['Promoción activa', 'Un café de cortesía', 'Meta por pase', '8 puntos', '01/01/2020 – 31/12/2097', 'Actividad de esta promoción', 'Puntos de esta promoción', 'Visita habitual', '1 punto', 'Puntos extra', 'Martes · 14:00–17:00', '×3', 'Preparación del negocio'])
+        $response->assertSeeTextInOrder(['Promoción activa', 'Un café de cortesía', 'Meta', '8 puntos', '01/01/2020 – 31/12/2097', 'Actividad de esta promoción', 'Puntos de esta promoción', 'Visita habitual', '1 punto', 'Puntos extra', 'Martes · 14:00–17:00', '×3', 'Preparación del negocio'])
             ->assertSee('Viernes · Todo el día')
             ->assertSee('×5')
             ->assertDontSee('Cada visita confirmada suma 1 punto.')
@@ -239,7 +245,7 @@ class DashboardTest extends TestCase
         $xpath = new \DOMXPath($document);
         $this->assertSame(1, $xpath->query('//section[@aria-labelledby="active-promotion-title" and @aria-describedby="active-promotion-description"]')->length);
         $this->assertSame('Preparado al momento con café de especialidad.', trim($xpath->query('//*[@id="active-promotion-description"]')->item(0)?->textContent ?? ''));
-        $this->assertSame(['Meta por pase', 'Vigencia'], array_map(
+        $this->assertSame(['Meta', 'Vigencia'], array_map(
             fn (\DOMNode $node): string => trim($node->textContent),
             iterator_to_array($xpath->query('//section[@aria-labelledby="active-promotion-title"]//dt')),
         ));
@@ -262,7 +268,7 @@ class DashboardTest extends TestCase
 
         $response = $this->actingAs($business->user)->get(route('dashboard'));
 
-        $response->assertSeeTextInOrder(['Promoción activa', 'Actividad de esta promoción', 'Puntos de esta promoción', 'Visita habitual', '1 punto', 'Puntos extra', 'Sin puntos extra', 'Preparación del negocio'])
+        $response->assertSeeTextInOrder(['Promoción activa', 'Actividad de esta promoción', 'Puntos de esta promoción', 'Visita habitual', '1 punto', 'Sin puntos extra', 'Preparación del negocio'])
             ->assertSee('1 de 2 completados')
             ->assertSee('Dale a tu pase el estilo de tu negocio.')
             ->assertSee('Tu primera promoción ya está publicada.')
@@ -290,7 +296,7 @@ class DashboardTest extends TestCase
             ->assertSeeTextInOrder(['Preparación del negocio', 'Tu pase está listo para la próxima promoción', 'Última promoción', 'Un café de cortesía', 'Finalizada'])
             ->assertSee('2 de 2 completados')->assertSee('Última promoción')->assertSee('Finalizada')
             ->assertSee('Consulta tus promociones anteriores o prepara una nueva desde Pase.')
-            ->assertDontSee('Meta por pase')->assertDontSee('Recompensas canjeadas');
+            ->assertDontSee('Meta')->assertDontSee('Recompensas canjeadas');
 
         $promotion->forceFill(['status' => 'cancelled', 'cancelled_at' => '2020-01-10 12:00:00+00'])->save();
 
@@ -300,6 +306,38 @@ class DashboardTest extends TestCase
             ->assertSee('Tu primera promoción ya está publicada.')
             ->assertSee('Consulta tus promociones anteriores o prepara una nueva desde Pase.')
             ->assertDontSee('Finalizada')->assertDontSee('Recompensas canjeadas');
+    }
+
+    /**
+     * Uses the same public Flux phase variants as Pase and promotion details.
+     */
+    public function test_summary_reuses_promotion_phase_badge_labels_and_colors(): void
+    {
+        foreach ([
+            ['draft', '2098-10-01 04:00:00+00', '2098-11-01 04:00:00+00', 'Borrador', 'bg-amber-400/25'],
+            ['published', '2098-10-01 04:00:00+00', '2098-11-01 04:00:00+00', 'Programada', 'bg-blue-400/20'],
+            ['published', '2020-01-01 04:00:00+00', '2098-01-01 04:00:00+00', 'Activa', 'bg-green-400/20'],
+            ['published', '2020-01-01 04:00:00+00', '2020-02-01 04:00:00+00', 'Finalizada', 'bg-zinc-400/15'],
+            ['cancelled', '2020-01-01 04:00:00+00', '2020-02-01 04:00:00+00', 'Cancelada', 'bg-red-400/20'],
+        ] as [$status, $startsAt, $endsAt, $label, $colorClass]) {
+            $business = Business::factory()->create();
+            if ($status === 'draft') {
+                $business->promotions()->create(['local_start_date' => '2098-10-01', 'local_end_date' => '2098-10-31', 'target_points' => 8, 'reward_title' => 'Borrador privado']);
+            } else {
+                $promotion = $this->promotion($business, 'published', $startsAt, $endsAt);
+                if ($status === 'cancelled') {
+                    $promotion->forceFill(['status' => 'cancelled', 'cancelled_at' => '2020-01-10 12:00:00+00'])->save();
+                }
+            }
+            $response = $this->actingAs($business->user)->get(route('dashboard'));
+            $document = new \DOMDocument;
+            $document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+            $xpath = new \DOMXPath($document);
+            $badges = $xpath->query('//*[@data-flux-badge and normalize-space(.)="'.$label.'"]');
+
+            $this->assertSame(1, $badges->length, $label);
+            $this->assertContains($colorClass, explode(' ', $badges->item(0)->getAttribute('class')), $label);
+        }
     }
 
     public function test_business_authored_summary_copy_is_escaped(): void
@@ -371,7 +409,7 @@ class DashboardTest extends TestCase
         $document = new \DOMDocument;
         $document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
         $xpath = new \DOMXPath($document);
-        $this->assertSame(['12 puntos', '01/02/2098 – 28/02/2098', '1 punto'], array_map(
+        $this->assertSame(['12 puntos', '01/02/2098 – 28/02/2098'], array_map(
             fn (\DOMNode $node): string => trim($node->textContent),
             iterator_to_array($xpath->query('//section[@aria-labelledby="next-promotion-title"]//dd')),
         ));
