@@ -15,20 +15,22 @@ use Illuminate\Support\Facades\Gate;
 use stdClass;
 
 /**
- * Reads owner-scoped Summary context without authorizing or executing Visit/Reward operations.
+ * Reads owner-scoped Summary facts without authorizing or executing Visit/Reward operations.
  *
- * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, lastPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool}
+ * @phpstan-type Metrics array{active_passes: int, awarded_points: int, unlocked_rewards: int, redeemed_rewards: int}
+ * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, lastPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
  */
 class BusinessSummary
 {
     /**
-     * Re-resolves the owner's Business, Promotion phases and preparation facts on every read.
+     * Re-resolves the owner's Business, Promotion phases and aggregates on every read/retry.
      *
-     * Facts share one PostgreSQL statement snapshot and one materialized wall-clock instant.
-     * Query failures propagate; no cached or invented context is returned.
+     * Successful facts share one PostgreSQL statement snapshot and one materialized wall-clock instant.
+     * A transient aggregate failure discards that attempt entirely and reads fresh context without metrics.
+     * If even context is unavailable, the exception propagates; no cached context or zeroes are invented.
      *
      * @param  User  $actor  Authenticated owner supplied by the server, not hydrated Business/Promotion IDs.
-     * @return Summary Current owner context, frozen Promotion terms and preparation facts.
+     * @return Summary Current context and either known metrics, waiting, or explicitly unavailable statistics.
      *
      * @throws AuthorizationException When the owner is unverified or cannot access the resolved Business.
      * @throws ModelNotFoundException When the actor no longer owns a Business.
@@ -40,7 +42,20 @@ class BusinessSummary
             throw new AuthorizationException;
         }
 
-        $snapshot = $this->snapshot($actor);
+        $statisticsUnavailable = false;
+        try {
+            $snapshot = $this->snapshot($actor, true);
+        } catch (QueryException $exception) {
+            // Only availability failures degrade statistics; schema, SQL and permission defects must surface.
+            $sqlState = (string) $exception->getCode();
+            if (! str_starts_with($sqlState, '08') && ! str_starts_with($sqlState, '53')
+                && ! in_array($sqlState, ['57014', '57P01', '57P02', '57P03', '55P03'], true)) {
+                throw $exception;
+            }
+
+            $statisticsUnavailable = true;
+            $snapshot = $this->snapshot($actor, false);
+        }
 
         if ($snapshot === null) {
             throw (new ModelNotFoundException)->setModel(Business::class);
@@ -62,18 +77,34 @@ class BusinessSummary
             'lastPromotion' => $this->promotion($snapshot->last_promotion),
             'appearancePrepared' => $business->pass_background_color !== null,
             'promotionPrepared' => (bool) $snapshot->promotion_prepared,
+            'statistics' => $currentPromotion === null ? 'waiting' : ($statisticsUnavailable ? 'unavailable' : 'available'),
+            'metrics' => $snapshot->metrics === null ? null : json_decode($snapshot->metrics, true, flags: JSON_THROW_ON_ERROR),
         ];
     }
 
     /**
-     * Selects owner context and frozen terms from the authoritative PostgreSQL connection.
+     * Selects context and optional independent scalar aggregates from the authoritative connection.
      *
      * @param  User  $actor  Server-resolved owner whose persisted Business relationship scopes every subquery.
+     * @param  bool  $withMetrics  Whether to include aggregate storage, omitted only for fresh failure context.
      * @return stdClass|null One statement snapshot, or null when this owner has no Business.
      */
-    private function snapshot(User $actor): ?stdClass
+    private function snapshot(User $actor, bool $withMetrics): ?stdClass
     {
-        return DB::selectOne(<<<'SQL'
+        $metrics = $withMetrics ? <<<'SQL'
+            (SELECT json_build_object(
+                'active_passes', (SELECT COUNT(DISTINCT v.customer_pass_id) FROM visits v
+                    WHERE v.business_id = p.business_id AND v.promotion_id = p.id),
+                'awarded_points', (SELECT COALESCE(SUM(v.awarded_points), 0) FROM visits v
+                    WHERE v.business_id = p.business_id AND v.promotion_id = p.id),
+                'unlocked_rewards', (SELECT COUNT(*) FROM reward_entitlements r
+                    WHERE r.business_id = p.business_id AND r.promotion_id = p.id),
+                'redeemed_rewards', (SELECT COUNT(*) FROM reward_entitlements r
+                    WHERE r.business_id = p.business_id AND r.promotion_id = p.id AND r.redeemed_at IS NOT NULL)
+            )::text FROM active_promotion p) AS metrics
+            SQL : 'NULL::text AS metrics';
+
+        return DB::selectOne(<<<SQL
             WITH summary_clock AS MATERIALIZED (SELECT clock_timestamp() AS instant),
             owned_business AS (SELECT * FROM businesses WHERE user_id = ?),
             phases AS (
@@ -95,7 +126,8 @@ class BusinessSummary
                 (SELECT row_to_json(p)::text FROM phases p WHERE phase IN ('ended', 'cancelled')
                     ORDER BY LEAST(ends_at, cancelled_at) DESC, id DESC LIMIT 1) AS last_promotion,
                 (SELECT COALESCE(json_agg(w ORDER BY w.weekday, w.start_time, w.id), '[]'::json)::text
-                    FROM promotion_multiplier_windows w JOIN active_promotion p ON p.id = w.promotion_id) AS extra_points
+                    FROM promotion_multiplier_windows w JOIN active_promotion p ON p.id = w.promotion_id) AS extra_points,
+                {$metrics}
             FROM owned_business b CROSS JOIN summary_clock c
             SQL, [$actor->getKey()], false);
     }
