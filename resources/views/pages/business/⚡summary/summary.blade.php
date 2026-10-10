@@ -163,7 +163,7 @@
                         <span class="min-w-0">
                             {{ __('summary.'.$metric) }}
                         </span>
-                        <flux:icon :name="$icon" variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-ink-help" />
+                        <flux:icon :name="$icon" variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-ink-priority" />
                     </dt>
                     <dd class="app-role-metric">
                         {{ $statistics === 'available' ? \Illuminate\Support\Number::format($metrics[$metric], locale: app()->getLocale()) : '—' }}
