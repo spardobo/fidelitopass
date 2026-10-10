@@ -447,8 +447,8 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
         $bounds = $this->publicationUtcBounds;
 
         return [
-            'start_date' => $this->localDateBoundary($this->localStartDate, $timezone)->format('d/m/Y'),
-            'end_date' => $this->localDateBoundary($this->localEndDate, $timezone)->format('d/m/Y'),
+            'start_date' => $this->localStartDate,
+            'end_date' => $this->localEndDate,
             'timezone' => $timezone,
             'starts_at' => $bounds['starts_at'],
             'ends_at' => $bounds['ends_at'],

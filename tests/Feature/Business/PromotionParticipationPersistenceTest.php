@@ -134,9 +134,15 @@ it('rolls back participation before parent keys and reapplies without losing par
     $promotion = promotionForParticipation($pass->business);
     participationForPersistence($pass, $promotion);
     $migration = require glob(database_path('migrations/*_create_promotion_participations_table.php'))[0];
+    $visitsMigration = require database_path('migrations/2026_10_09_200000_create_visits_table.php');
+    $entitlementsMigration = require database_path('migrations/2026_10_09_200001_create_reward_entitlements_table.php');
 
+    $entitlementsMigration->down();
+    $visitsMigration->down();
     $migration->down();
     $migration->up();
+    $visitsMigration->up();
+    $entitlementsMigration->up();
 
     $this->assertModelExists($pass);
     $this->assertModelExists($promotion);

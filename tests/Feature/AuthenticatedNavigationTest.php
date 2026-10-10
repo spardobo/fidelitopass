@@ -22,14 +22,14 @@ it('renders enabled product destinations and POST logout for the authenticated o
     $xpath = new DOMXPath($document);
 
     foreach (['/pass', '/invite', '/visits/create'] as $path) {
-        $links = $xpath->query('//header//a[@href="'.url($path).'"]');
+        $links = $xpath->query('//header[@data-flux-header]//a[@href="'.url($path).'"]');
         expect($links->length)->toBe(1);
         expect($links->item(0)->hasAttribute('disabled'))->toBeFalse();
         expect($links->item(0)->getAttribute('aria-disabled'))->not->toBe('true');
     }
 
     foreach (['business.edit', 'profile.edit', 'security.edit'] as $route) {
-        expect($xpath->query('//header//a[@href="'.route($route).'"]')->length)->toBe(1);
+        expect($xpath->query('//header[@data-flux-header]//a[@href="'.route($route).'"]')->length)->toBe(1);
     }
 
     expect($xpath->query('//form[@method="POST" and @action="'.route('logout').'"]//button[@type="submit"]')->length)->toBe(1);
@@ -66,7 +66,7 @@ it('marks only the actual current shell destination', function (string $route) {
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
-    $current = $xpath->query('//header//a[@aria-current="page"]');
+    $current = $xpath->query('//header[@data-flux-header]//a[@aria-current="page"]');
 
     expect($current->length)->toBe(1);
     expect($current->item(0)->getAttribute('href'))->toBe(route($route));

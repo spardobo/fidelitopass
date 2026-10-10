@@ -20,31 +20,17 @@ function shiftCalendarDate(date, days) {
     return shifted.toISOString().slice(0, 10);
 }
 
-/** Formats the textual validity summary, omitting the first year when both dates share it.
+/** Formats validity endpoints with the fixed MM/DD/YYYY presentation.
  * @param {string} start Promotion start date in YYYY-MM-DD form, or an empty value.
  * @param {string} end Promotion end date in YYYY-MM-DD form, or an empty value.
- * @returns {string} Spanish validity summary or its unconfigured placeholder.
+ * @returns {string} Fixed-format validity summary or its unconfigured placeholder.
  */
 function expectedValidityRange(start, end) {
     if (!start || !end) return "Fechas por definir";
 
-    const includeStartYear = start.slice(0, 4) !== end.slice(0, 4);
-    /** Formats one ISO date with an optional year for the range summary.
-     * @param {string} date Date in YYYY-MM-DD form.
-     * @param {boolean} includeYear Whether to include the calendar year.
-     * @returns {string} Localized Spanish date without abbreviation punctuation.
-     */
-    const formatDate = (date, includeYear) => {
-        const [year, month, day] = date.split("-").map(Number);
-        const calendarDate = new Date(Date.UTC(year, month - 1, day));
-        const options = { day: "numeric", month: "short", timeZone: "UTC" };
-
-        if (includeYear) options.year = "numeric";
-
-        return new Intl.DateTimeFormat("es", options).format(calendarDate).replace(/\./g, "");
-    };
-
-    return `${formatDate(start, includeStartYear)} – ${formatDate(end, true)}`;
+    return [start, end]
+        .map((date) => date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3/$1"))
+        .join(" – ");
 }
 
 /** Derives stable date cases from the editor's server-provided minimum date.
@@ -158,12 +144,122 @@ async function readPromotionLabelStyles(page) {
     });
 }
 
+/** Checks shared scrollbar appearance without changing the modal's scroll layout.
+ * @param {import('@playwright/test').Page} page Authenticated browser page containing the open modal.
+ * @param {import('@playwright/test').Locator} dialog Native modal dialog under inspection.
+ * @param {import('@playwright/test').Locator} body Existing keyboard-accessible modal scroll body.
+ * @param {boolean} hasTouch Whether the context uses a coarse touch pointer rather than a fine pointer.
+ * @returns {Promise<void>} Resolves when computed appearance and scrolling assertions pass; rejects on a mismatch.
+ */
+async function expectModalScrollbarAppearance(page, dialog, body, hasTouch) {
+    const accent = "rgb(167, 123, 255) rgba(0, 0, 0, 0)";
+    const hidden = "rgba(0, 0, 0, 0) rgba(0, 0, 0, 0)";
+    const finePointer = await page.evaluate(
+        () => matchMedia("(hover: hover) and (pointer: fine)").matches,
+    );
+    expect(finePointer).toBe(!hasTouch);
+    await expect(dialog).toHaveCSS("scrollbar-width", "thin");
+    await expect(body).toHaveCSS("scrollbar-width", "thin");
+    await expect(body).toHaveCSS("overflow-y", "auto");
+    await expect(body).toHaveCSS("padding-inline-end", "8px");
+    await expect(body.locator("summary")).toHaveCSS("scrollbar-gutter", "auto");
+    await expect(page.locator("main")).toHaveCSS("scrollbar-width", "auto");
+
+    await dialog.locator("footer button").last().focus();
+    await page.mouse.move(4, 4);
+    await expect(body).toHaveCSS("scrollbar-color", hasTouch ? accent : hidden);
+
+    if (!hasTouch) {
+        await body.hover();
+        await expect(body).toHaveCSS("scrollbar-color", accent);
+        await page.mouse.move(4, 4);
+        await expect(body).toHaveCSS("scrollbar-color", hidden);
+    }
+
+    await body.focus();
+    await expect(body).toBeFocused();
+    await expect(body).toHaveCSS("scrollbar-color", accent);
+    await body.locator("summary").focus();
+    await expect(body).toHaveCSS("scrollbar-color", accent);
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(body).toHaveCSS("scrollbar-color", accent);
+    const thumbTransition = await body.evaluate(
+        (element) => getComputedStyle(element, "::-webkit-scrollbar-thumb").transitionDuration,
+    );
+    expect(thumbTransition).toBe("0s");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+
+    await body.locator("summary").click();
+    const scroll = await body.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+        return {
+            position: element.scrollTop,
+            overflow: element.scrollHeight > element.clientHeight,
+            horizontalOverflow: element.scrollWidth > element.clientWidth,
+            pageOverflow:
+                document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        };
+    });
+    expect(scroll.overflow).toBe(true);
+    expect(scroll.position).toBeGreaterThan(0);
+    expect(scroll.horizontalOverflow).toBe(false);
+    expect(scroll.pageOverflow).toBe(false);
+    await expect(dialog.locator("footer")).toBeInViewport();
+}
+
+for (const hasTouch of [false, true]) {
+    test.describe(`shared modal scrollbars with ${hasTouch ? "coarse touch" : "fine"} pointers`, () => {
+        test.use({ hasTouch, viewport: { width: 375, height: 667 } });
+
+        test("matches publication review and saved detail appearance", async ({
+            page,
+            request,
+        }) => {
+            await registerVerifiedBusiness(page, request);
+            await page.goto("/promotions/create");
+            const dates = await promotionDateCases(page);
+            await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill("Café de cortesía");
+            await page
+                .getByLabel("Detalle de la recompensa")
+                .fill("Una recompensa para compartir.");
+            await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
+            await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
+            await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+            for (const weekday of ["1", "3", "5"]) {
+                await page.getByLabel("Día", { exact: true }).selectOption(weekday);
+                await page.getByRole("button", { name: "Añadir puntos extra" }).click();
+            }
+
+            await page.getByRole("button", { name: "Publicar promoción" }).click();
+            const review = page.locator('dialog[data-modal="promotion-publication-review"]');
+            await expect(review).toBeVisible();
+            const reviewBody = review.locator('[data-test="promotion-review-scroll-body"]');
+            await expect(reviewBody).toHaveCSS("scrollbar-gutter", "stable");
+            await expectModalScrollbarAppearance(page, review, reviewBody, hasTouch);
+
+            await review.getByRole("button", { name: "Confirmar publicación" }).click();
+            await expect(page).toHaveURL(/\/pass$/);
+            await page.getByRole("button", { name: "Ver detalle", exact: true }).click();
+            const detail = page.locator('dialog[data-modal="promotion-detail"]');
+            await expect(detail).toBeVisible();
+            const detailBody = detail.locator('[data-test="promotion-detail-scroll-body"]');
+            await expect(detailBody).toHaveCSS("scrollbar-gutter", "auto");
+            await expectModalScrollbarAppearance(page, detail, detailBody, hasTouch);
+        });
+    });
+}
+
 test("isolated owner inspects frozen Promotions, history and safe cancellation", async ({
     page,
 }) => {
     test.skip(!process.env.PLAYWRIGHT_PROMOTION_FIXTURE, "Requires the isolated Promotion runner");
     test.setTimeout(90_000);
     const fixture = JSON.parse(process.env.PLAYWRIGHT_PROMOTION_FIXTURE);
+    const originalValidity = expectedValidityRange(
+        fixture.startDate.split("/").reverse().join("-"),
+        fixture.endDate.split("/").reverse().join("-"),
+    );
     const consoleErrors = [];
     page.on("pageerror", (error) => consoleErrors.push(error.message));
 
@@ -176,18 +272,16 @@ test("isolated owner inspects frozen Promotions, history and safe cancellation",
     await expectPassNavigationToBeActive(page);
     await page.evaluate(() => document.fonts.ready);
 
-    const history = page.locator('details[wire\\:key="promotion-history-disclosure"]');
+    const history = page.locator('section[aria-labelledby="promotion-history-heading"]');
     const scheduled = page.locator('details[wire\\:key="scheduled-promotions-disclosure"]');
     const drafts = page.locator('details[wire\\:key="promotion-drafts-disclosure"]');
     const dialog = page.locator('dialog[data-modal="promotion-detail"]');
     const activeOpener = page.locator(`#promotion-detail-trigger-${fixture.promotions.Activa}`);
-    await expect(history).not.toHaveAttribute("open", "");
+    await expect(history).toHaveCount(0);
     await activeOpener.click();
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Activa", exact: true })).toBeVisible();
-    await expect(dialog.locator("dd").nth(1)).toContainText(
-        `${fixture.startDate} – ${fixture.endDate}`,
-    );
+    await expect(dialog.locator("dd").nth(1)).toContainText(originalValidity);
     await expect(dialog.locator("input, textarea, select")).toHaveCount(0);
     await expect(dialog.locator("header > span")).toHaveCSS("width", "64px");
     await expect(dialog.locator("header > span > svg")).toHaveCSS("width", "36px");
@@ -233,10 +327,14 @@ test("isolated owner inspects frozen Promotions, history and safe cancellation",
     for (const [title, phase] of [
         ["Activa", "active"],
         ["Programada 1", "scheduled"],
-        ["Finalizada 1", "ended"],
+        ["Finalizada 2", "ended"],
         ["Cancelada 1", "cancelled"],
     ]) {
-        if (phase === "ended") await history.locator("summary").click();
+        if (phase === "ended") {
+            await page.goto("/dashboard");
+            await expect(history).toBeVisible();
+            await expect(history.locator("details")).toHaveCount(0);
+        }
         const row = page.locator(`[data-promotion-public-id="${fixture.promotions[title]}"]`);
         const listBadge = row.locator("[data-flux-badge]");
         badgeColors[phase] = await listBadge.evaluate(
@@ -260,13 +358,13 @@ test("isolated owner inspects frozen Promotions, history and safe cancellation",
         await expect(row.getByRole("button", { name: "Ver detalle" })).toBeFocused();
     }
     expect(new Set(Object.values(badgeColors)).size).toBe(4);
-    await expect(history.locator("li h4")).toHaveText([
-        "Finalizada 1",
-        "Finalizada 2",
+    await expect(history.locator("li h3")).toHaveText([
+        "Cancelada 2",
         "Cancelada 1",
+        "Finalizada 2",
     ]);
     const historicalRow = history.locator("li").first();
-    await expect(historicalRow.locator("h4")).toHaveCSS("font-size", "14px");
+    await expect(historicalRow.locator("h3")).toHaveCSS("font-size", "14px");
     await expect(historicalRow.locator("p")).toHaveCSS("font-size", "14px");
     await expect(historicalRow.locator("[data-flux-badge]")).toHaveCSS("font-size", "12px");
     await expect(historicalRow).not.toContainText("Condiciones originales");
@@ -288,7 +386,30 @@ test("isolated owner inspects frozen Promotions, history and safe cancellation",
     await page.mouse.up();
 
     await history.getByRole("button", { name: /Siguiente/ }).click();
-    await expect(history.locator("li h4")).toHaveText(["Cancelada 2"]);
+    await expect(history.locator("li h3")).toHaveText(["Finalizada 1"]);
+    const historicalOpener = history.getByRole("button", { name: "Ver detalle" });
+    await historicalOpener.click();
+    await expect(
+        dialog.getByRole("button", { name: "Cancelar promoción", exact: true }),
+    ).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Volver al resumen" }).click();
+    await expect(historicalOpener).toBeFocused();
+    await expect(history.locator("li h3")).toHaveText(["Finalizada 1"]);
+    await historicalOpener.click();
+    await page.evaluate(async () => {
+        const componentId = document.querySelector("main[wire\\:id]").getAttribute("wire:id");
+        await Livewire.find(componentId).setPage(1, "historyPage");
+    });
+    await dialog.getByRole("button", { name: "Volver al resumen" }).click();
+    await expect(page.locator("#promotion-title")).toBeFocused();
+    await expect(history.locator("li h3")).toHaveText([
+        "Cancelada 2",
+        "Cancelada 1",
+        "Finalizada 2",
+    ]);
+
+    await page.goto("/pass");
+    await expect(history).toHaveCount(0);
     await expect(scheduled.locator("li h4")).toHaveText([
         "Programada 1",
         "Programada 2",
@@ -296,13 +417,10 @@ test("isolated owner inspects frozen Promotions, history and safe cancellation",
     ]);
     await scheduled.getByRole("button", { name: /Siguiente/ }).click();
     await expect(scheduled.locator("li h4")).toHaveText(["Programada 4"]);
-    await expect(history.locator("li h4")).toHaveText(["Cancelada 2"]);
     await drafts.getByRole("button", { name: /Siguiente/ }).click();
     await expect(drafts.locator("li h3")).toHaveText(["Borrador 4"]);
     await expect(scheduled.locator("li h4")).toHaveText(["Programada 4"]);
-    await history.locator("summary").click();
     await scheduled.getByRole("button", { name: /Anterior/ }).click();
-    await expect(history).not.toHaveAttribute("open", "");
     await expect(drafts.locator("li h3")).toHaveText(["Borrador 4"]);
 
     await page.goto("/pass");
@@ -338,13 +456,11 @@ test("isolated owner inspects frozen Promotions, history and safe cancellation",
         "cancelled",
     );
     await expect(dialog.getByRole("heading", { name: "Activa", exact: true })).toBeVisible();
-    await expect(dialog.locator("dd").nth(1)).toContainText(
-        `${fixture.startDate} – ${fixture.endDate}`,
-    );
+    await expect(dialog.locator("dd").nth(1)).toContainText(originalValidity);
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await expect(page.locator("#promotions-heading")).toBeFocused();
-    await expect(history).not.toHaveAttribute("open", "");
+    await expect(history).toHaveCount(0);
 
     // a second authenticated tab cancels after the first has armed its confirmation.
     await page.setViewportSize({ width: 1440, height: 1000 });

@@ -4,8 +4,8 @@ use App\Actions\Promotions\CancelPromotion;
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
-use App\Models\PromotionMultiplierWindow;
 use App\Support\DatabaseClock;
+use App\Support\PromotionDetail;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -260,7 +260,6 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
         }
 
         unset($this->promotionDetail, $this->currentPromotionListings);
-        $this->resetPage('historyPage');
         Flux::toast(__('business.pass.promotion_cancelled_notice'), null, 5000, 'success');
         $this->dispatch('promotion-cancellation-focus', target: 'promotion-detail-heading');
     }
@@ -296,37 +295,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
             return null;
         }
 
-        abort_unless(Str::isUuid($this->selectedPromotionId), 404);
-        $business = $this->authorizedBusiness();
-        $promotion = $business->promotions()
-            ->where('public_id', $this->selectedPromotionId)
-            ->whereIn('status', [PromotionStatus::Published->value, PromotionStatus::Cancelled->value])
-            ->with(['extraPoints' => fn ($query) => $query->orderBy('weekday')->orderBy('start_time')->orderBy('id')])
-            ->first();
-        abort_if($promotion === null, 404);
-
-        $instant = CarbonImmutable::parse(
-            app(DatabaseClock::class)->captureForBusinessTimezone($business->timezone)['instant'],
-        );
-        $phase = match (true) {
-            $promotion->status === PromotionStatus::Cancelled => 'cancelled',
-            $instant->lessThan($promotion->starts_at) => 'scheduled',
-            $instant->greaterThanOrEqualTo($promotion->ends_at) => 'ended',
-            default => 'active',
-        };
-
-        return [
-            'promotion' => $promotion,
-            'phase' => $phase,
-            'start_date' => $promotion->starts_at->setTimezone($promotion->timezone_snapshot)->format('d/m/Y'),
-            'end_date' => $promotion->ends_at->setTimezone($promotion->timezone_snapshot)->subDay()->format('d/m/Y'),
-            'extra_points' => $promotion->extraPoints->map(fn (PromotionMultiplierWindow $rule): array => [
-                'weekday' => $rule->weekday,
-                'start_time' => $rule->start_time === null ? null : substr($rule->start_time, 0, 5),
-                'end_time' => $rule->end_time === null ? null : substr($rule->end_time, 0, 5),
-                'multiplier' => $rule->multiplier,
-            ])->all(),
-        ];
+        return app(PromotionDetail::class)->read(Auth::user(), $this->selectedPromotionId);
     }
 
     #[Computed]
@@ -399,14 +368,14 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Returns owned active, scheduled and historical Promotions with independent pagination.
-     * Captures one database instant so every lifecycle group shares the same boundary.
+     * Returns owned active and scheduled Promotions with a separate Promotion-existence fact.
+     * Captures one database instant for current publication boundaries.
      *
      * @return array{
-     *     active: array{promotion: Promotion, period: string}|null,
-     *     scheduled: LengthAwarePaginator<int, array{promotion: Promotion, period: string}>,
-     *     history: LengthAwarePaginator<int, array{promotion: Promotion, period: string, phase: string}>
-     * } Published and cancelled rows with inclusive dates in their frozen publication timezone.
+     *     active: array{promotion: Promotion, period: array{start: string, end: string}}|null,
+     *     scheduled: LengthAwarePaginator<int, array{promotion: Promotion, period: array{start: string, end: string}}>,
+     *     hasPromotions: bool
+     * } Current publications with frozen inclusive dates and whether any Promotion exists.
      *
      * @throws AuthorizationException When the actor cannot update the Business.
      * @throws ModelNotFoundException When the actor has no Business.
@@ -427,13 +396,15 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
             ->orderBy('id')
             ->first();
 
-        $formatPeriod = static function (Promotion $promotion): string {
+        $calendarPeriod = static function (Promotion $promotion): array {
             $timezone = $promotion->timezone_snapshot;
-            $start = $promotion->starts_at->setTimezone($timezone)->format('d/m/Y');
-            $end = $promotion->ends_at->setTimezone($timezone)->subDay()->format('d/m/Y');
 
-            return __('business.pass.promotion_published_period', ['start' => $start, 'end' => $end]);
+            return [
+                'start' => $promotion->starts_at->setTimezone($timezone)->format('Y-m-d'),
+                'end' => $promotion->ends_at->setTimezone($timezone)->subDay()->format('Y-m-d'),
+            ];
         };
+
         $scheduled = $business->promotions()
             ->where('status', PromotionStatus::Published->value)
             ->where('starts_at', '>', $instant)
@@ -442,31 +413,16 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
             ->paginate(3, ['*'], 'scheduledPage')
             ->through(fn (Promotion $promotion): array => [
                 'promotion' => $promotion,
-                'period' => $formatPeriod($promotion),
-            ]);
-        $history = $business->promotions()
-            ->where(function ($query) use ($instant): void {
-                $query->where('status', PromotionStatus::Cancelled->value)
-                    ->orWhere(fn ($published) => $published
-                        ->where('status', PromotionStatus::Published->value)
-                        ->where('ends_at', '<=', $instant));
-            })
-            ->orderBy('starts_at')
-            ->orderBy('id')
-            ->paginate(3, ['*'], 'historyPage')
-            ->through(fn (Promotion $promotion): array => [
-                'promotion' => $promotion,
-                'period' => $formatPeriod($promotion),
-                'phase' => $promotion->status === PromotionStatus::Cancelled ? 'cancelled' : 'ended',
+                'period' => $calendarPeriod($promotion),
             ]);
 
         return [
             'active' => $activePromotion === null ? null : [
                 'promotion' => $activePromotion,
-                'period' => $formatPeriod($activePromotion),
+                'period' => $calendarPeriod($activePromotion),
             ],
             'scheduled' => $scheduled,
-            'history' => $history,
+            'hasPromotions' => $business->promotions()->exists(),
         ];
     }
 
