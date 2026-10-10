@@ -383,7 +383,7 @@ it('shows promotion creation navigation only after the appearance is saved', fun
         ->assertSee(__('business.pass.create_first_promotion'))
         ->assertSee('/promotions/create', false)
         ->assertSee(__('business.pass.invite_customers'))
-        ->assertSee('/pass/invite', false);
+        ->assertSee(route('business.invite'), false);
 });
 
 it('leaves an unset appearance unset when the editor is cancelled', function () {
