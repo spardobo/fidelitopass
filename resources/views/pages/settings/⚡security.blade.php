@@ -2,6 +2,9 @@
 
 use App\Concerns\PasswordValidationRules;
 use Flux\Flux;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
@@ -14,8 +17,10 @@ use Livewire\Attributes\Locked;
 /* @chisel-2fa */
 use Livewire\Attributes\On;
 /* @end-chisel-2fa */
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 new #[Title('Security settings')] class extends Component
 {
@@ -91,19 +96,41 @@ new #[Title('Security settings')] class extends Component
                 'current_password' => $this->currentPasswordRules(),
                 'password' => $this->passwordRules(),
             ]);
-        } catch (ValidationException $e) {
+
+            Auth::user()->update([
+                'password' => $validated['password'],
+            ]);
+        } catch (ValidationException $exception) {
             $this->reset('current_password', 'password', 'password_confirmation');
 
-            throw $e;
-        }
+            Flux::toast(variant: 'danger', text: __('account-feedback.validation'));
 
-        Auth::user()->update([
-            'password' => $validated['password'],
-        ]);
+            throw $exception;
+        } catch (AuthorizationException|AuthenticationException|ModelNotFoundException|HttpExceptionInterface $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->reset('current_password', 'password', 'password_confirmation');
+
+            report($exception);
+            Flux::toast(variant: 'danger', text: __('account-feedback.unexpected'));
+
+            return;
+        }
 
         $this->reset('current_password', 'password', 'password_confirmation');
 
         Flux::toast(variant: 'success', text: __('Password updated.'));
+    }
+
+    /**
+     * Returns the persisted Business name without reading editable form state.
+     *
+     * @return string|null Saved Business name, or null when the account has no Business.
+     */
+    #[Computed]
+    public function businessName(): ?string
+    {
+        return Auth::user()->business()->value('name');
     }
 
     /* @chisel-passkeys */
@@ -188,21 +215,27 @@ new #[Title('Security settings')] class extends Component
     /* @end-chisel-2fa */
 }; ?>
 
-<section class="w-full">
-    @include('partials.settings-heading')
+<section class="app-theme app-workspace">
+    @include('partials.settings-heading', ['businessName' => $this->businessName])
 
     <flux:heading level="2" class="sr-only">{{ __('Security settings') }}</flux:heading>
 
     <x-pages::settings.layout :heading="__('Update password')" :subheading="__('Ensure your account is using a long, random password to stay secure')">
-        <form method="POST" wire:submit="updatePassword" class="mt-6 space-y-6">
+        <form method="POST" wire:submit="updatePassword" novalidate class="mt-6 space-y-6">
             <flux:input
                 wire:model="current_password"
                 :label="__('Current password')"
                 type="password"
                 required
                 autocomplete="current-password"
-                viewable
-            />
+                class:input="app-input-password"
+                label:class="app-label"
+                error:class="app-error"
+            >
+                <x-slot name="iconTrailing">
+                    <flux:input.viewable class="app-button-toggle" />
+                </x-slot>
+            </flux:input>
             <flux:input
                 wire:model="password"
                 :label="__('New password')"
@@ -210,8 +243,14 @@ new #[Title('Security settings')] class extends Component
                 required
                 autocomplete="new-password"
                 passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
-                viewable
-            />
+                class:input="app-input-password"
+                label:class="app-label"
+                error:class="app-error"
+            >
+                <x-slot name="iconTrailing">
+                    <flux:input.viewable class="app-button-toggle" />
+                </x-slot>
+            </flux:input>
             <flux:input
                 wire:model="password_confirmation"
                 :label="__('Confirm password')"
@@ -219,11 +258,17 @@ new #[Title('Security settings')] class extends Component
                 required
                 autocomplete="new-password"
                 passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
-                viewable
-            />
+                class:input="app-input-password"
+                label:class="app-label"
+                error:class="app-error"
+            >
+                <x-slot name="iconTrailing">
+                    <flux:input.viewable class="app-button-toggle" />
+                </x-slot>
+            </flux:input>
 
-            <div class="flex items-center gap-4">
-                <flux:button variant="primary" type="submit" data-test="update-password-button">
+            <div class="flex items-center justify-end gap-4">
+                <flux:button variant="primary" type="submit" data-test="update-password-button" class="app-button-primary">
                     {{ __('Save') }}
                 </flux:button>
             </div>

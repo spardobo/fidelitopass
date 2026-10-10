@@ -2,14 +2,18 @@
 
 use App\Concerns\ProfileValidationRules;
 use Flux\Flux;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 /* @chisel-email-verification */
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 /* @end-chisel-email-verification */
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Session;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 new #[Title('Profile settings')] class extends Component
 {
@@ -35,17 +39,41 @@ new #[Title('Profile settings')] class extends Component
     {
         $user = Auth::user();
 
-        $validated = $this->validate($this->profileRules($user->id));
+        try {
+            $validated = $this->validate($this->profileRules($user->id));
 
-        $user->fill($validated);
+            $user->fill($validated);
 
-        if ($user->isDirty('email')) {
-            $user->email_verified_at = null;
+            if ($user->isDirty('email')) {
+                $user->email_verified_at = null;
+            }
+
+            $user->save();
+        } catch (ValidationException $exception) {
+            Flux::toast(variant: 'danger', text: __('account-feedback.validation'));
+
+            throw $exception;
+        } catch (AuthorizationException|AuthenticationException|ModelNotFoundException|HttpExceptionInterface $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            report($exception);
+            Flux::toast(variant: 'danger', text: __('account-feedback.unexpected'));
+
+            return;
         }
 
-        $user->save();
-
         Flux::toast(variant: 'success', text: __('Profile updated.'));
+    }
+
+    /**
+     * Returns the persisted Business name without reading editable form state.
+     *
+     * @return string|null Saved Business name, or null when the account has no Business.
+     */
+    #[Computed]
+    public function businessName(): ?string
+    {
+        return Auth::user()->business()->value('name');
     }
 
     /* @chisel-email-verification */
@@ -62,9 +90,22 @@ new #[Title('Profile settings')] class extends Component
             return;
         }
 
-        $user->sendEmailVerificationNotification();
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (ValidationException $exception) {
+            Flux::toast(variant: 'danger', text: __('account-feedback.validation'));
 
-        Session::flash('status', 'verification-link-sent');
+            throw $exception;
+        } catch (AuthorizationException|AuthenticationException|ModelNotFoundException|HttpExceptionInterface $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            report($exception);
+            Flux::toast(variant: 'danger', text: __('account-feedback.unexpected'));
+
+            return;
+        }
+
+        Flux::toast(variant: 'success', text: __('A new verification link has been sent to your email address.'));
     }
 
     #[Computed]
@@ -82,46 +123,62 @@ new #[Title('Profile settings')] class extends Component
     /* @end-chisel-email-verification */
 }; ?>
 
-<section class="w-full">
-    @include('partials.settings-heading')
+<section class="app-theme app-workspace">
+    @include('partials.settings-heading', ['businessName' => $this->businessName])
 
     <flux:heading level="2" class="sr-only">{{ __('Profile settings') }}</flux:heading>
 
     <x-pages::settings.layout :heading="__('Profile')" :subheading="__('Update your name and email address')">
-        <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
-            <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
+        <form wire:submit="updateProfileInformation" novalidate class="my-6 w-full space-y-6">
+            <flux:input
+                wire:model="name"
+                :label="__('Name')"
+                type="text"
+                required
+                autofocus
+                autocomplete="name"
+                class:input="app-input"
+                label:class="app-label"
+                error:class="app-error"
+            />
 
             <div>
-                <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" />
+                <flux:input
+                    wire:model="email"
+                    :label="__('Email')"
+                    type="email"
+                    required
+                    autocomplete="email"
+                    class:input="app-input"
+                    label:class="app-label"
+                    error:class="app-error"
+                />
 
                 {{-- @chisel-email-verification --}}
                 @if ($this->hasUnverifiedEmail)
                     <div>
-                        <flux:text class="mt-4">
-                            {{ __('Your email address is unverified.') }}
+                        <flux:text class="app-note-with-icon app-role-support! text-app-ink-help! mt-4">
+                            <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
+                                <flux:icon.information-circle variant="outline" class="size-4" />
+                            </span>
+                            <span>
+                                {{ __('Your email address is unverified.') }}
 
-                            <flux:link class="text-sm cursor-pointer" wire:click.prevent="resendVerificationNotification">
-                                {{ __('Click here to re-send the verification email.') }}
-                            </flux:link>
+                                <flux:button variant="ghost" wire:click.prevent="resendVerificationNotification" class="app-button text-app-accent-text! underline underline-offset-4">
+                                    {{ __('Click here to re-send the verification email.') }}
+                                </flux:button>
+                            </span>
                         </flux:text>
 
-                        @if (session('status') === 'verification-link-sent')
-                            <flux:text class="mt-2 font-medium !dark:text-green-400 !text-green-600">
-                                {{ __('A new verification link has been sent to your email address.') }}
-                            </flux:text>
-                        @endif
                     </div>
                 @endif
                 {{-- @end-chisel-email-verification --}}
             </div>
 
-            <div class="flex items-center gap-4">
-                <div class="flex items-center justify-end">
-                    <flux:button variant="primary" type="submit" class="w-full" data-test="update-profile-button">
-                        {{ __('Save') }}
-                    </flux:button>
-                </div>
-
+            <div class="flex items-center justify-end gap-4">
+                <flux:button variant="primary" type="submit" data-test="update-profile-button" class="app-button-primary">
+                    {{ __('Save') }}
+                </flux:button>
             </div>
         </form>
 
