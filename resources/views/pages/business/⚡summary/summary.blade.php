@@ -17,7 +17,7 @@
                     {{ __('summary.preparation_pending') }}
                 </flux:badge>
             @endif
-            <flux:button :href="route('business.pass')" icon="credit-card" icon:variant="outline" wire:navigate class="app-button-secondary shrink-0">
+            <flux:button :href="route('business.pass')" icon:trailing="arrow-right" icon:variant="outline" wire:navigate variant="primary" class="app-button-primary shrink-0">
                 {{ __('summary.go_to_pass') }}
             </flux:button>
         </div>
@@ -59,87 +59,18 @@
             'border-app-border bg-app-surface' => $primaryPhase !== 'active',
         ])
     >
-        <div class="flex flex-wrap items-center gap-3">
-            <flux:heading level="2" id="promotion-title" tabindex="-1" class="app-role-section! text-app-ink!">
-                {{ __('summary.promotion') }}
-            </flux:heading>
-            @if ($primaryPromotion)
-                <flux:badge :color="$primaryPhase === 'active' ? 'green' : 'blue'" class="app-role-support! font-medium!">
-                    {{ __('business.pass.promotion_'.$primaryPhase.'_status') }}
-                </flux:badge>
-            @endif
-        </div>
-        <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
-            <span aria-hidden="true" @class([
-                'flex size-12 shrink-0 items-center justify-center rounded-xl border',
-                'border-app-priority-border bg-app-scheduled-surface text-app-ink-priority' => $primaryPromotion !== null,
-                'border-app-border text-app-ink-secondary' => $primaryPromotion === null,
-            ])>
-                <flux:icon :name="$primaryPromotion ? 'gift' : 'megaphone'" variant="outline" class="size-6" />
-            </span>
-            <div class="flex min-w-0 flex-col gap-1">
-                @if ($primaryPromotion)
-                    <flux:heading level="3" class="app-role-card! text-app-ink!">
-                        {{ $primaryPromotion->reward_title }}
-                    </flux:heading>
-                @else
-                    <p class="app-role-body font-medium text-app-ink">
-                        {{ __('summary.waiting') }}
-                    </p>
-                @endif
-                @if ($primaryPromotion?->reward_description)
-                    <p id="promotion-description" class="app-role-support! break-words text-app-ink-secondary!">
-                        {{ $primaryPromotion->reward_description }}
-                    </p>
-                @elseif (! $primaryPromotion)
-                    <div class="app-note-with-icon text-app-ink-help">
-                        <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
-                            <flux:icon.information-circle variant="outline" class="size-4" />
-                        </span>
-                        <p id="promotion-description" class="app-role-support">
-                            {{ __('summary.waiting_description') }}
-                        </p>
-                    </div>
-                @endif
-            </div>
-            <dl class="col-start-2 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
-                <div class="min-w-0 space-y-1">
-                    <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                        <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                        {{ __('business.promotion.review_goal') }}
-                    </dt>
-                    <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                        {{ $primaryPromotion ? __('summary.points', ['count' => $primaryPromotion->target_points]) : '—' }}
-                    </dd>
-                </div>
-                <div class="min-w-0 space-y-1">
-                    <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                        <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                        {{ __('business.promotion.review_validity') }}
-                    </dt>
-                    <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                        {{ $primaryPeriod ?? '—' }}
-                    </dd>
-                </div>
-            </dl>
-        </div>
-        @if ($primaryPromotion)
-            <flux:button
-                id="promotion-detail-trigger-{{ $primaryPromotion->public_id }}" type="button"
-                wire:click="showPromotionDetail('{{ $primaryPromotion->public_id }}')"
-                wire:loading.attr="disabled" wire:target="showPromotionDetail"
-                variant="filled" class="app-button-secondary min-h-11 w-full sm:w-auto"
-            >
-                {{ __('business.pass.view_promotion_detail') }}
-            </flux:button>
-        @endif
+        <x-summary-promotion-card :promotion="$primaryPromotion" :period="$primaryPeriod" :phase="$primaryPhase" />
         @if ($primaryPhase === 'scheduled')
             <div class="app-note-with-icon text-app-ink-help">
                 <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
                     <flux:icon.information-circle variant="outline" class="size-4" />
                 </span>
-                <p class="app-role-support">
-                    {{ __('summary.scheduled_waiting', ['date' => $primaryPromotion->starts_at->setTimezone($primaryPromotion->timezone_snapshot)->format('d/m/Y')]) }}
+                <p
+                    x-data x-text="@js(__('summary.scheduled_waiting')).replace(':date', $regionalDates.date(@js($primaryPeriod['start'])))"
+                    class="app-role-support"
+                >
+                    @php($waitingText = explode(':date', __('summary.scheduled_waiting'), 2))
+                    {{ $waitingText[0] }}<x-regional-date :date="$primaryPeriod['start']" />{{ $waitingText[1] }}
                 </p>
             </div>
         @endif
@@ -163,7 +94,7 @@
             @if ($statistics === 'unavailable') aria-describedby="summary-error summary-recovery" @endif
             class="grid grid-cols-1 gap-4 [@media(width>36rem)]:grid-cols-2 [@media(width>64rem)]:grid-cols-4"
         >
-            @foreach (['active_passes' => 'credit-card', 'awarded_points' => 'star', 'unlocked_rewards' => 'gift', 'redeemed_rewards' => 'check-badge'] as $metric => $icon)
+            @foreach (['active_passes' => 'credit-card', 'returning_passes' => 'arrow-path-rounded-square', 'unlocked_rewards' => 'gift', 'redeemed_rewards' => 'check-badge'] as $metric => $icon)
                 <div wire:key="summary-metric-{{ $metric }}" class="flex min-w-0 flex-col gap-4 rounded-[20px] border border-app-border bg-app-surface p-4 sm:p-6">
                     <dt class="app-role-action flex min-h-12 items-start justify-between gap-2">
                         <span class="min-w-0">
@@ -202,84 +133,38 @@
                 @if ($context === 'next-promotion' && (! $contextPromotion || $contextPromotion->reward_description)) aria-describedby="{{ $contextPromotion ? 'next-promotion-description' : 'next-promotion-empty' }}" @endif
                 class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-4 sm:p-6"
             >
-                <div class="flex flex-wrap items-center gap-2">
-                    <flux:heading level="2" :id="$context.'-title'" class="app-role-section! text-app-ink!">
-                        {{ __('summary.'.($context === 'points' ? 'promotion_points' : 'next')) }}
-                    </flux:heading>
-                    @if ($context === 'next-promotion' && $contextPromotion)
-                        <flux:badge color="blue" class="app-role-support! font-medium!">
-                            {{ __('business.pass.promotion_scheduled_status') }}
-                        </flux:badge>
-                    @endif
-                </div>
-                @if (! $contextPromotion)
-                    <div class="app-note-with-icon text-app-ink-help">
-                        <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
-                            <flux:icon.information-circle variant="outline" class="size-4" />
-                        </span>
-                        <p @if ($context === 'next-promotion') id="next-promotion-empty" @endif class="app-role-support">
-                            {{ __('summary.'.($context === 'points' ? 'points_waiting' : 'next_empty')) }}
-                        </p>
-                    </div>
-                @elseif ($context === 'points')
-                    <dl>
-                        <div class="flex justify-between gap-3">
-                            <dt class="app-role-support! text-app-ink-secondary">
-                                {{ __('business.promotion.summary_regular_visit') }}
-                            </dt>
-                            <dd class="app-role-action! text-end text-app-ink">
-                                {{ __('business.promotion.one_point') }}
-                            </dd>
-                        </div>
-                    </dl>
+                @if ($context === 'next-promotion' && $contextPromotion)
+                    <x-summary-promotion-card :promotion="$contextPromotion" :period="$nextPeriod" phase="scheduled" context="upcoming" />
                 @else
-                    <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
-                        <span aria-hidden="true" class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-app-priority-border bg-app-scheduled-surface text-app-ink-priority">
-                            <flux:icon.gift variant="outline" class="size-5" />
-                        </span>
-                        <div class="flex min-w-0 flex-col gap-1">
-                            <flux:heading level="3" class="app-role-card! text-app-ink!">
-                                {{ $contextPromotion->reward_title }}
-                            </flux:heading>
-                            @if ($contextPromotion->reward_description)
-                                <p id="next-promotion-description" class="app-role-support! break-words text-app-ink-secondary!">
-                                    {{ $contextPromotion->reward_description }}
-                                </p>
-                            @endif
+                    <div class="flex flex-wrap items-center gap-2">
+                        <flux:heading level="2" :id="$context.'-title'" class="app-role-section! text-app-ink!">
+                            {{ __('summary.'.($context === 'points' ? 'promotion_points' : 'next')) }}
+                        </flux:heading>
+                    </div>
+
+                    @if (! $contextPromotion)
+                        <div class="app-note-with-icon text-app-ink-help">
+                            <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
+                                <flux:icon.information-circle variant="outline" class="size-4" />
+                            </span>
+                            <p @if ($context === 'next-promotion') id="next-promotion-empty" @endif class="app-role-support">
+                                {{ __('summary.'.($context === 'points' ? 'points_waiting' : 'next_empty')) }}
+                            </p>
                         </div>
-                        <dl class="col-start-2 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
-                            <div class="min-w-0 space-y-1">
-                                <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                                    <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                    {{ __('business.promotion.review_goal') }}
+                    @elseif ($context === 'points')
+                        <dl>
+                            <div class="flex justify-between gap-3">
+                                <dt class="app-role-support! text-app-ink-secondary">
+                                    {{ __('business.promotion.summary_regular_visit') }}
                                 </dt>
-                                <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                                    {{ __('summary.points', ['count' => $contextPromotion->target_points]) }}
-                                </dd>
-                            </div>
-                            <div class="min-w-0 space-y-1">
-                                <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
-                                    <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                    {{ __('business.promotion.review_validity') }}
-                                </dt>
-                                <dd class="app-role-body! break-words font-semibold! text-app-ink">
-                                    {{ $nextPeriod }}
+                                <dd class="app-role-action! text-end text-app-ink">
+                                    {{ __('business.promotion.one_point') }}
                                 </dd>
                             </div>
                         </dl>
-                    </div>
+                    @endif
                 @endif
-                @if ($context === 'next-promotion' && $contextPromotion)
-                    <flux:button
-                        id="promotion-detail-trigger-{{ $contextPromotion->public_id }}" type="button"
-                        wire:click="showPromotionDetail('{{ $contextPromotion->public_id }}')"
-                        wire:loading.attr="disabled" wire:target="showPromotionDetail"
-                        variant="filled" class="app-button-secondary min-h-11 w-full sm:w-auto"
-                    >
-                        {{ __('business.pass.view_promotion_detail') }}
-                    </flux:button>
-                @endif
-                @if ($contextPromotion)
+                @if ($context === 'points' && $contextPromotion)
                     @if ($contextPromotion->extraPoints->isEmpty())
                         <div class="app-note-with-icon border-t border-app-line pt-3 text-app-ink-help">
                             <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
@@ -291,14 +176,16 @@
                         </div>
                     @else
                         <section aria-label="{{ __('business.promotion.review_extra_points') }}" class="min-w-0 space-y-4 border-t border-app-line pt-3">
-                            <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                                <flux:icon.sparkles variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
-                                <flux:heading level="3" class="app-role-section! min-w-0 break-words text-app-ink!">
+                            <div class="grid min-h-11 grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+                                <span aria-hidden="true" class="col-start-1 row-start-1 flex items-center justify-center">
+                                    <flux:icon.sparkles variant="outline" class="size-5 shrink-0 text-app-accent" />
+                                </span>
+                                <span class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1">
                                     {{ __('business.promotion.review_extra_points') }}
-                                </flux:heading>
-                                <p class="app-role-body! min-w-0 break-words font-semibold! text-app-ink">
+                                </span>
+                                <span class="app-role-body! col-start-2 min-w-0 break-words font-semibold! text-app-ink sm:col-start-3 sm:row-start-1">
                                     {{ trans_choice('business.promotion.configuration_count', $contextPromotion->extraPoints->count()) }}
-                                </p>
+                                </span>
                             </div>
                             <ul aria-label="{{ __('business.promotion.review_extra_points') }}" class="grid auto-rows-fr grid-cols-1 gap-2 [@media(width>36rem)]:grid-cols-2">
                                 @foreach ($contextPromotion->extraPoints as $rule)
@@ -358,9 +245,65 @@
             </div>
         </section>
     @endif
+
+    <section aria-labelledby="promotion-history-heading" class="space-y-4">
+        <flux:heading level="2" id="promotion-history-heading" class="app-role-section! text-app-ink!">
+            {{ __('summary.history_heading', ['count' => $historyPromotions->total()]) }}
+        </flux:heading>
+        @if ($historyPromotions->total() > 0)
+            <ul aria-label="{{ __('summary.history_heading', ['count' => $historyPromotions->total()]) }}" class="divide-y divide-app-line">
+                @foreach ($historyPromotions as $historicalPromotion)
+                    <li
+                        wire:key="promotion-history-{{ $historicalPromotion['promotion']->public_id }}"
+                        data-promotion-phase="{{ $historicalPromotion['phase'] }}"
+                        data-promotion-public-id="{{ $historicalPromotion['promotion']->public_id }}"
+                        class="flex min-w-0 flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                        <div class="min-w-0 space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <flux:heading level="3" size="base" class="app-role-support! min-w-0 break-words font-medium! text-app-ink!">
+                                    {{ $historicalPromotion['promotion']->reward_title }}
+                                </flux:heading>
+                                <flux:badge :color="$historicalPromotion['phase'] === 'cancelled' ? 'red' : null" size="sm">
+                                    {{ __('business.pass.promotion_'.$historicalPromotion['phase'].'_status') }}
+                                </flux:badge>
+                            </div>
+                            <flux:text class="app-role-support! text-app-ink-secondary!">
+                                <x-regional-date :date="$historicalPromotion['period']['start']" :end-date="$historicalPromotion['period']['end']" />
+                            </flux:text>
+                        </div>
+                        <button
+                            id="summary-history-detail-trigger-{{ $historicalPromotion['promotion']->public_id }}"
+                            type="button"
+                            wire:click="showPromotionDetail('{{ $historicalPromotion['promotion']->public_id }}', 'history')"
+                            wire:loading.attr="disabled"
+                            wire:target="showPromotionDetail"
+                            class="app-control! app-role-support! app-focus! inline-flex shrink-0 cursor-pointer items-center self-start bg-transparent font-medium! text-app-accent-text! underline-offset-4 hover:underline focus-visible:underline disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 sm:self-center"
+                        >
+                            {{ __('business.pass.view_promotion_detail') }}
+                        </button>
+                    </li>
+                @endforeach
+            </ul>
+            @if ($historyPromotions->hasPages())
+                <flux:pagination :paginator="$historyPromotions" />
+            @endif
+        @else
+            <div class="app-note-with-icon text-app-ink-help">
+                <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
+                    <flux:icon.information-circle variant="outline" class="size-4" />
+                </span>
+                <p class="app-role-support">
+                    {{ __('summary.history_empty') }}
+                </p>
+            </div>
+        @endif
+    </section>
+
     <x-promotion-detail
         :detail="$this->promotionDetail"
         :close-label="__('summary.close_promotion_detail')"
         focus-fallback="promotion-title"
+        :focus-origin-prefix="'summary-'.$promotionDetailOrigin.'-detail-trigger-'"
     />
 </main>

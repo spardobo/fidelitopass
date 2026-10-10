@@ -405,6 +405,10 @@ select:focus[data-flux-control] {
     @apply app-button! border-app-secondary-button-border! bg-app-secondary-button! text-app-ink!;
     @apply hover:bg-app-secondary-button-hover! active:bg-app-secondary-button-hover!;
 }
+@utility app-button-secondary-on-emphasis {
+    @apply app-button! border! border-app-ink-priority! bg-transparent! text-app-ink-priority! shadow-none!;
+    @apply enabled:hover:bg-app-ink-priority/10! enabled:active:bg-app-ink-priority/15!;
+}
 @utility app-button-toggle {
     @apply app-button! min-w-app-control! text-app-ink-secondary!;
 }

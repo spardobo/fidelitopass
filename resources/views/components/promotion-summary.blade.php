@@ -20,8 +20,8 @@
     </div>
 
     <dl class="border-t border-app-line">
-        <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
-            <span class="row-span-2 flex items-center justify-center sm:row-span-1" aria-hidden="true">
+        <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+            <span class="col-start-1 row-start-1 flex items-center justify-center" aria-hidden="true">
                 <flux:icon.trophy variant="outline" class="size-5 shrink-0 text-app-accent" />
             </span>
             <dt class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1 sm:self-center">
@@ -31,18 +31,18 @@
                 {{ $targetPoints }} {{ __('business.promotion.points_unit') }}
             </dd>
         </div>
-        <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-app-line py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
-            <span class="row-span-2 flex items-center justify-center sm:row-span-1" aria-hidden="true">
+        <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 border-t border-app-line py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+            <span class="col-start-1 row-start-1 flex items-center justify-center" aria-hidden="true">
                 <flux:icon.calendar-days variant="outline" class="size-5 shrink-0 text-app-accent" />
             </span>
             <dt class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1 sm:self-center">
                 {{ __('business.promotion.review_validity') }}
             </dt>
             <dd class="app-role-body! col-start-2 min-w-0 break-words font-semibold! text-app-ink sm:col-start-3 sm:row-start-1">
-                {{ $startDate }} – {{ $endDate }}
-                <p class="app-role-support! mt-1 font-normal! text-app-ink-help">
-                    {{ __('business.promotion.inclusive_end_date') }}
-                </p>
+                <x-regional-date :date="$startDate" :end-date="$endDate" />
+            </dd>
+            <dd class="app-role-support! col-start-2 min-w-0 break-words font-normal! text-app-ink-help sm:col-start-3 sm:mt-1">
+                {{ __('business.promotion.inclusive_end_date') }}
             </dd>
         </div>
     </dl>
@@ -53,8 +53,8 @@
         </p>
     @else
         <details data-test="promotion-review-extra-rules" data-promotion-review-extra-rules class="min-w-0 border-t border-app-line">
-            <summary class="app-focus grid min-h-11 cursor-pointer list-none grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1 rounded-md py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
-                <span data-test="promotion-review-extra-icon" class="row-span-2 flex self-stretch items-center justify-center sm:row-span-1" aria-hidden="true">
+            <summary class="app-focus grid min-h-11 cursor-pointer list-none grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 rounded-md py-3 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+                <span data-test="promotion-review-extra-icon" class="col-start-1 row-start-1 flex self-stretch items-center justify-center" aria-hidden="true">
                     <flux:icon.sparkles variant="outline" class="size-5 shrink-0 text-app-accent" />
                 </span>
                 <span class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1">

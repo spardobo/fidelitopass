@@ -373,39 +373,6 @@
                 x-data="{
                     notDefined: @js(__('business.promotion.not_defined')),
                     datesNotDefined: @js(__('business.promotion.dates_not_defined')),
-                    /** Formats an ISO calendar date without converting it through the browser timezone.
-                     * @param {string | null} date ISO calendar date, or an empty value when unset.
-                     * @param {boolean} includeYear Whether to include the four-digit calendar year.
-                     * @returns {string} Localized date text, or the configured not-defined placeholder for an unset date.
-                     */
-                    formatDate(date, includeYear = false) {
-                        if (! date) return this.notDefined;
-
-                        const [year, month, day] = date.split('-').map(Number);
-                        const calendarDate = new Date(Date.UTC(year, month - 1, day, 12));
-                        const options = { day: 'numeric', month: 'short', timeZone: 'UTC' };
-
-                        if (includeYear) options.year = 'numeric';
-
-                        return new Intl.DateTimeFormat('es', options).format(calendarDate).replace(/\./g, '');
-                    },
-                    /** Formats the promotion's inclusive validity range from ISO calendar dates.
-                     * @param {string | null} start ISO start date, or an empty value when unset.
-                     * @param {string | null} end ISO end date, or an empty value when unset.
-                     * @returns {string} Localized range with the year once for same-year dates, both years otherwise, or the dates-not-defined placeholder when either date is unset.
-                     */
-                    formatRange(start, end) {
-                        if (! start || ! end) return this.datesNotDefined;
-
-                        const startYear = start.slice(0, 4);
-                        const endYear = end.slice(0, 4);
-
-                        if (startYear === endYear) {
-                            return `${this.formatDate(start)} – ${this.formatDate(end)} ${endYear}`;
-                        }
-
-                        return `${this.formatDate(start, true)} – ${this.formatDate(end, true)}`;
-                    },
                 }"
             >
                 <section class="space-y-5 rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6">
@@ -454,8 +421,9 @@
                             <dd
                                 class="app-role-action! max-w-40 text-end text-app-ink"
                                 data-test="summary-validity"
-                                x-text="formatRange($wire.localStartDate, $wire.localEndDate)"
+                                x-text="$regionalDates.range($wire.localStartDate, $wire.localEndDate) || datesNotDefined"
                             >
+                                {{-- Unvalidated editor input must not be parsed for the server fallback. --}}
                                 @if ($localStartDate !== '' && $localEndDate !== '')
                                     {{ $localStartDate }} – {{ $localEndDate }}
                                 @else

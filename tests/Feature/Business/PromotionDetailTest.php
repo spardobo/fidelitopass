@@ -5,6 +5,7 @@ use App\Models\Business;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Support\DatabaseClock;
+use App\Support\PromotionDetail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
@@ -32,6 +33,9 @@ it('opens frozen owned terms with the current database phase', function (string 
     $business->update(['timezone' => 'Pacific/Auckland']);
     $this->detailInstant = $instant;
     $this->travelTo('2040-01-01');
+    $dates = app(PromotionDetail::class)->read($owner, $promotion->public_id);
+    expect($dates['start_date'])->toBe('2018-11-03')
+        ->and($dates['end_date'])->toBe('2018-11-04');
 
     $component = Livewire::actingAs($owner)->test($page)
         ->call('showPromotionDetail', $promotion->public_id)
@@ -40,7 +44,10 @@ it('opens frozen owned terms with the current database phase', function (string 
         ->assertSee('Premio original')
         ->assertSee('Condiciones originales')
         ->assertSee('12 puntos')
-        ->assertSee('03/11/2018 – 04/11/2018')
+        ->assertSee('datetime="2018-11-03"', false)
+        ->assertSee('datetime="2018-11-04"', false)
+        ->assertSee('11/03/2018')
+        ->assertSee('11/04/2018')
         ->assertSee(__('business.promotion.review_no_extra_points'))
         ->assertDontSee('Confirmar publicación');
 
@@ -131,14 +138,14 @@ it('keeps historical rows concise while preserving full original terms in detail
     ]);
     $this->detailInstant = '2018-11-05 02:00:00+00';
 
-    $component = Livewire::actingAs($owner)->test('pages::business.pass');
+    $component = Livewire::actingAs($owner)->test('pages::business.summary');
     $document = new DOMDocument;
     @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
-    $row = (new DOMXPath($document))->query('//details[@*[name()="wire:key"]="promotion-history-disclosure"]//li[@data-promotion-public-id="'.$promotion->public_id.'"]')->item(0);
+    $row = (new DOMXPath($document))->query('//section[@aria-labelledby="promotion-history-heading"]//li[@data-promotion-public-id="'.$promotion->public_id.'"]')->item(0);
 
     expect($row)->not->toBeNull();
     expect($row->textContent)->toContain(
-        'Premio original', '03/11/2018 – 04/11/2018', __('business.pass.view_promotion_detail'),
+        'Premio original', '11/03/2018 – 11/04/2018', __('business.pass.view_promotion_detail'),
         $status === PromotionStatus::Cancelled ? __('business.pass.promotion_cancelled_status') : __('business.pass.promotion_ended_status'),
     )->not->toContain('Condiciones originales', '12 puntos');
 
@@ -201,12 +208,13 @@ it('reloads persisted detail and phase after a later request instead of trusting
     $component->call('$refresh')->assertNotFound();
 })->with(['pages::business.pass', 'pages::business.summary']);
 
-it('keeps Summary detail read only with a contextual native close action', function () {
+it('keeps Summary detail read only with a contextual native close action', function (string $origin) {
     $business = Business::factory()->create();
     $promotion = detailPromotion($business);
 
     Livewire::actingAs($business->user)->test('pages::business.summary')
-        ->call('showPromotionDetail', $promotion->public_id)
+        ->call('showPromotionDetail', $promotion->public_id, $origin)
+        ->assertSet('promotionDetailOrigin', $origin)
         ->assertSee('Volver al resumen')
         ->assertDontSee('Volver al pase')
         ->assertDontSee('Cancelar promoción')
@@ -215,6 +223,33 @@ it('keeps Summary detail read only with a contextual native close action', funct
         ->assertDontSee('data-promotion-detail-phase', false);
 
     expect($promotion->fresh()->status)->toBe(PromotionStatus::Published);
+})->with(['primary', 'upcoming', 'history']);
+
+it('rejects unrecognized Summary detail origins and locks focus identity against hydration', function () {
+    $business = Business::factory()->create();
+    $promotion = detailPromotion($business);
+    Livewire::actingAs($business->user)->test('pages::business.summary')
+        ->call('showPromotionDetail', $promotion->public_id, 'foreign-region')->assertNotFound();
+
+    $component = Livewire::actingAs($business->user)->test('pages::business.summary');
+    expect(fn () => $component->set('promotionDetailOrigin', 'history'))
+        ->toThrow(CannotUpdateLockedPropertyException::class);
+});
+
+it('centers shared summary fact icons and labels on their main value rows', function () {
+    $response = $this->blade(
+        '<x-promotion-summary reward-title="Saved reward" target-points="12" start-date="2018-11-03" end-date="2018-11-04" :extra-points="$rules" />',
+        ['rules' => [['weekday' => 1, 'start_time' => null, 'end_time' => null, 'multiplier' => 2]]],
+    );
+    $document = new DOMDocument;
+    @$document->loadHTML(mb_convert_encoding((string) $response, 'HTML-ENTITIES', 'UTF-8'));
+    $xpath = new DOMXPath($document);
+
+    expect($xpath->query('//dl/div[contains(@class,"items-center")]')->length)->toBe(2);
+    expect($xpath->query('//dl/div/span[@aria-hidden="true" and contains(@class,"col-start-1") and contains(@class,"row-start-1") and not(contains(@class,"row-span-2"))]')->length)->toBe(2);
+    expect(trim($xpath->query('//dl/div[2]/dd[1]')->item(0)->textContent))->toBe('11/03/2018 – 11/04/2018');
+    expect(trim($xpath->query('//dl/div[2]/dd[2]')->item(0)?->textContent ?? ''))->toBe(__('business.promotion.inclusive_end_date'));
+    expect($xpath->query('//details[@data-promotion-review-extra-rules]/summary[contains(@class,"items-center")]/span[@aria-hidden="true" and contains(@class,"row-start-1") and not(contains(@class,"row-span-2"))]')->length)->toBe(1);
 });
 
 /**

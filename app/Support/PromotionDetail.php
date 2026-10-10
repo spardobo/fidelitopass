@@ -59,8 +59,8 @@ class PromotionDetail
         return [
             'promotion' => $promotion,
             'phase' => $phase,
-            'start_date' => $startsAt->setTimezone($promotion->timezone_snapshot)->format('d/m/Y'),
-            'end_date' => $endsAt->setTimezone($promotion->timezone_snapshot)->subDay()->format('d/m/Y'),
+            'start_date' => $startsAt->setTimezone($promotion->timezone_snapshot)->format('Y-m-d'),
+            'end_date' => $endsAt->setTimezone($promotion->timezone_snapshot)->subDay()->format('Y-m-d'),
             'extra_points' => array_values($promotion->extraPoints->map(fn (PromotionMultiplierWindow $rule): array => [
                 'weekday' => $rule->weekday,
                 'start_time' => $rule->start_time === null ? null : substr($rule->start_time, 0, 5),

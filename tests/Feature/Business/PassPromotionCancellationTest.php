@@ -35,7 +35,6 @@ it('cancels a confirmed eligible Promotion while retaining frozen detail and Pas
         ->set('backgroundColor', '#E53935')
         ->call('setPage', 2)
         ->call('setPage', 2, 'scheduledPage')
-        ->call('setPage', 2, 'historyPage')
         ->call('showPromotionDetail', $promotion->public_id)
         ->call('requestPromotionCancellation')
         ->assertSet('confirmingPromotionCancellation', true)
@@ -49,11 +48,10 @@ it('cancels a confirmed eligible Promotion while retaining frozen detail and Pas
         ->assertSet('backgroundColor', '#E53935')
         ->assertSet('paginators.page', 2)
         ->assertSet('paginators.scheduledPage', 2)
-        ->assertSet('paginators.historyPage', 1)
         ->assertSee('data-promotion-detail-phase="cancelled"', false)
-        ->assertSee('data-promotion-public-id="'.$promotion->public_id.'"', false)
-        ->assertSee('data-promotion-phase="cancelled"', false)
-        ->assertSee(__('business.pass.history_promotions_heading', ['count' => 1]))
+        ->assertDontSee('data-promotion-public-id="'.$promotion->public_id.'"', false)
+        ->assertDontSee('data-promotion-phase="cancelled"', false)
+        ->assertSee(__('business.pass.promotions_current_empty'))
         ->assertDontSee(__('business.pass.cancel_promotion'));
 
     $fresh = $promotion->fresh();
