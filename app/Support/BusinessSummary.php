@@ -69,11 +69,17 @@ class BusinessSummary
             $currentPromotion->setRelation('extraPoints', PromotionMultiplierWindow::hydrate($rules));
         }
 
+        $nextScheduled = $this->promotion($snapshot->next_scheduled);
+        if ($nextScheduled !== null) {
+            $rules = json_decode($snapshot->next_extra_points, true, flags: JSON_THROW_ON_ERROR);
+            $nextScheduled->setRelation('extraPoints', PromotionMultiplierWindow::hydrate($rules));
+        }
+
         return [
             'business' => $business,
             'asOf' => CarbonImmutable::parse($snapshot->as_of),
             'currentPromotion' => $currentPromotion,
-            'nextScheduled' => $this->promotion($snapshot->next_scheduled),
+            'nextScheduled' => $nextScheduled,
             'lastPromotion' => $this->promotion($snapshot->last_promotion),
             'appearancePrepared' => $business->pass_background_color !== null,
             'promotionPrepared' => (bool) $snapshot->promotion_prepared,
@@ -118,17 +124,19 @@ class BusinessSummary
                 FROM promotions p JOIN owned_business b ON b.id = p.business_id CROSS JOIN summary_clock c
                 WHERE p.status IN ('published', 'cancelled')
             ),
-            active_promotion AS (SELECT * FROM phases WHERE phase = 'active' ORDER BY starts_at, id LIMIT 1)
+            active_promotion AS (SELECT * FROM phases WHERE phase = 'active' ORDER BY starts_at, id LIMIT 1),
+            next_scheduled_promotion AS (SELECT * FROM phases WHERE phase = 'scheduled' ORDER BY starts_at, id LIMIT 1)
             SELECT row_to_json(b)::text AS business, c.instant AS as_of,
                 EXISTS(SELECT 1 FROM phases) AS promotion_prepared,
                 EXISTS(SELECT 1 FROM promotions p WHERE p.business_id = b.id AND p.status = 'draft') AS has_promotion_draft,
                 (SELECT row_to_json(p)::text FROM active_promotion p) AS current_promotion,
-                (SELECT row_to_json(p)::text FROM phases p WHERE phase = 'scheduled'
-                    ORDER BY starts_at, id LIMIT 1) AS next_scheduled,
+                (SELECT row_to_json(p)::text FROM next_scheduled_promotion p) AS next_scheduled,
                 (SELECT row_to_json(p)::text FROM phases p WHERE phase IN ('ended', 'cancelled')
                     ORDER BY LEAST(ends_at, cancelled_at) DESC, id DESC LIMIT 1) AS last_promotion,
                 (SELECT COALESCE(json_agg(w ORDER BY w.weekday, w.start_time, w.id), '[]'::json)::text
                     FROM promotion_multiplier_windows w JOIN active_promotion p ON p.id = w.promotion_id) AS extra_points,
+                (SELECT COALESCE(json_agg(w ORDER BY w.weekday, w.start_time, w.id), '[]'::json)::text
+                    FROM promotion_multiplier_windows w JOIN next_scheduled_promotion p ON p.id = w.promotion_id) AS next_extra_points,
                 {$metrics}
             FROM owned_business b CROSS JOIN summary_clock c
             SQL, [$actor->getKey()], false);

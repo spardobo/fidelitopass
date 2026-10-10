@@ -180,7 +180,7 @@ select:focus[data-flux-control] {
     @apply text-base leading-app-body font-normal;
 }
 @utility app-role-intro {
-    @apply text-base leading-app-body font-medium;
+    @apply text-lg leading-7 font-normal;
 }
 @utility app-role-action {
     @apply app-role-body font-medium;
@@ -247,20 +247,12 @@ select:focus[data-flux-control] {
 @utility app-pass-preview-goal {
     @apply flex flex-col items-center justify-center border-s border-current/25 ps-2 text-center;
 }
-/* Pase-specific overrides keep shared authenticated and marketing roles unchanged. */
+/* Business workspace titles share one role; Wallet preview overrides stay Pase-scoped. */
 @layer utilities {
-    .app-pass-page .app-heading,
-    .app-promotion-page .app-heading {
+    .app-workspace .app-heading {
         font-size: 2rem !important;
         line-height: 2.5rem !important;
         font-weight: 700 !important;
-    }
-
-    .app-pass-page [class~="app-role-intro!"],
-    .app-promotion-page [class~="app-role-intro!"] {
-        font-size: 1.125rem !important;
-        line-height: 1.75rem !important;
-        font-weight: 400 !important;
     }
 
     .app-pass-page .app-role-pass-preview-compact {

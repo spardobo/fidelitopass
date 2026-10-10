@@ -66,6 +66,45 @@ async function waitForFonts(page) {
 }
 
 /**
+ * Checks the shared Business page roles without changing saved appearance or Promotion data.
+ *
+ * @param {import('@playwright/test').Page} page Authenticated Business owner page.
+ * @returns {Promise<void>} Resolves after Summary, Pase and appearance editor match the shared roles; rejects on a rendering mismatch.
+ */
+async function expectBusinessWorkspaceRoles(page) {
+    for (const path of ["/dashboard", "/pass", "/pass/appearance"]) {
+        await page.goto(path);
+        await waitForFonts(page);
+
+        const workspace = page.locator("main.app-workspace");
+        const header = workspace.locator("header");
+        const business = header.locator("p").first();
+        const title = header.getByRole("heading", { level: 1 });
+        const intro = header.locator("[data-flux-text]");
+
+        await expect(business).toHaveCSS("font-size", "16px");
+        await expect(business).toHaveCSS("line-height", "24px");
+        await expect(business).toHaveCSS("font-weight", "400");
+        await expect(business).toHaveCSS("color", COLORS.primary);
+        await expect(title).toHaveCSS("font-size", "32px");
+        await expect(title).toHaveCSS("line-height", "40px");
+        await expect(title).toHaveCSS("font-weight", "700");
+        await expect(title).toHaveCSS("color", COLORS.text);
+        await expect(intro).toHaveCSS("font-size", "18px");
+        await expect(intro).toHaveCSS("line-height", "28px");
+        await expect(intro).toHaveCSS("font-weight", "400");
+        await expect(intro).toHaveCSS("color", COLORS.inactiveNavigation);
+        await expect(title).toHaveCSS("font-family", /Onest/);
+        await expect(intro).toHaveCSS("font-family", /Onest/);
+    }
+
+    await page.goto("/dashboard");
+    await expect(
+        page.getByText("Prepara tu pase y tu primera promoción desde Pase.", { exact: true }),
+    ).toHaveCount(0);
+}
+
+/**
  * Verifies that a control is fully contained within the viewport width.
  *
  * @param {import('@playwright/test').Locator} control Element being measured.
@@ -435,6 +474,7 @@ for (const width of AUTHENTICATED_WIDTHS) {
         await expectPassBrandMark(page, testInfo, "landing");
 
         await registerVerifiedBusiness(page, request);
+        await expectBusinessWorkspaceRoles(page);
 
         const header = page.getByRole("banner");
 
