@@ -19,7 +19,7 @@ use stdClass;
  * Reads owner-scoped Summary facts without authorizing or executing Visit/Reward operations.
  *
  * @phpstan-type Metrics array{active_passes: int, awarded_points: int, unlocked_rewards: int, redeemed_rewards: int}
- * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, draftPromotion: Promotion|null, lastPromotion: Promotion|null, primaryPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, hasPromotionDraft: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
+ * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, draftPromotion: Promotion|null, lastPromotion: Promotion|null, primaryPromotion: Promotion|null, upcomingPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, hasPromotionDraft: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
  */
 class BusinessSummary
 {
@@ -71,15 +71,19 @@ class BusinessSummary
         $nextScheduled = $this->promotion($snapshot->next_scheduled);
         $draftPromotion = $this->promotion($snapshot->draft_promotion);
         $lastPromotion = $this->promotion($snapshot->last_promotion);
-        $primaryPromotion = $currentPromotion ?? $nextScheduled ?? $draftPromotion ?? $lastPromotion;
+        $primaryPromotion = $currentPromotion ?? $nextScheduled;
+        $upcomingPromotion = $this->promotion($snapshot->upcoming_promotion);
+        if ($upcomingPromotion !== null && $upcomingPromotion->id === $nextScheduled?->id) {
+            $upcomingPromotion = $nextScheduled;
+        }
         if ($primaryPromotion !== null) {
             $rules = json_decode($snapshot->extra_points, true, flags: JSON_THROW_ON_ERROR);
             $primaryPromotion->setRelation('extraPoints', PromotionMultiplierWindow::hydrate($rules));
         }
 
-        if ($nextScheduled !== null && $nextScheduled !== $primaryPromotion) {
-            $rules = json_decode($snapshot->next_extra_points, true, flags: JSON_THROW_ON_ERROR);
-            $nextScheduled->setRelation('extraPoints', PromotionMultiplierWindow::hydrate($rules));
+        if ($upcomingPromotion !== null) {
+            $rules = json_decode($snapshot->upcoming_extra_points, true, flags: JSON_THROW_ON_ERROR);
+            $upcomingPromotion->setRelation('extraPoints', PromotionMultiplierWindow::hydrate($rules));
         }
 
         return [
@@ -90,6 +94,7 @@ class BusinessSummary
             'draftPromotion' => $draftPromotion,
             'lastPromotion' => $lastPromotion,
             'primaryPromotion' => $primaryPromotion,
+            'upcomingPromotion' => $upcomingPromotion,
             'appearancePrepared' => $business->pass_background_color !== null,
             'promotionPrepared' => (bool) $snapshot->promotion_prepared,
             'hasPromotionDraft' => (bool) $snapshot->has_promotion_draft,
@@ -144,20 +149,25 @@ class BusinessSummary
                 ORDER BY LEAST(ends_at, cancelled_at) DESC, id DESC LIMIT 1
             ),
             primary_promotion AS (
-                SELECT COALESCE((SELECT id FROM active_promotion), (SELECT id FROM next_scheduled_promotion),
-                    (SELECT id FROM draft_promotion), (SELECT id FROM last_promotion)) AS id
+                SELECT COALESCE((SELECT id FROM active_promotion), (SELECT id FROM next_scheduled_promotion)) AS id
+            ),
+            upcoming_promotion AS (
+                SELECT p.* FROM phases p CROSS JOIN primary_promotion principal
+                WHERE p.phase = 'scheduled' AND p.id <> principal.id
+                ORDER BY p.starts_at, p.id LIMIT 1
             )
             SELECT row_to_json(b)::text AS business, c.instant AS as_of,
                 EXISTS(SELECT 1 FROM phases) AS promotion_prepared,
                 EXISTS(SELECT 1 FROM promotions p WHERE p.business_id = b.id AND p.status = 'draft') AS has_promotion_draft,
                 (SELECT row_to_json(p)::text FROM active_promotion p) AS current_promotion,
                 (SELECT row_to_json(p)::text FROM next_scheduled_promotion p) AS next_scheduled,
+                (SELECT row_to_json(p)::text FROM upcoming_promotion p) AS upcoming_promotion,
                 (SELECT row_to_json(p)::text FROM draft_promotion p) AS draft_promotion,
                 (SELECT row_to_json(p)::text FROM last_promotion p) AS last_promotion,
                 (SELECT COALESCE(json_agg(w ORDER BY w.weekday, w.start_time, w.id), '[]'::json)::text
                     FROM promotion_multiplier_windows w JOIN primary_promotion p ON p.id = w.promotion_id) AS extra_points,
                 (SELECT COALESCE(json_agg(w ORDER BY w.weekday, w.start_time, w.id), '[]'::json)::text
-                    FROM promotion_multiplier_windows w JOIN next_scheduled_promotion p ON p.id = w.promotion_id) AS next_extra_points,
+                    FROM promotion_multiplier_windows w JOIN upcoming_promotion p ON p.id = w.promotion_id) AS upcoming_extra_points,
                 {$metrics}
             FROM owned_business b CROSS JOIN summary_clock c
             SQL, [$actor->getKey()], false);
