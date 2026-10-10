@@ -26,6 +26,8 @@ return [
     'period' => ':start – :end',
     'regular_points' => 'Cada visita confirmada suma 1 punto.',
     'extra_points' => ':weekday · :points puntos por visita · :hours',
+    'promotion_points' => 'Puntos de esta promoción',
+    'points_timezone' => 'Zona horaria: :timezone',
     'next' => 'Próxima promoción',
     'scheduled' => 'Programada',
     'scheduled_waiting' => 'Comienza el :date. Aún no admite visitas ni canjes.',

@@ -76,24 +76,6 @@
                     </dl>
                 </div>
             </div>
-            <div class="space-y-2 border-t border-app-priority-border pt-4 text-app-ink-priority">
-                @forelse ($currentPromotion->extraPoints as $rule)
-                    <p wire:key="summary-extra-{{ $rule->id }}" class="app-role-support flex items-start gap-2">
-                        <flux:icon.bolt variant="outline" aria-hidden="true" class="size-5 shrink-0" />
-                        {{ __('summary.extra_points', [
-                            'weekday' => __('business.promotion.weekdays.'.$rule->weekday),
-                            'points' => $rule->multiplier,
-                            'hours' => $rule->start_time === null
-                                ? __('business.promotion.all_day')
-                                : substr($rule->start_time, 0, 5).'–'.substr($rule->end_time, 0, 5),
-                        ]) }}
-                    </p>
-                @empty
-                    <p class="app-role-support">
-                        {{ __('summary.regular_points') }}
-                    </p>
-                @endforelse
-            </div>
         </section>
 
         <section aria-labelledby="activity-title" aria-describedby="activity-scope" class="space-y-4">
@@ -162,49 +144,117 @@
             @endif
         </section>
 
-        @if ($nextScheduled)
-            <section aria-label="{{ __('summary.next') }}" class="flex flex-wrap gap-x-6 gap-y-2 border-y border-app-line py-4">
-                <p class="app-role-support text-app-ink-help">
-                    {{ __('summary.next') }}
-                </p>
-                <div class="min-w-0 space-y-1">
-                    <p class="app-role-body font-semibold">
-                        {{ $nextScheduled->reward_title }}
-                    </p>
-                    <p class="app-role-support text-app-ink-secondary">
-                        {{ __('summary.scheduled') }} · {{ $nextPeriod }}
+        <div @class(['grid gap-6', '[@media(width>48rem)]:grid-cols-2' => $nextScheduled !== null])>
+            <section aria-labelledby="points-title" aria-describedby="points-timezone" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6">
+                <div class="space-y-1">
+                    <flux:heading level="2" id="points-title" class="app-role-section! text-app-ink!">
+                        {{ __('summary.promotion_points') }}
+                    </flux:heading>
+                    <p id="points-timezone" class="app-role-support text-app-ink-secondary">
+                        {{ __('summary.points_timezone', ['timezone' => $currentPromotion->timezone_snapshot]) }}
                     </p>
                 </div>
+                @if ($currentPromotion->extraPoints->isNotEmpty())
+                    <ul class="space-y-4">
+                        @foreach ($currentPromotion->extraPoints as $rule)
+                            <li wire:key="summary-extra-{{ $rule->id }}" class="app-note-with-icon app-role-body text-app-ink-secondary">
+                                <flux:icon.bolt variant="outline" aria-hidden="true" class="size-6 shrink-0 text-app-accent-text" />
+                                <span>
+                                    {{ __('summary.extra_points', [
+                                        'weekday' => __('business.promotion.weekdays.'.$rule->weekday),
+                                        'points' => $rule->multiplier,
+                                        'hours' => $rule->start_time === null
+                                            ? __('business.promotion.all_day')
+                                            : substr($rule->start_time, 0, 5).'–'.substr($rule->end_time, 0, 5),
+                                    ]) }}
+                                </span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p class="app-note-with-icon app-role-body text-app-ink-secondary">
+                        <flux:icon.bolt variant="outline" aria-hidden="true" class="size-6 shrink-0 text-app-accent-text" />
+                        <span>
+                            {{ __('summary.regular_points') }}
+                        </span>
+                    </p>
+                @endif
             </section>
-        @endif
+            @if ($nextScheduled)
+                <section aria-labelledby="next-promotion-title" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <flux:heading level="2" id="next-promotion-title" class="app-role-section! text-app-ink!">
+                            {{ __('summary.next') }}
+                        </flux:heading>
+                        <flux:badge icon="clock" icon:variant="outline" class="border border-app-priority-border bg-app-scheduled-surface! text-app-ink-priority!">
+                            {{ __('summary.scheduled') }}
+                        </flux:badge>
+                    </div>
+                    <div class="flex items-start gap-4">
+                        <span aria-hidden="true" class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-app-priority-border bg-app-scheduled-surface text-app-ink-priority">
+                            <flux:icon.gift variant="outline" class="size-5" />
+                        </span>
+                        <div class="min-w-0 space-y-4">
+                            <flux:heading level="3" class="app-role-card! text-app-ink!">
+                                {{ $nextScheduled->reward_title }}
+                            </flux:heading>
+                            <dl class="flex flex-wrap gap-x-6 gap-y-4">
+                                @foreach ([
+                                    'target' => __('summary.points', ['count' => $nextScheduled->target_points]),
+                                    'validity' => $nextPeriod,
+                                    'timezone' => $nextScheduled->timezone_snapshot,
+                                ] as $label => $value)
+                                    <div class="min-w-0 space-y-1">
+                                        <dt class="app-role-support text-app-ink-help">
+                                            {{ __('summary.'.$label) }}
+                                        </dt>
+                                        <dd class="app-role-body text-app-ink-secondary">
+                                            {{ $value }}
+                                        </dd>
+                                    </div>
+                                @endforeach
+                            </dl>
+                        </div>
+                    </div>
+                </section>
+            @endif
+        </div>
     @endif
 
-    <section aria-labelledby="preparation-title" class="space-y-6">
+    <section aria-labelledby="preparation-title" @class(['space-y-4' => $currentPromotion !== null, 'space-y-6' => $currentPromotion === null])>
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div class="space-y-1">
                 <flux:heading level="2" id="preparation-title" class="app-role-section! text-app-ink!">
                     {{ __('summary.preparation') }}
                 </flux:heading>
-                <p class="app-role-body text-app-ink-secondary">
-                    {{ __('summary.preparation_description') }}
-                </p>
+                @if (! $currentPromotion)
+                    <p class="app-role-body text-app-ink-secondary">
+                        {{ __('summary.preparation_description') }}
+                    </p>
+                @endif
             </div>
             <flux:badge class="border border-app-border bg-app-surface! text-app-ink-secondary!">
                 {{ __('summary.completed_count', ['count' => (int) $appearancePrepared + (int) $promotionPrepared]) }}
             </flux:badge>
         </div>
-        <div class="grid gap-6 [@media(width>48rem)]:grid-cols-2">
+        <div @class(['grid [@media(width>48rem)]:grid-cols-2', 'gap-4' => $currentPromotion !== null, 'gap-6' => $currentPromotion === null])>
             @foreach ($preparation as $step => $prepared)
                 @php($draft = $step === 'promotion' && ! $prepared && $hasPromotionDraft)
-                <article wire:key="preparation-{{ $step }}" aria-labelledby="preparation-{{ $step }}" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6">
+                <article wire:key="preparation-{{ $step }}" aria-labelledby="preparation-{{ $step }}" @class([
+                    'min-w-0 rounded-[20px] border border-app-border bg-app-surface',
+                    'space-y-3 p-4' => $currentPromotion !== null,
+                    'space-y-4 p-6' => $currentPromotion === null,
+                ])>
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div class="flex min-w-0 items-center gap-4">
                             <span aria-hidden="true" @class([
-                                'flex size-12 shrink-0 items-center justify-center rounded-xl border',
+                                'flex shrink-0 items-center justify-center rounded-xl border',
+                                'size-10' => $currentPromotion !== null,
+                                'size-12' => $currentPromotion === null,
                                 'border-app-success-border bg-app-success-surface text-app-success-ink' => $prepared,
                                 'border-app-border text-app-ink-secondary' => ! $prepared,
                             ])>
-                                <flux:icon :name="$prepared ? 'check' : ($step === 'appearance' ? 'credit-card' : 'gift')" variant="outline" class="size-6" />
+                                <flux:icon :name="$prepared ? 'check' : ($step === 'appearance' ? 'credit-card' : 'gift')" variant="outline" :class="$currentPromotion ? 'size-5' : 'size-6'" />
                             </span>
                             <flux:heading level="3" id="preparation-{{ $step }}" class="app-role-card! min-w-0 text-app-ink!">
                                 {{ __('summary.'.$step.'_title') }}
@@ -219,7 +269,11 @@
                             {{ __('summary.'.($prepared ? 'complete' : ($draft ? 'draft' : 'pending'))) }}
                         </flux:badge>
                     </div>
-                    <p class="app-role-body text-app-ink-secondary">
+                    <p @class([
+                        'text-app-ink-secondary',
+                        'app-role-support' => $currentPromotion !== null && $prepared,
+                        'app-role-body' => $currentPromotion === null || ! $prepared,
+                    ])>
                         {{ __('summary.'.$step.($prepared ? '_complete' : ($draft ? '_draft' : '_pending'))) }}
                     </p>
                 </article>
