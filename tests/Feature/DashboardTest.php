@@ -46,7 +46,8 @@ class DashboardTest extends TestCase
         $this->actingAs($user)->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Café Sur')
-            ->assertSee('Resumen')
+            ->assertSee('Tu negocio, de un vistazo')
+            ->assertSee('Consulta tu pase, tus promociones y las recompensas de tus clientes.')
             ->assertSee('Ir a Pase')
             ->assertSee(route('business.pass'));
     }
@@ -72,8 +73,12 @@ class DashboardTest extends TestCase
 
         $this->actingAs($business->user)->get(route('dashboard'))
             ->assertSee('0 de 2 completados')
-            ->assertSee('Elige y guarda la apariencia')
+            ->assertSee('Prepara tu pase y tu primera promoción desde Pase.')
+            ->assertSee('Dale a tu pase el estilo de tu negocio.')
+            ->assertSee('Elige una recompensa, los puntos necesarios y las fechas de tu promoción.')
             ->assertSee('Todavía no hay una promoción activa')
+            ->assertSee('Cuando tu promoción esté activa, aquí verás sus resultados.')
+            ->assertDontSee('Los resultados se muestran solo para una promoción activa.')
             ->assertDontSee('Pases con actividad')
             ->assertDontSee('Recompensas canjeadas');
     }
@@ -90,9 +95,9 @@ class DashboardTest extends TestCase
 
         $this->actingAs($business->user)->get(route('dashboard'))
             ->assertSee('1 de 2 completados')
-            ->assertSee('La apariencia está guardada')
+            ->assertSee('Tu pase ya tiene el estilo de tu negocio.')
             ->assertSee('Borrador guardado')
-            ->assertSee('Todavía falta publicarlo')
+            ->assertSee('Tu promoción está guardada como borrador. Publícala cuando esté lista.')
             ->assertDontSee('Borrador privado');
     }
 
@@ -101,8 +106,9 @@ class DashboardTest extends TestCase
         $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
 
         $this->actingAs($business->user)->get(route('dashboard'))
-            ->assertSee('1 de 2 completados')->assertSee('La apariencia está guardada')
-            ->assertSee('Define una recompensa')->assertDontSee('Borrador guardado')
+            ->assertSee('1 de 2 completados')->assertSee('Tu pase ya tiene el estilo de tu negocio.')
+            ->assertSee('Elige una recompensa, los puntos necesarios y las fechas de tu promoción.')
+            ->assertDontSee('Borrador guardado')
             ->assertDontSee('Actividad de esta promoción');
     }
 
@@ -113,6 +119,7 @@ class DashboardTest extends TestCase
 
         $this->actingAs($business->user)->get(route('dashboard'))
             ->assertSee('2 de 2 completados')
+            ->assertSee('Tu primera promoción ya está publicada.')
             ->assertSee('Próxima promoción')
             ->assertSee('Un café de cortesía')
             ->assertSee('01/10/2098 – 31/10/2098')
@@ -138,12 +145,15 @@ class DashboardTest extends TestCase
 
         $this->actingAs($business->user)->get(route('dashboard'))
             ->assertSee('2 de 2 completados')->assertSee('Última promoción')->assertSee('Finalizada')
+            ->assertSee('Consulta tus promociones anteriores o prepara una nueva desde Pase.')
             ->assertDontSee('Meta por pase')->assertDontSee('Recompensas canjeadas');
 
         $promotion->forceFill(['status' => 'cancelled', 'cancelled_at' => '2020-01-10 12:00:00+00'])->save();
 
         $this->get(route('dashboard'))
             ->assertSee('2 de 2 completados')->assertSee('Cancelada')->assertSee('Un café de cortesía')
+            ->assertSee('Tu primera promoción ya está publicada.')
+            ->assertSee('Consulta tus promociones anteriores o prepara una nueva desde Pase.')
             ->assertDontSee('Finalizada')->assertDontSee('Recompensas canjeadas');
     }
 
@@ -198,8 +208,13 @@ class DashboardTest extends TestCase
 
         $this->assertSame(['1', '5', '1', '1'], $this->metricValues($response->getContent()));
         $response->assertSeeTextInOrder(['Promoción activa', 'Actividad de esta promoción', 'Próxima promoción', 'Preparación del negocio'])
-            ->assertSee('Pases distintos con al menos una visita confirmada')
-            ->assertSee('incluidas las ya canjeadas')->assertDontSee('Todavía no tiene visitas confirmadas');
+            ->assertSee('Desde el inicio de esta promoción.')
+            ->assertSee('Pases que ya registraron una visita en esta promoción.')
+            ->assertSee('Puntos sumados con las visitas y los puntos extra.')
+            ->assertSee('Recompensas obtenidas, incluidas las ya canjeadas.')
+            ->assertSee('Recompensas que tus clientes ya canjearon.')
+            ->assertDontSee('Un pase no equivale a una persona única ni a una instalación de Wallet.')
+            ->assertDontSee('Todavía no tiene visitas confirmadas');
     }
 
     public function test_statistics_outage_does_not_gate_global_actions_and_refresh_reselects_promotion(): void
@@ -225,7 +240,10 @@ class DashboardTest extends TestCase
         $this->get(route('dashboard'))
             ->assertSee(url('/visits/create'))->assertSee(url('/invite'));
         $component->call('$refresh')
-            ->assertSee('No pudimos cargar las estadísticas')->assertSee('Reintentar');
+            ->assertSee('No pudimos cargar las estadísticas')->assertSee('Reintentar')
+            ->assertSee('Inténtalo de nuevo en unos momentos.')
+            ->assertSee('Actualizando…')
+            ->assertDontSee('Este fallo no desactiva la invitación ni el registro de visitas.');
         $this->assertSame(['—', '—', '—', '—'], $this->metricValues($component->html()));
 
         $fail = false;

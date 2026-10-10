@@ -17,7 +17,7 @@
     </header>
 
     @if ($currentPromotion)
-        <section aria-labelledby="active-promotion-title" class="space-y-6 rounded-2xl border border-app-priority-border bg-app-emphasis p-6 sm:p-8">
+        <section aria-labelledby="active-promotion-title" class="space-y-6 rounded-[20px] border border-app-priority-border bg-app-emphasis p-6 sm:p-8">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <p class="app-role-support font-medium text-app-ink-priority">
                     {{ __('summary.active') }}
@@ -103,7 +103,7 @@
             @endif
             <dl class="grid grid-cols-1 gap-4 [@media(width>36rem)]:grid-cols-2 [@media(width>64rem)]:grid-cols-4">
                 @foreach (['active_passes' => 'credit-card', 'awarded_points' => 'bolt', 'unlocked_rewards' => 'gift', 'redeemed_rewards' => 'check-badge'] as $metric => $icon)
-                    <div wire:key="summary-metric-{{ $metric }}" class="flex min-w-0 flex-col gap-4 rounded-2xl border border-app-border bg-app-surface p-6">
+                    <div wire:key="summary-metric-{{ $metric }}" class="flex min-w-0 flex-col gap-4 rounded-[20px] border border-app-border bg-app-surface p-6">
                         <dt class="app-role-action flex flex-1 items-start justify-between gap-2">
                             {{ __('summary.'.$metric) }}
                             <flux:icon :name="$icon" variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-ink-help" />
@@ -117,9 +117,6 @@
                     </div>
                 @endforeach
             </dl>
-            <p class="app-role-support text-app-ink-help">
-                {{ __('summary.pass_identity_note') }}
-            </p>
             @if ($statistics === 'available' && $metrics['active_passes'] === 0)
                 <p class="app-role-body text-app-ink-secondary">
                     {{ __('summary.empty_activity') }}
@@ -161,7 +158,7 @@
         <div class="grid gap-6 [@media(width>48rem)]:grid-cols-2">
             @foreach ($preparation as $step => $prepared)
                 @php($draft = $step === 'promotion' && ! $prepared && $hasPromotionDraft)
-                <article wire:key="preparation-{{ $step }}" aria-labelledby="preparation-{{ $step }}" class="min-w-0 space-y-4 rounded-2xl border border-app-border bg-app-surface p-6">
+                <article wire:key="preparation-{{ $step }}" aria-labelledby="preparation-{{ $step }}" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6">
                     <div class="flex items-center justify-between gap-4">
                         <span aria-hidden="true" @class([
                             'flex size-10 items-center justify-center rounded-xl border',
@@ -191,7 +188,7 @@
     </section>
 
     @if (! $currentPromotion && $nextScheduled)
-        <section aria-labelledby="next-promotion-title" class="space-y-4 rounded-2xl border border-app-border bg-app-surface p-6 sm:p-8">
+        <section aria-labelledby="next-promotion-title" class="space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6 sm:p-8">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <p class="app-role-support text-app-accent-text">
                     {{ __('summary.next') }}
@@ -211,15 +208,12 @@
             </p>
         </section>
     @elseif (! $currentPromotion)
-        <section aria-labelledby="waiting-title" class="space-y-4 rounded-2xl border border-app-border bg-app-surface p-6 sm:p-8">
+        <section aria-labelledby="waiting-title" class="space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6 sm:p-8">
             <flux:heading level="2" id="waiting-title" class="app-role-section! text-app-ink!">
                 {{ __('summary.'.($lastPromotion ? 'history_waiting' : 'waiting')) }}
             </flux:heading>
             <p class="app-role-body text-app-ink-secondary">
                 {{ __('summary.'.($lastPromotion ? 'history_description' : 'waiting_description')) }}
-            </p>
-            <p class="app-role-support text-app-ink-help">
-                {{ __('summary.waiting_counters') }}
             </p>
             @if ($lastPromotion)
                 <div class="flex flex-wrap items-center gap-3 border-t border-app-line pt-4">
