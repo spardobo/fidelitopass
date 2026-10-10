@@ -10,6 +10,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('business/profile', 'pages::business.profile')->name('business.edit');
     Route::livewire('pass', 'pages::business.pass')->name('business.pass');
     Route::livewire('pass/appearance', 'pages::business.pass')->name('business.pass.appearance');
+    Route::livewire('invite', 'pages::business.invitation')->name('business.invite');
     Route::livewire('promotions/create', 'pages::business.promotion')->name('business.promotions.create');
     Route::livewire('promotions/{promotion:public_id}/edit', 'pages::business.promotion')->name('business.promotions.edit');
 });
