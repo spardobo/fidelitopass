@@ -12,13 +12,14 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use stdClass;
 
 /**
  * Reads owner-scoped Summary facts without authorizing or executing Visit/Reward operations.
  *
  * @phpstan-type Metrics array{active_passes: int, awarded_points: int, unlocked_rewards: int, redeemed_rewards: int}
- * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, lastPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, hasPromotionDraft: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
+ * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, draftPromotion: Promotion|null, lastPromotion: Promotion|null, primaryPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, hasPromotionDraft: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
  */
 class BusinessSummary
 {
@@ -54,6 +55,9 @@ class BusinessSummary
             }
 
             $statisticsUnavailable = true;
+            Log::warning('summary.statistics_unavailable', [
+                'actor_id' => $actor->getKey(), 'reason' => 'statistics_query_unavailable', 'sqlstate' => $sqlState,
+            ]);
             $snapshot = $this->snapshot($actor, false);
         }
 
@@ -64,13 +68,16 @@ class BusinessSummary
         $business = (new Business)->newFromBuilder(json_decode($snapshot->business, true, flags: JSON_THROW_ON_ERROR));
         Gate::forUser($actor)->authorize('update', $business);
         $currentPromotion = $this->promotion($snapshot->current_promotion);
-        if ($currentPromotion !== null) {
+        $nextScheduled = $this->promotion($snapshot->next_scheduled);
+        $draftPromotion = $this->promotion($snapshot->draft_promotion);
+        $lastPromotion = $this->promotion($snapshot->last_promotion);
+        $primaryPromotion = $currentPromotion ?? $nextScheduled ?? $draftPromotion ?? $lastPromotion;
+        if ($primaryPromotion !== null) {
             $rules = json_decode($snapshot->extra_points, true, flags: JSON_THROW_ON_ERROR);
-            $currentPromotion->setRelation('extraPoints', PromotionMultiplierWindow::hydrate($rules));
+            $primaryPromotion->setRelation('extraPoints', PromotionMultiplierWindow::hydrate($rules));
         }
 
-        $nextScheduled = $this->promotion($snapshot->next_scheduled);
-        if ($nextScheduled !== null) {
+        if ($nextScheduled !== null && $nextScheduled !== $primaryPromotion) {
             $rules = json_decode($snapshot->next_extra_points, true, flags: JSON_THROW_ON_ERROR);
             $nextScheduled->setRelation('extraPoints', PromotionMultiplierWindow::hydrate($rules));
         }
@@ -80,7 +87,9 @@ class BusinessSummary
             'asOf' => CarbonImmutable::parse($snapshot->as_of),
             'currentPromotion' => $currentPromotion,
             'nextScheduled' => $nextScheduled,
-            'lastPromotion' => $this->promotion($snapshot->last_promotion),
+            'draftPromotion' => $draftPromotion,
+            'lastPromotion' => $lastPromotion,
+            'primaryPromotion' => $primaryPromotion,
             'appearancePrepared' => $business->pass_background_color !== null,
             'promotionPrepared' => (bool) $snapshot->promotion_prepared,
             'hasPromotionDraft' => (bool) $snapshot->has_promotion_draft,
@@ -125,16 +134,28 @@ class BusinessSummary
                 WHERE p.status IN ('published', 'cancelled')
             ),
             active_promotion AS (SELECT * FROM phases WHERE phase = 'active' ORDER BY starts_at, id LIMIT 1),
-            next_scheduled_promotion AS (SELECT * FROM phases WHERE phase = 'scheduled' ORDER BY starts_at, id LIMIT 1)
+            next_scheduled_promotion AS (SELECT * FROM phases WHERE phase = 'scheduled' ORDER BY starts_at, id LIMIT 1),
+            draft_promotion AS (
+                SELECT p.*, 'draft'::text AS phase FROM promotions p JOIN owned_business b ON b.id = p.business_id
+                WHERE p.status = 'draft' ORDER BY p.updated_at DESC, p.id DESC LIMIT 1
+            ),
+            last_promotion AS (
+                SELECT * FROM phases WHERE phase IN ('ended', 'cancelled')
+                ORDER BY LEAST(ends_at, cancelled_at) DESC, id DESC LIMIT 1
+            ),
+            primary_promotion AS (
+                SELECT COALESCE((SELECT id FROM active_promotion), (SELECT id FROM next_scheduled_promotion),
+                    (SELECT id FROM draft_promotion), (SELECT id FROM last_promotion)) AS id
+            )
             SELECT row_to_json(b)::text AS business, c.instant AS as_of,
                 EXISTS(SELECT 1 FROM phases) AS promotion_prepared,
                 EXISTS(SELECT 1 FROM promotions p WHERE p.business_id = b.id AND p.status = 'draft') AS has_promotion_draft,
                 (SELECT row_to_json(p)::text FROM active_promotion p) AS current_promotion,
                 (SELECT row_to_json(p)::text FROM next_scheduled_promotion p) AS next_scheduled,
-                (SELECT row_to_json(p)::text FROM phases p WHERE phase IN ('ended', 'cancelled')
-                    ORDER BY LEAST(ends_at, cancelled_at) DESC, id DESC LIMIT 1) AS last_promotion,
+                (SELECT row_to_json(p)::text FROM draft_promotion p) AS draft_promotion,
+                (SELECT row_to_json(p)::text FROM last_promotion p) AS last_promotion,
                 (SELECT COALESCE(json_agg(w ORDER BY w.weekday, w.start_time, w.id), '[]'::json)::text
-                    FROM promotion_multiplier_windows w JOIN active_promotion p ON p.id = w.promotion_id) AS extra_points,
+                    FROM promotion_multiplier_windows w JOIN primary_promotion p ON p.id = w.promotion_id) AS extra_points,
                 (SELECT COALESCE(json_agg(w ORDER BY w.weekday, w.start_time, w.id), '[]'::json)::text
                     FROM promotion_multiplier_windows w JOIN next_scheduled_promotion p ON p.id = w.promotion_id) AS next_extra_points,
                 {$metrics}

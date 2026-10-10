@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -89,6 +90,57 @@ it('ignores drafts for preparation and picks the earliest scheduled and latest t
     expect($summary['lastPromotion']->id)->toBe($last->id);
     expect($summary['promotionPrepared'])->toBeTrue();
     expect($summary['hasPromotionDraft'])->toBeTrue();
+});
+
+it('loads the latest owned draft and its terms and rules in one snapshot without completing publication', function () {
+    summaryDatabaseTime();
+    $business = Business::factory()->create();
+    $attributes = ['local_start_date' => '2030-02-01', 'local_end_date' => '2030-02-28', 'target_points' => 12, 'reward_title' => 'Draft reward', 'reward_description' => 'Draft description'];
+    $business->promotions()->create($attributes)->forceFill(['updated_at' => '2030-01-01 00:00:00'])->save();
+    $draft = $business->promotions()->create($attributes);
+    $draft->forceFill(['updated_at' => '2030-01-02 00:00:00'])->save();
+    $latest = $business->promotions()->create($attributes);
+    $latest->forceFill(['updated_at' => '2030-01-02 00:00:00'])->save();
+    $rule = $latest->extraPoints()->create(['weekday' => 3, 'multiplier' => 5]);
+    Business::factory()->create()->promotions()->create($attributes);
+    $owner = $business->user;
+    DB::connection()->enableQueryLog();
+
+    $summary = (new BusinessSummary)->read($owner);
+
+    expect($summary['draftPromotion']->id)->toBe($latest->id);
+    expect($summary['primaryPromotion']->id)->toBe($latest->id);
+    expect($summary['primaryPromotion']->phase)->toBe('draft');
+    expect($summary['primaryPromotion']->reward_description)->toBe('Draft description');
+    expect($summary['primaryPromotion']->local_start_date->format('Y-m-d'))->toBe('2030-02-01');
+    expect($summary['primaryPromotion']->extraPoints->sole()->id)->toBe($rule->id);
+    expect($summary['promotionPrepared'])->toBeFalse();
+    expect($summary['metrics'])->toBeNull();
+    expect(DB::getQueryLog())->toHaveCount(1);
+    DB::connection()->disableQueryLog();
+});
+
+it('selects primary context in active scheduled draft terminal order with preloaded rules', function () {
+    summaryDatabaseTime();
+    $business = Business::factory()->create();
+    $terminal = summaryPromotion($business, ['starts_at' => '2029-12-01 00:00:00+00', 'ends_at' => '2029-12-02 00:00:00+00']);
+    $terminal->extraPoints()->create(['weekday' => 1, 'multiplier' => 2]);
+    $draft = $business->promotions()->create(['local_start_date' => '2030-02-01', 'local_end_date' => '2030-02-28', 'target_points' => 8, 'reward_title' => 'Draft']);
+    $scheduled = summaryPromotion($business, ['starts_at' => '2030-01-03 00:00:00+00', 'ends_at' => '2030-01-04 00:00:00+00']);
+    $active = summaryPromotion($business);
+    $reader = new BusinessSummary;
+
+    expect($reader->read($business->user)['primaryPromotion']->id)->toBe($active->id);
+    $active->delete();
+    expect($reader->read($business->user)['primaryPromotion']->id)->toBe($scheduled->id);
+    $scheduled->delete();
+    expect($reader->read($business->user)['primaryPromotion']->id)->toBe($draft->id);
+    $draft->delete();
+    $summary = $reader->read($business->user);
+    expect($summary['primaryPromotion']->id)->toBe($terminal->id);
+    expect($summary['primaryPromotion']->extraPoints->sole()->multiplier)->toBe(2);
+    $terminal->delete();
+    expect($reader->read($business->user)['primaryPromotion'])->toBeNull();
 });
 
 it('counts accepted activity and independent entitlements without fanout or historical recomputation', function () {
@@ -226,6 +278,7 @@ it('refuses a retry after the persisted ownership relationship changes', functio
 });
 
 it('keeps fresh Promotion context on statistics outage and retries without previous identity or metrics', function () {
+    Log::spy();
     summaryDatabaseTime();
     $business = Business::factory()->create();
     $first = summaryPromotion($business);
@@ -244,6 +297,7 @@ it('keeps fresh Promotion context on statistics outage and retries without previ
     expect($unavailable['currentPromotion']->id)->toBe($first->id);
     expect($unavailable['statistics'])->toBe('unavailable');
     expect($unavailable['metrics'])->toBeNull();
+    Log::shouldHaveReceived('warning')->once()->with('summary.statistics_unavailable', ['actor_id' => $business->user_id, 'reason' => 'statistics_query_unavailable', 'sqlstate' => '57014']);
     expect($unavailable['nextScheduled']->relationLoaded('extraPoints'))->toBeTrue();
     expect($unavailable['nextScheduled']->extraPoints->sole()->multiplier)->toBe(3);
     $fail = false;
