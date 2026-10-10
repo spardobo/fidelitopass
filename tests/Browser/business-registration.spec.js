@@ -615,7 +615,11 @@ for (const width of [1280, 375]) {
 
         await expectNoHorizontalOverflow(page);
 
-        await expectAuthenticatedSurface(page, "form[wire\\:submit]");
+        await expectAuthenticatedSurface(
+            page,
+            '[data-test="settings-surface"]',
+            COLORS.accountSurface,
+        );
 
         await page.screenshot({
             path: testInfo.outputPath(`app-header-profile-${width}.png`),
@@ -716,11 +720,15 @@ for (const width of [1280, 375]) {
                     .last(),
             ).toBeVisible();
 
-            await expectAuthenticatedSurface(page, '[data-test="settings-surface"]');
+            await expectAuthenticatedSurface(
+                page,
+                '[data-test="settings-surface"]',
+                COLORS.accountSurface,
+            );
 
             await expect(page.locator('[data-test="settings-surface"]')).toHaveCSS(
                 "background-color",
-                COLORS.authenticatedSurface,
+                COLORS.accountSurface,
             );
 
             await page.screenshot({

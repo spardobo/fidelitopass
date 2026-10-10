@@ -3,6 +3,8 @@
 use App\Models\Business;
 use App\Support\SupportedTimezones;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Exceptions\PublicPropertyNotFoundException;
 use Livewire\Livewire;
 
@@ -79,6 +81,7 @@ it('saves the original supported IANA identity without ICU canonical rewriting',
         ->set('name', 'Negocio actualizado')
         ->call('save')
         ->assertHasNoErrors()
+        ->assertDispatched('toast-show', duration: 5000, slots: ['text' => __('account-feedback.business_saved')], dataset: ['variant' => 'success'])
         ->assertRedirect(route('dashboard'));
 
     expect($business->fresh()->name)->toBe('Negocio actualizado')
@@ -139,7 +142,8 @@ it('rejects invalid names and non IANA timezones without changing the profile', 
         ->set('name', $name)
         ->set('timezone', $timezone)
         ->call('save')
-        ->assertHasErrors([$field]);
+        ->assertHasErrors([$field])
+        ->assertDispatched('toast-show', slots: ['text' => __('account-feedback.validation')], dataset: ['variant' => 'danger']);
 
     expect($business->fresh()->name)->toBe('Café Sur')
         ->and($business->fresh()->timezone)->toBe('UTC');
@@ -152,3 +156,45 @@ it('rejects invalid names and non IANA timezones without changing the profile', 
     'ICU unknown fallback' => ['Café Sur', 'Etc/Unknown', 'timezone'],
     'explicit timezone required' => ['Café Sur', '', 'timezone'],
 ]);
+
+it('keeps the persisted business identity while the editable name is unsaved', function () {
+    $business = Business::factory()->create(['name' => 'Saved Business']);
+    $this->actingAs($business->user);
+
+    Livewire::test('pages::business.profile')
+        ->set('name', 'Unsaved Business')
+        ->assertSee('Saved Business · Tu negocio')
+        ->assertDontSee('Unsaved Business · Tu negocio');
+
+    expect($business->fresh()->name)->toBe('Saved Business');
+});
+
+it('reports failed business persistence without redirecting or changing stored fields', function () {
+    $business = Business::factory()->create(['name' => 'Stored Business']);
+    $this->actingAs($business->user);
+    Exceptions::fake();
+    $dispatcher = Business::getEventDispatcher();
+    Business::setEventDispatcher(clone $dispatcher);
+    Business::updating(fn () => throw new RuntimeException('Internal persistence failure.'));
+
+    try {
+        Livewire::test('pages::business.profile')->set('name', 'Unsaved Business')->call('save')
+            ->assertNoRedirect()
+            ->assertDispatched('toast-show', slots: ['text' => __('account-feedback.unexpected')], dataset: ['variant' => 'danger'])
+            ->assertDontSee('Internal persistence failure.');
+    } finally {
+        Business::setEventDispatcher($dispatcher);
+    }
+
+    Exceptions::assertReported(RuntimeException::class);
+    expect($business->fresh()->name)->toBe('Stored Business');
+});
+
+it('keeps authorization failures outside recovered business feedback', function () {
+    $business = Business::factory()->create();
+    $this->actingAs($business->user);
+    $component = Livewire::test('pages::business.profile');
+    Gate::before(fn () => false);
+
+    $component->call('save')->assertStatus(403)->assertNotDispatched('toast-show');
+});
