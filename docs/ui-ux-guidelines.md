@@ -91,9 +91,17 @@ The mapping must preserve hierarchy, readability and accessible target sizes wit
 Check shared role changes across affected roles, screen sizes and states before acceptance. The authorized UI work item
 chooses the implementation; this contract does not require overriding every component.
 
+### Business workspace role normalization
+
+Summary, the Business Pase overview, the appearance editor and the Promoción editor share the existing Business workspace role mapping. Set page titles to `32/40px` and weight `700` at every viewport; intros to `18/28px` and weight `400`; section headings to `20/28px` and weight `600`; card headings to `18/28px` and weight `600`; body text to `16/24px` and weight `400`; actions to `16/24px` and weight `500`; and support text to `14/20px` and weight `400`.
+
+Business identification uses body scale and accent ink; intros use canonical secondary ink. These values supersede the generic title scale only in the existing Business workspace context. Reuse shared semantic roles instead of page-specific title and intro overrides.
+
+Keep generic authentication/modal titles and public marketing roles unchanged. This shared mapping does not authorize unrelated screen rollout.
+
 ### Business Pase page normalization
 
-The Business Pase overview and appearance editor use an owner-approved, page-scoped role override. Set the page title to `32/40px` and weight `700` at every viewport; the intro to `18/28px` and weight `400`; section headings to `20/28px` and weight `600`; card headings to `18/28px` and weight `600`; body text to `16/24px` and weight `400`; actions to `16/24px` and weight `500`; and support text to `14/20px` and weight `400`. These values supersede the generic role table only on the two Business Pase routes. Reuse existing semantic role names in a Pase page context. Do not change shared role definitions, authenticated pages outside Pase, or public marketing roles.
+The following composition and preview rules remain scoped to the Business Pase overview and appearance editor; shared workspace typography does not expand their scope.
 
 Keep the authenticated workspace max width, `16px` horizontal padding (`24px` from `sm`), and `32px` workspace gap. The overview/editor breadcrumb uses body scale and sits `8px` before the title and intro. The overview panel uses `16px` padding (`24px` from `sm`) and a `24px` gap, without a larger `lg` padding tier. Keep existing touch targets and Flux control geometry. The right overview column uses 16px body/action scale with `8px` between heading and description and `16px` between content groups. Status badges retain Flux’s native `14/20px` sizing and muted public color variants; informational helper notes use `14/20px` support text and help ink. The Promotions section has `16px` outer spacing and a `4px` heading/helper gap. Promotion cards use `16px` padding (`24px` from `sm`), `16px` outer gap, a `48px` icon, and `8px` content rhythm.
 
@@ -221,7 +229,9 @@ Do not expose UTC offsets as the stored Business identity because offsets can ch
 
 ### Top section
 
-Without an active Promotion show the header and Pase link, two preparation cards, a waiting/next-scheduled state and, when relevant, only a brief identification of the last ended/cancelled Promotion. With an active Promotion show a priority card containing Reward, target **per pass**, local dates and frozen timezone, plus extra-point summary; then four equally weighted neutral metrics, optional next-scheduled line and two secondary completed preparation cards. No global-point-progress bar against one pass's target.
+Without an active Promotion show the header and Pase link, two preparation cards, a waiting/next-scheduled state and, when relevant, only a brief identification of the last ended/cancelled Promotion. With an active Promotion show a priority card containing Reward, target **per pass**, local dates derived from its frozen timezone, plus extra-point summary; then four equally weighted neutral metrics, optional next-scheduled line and two secondary completed preparation cards. No global-point-progress bar against one pass's target.
+
+The next-scheduled Promotion panel uses a section heading for **Próxima promoción**, matching the points-context panel, with its status badge adjacent to the title. Its Reward name uses a subordinate card heading. Separate the fixed **Visita habitual · 1 punto** value from configurable **Puntos extra**. Reuse publication review labels, sparkles icon and weekday/time rows with multiplier badges. Give the extra-point schedule the full available card width, not a third metadata column; show **Sin puntos extra** when its frozen rule collection is empty. Keep the active points-context panel consistent with this distinction. Do not show timezone labels in Summary panels; keep frozen-timezone date conversion unchanged. Scheduled waiting guidance uses the shared informational note role, support text, help ink and decorative information icon. Preparation cards retain their own help text without a redundant introductory instruction.
 
 ### Counters
 

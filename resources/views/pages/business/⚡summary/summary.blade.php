@@ -1,13 +1,13 @@
 <main class="app-theme app-workspace wrap-anywhere">
     <header class="flex flex-wrap items-center justify-between gap-6">
         <div class="min-w-0 space-y-2">
-            <p class="app-role-body text-app-accent-text">
+            <p class="app-role-body! text-app-accent">
                 {{ $business->name }} · {{ __('business.pass.business_label') }}
             </p>
             <flux:heading level="1" class="app-heading">
                 {{ __('summary.title') }}
             </flux:heading>
-            <flux:text class="app-description max-w-3xl">
+            <flux:text class="app-role-intro! app-text-secondary max-w-3xl">
                 {{ __('summary.description') }}
             </flux:text>
         </div>
@@ -62,15 +62,6 @@
                             </dt>
                             <dd class="app-role-body font-medium">
                                 {{ $activePeriod }}
-                            </dd>
-                        </div>
-                        <div class="min-w-0 space-y-1">
-                            <dt class="app-role-support flex items-center gap-2 text-app-ink-priority">
-                                <flux:icon.clock variant="outline" aria-hidden="true" class="size-4 shrink-0" />
-                                {{ __('summary.timezone') }}
-                            </dt>
-                            <dd class="app-role-body font-medium">
-                                {{ $currentPromotion->timezone_snapshot }}
                             </dd>
                         </div>
                     </dl>
@@ -145,44 +136,51 @@
         </section>
 
         <div @class(['grid gap-6', '[@media(width>48rem)]:grid-cols-2' => $nextScheduled !== null])>
-            <section aria-labelledby="points-title" aria-describedby="points-timezone" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6">
-                <div class="space-y-1">
-                    <flux:heading level="2" id="points-title" class="app-role-section! text-app-ink!">
-                        {{ __('summary.promotion_points') }}
-                    </flux:heading>
-                    <p id="points-timezone" class="app-role-support text-app-ink-secondary">
-                        {{ __('summary.points_timezone', ['timezone' => $currentPromotion->timezone_snapshot]) }}
-                    </p>
-                </div>
-                @if ($currentPromotion->extraPoints->isNotEmpty())
-                    <ul class="space-y-4">
-                        @foreach ($currentPromotion->extraPoints as $rule)
-                            <li wire:key="summary-extra-{{ $rule->id }}" class="app-note-with-icon app-role-body text-app-ink-secondary">
-                                <flux:icon.bolt variant="outline" aria-hidden="true" class="size-6 shrink-0 text-app-accent-text" />
-                                <span>
-                                    {{ __('summary.extra_points', [
-                                        'weekday' => __('business.promotion.weekdays.'.$rule->weekday),
-                                        'points' => $rule->multiplier,
-                                        'hours' => $rule->start_time === null
-                                            ? __('business.promotion.all_day')
-                                            : substr($rule->start_time, 0, 5).'–'.substr($rule->end_time, 0, 5),
-                                    ]) }}
-                                </span>
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    <p class="app-note-with-icon app-role-body text-app-ink-secondary">
-                        <flux:icon.bolt variant="outline" aria-hidden="true" class="size-6 shrink-0 text-app-accent-text" />
-                        <span>
-                            {{ __('summary.regular_points') }}
+            <section aria-labelledby="points-title" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6">
+                <flux:heading level="2" id="points-title" class="app-role-section! text-app-ink!">
+                    {{ __('summary.promotion_points') }}
+                </flux:heading>
+                <dl>
+                    <div class="flex justify-between gap-3">
+                        <dt class="app-role-support! text-app-ink-secondary">
+                            {{ __('business.promotion.summary_regular_visit') }}
+                        </dt>
+                        <dd class="app-role-action! text-end text-app-ink">
+                            {{ __('business.promotion.one_point') }}
+                        </dd>
+                    </div>
+                </dl>
+                <section aria-label="{{ __('business.promotion.review_extra_points') }}" class="min-w-0 space-y-3 border-t border-app-line pt-3">
+                    <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+                        <span class="row-span-2 flex self-stretch items-center justify-center sm:row-span-1" aria-hidden="true">
+                            <flux:icon.sparkles variant="outline" class="size-5 shrink-0 text-app-accent" />
                         </span>
-                    </p>
-                @endif
+                        <p class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1">
+                            {{ __('business.promotion.review_extra_points') }}
+                        </p>
+                        <p class="app-role-body! col-start-2 min-w-0 break-words font-semibold! text-app-ink sm:col-start-3 sm:row-start-1">
+                            {{ $currentPromotion->extraPoints->isEmpty() ? __('business.promotion.review_no_extra_points') : trans_choice('business.promotion.configuration_count', $currentPromotion->extraPoints->count()) }}
+                        </p>
+                    </div>
+                    @if ($currentPromotion->extraPoints->isNotEmpty())
+                        <ul aria-label="{{ __('business.promotion.review_extra_points') }}" class="space-y-2">
+                            @foreach ($currentPromotion->extraPoints as $rule)
+                                <li wire:key="summary-extra-{{ $rule->id }}" class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-app-border bg-app-control px-3 py-2">
+                                    <span class="app-role-support! min-w-0 break-words text-app-ink-secondary">
+                                        {{ __('business.promotion.weekdays.'.$rule->weekday) }} · {{ $rule->start_time === null ? __('business.promotion.all_day') : substr($rule->start_time, 0, 5).'–'.substr($rule->end_time, 0, 5) }}
+                                    </span>
+                                    <flux:badge color="violet" class="app-role-support! shrink-0 font-medium!">
+                                        ×{{ $rule->multiplier }}
+                                    </flux:badge>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </section>
             </section>
             @if ($nextScheduled)
                 <section aria-labelledby="next-promotion-title" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-6">
-                    <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex flex-wrap items-center gap-2">
                         <flux:heading level="2" id="next-promotion-title" class="app-role-section! text-app-ink!">
                             {{ __('summary.next') }}
                         </flux:heading>
@@ -202,7 +200,6 @@
                                 @foreach ([
                                     'target' => __('summary.points', ['count' => $nextScheduled->target_points]),
                                     'validity' => $nextPeriod,
-                                    'timezone' => $nextScheduled->timezone_snapshot,
                                 ] as $label => $value)
                                     <div class="min-w-0 space-y-1">
                                         <dt class="app-role-support text-app-ink-help">
@@ -213,9 +210,44 @@
                                         </dd>
                                     </div>
                                 @endforeach
+                                <div class="min-w-0 space-y-1">
+                                    <dt class="app-role-support text-app-ink-help">
+                                        {{ __('business.promotion.summary_regular_visit') }}
+                                    </dt>
+                                    <dd class="app-role-body text-app-ink-secondary">
+                                        {{ __('business.promotion.one_point') }}
+                                    </dd>
+                                </div>
                             </dl>
                         </div>
                     </div>
+                    <section aria-label="{{ __('business.promotion.review_extra_points') }}" class="min-w-0 space-y-3 border-t border-app-line pt-3">
+                        <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+                            <span class="row-span-2 flex self-stretch items-center justify-center sm:row-span-1" aria-hidden="true">
+                                <flux:icon.sparkles variant="outline" class="size-5 shrink-0 text-app-accent" />
+                            </span>
+                            <p class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1">
+                                {{ __('business.promotion.review_extra_points') }}
+                            </p>
+                            <p class="app-role-body! col-start-2 min-w-0 break-words font-semibold! text-app-ink sm:col-start-3 sm:row-start-1">
+                                {{ $nextScheduled->extraPoints->isEmpty() ? __('business.promotion.review_no_extra_points') : trans_choice('business.promotion.configuration_count', $nextScheduled->extraPoints->count()) }}
+                            </p>
+                        </div>
+                        @if ($nextScheduled->extraPoints->isNotEmpty())
+                            <ul aria-label="{{ __('business.promotion.review_extra_points') }}" class="space-y-2">
+                                @foreach ($nextScheduled->extraPoints as $rule)
+                                    <li wire:key="summary-next-extra-{{ $rule->id }}" class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-app-border bg-app-control px-3 py-2">
+                                        <span class="app-role-support! min-w-0 break-words text-app-ink-secondary">
+                                            {{ __('business.promotion.weekdays.'.$rule->weekday) }} · {{ $rule->start_time === null ? __('business.promotion.all_day') : substr($rule->start_time, 0, 5).'–'.substr($rule->end_time, 0, 5) }}
+                                        </span>
+                                        <flux:badge color="violet" class="app-role-support! shrink-0 font-medium!">
+                                            ×{{ $rule->multiplier }}
+                                        </flux:badge>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </section>
                 </section>
             @endif
         </div>
@@ -227,11 +259,6 @@
                 <flux:heading level="2" id="preparation-title" class="app-role-section! text-app-ink!">
                     {{ __('summary.preparation') }}
                 </flux:heading>
-                @if (! $currentPromotion)
-                    <p class="app-role-body text-app-ink-secondary">
-                        {{ __('summary.preparation_description') }}
-                    </p>
-                @endif
             </div>
             <flux:badge class="border border-app-border bg-app-surface! text-app-ink-secondary!">
                 {{ __('summary.completed_count', ['count' => (int) $appearancePrepared + (int) $promotionPrepared]) }}
@@ -283,10 +310,10 @@
 
     @if (! $currentPromotion && $nextScheduled)
         <section aria-labelledby="next-promotion-title" aria-describedby="scheduled-waiting" class="space-y-6 rounded-[20px] border border-app-border bg-app-surface p-6">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <p class="app-role-support text-app-accent-text">
+            <div class="flex flex-wrap items-center gap-2">
+                <flux:heading level="2" id="next-promotion-title" class="app-role-section! text-app-ink!">
                     {{ __('summary.next') }}
-                </p>
+                </flux:heading>
                 <flux:badge icon="clock" icon:variant="outline" class="border border-app-priority-border bg-app-scheduled-surface! text-app-ink-priority!">
                     {{ __('summary.scheduled') }}
                 </flux:badge>
@@ -296,7 +323,7 @@
                     <flux:icon.gift variant="outline" class="size-6" />
                 </span>
                 <div class="min-w-0 flex-1 space-y-4">
-                    <flux:heading level="2" id="next-promotion-title" class="app-role-section! text-app-ink!">
+                    <flux:heading level="3" class="app-role-card! text-app-ink!">
                         {{ $nextScheduled->reward_title }}
                     </flux:heading>
                     <dl class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
@@ -320,22 +347,51 @@
                         </div>
                         <div class="min-w-0 space-y-1">
                             <dt class="app-role-support flex items-center gap-2 text-app-ink-help">
-                                <flux:icon.clock variant="outline" aria-hidden="true" class="size-4 shrink-0" />
-                                {{ __('summary.timezone') }}
+                                <flux:icon.bolt variant="outline" aria-hidden="true" class="size-4 shrink-0" />
+                                {{ __('business.promotion.summary_regular_visit') }}
                             </dt>
                             <dd class="app-role-body text-app-ink-secondary">
-                                {{ $nextScheduled->timezone_snapshot }}
+                                {{ __('business.promotion.one_point') }}
                             </dd>
                         </div>
                     </dl>
                 </div>
             </div>
-            <p id="scheduled-waiting" class="app-role-body flex items-start gap-2 border-t border-app-line pt-4 text-app-ink-secondary">
-                <flux:icon.clock variant="outline" aria-hidden="true" class="size-6 shrink-0" />
-                <span>
-                    {{ __('summary.scheduled_waiting', ['date' => $nextScheduled->starts_at->setTimezone($nextScheduled->timezone_snapshot)->format('d/m/Y')]) }}
+            <section aria-label="{{ __('business.promotion.review_extra_points') }}" class="min-w-0 space-y-3 border-t border-app-line pt-3">
+                <div class="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-2 gap-y-1 sm:grid-cols-[1.5rem_8rem_minmax(0,1fr)] sm:gap-x-3 sm:gap-y-0">
+                    <span class="row-span-2 flex self-stretch items-center justify-center sm:row-span-1" aria-hidden="true">
+                        <flux:icon.sparkles variant="outline" class="size-5 shrink-0 text-app-accent" />
+                    </span>
+                    <p class="app-role-support! col-start-2 min-w-0 break-words font-medium! text-app-ink-secondary sm:col-start-2 sm:row-start-1">
+                        {{ __('business.promotion.review_extra_points') }}
+                    </p>
+                    <p class="app-role-body! col-start-2 min-w-0 break-words font-semibold! text-app-ink sm:col-start-3 sm:row-start-1">
+                        {{ $nextScheduled->extraPoints->isEmpty() ? __('business.promotion.review_no_extra_points') : trans_choice('business.promotion.configuration_count', $nextScheduled->extraPoints->count()) }}
+                    </p>
+                </div>
+                @if ($nextScheduled->extraPoints->isNotEmpty())
+                    <ul aria-label="{{ __('business.promotion.review_extra_points') }}" class="space-y-2">
+                        @foreach ($nextScheduled->extraPoints as $rule)
+                            <li wire:key="summary-next-extra-{{ $rule->id }}" class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-app-border bg-app-control px-3 py-2">
+                                <span class="app-role-support! min-w-0 break-words text-app-ink-secondary">
+                                    {{ __('business.promotion.weekdays.'.$rule->weekday) }} · {{ $rule->start_time === null ? __('business.promotion.all_day') : substr($rule->start_time, 0, 5).'–'.substr($rule->end_time, 0, 5) }}
+                                </span>
+                                <flux:badge color="violet" class="app-role-support! shrink-0 font-medium!">
+                                    ×{{ $rule->multiplier }}
+                                </flux:badge>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </section>
+            <div id="scheduled-waiting" class="app-note-with-icon text-app-ink-help">
+                <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
+                    <flux:icon.information-circle variant="outline" class="size-4" />
                 </span>
-            </p>
+                <p class="app-role-support!">
+                    {{ __('summary.scheduled_waiting', ['date' => $nextScheduled->starts_at->setTimezone($nextScheduled->timezone_snapshot)->format('d/m/Y')]) }}
+                </p>
+            </div>
         </section>
     @elseif (! $currentPromotion)
         <section aria-labelledby="waiting-title" aria-describedby="waiting-description" class="space-y-6 rounded-[20px] border border-app-border bg-app-surface p-6">

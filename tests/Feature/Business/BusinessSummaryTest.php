@@ -169,6 +169,33 @@ it('reads frozen terms and metrics in one current PostgreSQL snapshot independen
     expect($queries)->toHaveCount(1);
 });
 
+it('preloads only the selected next Promotions frozen rules in the same statement', function (bool $hasActive) {
+    summaryDatabaseTime();
+    $business = Business::factory()->create();
+    if ($hasActive) {
+        $active = summaryPromotion($business);
+        $active->extraPoints()->create(['weekday' => 1, 'multiplier' => 2]);
+    }
+    $next = summaryPromotion($business, ['starts_at' => '2030-01-04 00:00:00+00', 'ends_at' => '2030-01-05 00:00:00+00']);
+    $rule = $next->extraPoints()->create(['weekday' => 5, 'multiplier' => 3, 'start_time' => '14:00', 'end_time' => '17:00']);
+    $later = summaryPromotion($business, ['starts_at' => '2030-01-06 00:00:00+00', 'ends_at' => '2030-01-07 00:00:00+00']);
+    $later->extraPoints()->create(['weekday' => 6, 'multiplier' => 5]);
+    $foreign = summaryPromotion(Business::factory()->create(), ['starts_at' => '2030-01-03 00:00:00+00', 'ends_at' => '2030-01-04 00:00:00+00']);
+    $foreign->extraPoints()->create(['weekday' => 7, 'multiplier' => 5]);
+    $owner = $business->user;
+    DB::connection()->enableQueryLog();
+
+    $summary = (new BusinessSummary)->read($owner);
+
+    expect($summary['nextScheduled']->id)->toBe($next->id);
+    expect($summary['nextScheduled']->relationLoaded('extraPoints'))->toBeTrue();
+    expect($summary['nextScheduled']->extraPoints->sole()->id)->toBe($rule->id);
+    expect($summary['nextScheduled']->extraPoints->sole()->multiplier)->toBe(3);
+    expect($summary['nextScheduled']->extraPoints->sole()->start_time)->toBe('14:00:00');
+    expect(DB::getQueryLog())->toHaveCount(1);
+    DB::connection()->disableQueryLog();
+})->with(['scheduled only' => false, 'active and upcoming' => true]);
+
 it('re-evaluates scheduled active and ended phases on each fresh read', function () {
     summaryDatabaseTime('2030-01-01 23:59:59+00');
     $business = Business::factory()->create();
@@ -202,6 +229,8 @@ it('keeps fresh Promotion context on statistics outage and retries without previ
     summaryDatabaseTime();
     $business = Business::factory()->create();
     $first = summaryPromotion($business);
+    $next = summaryPromotion($business, ['starts_at' => '2030-01-04 00:00:00+00', 'ends_at' => '2030-01-05 00:00:00+00']);
+    $next->extraPoints()->create(['weekday' => 5, 'multiplier' => 3]);
     $fail = true;
     DB::connection()->beforeExecuting(function (string $sql) use (&$fail): void {
         if ($fail && str_contains($sql, 'COUNT(DISTINCT')) {
@@ -215,6 +244,8 @@ it('keeps fresh Promotion context on statistics outage and retries without previ
     expect($unavailable['currentPromotion']->id)->toBe($first->id);
     expect($unavailable['statistics'])->toBe('unavailable');
     expect($unavailable['metrics'])->toBeNull();
+    expect($unavailable['nextScheduled']->relationLoaded('extraPoints'))->toBeTrue();
+    expect($unavailable['nextScheduled']->extraPoints->sole()->multiplier)->toBe(3);
     $fail = false;
     $first->forceFill(['status' => 'cancelled', 'cancelled_at' => '2030-01-02 12:00:00+00'])->save();
     $replacement = summaryPromotion($business);

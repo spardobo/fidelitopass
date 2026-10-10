@@ -38,7 +38,7 @@
                 <flux:heading level="1" size="xl" class="app-heading">
                     {{ __('business.pass.editor_title') }}
                 </flux:heading>
-                <flux:text size="lg" class="app-role-intro!">
+                <flux:text size="lg" class="app-role-intro! app-text-secondary">
                     {{ __('business.pass.editor_description') }}
                 </flux:text>
             </div>
@@ -188,7 +188,7 @@
             <flux:heading level="1" size="xl" class="app-heading">
                 {{ __('business.pass.overview_title', ['business' => $this->business->name]) }}
             </flux:heading>
-            <flux:text size="lg" class="app-role-intro!">
+            <flux:text size="lg" class="app-role-intro! app-text-secondary">
                 {{ __('business.pass.overview_description') }}
             </flux:text>
         </header>
