@@ -5,6 +5,7 @@ use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -40,6 +41,7 @@ it('rejects a second business for the same owner through direct database writes'
 
     expect(fn () => DB::table('businesses')->insert([
         'user_id' => $owner->id,
+        'public_id' => (string) Str::uuid7(),
         'name' => 'Duplicate',
         'timezone' => 'Europe/Madrid',
         'created_at' => now(),

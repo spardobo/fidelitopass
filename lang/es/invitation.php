@@ -1,0 +1,27 @@
+<?php
+
+return [
+    'title' => 'Invita a tus clientes',
+    'description' => 'Comparte el pase de tu negocio e invita a tus clientes a volver.',
+    'qr_heading' => 'QR del negocio',
+    'preparation_pending' => 'Pase sin preparar',
+    'appearance_required' => 'Prepara el pase del negocio para que tus clientes puedan guardarlo en Google Wallet.',
+    'appearance_saved' => 'Tus clientes escanean este QR y guardan su pase en Google Wallet.',
+    'qr_preview_label' => 'Vista del QR del negocio',
+    'qr_alt' => 'QR público permanente del negocio',
+    'generation_failed' => 'No pudimos generar el QR. Inténtalo de nuevo.',
+    'retry' => 'Reintentar',
+    'download' => 'Descargar QR',
+    'prepare_pass' => 'Preparar pase',
+    'download_help' => 'Elige un color y guarda la apariencia del pase.',
+    'download_help_saved' => 'Imprime el QR y colócalo junto a tu caja.',
+    'instructions_heading' => 'Cómo invitar a tus clientes',
+    'instructions_description' => 'Sigue estos pasos para compartir el pase y confirmar las visitas de tus clientes.',
+    'step_1_heading' => 'Coloca el QR en tu negocio',
+    'step_1_description' => 'Descarga e imprime el QR y colócalo en el mostrador para que tus clientes puedan escanearlo.',
+    'step_2_heading' => 'Tus clientes guardan el pase',
+    'step_2_description' => 'Tus clientes escanean el QR y guardan su pase en Google Wallet, sin crear una cuenta en FidelitoPass.',
+    'step_3_heading' => 'Confirma cada visita',
+    'step_3_description' => 'Durante una promoción activa, identifica el pase del cliente y confirma cada visita antes de sumar puntos.',
+    'public_private_note' => 'El QR público será solo para guardar el pase, no autoriza visitas ni canjes.',
+];

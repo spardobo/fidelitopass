@@ -229,7 +229,7 @@
                         <flux:button href="{{ route('business.pass.appearance') }}" variant="filled" class="app-role-action! min-h-11">
                             {{ __('business.pass.edit_appearance') }}
                         </flux:button>
-                        <flux:button href="{{ url('/pass/invite') }}" variant="ghost" class="app-role-action! min-h-11">
+                        <flux:button href="{{ route('business.invite') }}" variant="ghost" class="app-role-action! min-h-11">
                             {{ __('business.pass.invite_customers') }}
                             <flux:icon.arrow-right variant="outline" class="ms-2 size-4" />
                         </flux:button>
