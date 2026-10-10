@@ -403,11 +403,11 @@
         </section>
     @elseif (! $currentPromotion)
         <section aria-labelledby="waiting-title" aria-describedby="waiting-description" class="space-y-6 rounded-[20px] border border-app-border bg-app-surface p-6">
-            <div class="flex items-start gap-4">
+            <div class="flex items-center gap-4">
                 <span aria-hidden="true" class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-border text-app-ink-secondary">
                     <flux:icon.clock variant="outline" aria-hidden="true" class="size-6" />
                 </span>
-                <div class="min-w-0 space-y-2">
+                <div class="flex min-w-0 flex-col gap-1">
                     <flux:heading level="2" id="waiting-title" class="app-role-section! text-app-ink!">
                         {{ __('summary.'.($lastPromotion ? 'history_waiting' : 'waiting')) }}
                     </flux:heading>
