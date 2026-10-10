@@ -35,7 +35,7 @@
                 </div>
             </header>
 
-            <div data-test="promotion-detail-scroll-body" tabindex="0" autofocus class="min-h-0 flex-1 overflow-y-auto py-3">
+            <div data-test="promotion-detail-scroll-body" tabindex="0" autofocus class="min-h-0 flex-1 overflow-y-auto py-3 pe-2">
                 <x-promotion-summary
                     :reward-title="$detail['promotion']->reward_title"
                     :reward-description="$detail['promotion']->reward_description"

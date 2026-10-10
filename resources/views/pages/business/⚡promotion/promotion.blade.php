@@ -482,7 +482,7 @@
                     </div>
                 </header>
 
-                <div data-test="promotion-review-scroll-body" data-promotion-review-scroll-body tabindex="0" autofocus class="min-h-0 flex-1 space-y-4 overflow-y-auto py-3">
+                <div data-test="promotion-review-scroll-body" data-promotion-review-scroll-body tabindex="0" autofocus class="min-h-0 flex-1 space-y-4 overflow-y-auto py-3 pe-2 [scrollbar-gutter:stable]">
                     <x-promotion-summary
                         :reward-title="$rewardTitle"
                         :reward-description="$rewardDescription"
@@ -523,56 +523,6 @@
             </div>
         @endif
     </flux:modal>
-
-    <style>
-        [data-promotion-review-scroll-body] {
-            scrollbar-gutter: stable;
-            scrollbar-color: var(--color-app-accent) transparent;
-            scrollbar-width: thin;
-        }
-
-        @media (hover: hover) and (pointer: fine) {
-            [data-promotion-review-scroll-body] {
-                scrollbar-color: transparent transparent;
-                transition: scrollbar-color 180ms ease;
-            }
-
-            [data-promotion-review-scroll-body]:hover,
-            [data-promotion-review-scroll-body]:focus,
-            [data-promotion-review-scroll-body]:focus-within {
-                scrollbar-color: var(--color-app-accent) transparent;
-            }
-
-            [data-promotion-review-scroll-body]::-webkit-scrollbar {
-                width: 0.5rem;
-            }
-
-            [data-promotion-review-scroll-body]::-webkit-scrollbar-track {
-                background: transparent;
-            }
-
-            [data-promotion-review-scroll-body]::-webkit-scrollbar-thumb {
-                border: 2px solid transparent;
-                border-radius: 9999px;
-                background-color: transparent;
-                background-clip: content-box;
-                transition: background-color 180ms ease;
-            }
-
-            [data-promotion-review-scroll-body]:hover::-webkit-scrollbar-thumb,
-            [data-promotion-review-scroll-body]:focus-within::-webkit-scrollbar-thumb,
-            [data-promotion-review-scroll-body]:active::-webkit-scrollbar-thumb {
-                background-color: var(--color-app-accent);
-            }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            [data-promotion-review-scroll-body],
-            [data-promotion-review-scroll-body]::-webkit-scrollbar-thumb {
-                transition: none;
-            }
-        }
-    </style>
 
     <flux:modal name="discard-promotion-draft" class="app-theme space-y-6">
         <div class="space-y-2">
