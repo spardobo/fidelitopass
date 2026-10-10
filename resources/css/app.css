@@ -33,7 +33,12 @@
     --color-app-secondary-button-border: #828282;
     --color-app-secondary-button-hover: #444444;
     --color-app-danger-ink: #FFB4BE;
+    --color-app-danger-surface: #382426;
+    --color-app-danger-border: #91525A;
     --color-app-success-ink: #BCE7C9;
+    --color-app-success-surface: #263D2E;
+    --color-app-success-border: #507F5E;
+    --color-app-scheduled-surface: #403152;
 
     --spacing-app-control: 2.75rem;
     --radius-app-control: .6875rem;
