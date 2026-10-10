@@ -69,10 +69,10 @@ async function waitForFonts(page) {
  * Checks the shared Business page roles without changing saved appearance or Promotion data.
  *
  * @param {import('@playwright/test').Page} page Authenticated Business owner page.
- * @returns {Promise<void>} Resolves after Summary, Pase and appearance editor match the shared roles; rejects on a rendering mismatch.
+ * @returns {Promise<void>} Resolves after Summary, Pase, appearance editor and invitation match shared roles; rejects on a rendering mismatch.
  */
 async function expectBusinessWorkspaceRoles(page) {
-    for (const path of ["/dashboard", "/pass", "/pass/appearance"]) {
+    for (const path of ["/dashboard", "/pass", "/pass/appearance", "/invite"]) {
         await page.goto(path);
         await waitForFonts(page);
 
@@ -661,6 +661,14 @@ for (const width of AUTHENTICATED_WIDTHS) {
             await link.click();
 
             await expect(page).toHaveURL(new RegExp(`${path}$`));
+
+            if (path === "/invite") {
+                await expect(link).toHaveAttribute("aria-current", "page");
+                await expect(navigation.locator('[aria-current="page"]')).toHaveCount(1);
+                await expect(
+                    page.getByRole("heading", { name: "Invita a tus clientes", exact: true }),
+                ).toBeVisible();
+            }
 
             if (path === "/pass") {
                 await expectPassBrandMark(page, testInfo, "business-pass");
