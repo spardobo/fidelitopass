@@ -4,8 +4,8 @@ use App\Actions\Promotions\CancelPromotion;
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
-use App\Models\PromotionMultiplierWindow;
 use App\Support\DatabaseClock;
+use App\Support\PromotionDetail;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -296,37 +296,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
             return null;
         }
 
-        abort_unless(Str::isUuid($this->selectedPromotionId), 404);
-        $business = $this->authorizedBusiness();
-        $promotion = $business->promotions()
-            ->where('public_id', $this->selectedPromotionId)
-            ->whereIn('status', [PromotionStatus::Published->value, PromotionStatus::Cancelled->value])
-            ->with(['extraPoints' => fn ($query) => $query->orderBy('weekday')->orderBy('start_time')->orderBy('id')])
-            ->first();
-        abort_if($promotion === null, 404);
-
-        $instant = CarbonImmutable::parse(
-            app(DatabaseClock::class)->captureForBusinessTimezone($business->timezone)['instant'],
-        );
-        $phase = match (true) {
-            $promotion->status === PromotionStatus::Cancelled => 'cancelled',
-            $instant->lessThan($promotion->starts_at) => 'scheduled',
-            $instant->greaterThanOrEqualTo($promotion->ends_at) => 'ended',
-            default => 'active',
-        };
-
-        return [
-            'promotion' => $promotion,
-            'phase' => $phase,
-            'start_date' => $promotion->starts_at->setTimezone($promotion->timezone_snapshot)->format('d/m/Y'),
-            'end_date' => $promotion->ends_at->setTimezone($promotion->timezone_snapshot)->subDay()->format('d/m/Y'),
-            'extra_points' => $promotion->extraPoints->map(fn (PromotionMultiplierWindow $rule): array => [
-                'weekday' => $rule->weekday,
-                'start_time' => $rule->start_time === null ? null : substr($rule->start_time, 0, 5),
-                'end_time' => $rule->end_time === null ? null : substr($rule->end_time, 0, 5),
-                'multiplier' => $rule->multiplier,
-            ])->all(),
-        ];
+        return app(PromotionDetail::class)->read(Auth::user(), $this->selectedPromotionId);
     }
 
     #[Computed]

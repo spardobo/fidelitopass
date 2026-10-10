@@ -655,6 +655,48 @@ class DashboardTest extends TestCase
         $component->call('$refresh')->assertUnauthorized();
     }
 
+    public function test_populated_primary_and_upcoming_cards_offer_owned_detail_actions(): void
+    {
+        foreach (['active', 'scheduled'] as $primaryPhase) {
+            $business = Business::factory()->create();
+            $primary = $this->promotion($business, 'published',
+                $primaryPhase === 'active' ? '2020-01-01 04:00:00+00' : '2097-01-01 04:00:00+00',
+                '2098-01-01 04:00:00+00');
+            $upcoming = $this->promotion($business, 'published', '2098-02-01 04:00:00+00', '2098-03-01 04:00:00+00');
+
+            $component = Livewire::actingAs($business->user)->test('pages::business.summary');
+            $document = new \DOMDocument;
+            $document->loadHTML('<?xml encoding="UTF-8">'.$component->html(), LIBXML_NOERROR | LIBXML_NOWARNING);
+            $xpath = new \DOMXPath($document);
+            foreach (['promotion-title' => $primary, 'next-promotion-title' => $upcoming] as $heading => $promotion) {
+                $buttons = $xpath->query('//*[@aria-labelledby="'.$heading.'"]//button[@*[name()="wire:click"]="showPromotionDetail(\''.$promotion->public_id.'\')"]');
+                $this->assertSame(1, $buttons->length);
+                $this->assertSame('Ver detalle', trim($buttons->item(0)->textContent));
+            }
+            $component->call('showPromotionDetail', $upcoming->public_id)
+                ->assertDispatched('modal-show', name: 'promotion-detail')
+                ->assertSee('data-promotion-detail-phase="scheduled"', false)
+                ->assertDontSee('Cancelar promoción');
+        }
+    }
+
+    public function test_placeholder_cards_have_no_detail_action(): void
+    {
+        $business = Business::factory()->create();
+
+        $this->actingAs($business->user)->get(route('dashboard'))
+            ->assertDontSee('wire:click="showPromotionDetail(', false)
+            ->assertDontSee('Ver detalle');
+
+        $this->promotion($business, 'published', '2020-01-01 04:00:00+00', '2098-01-01 04:00:00+00');
+        $component = Livewire::actingAs($business->user)->test('pages::business.summary');
+        $document = new \DOMDocument;
+        $document->loadHTML('<?xml encoding="UTF-8">'.$component->html(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//button[starts-with(@*[name()="wire:click"], "showPromotionDetail(")]')->length);
+        $this->assertSame(0, $xpath->query('//*[@aria-labelledby="next-promotion-title"]//button')->length);
+    }
+
     /**
      * Reads the four semantic activity definitions independently of their styling.
      *

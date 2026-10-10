@@ -3,6 +3,7 @@
 return [
     'title' => 'Tu negocio, de un vistazo',
     'description' => 'Consulta tu pase, tus promociones y las recompensas de tus clientes.',
+    'close_promotion_detail' => 'Volver al resumen',
     'go_to_pass' => 'Ir a Pase',
     'preparation' => 'Preparación del negocio',
     'preparation_pending' => 'Preparación pendiente',

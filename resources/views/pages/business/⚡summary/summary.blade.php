@@ -60,7 +60,7 @@
         ])
     >
         <div class="flex flex-wrap items-center gap-3">
-            <flux:heading level="2" id="promotion-title" class="app-role-section! text-app-ink!">
+            <flux:heading level="2" id="promotion-title" tabindex="-1" class="app-role-section! text-app-ink!">
                 {{ __('summary.promotion') }}
             </flux:heading>
             @if ($primaryPromotion)
@@ -123,6 +123,16 @@
                 </div>
             </dl>
         </div>
+        @if ($primaryPromotion)
+            <flux:button
+                id="promotion-detail-trigger-{{ $primaryPromotion->public_id }}" type="button"
+                wire:click="showPromotionDetail('{{ $primaryPromotion->public_id }}')"
+                wire:loading.attr="disabled" wire:target="showPromotionDetail"
+                variant="filled" class="app-button-secondary min-h-11 w-full sm:w-auto"
+            >
+                {{ __('business.pass.view_promotion_detail') }}
+            </flux:button>
+        @endif
         @if ($primaryPhase === 'scheduled')
             <div class="app-note-with-icon text-app-ink-help">
                 <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
@@ -259,6 +269,16 @@
                         </dl>
                     </div>
                 @endif
+                @if ($context === 'next-promotion' && $contextPromotion)
+                    <flux:button
+                        id="promotion-detail-trigger-{{ $contextPromotion->public_id }}" type="button"
+                        wire:click="showPromotionDetail('{{ $contextPromotion->public_id }}')"
+                        wire:loading.attr="disabled" wire:target="showPromotionDetail"
+                        variant="filled" class="app-button-secondary min-h-11 w-full sm:w-auto"
+                    >
+                        {{ __('business.pass.view_promotion_detail') }}
+                    </flux:button>
+                @endif
                 @if ($contextPromotion)
                     @if ($contextPromotion->extraPoints->isEmpty())
                         <div class="app-note-with-icon border-t border-app-line pt-3 text-app-ink-help">
@@ -338,4 +358,9 @@
             </div>
         </section>
     @endif
+    <x-promotion-detail
+        :detail="$this->promotionDetail"
+        :close-label="__('summary.close_promotion_detail')"
+        focus-fallback="promotion-title"
+    />
 </main>
