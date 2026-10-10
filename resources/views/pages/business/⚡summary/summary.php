@@ -3,6 +3,7 @@
 use App\Models\Promotion;
 use App\Models\User;
 use App\Support\BusinessSummary;
+use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -21,28 +22,44 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
         $actor = Auth::user();
         abort_unless($actor instanceof User, 401);
         $summary = app(BusinessSummary::class)->read($actor);
-        $active = $summary['currentPromotion'];
+        $primary = $summary['primaryPromotion'];
         $next = $summary['nextScheduled'];
+        $upcoming = $next?->id === $primary?->id ? null : $next;
+        $phase = $primary?->phase ?? 'none';
+        $preparation = [
+            'appearance' => $summary['appearancePrepared'],
+            'promotion' => $summary['promotionPrepared'] || $summary['hasPromotionDraft'],
+        ];
+        if ($summary['statistics'] === 'unavailable') {
+            Flux::toast(__('summary.load_error'), null, 5000, 'danger');
+        }
 
         $view->with([
             ...$summary,
-            'activePeriod' => $active === null ? null : $this->period($active),
-            'nextPeriod' => $next === null ? null : $this->period($next),
-            'preparation' => [
-                'appearance' => $summary['appearancePrepared'],
-                'promotion' => $summary['promotionPrepared'],
-            ],
+            'primaryPhase' => $phase,
+            'primaryPeriod' => $primary === null ? null : $this->period($primary),
+            'upcomingPromotion' => $upcoming,
+            'nextPeriod' => $upcoming === null ? null : $this->period($upcoming),
+            'preparation' => $preparation,
+            'preparationCompleted' => count(array_filter($preparation)),
         ]);
     }
 
     /**
-     * Formats the original inclusive local dates using the published timezone.
+     * Formats draft local dates as entered, or frozen published inclusive dates in their snapshot timezone.
      *
-     * @param  Promotion  $promotion  Server-resolved published or cancelled terms.
+     * @param  Promotion  $promotion  Server-resolved draft, published or cancelled terms.
      * @return string Local validity range, preserving exclusive-end calendar semantics.
      */
     private function period(Promotion $promotion): string
     {
+        if ($promotion->phase === 'draft') {
+            return __('summary.period', [
+                'start' => $promotion->local_start_date->format('d/m/Y'),
+                'end' => $promotion->local_end_date->format('d/m/Y'),
+            ]);
+        }
+
         $timezone = $promotion->timezone_snapshot;
 
         return __('summary.period', [
