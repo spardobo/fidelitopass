@@ -205,19 +205,31 @@ select:focus[data-flux-control] {
     @apply text-4xl leading-10 font-semibold tabular-nums;
 }
 @utility app-role-pass-preview-brand {
-    @apply text-xl! leading-7! font-bold!;
+    @apply text-2xl! leading-[1.15]! font-bold!;
 }
 @utility app-role-pass-preview-compact {
-    @apply text-xs! leading-4! font-normal!;
+    @apply text-base! leading-[1.45]! font-normal!;
 }
 @utility app-role-pass-preview-reward {
-    @apply text-sm! leading-5! font-bold!;
+    @apply text-[1.375rem]! leading-[1.25]! font-semibold!;
 }
 @utility app-role-pass-preview-label {
-    @apply text-xs! leading-4! font-semibold!;
+    @apply text-sm! leading-[1.35]! font-medium!;
 }
 @utility app-role-pass-preview-metric {
-    @apply text-2xl! leading-8! font-semibold! tabular-nums!;
+    @apply text-[1.625rem]! leading-[1.15]! font-bold! tabular-nums!;
+}
+@utility app-role-pass-preview-extra {
+    @apply text-sm! leading-[1.35]! font-normal!;
+}
+@utility app-role-pass-preview-validity {
+    @apply text-sm! leading-[1.35]! font-normal!;
+}
+@utility app-role-pass-preview-manual-label {
+    @apply text-xs! leading-[1.35]! font-medium!;
+}
+@utility app-role-pass-preview-manual-value {
+    @apply text-xl! leading-[1.15]! font-bold!;
 }
 @utility app-role-body {
     @apply text-base leading-app-body font-normal;
@@ -263,7 +275,7 @@ select:focus[data-flux-control] {
     @apply mx-auto flex w-full max-w-[68rem] min-w-0 flex-col gap-8 px-4 sm:px-6;
 }
 @utility app-pass-preview {
-    @apply grid w-full min-w-0 max-w-[400px] grid-rows-[1fr_2fr_1fr] rounded-2xl p-3 shadow-xl sm:p-4;
+    @apply grid w-full min-w-0 max-w-[400px] grid-rows-[auto_1fr_auto] rounded-2xl p-4 shadow-xl;
     min-height: max-content;
 }
 @utility app-pass-preview-rail {
@@ -298,30 +310,6 @@ select:focus[data-flux-control] {
         font-weight: 700 !important;
     }
 
-    .app-pass-page .app-role-pass-preview-compact {
-        font-size: 0.875rem !important;
-        line-height: 1.25rem !important;
-        font-weight: 400 !important;
-    }
-
-    .app-pass-page .app-role-pass-preview-reward {
-        font-size: 0.875rem !important;
-        line-height: 1.25rem !important;
-        font-weight: 700 !important;
-    }
-
-    .app-pass-page .app-role-pass-preview-label {
-        font-size: 0.875rem !important;
-        line-height: 1.25rem !important;
-        font-weight: 600 !important;
-    }
-
-    .app-pass-page .app-role-pass-preview-metric {
-        font-size: 1.75rem !important;
-        line-height: 2rem !important;
-        font-weight: 700 !important;
-        font-variant-numeric: tabular-nums !important;
-    }
 }
 /* Keep 192px for adjacent content and 24px for the gap as the rail shrinks. */
 @container pass-workspace (min-width: 33.5rem) {
@@ -338,9 +326,6 @@ select:focus[data-flux-control] {
     }
 }
 @container (max-width: 360px) {
-    .app-pass-preview {
-        padding: 0.75rem;
-    }
     .app-pass-preview-terms {
         grid-template-columns: minmax(0, 1fr) 3.5rem;
     }
@@ -349,35 +334,47 @@ select:focus[data-flux-control] {
     }
 }
 
-@media (max-width: 767px) {
-    @container pass-preview (max-width: 575px) {
-        .app-pass-preview--marketing {
-            padding: calc(16px / var(--landing-scale, 1));
-        }
+@container pass-preview (min-width: 448px) {
+    .app-pass-preview {
+        padding: 1.5rem;
+    }
+    .app-pass-preview--marketing {
+        min-height: 384px;
+    }
+    .app-pass-preview--with-qr > .app-pass-preview-content {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 8rem;
+        align-items: center;
+        column-gap: 1.5rem;
     }
 }
 
+
 @layer utilities {
-    .app-pass-preview--marketing {
-        width: 576px;
-        max-width: 576px;
-        height: 384px;
-        min-height: 0;
-        padding: 1.5rem;
+    @container pass-preview (min-width: 448px) {
+        .app-pass-preview .app-role-pass-preview-brand {
+            font-size: 1.75rem !important;
+        }
+        .app-pass-preview .app-role-pass-preview-reward {
+            font-size: 1.5rem !important;
+        }
+        .app-pass-preview .app-role-pass-preview-metric {
+            font-size: 1.75rem !important;
+        }
+        .app-pass-preview .app-role-pass-preview-manual-value {
+            font-size: 1.375rem !important;
+        }
     }
 
-    .app-pass-preview--with-qr > .app-pass-preview-content {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 9rem;
-        align-items: center;
-        column-gap: 1.5rem;
+    .app-pass-preview--marketing {
+        max-width: 576px;
     }
 
     .app-pass-preview--with-manual-code > .app-pass-preview-reward {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 9rem;
+        grid-template-columns: minmax(0, 1fr) 6rem;
         align-items: center;
-        column-gap: 1.5rem;
+        column-gap: 0.75rem;
     }
 
     .app-pass-preview-qr {
@@ -387,12 +384,25 @@ select:focus[data-flux-control] {
         align-items: center;
         justify-self: center;
         gap: 0.5rem;
+        width: min(100%, 8rem);
+        align-self: center;
     }
 
     .app-pass-preview-manual-code {
+        @apply flex flex-col justify-center self-stretch border-s border-current/25 ps-3;
         grid-column: 2;
-        justify-self: center;
         text-align: center;
+    }
+
+    @container pass-preview (width < 448px) {
+        .app-pass-preview-qr,
+        .app-pass-preview-manual-code {
+            display: none;
+        }
+        .app-pass-preview--with-manual-code > .app-pass-preview-reward {
+            display: flex;
+            align-items: stretch;
+        }
     }
 
     .app-pass-overview-content {

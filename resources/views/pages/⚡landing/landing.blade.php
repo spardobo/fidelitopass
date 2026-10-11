@@ -113,41 +113,18 @@
             </div>
 
             <div class="mx-auto w-full max-w-[576px] xl:mx-0">
-                <div data-thumbnail class="landing-thumbnail relative aspect-[3/2] w-full max-w-[576px] @container/pass-preview">
-                    <div class="absolute top-0 left-0 origin-top-left [transform:scale(var(--landing-scale,1))]">
-                        <x-pass-preview
-                            :business-name="__('landing.hero.sample.business')"
-                            :aria-label="__('landing.hero.pass_aria')"
-                            :marketing="true"
-                            data-pass
-                            class="landing-pass isolate origin-center rounded-2xl bg-app-accent text-app-on-accent shadow-2xl
-                                bg-[linear-gradient(115deg,transparent_12%,rgb(255_255_255/24%)_34%,rgb(255_255_255/8%)_50%,transparent_72%)]
-                                bg-size-[160%_160%] bg-position-[var(--sheen-x,50%)_var(--sheen-y,50%)]
-                                motion-safe:[transition:transform_180ms_cubic-bezier(0.32,0.72,0,1),background-position_180ms_cubic-bezier(0.32,0.72,0,1)]"
-                        >
-                            <x-slot:promotionLabel>{{ __('landing.hero.sample.challenge_label') }}</x-slot:promotionLabel>
-                            <x-slot:promotionDescription>{{ __('landing.hero.sample.challenge_description') }}</x-slot:promotionDescription>
-                            <x-slot:progress>{{ __('landing.hero.sample.progress') }}</x-slot:progress>
-                            <x-slot:extraPoints>{{ __('landing.hero.sample.visit_value') }}</x-slot:extraPoints>
-                            <x-slot:reward>{{ __('landing.hero.sample.reward') }}</x-slot:reward>
-                            <x-slot:deadline>{{ __('landing.hero.sample.deadline') }}</x-slot:deadline>
-
-                            <x-slot:qr>
-                                <img src="{{ asset('preview-pass-qr.svg') }}" alt="{{ __('landing.hero.sample.qr_alt') }}" class="landing-pass-qr relative z-1 size-32 shrink-0 bg-white" width="232" height="232">
-                            </x-slot:qr>
-                            <x-slot:manualCode>
-                                <flux:text class="font-semibold!">
-                                    {{ __('landing.hero.sample.manual_code_label') }}
-                                    <br>
-                                    <span class="text-xl tracking-widest">
-                                        {{ __('landing.hero.sample.manual_code') }}
-                                    </span>
-                                </flux:text>
-                            </x-slot:manualCode>
-                        </x-pass-preview>
-                    </div>
-                </div>
-
+                <x-interactive-pass-preview
+                    :show-credentials="true"
+                    :business-name="__('landing.hero.sample.business')"
+                    :aria-label="__('landing.hero.pass_aria')"
+                    :reward="__('landing.hero.sample.reward')"
+                    :reward-description="__('landing.hero.sample.challenge_description')"
+                    :progress="__('landing.hero.sample.progress')"
+                    :extra-points="__('landing.hero.sample.visit_value')"
+                    :deadline="__('landing.hero.sample.deadline')"
+                    data-pass
+                    class="landing-pass"
+                />
             </div>
         </section>
 
@@ -346,11 +323,6 @@
         // ---------------------------------------------------------------------
         // configuration
         // ---------------------------------------------------------------------
-        const passWidthPx = 576;
-        const passHeightPx = 384;
-        const maximumTiltDegrees = 8;
-        const tiltDeadZone = .08;
-        const perspectivePx = 900;
         const taglineDelayMs = 180;
         const sectionThreshold = .08;
 
@@ -362,7 +334,6 @@
         const hero = landingRoot.querySelector('#home');
         const benefits = landingRoot.querySelector('#benefits');
         const thumbnail = landingRoot.querySelector('[data-thumbnail]');
-        const pass = landingRoot.querySelector('[data-pass]');
         const tagline = landingRoot.querySelector('[data-tagline]');
         const words = Array.from(landingRoot.querySelectorAll('[data-tagline-word]'));
         const sections = Array.from(main.querySelectorAll(':scope > section:not(#home)'));
@@ -377,7 +348,6 @@
         const timers = new Set();
         const frames = new Set();
         let destroyed = false;
-        let passFrame = null;
         let sectionObserver = null;
         let taglineObserver = null;
         let taglineStarted = false;
@@ -392,7 +362,6 @@
                 && landingRoot.querySelector('#home') === hero
                 && landingRoot.querySelector('#benefits') === benefits
                 && landingRoot.querySelector('[data-thumbnail]') === thumbnail
-                && landingRoot.querySelector('[data-pass]') === pass
                 && landingRoot.querySelector('[data-tagline]') === tagline
                 && sections.every(section => section.parentElement === main)
                 && words.every(word => tagline.contains(word))
@@ -460,8 +429,6 @@
         function measureLanding() {
             if (!isActive()) return;
 
-            setLayoutProperty(thumbnail, '--landing-scale', String(Math.min(1, thumbnail.clientWidth / passWidthPx)));
-
             // measure the stable header boundary, never the hero's own distributed margin.
             const headerBottomPx = header.getBoundingClientRect().bottom + window.scrollY;
             const baseGapPx = parseFloat(getComputedStyle(main).paddingTop) || 0;
@@ -493,68 +460,6 @@
 
             window.addEventListener('resize', measureLanding, { signal: listeners.signal });
             document.fonts?.ready.then(measureLanding);
-        }
-
-        // ---------------------------------------------------------------------
-        // pass interaction
-        // ---------------------------------------------------------------------
-        function cancelPassFrame() {
-            if (passFrame === null) return;
-
-            cancelAnimationFrame(passFrame);
-            frames.delete(passFrame);
-            passFrame = null;
-        }
-
-        function resetPass() {
-            cancelPassFrame();
-            pass.style.removeProperty('transform');
-            pass.style.removeProperty('--sheen-x');
-            pass.style.removeProperty('--sheen-y');
-        }
-
-        function calculatePassPresentation(event) {
-            const bounds = thumbnail.getBoundingClientRect();
-            const horizontalPosition = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
-            const verticalPosition = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
-            const displacement = 2 * horizontalPosition - 1;
-            const angleDegrees = Math.abs(displacement) < tiltDeadZone ? 0 : maximumTiltDegrees * displacement;
-
-            return { horizontalPosition, verticalPosition, angleDegrees };
-        }
-
-        function renderPassPresentation({ horizontalPosition, verticalPosition, angleDegrees }) {
-            pass.style.setProperty('--sheen-x', `${10 + 80 * horizontalPosition}%`);
-            pass.style.setProperty('--sheen-y', `${10 + 80 * verticalPosition}%`);
-            pass.style.transform = angleDegrees
-                ? `perspective(${perspectivePx}px) rotate3d(-${passWidthPx}, ${passHeightPx}, 0, ${angleDegrees}deg)`
-                : 'none';
-        }
-
-        function movePass(event) {
-            if (!isActive()) return;
-
-            if (event.pointerType !== 'mouse' || reducedMotion.matches) {
-                resetPass();
-                return;
-            }
-
-            cancelPassFrame();
-
-            // capture pointer geometry now; only presentation writes wait for the owned frame.
-            const presentation = calculatePassPresentation(event);
-            passFrame = scheduleFrame(() => {
-                passFrame = null;
-                if (reducedMotion.matches) return;
-
-                renderPassPresentation(presentation);
-            });
-        }
-
-        function initializePassInteraction() {
-            resetPass();
-            pass.addEventListener('pointermove', movePass, { signal: listeners.signal });
-            pass.addEventListener('pointerleave', resetPass, { signal: listeners.signal });
         }
 
         // ---------------------------------------------------------------------
@@ -672,7 +577,6 @@
         // ---------------------------------------------------------------------
         function onMotionChange() {
             if (!isActive() || !reducedMotion.matches) return;
-            resetPass();
             frames.forEach(frame => cancelAnimationFrame(frame));
             frames.clear();
             showAllSections();
@@ -717,7 +621,6 @@
             // an obsolete owner releases its resources without resetting a newer owner's content.
             if (!ownsRoot) return;
 
-            resetPass();
             showAllSections();
             completeTagline();
             main.style.removeProperty('--landing-closing-gap');
@@ -736,7 +639,6 @@
         initializeLifecycle();
         initializeNavigation();
         initializeHeroLayout();
-        initializePassInteraction();
         initializeSectionReveal();
         initializeTaglineReveal();
     })();

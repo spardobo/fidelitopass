@@ -215,7 +215,9 @@ it('downloads exactly the displayed preparation SVG for the owner despite forged
         ->call('downloadQr', $foreign->id)
         ->assertFileDownloaded('fidelitopass-qr-'.$business->public_id.'.svg', $svg, 'image/svg+xml');
 
-    $this->get('/join/'.$business->public_id)->assertNotFound();
+    $this->get('/join/'.$business->public_id)
+        ->assertSee($business->name)
+        ->assertSee('Promoción de ejemplo.');
 });
 
 it('refuses a download before appearance has been saved', function () {

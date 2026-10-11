@@ -26,6 +26,8 @@ class ExampleTest extends TestCase
         $response->assertOk()
             ->assertSeeText('Promociones')
             ->assertSeeText('PROMOCIÓN')
+            ->assertSeeText('Hoy tus puntos valen x2')
+            ->assertSeeText('Válido hasta el 30 de septiembre')
             ->assertSeeText('9 / 15 puntos')
             ->assertSeeText('Un consumo de cortesía')
             ->assertSeeText('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.')

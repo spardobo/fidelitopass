@@ -1874,7 +1874,7 @@ test("desktop navigation follows the visible section order without horizontal ov
         .toBeLessThan(40);
 });
 
-test("public landing scales the approved sample and keeps every section reachable", async ({
+test("public landing reflows the readable sample and keeps every section reachable", async ({
     page,
 }, testInfo) => {
     test.setTimeout(60000);
@@ -1902,16 +1902,37 @@ test("public landing scales the approved sample and keeps every section reachabl
             "content",
             /Crea Promociones de puntos/,
         );
+        const orderedTerms = [
+            "Un consumo de cortesía",
+            "Disfruta de un consumo de cortesía",
+            "9 / 15 puntos",
+            "Hoy tus puntos valen x2",
+            "Válido hasta el 30 de septiembre",
+        ];
+        const cardText = await pass.innerText();
+        let previous = -1;
+        for (const term of orderedTerms) {
+            const position = cardText.indexOf(term);
+            expect(position).toBeGreaterThan(previous);
+            previous = position;
+        }
         await expect(pass).toContainText("9 / 15 puntos");
-        await expect(pass).toContainText("2 puntos");
+        await expect(pass).toContainText("Hoy tus puntos valen x2");
         await expect(pass).toContainText("Un consumo de cortesía");
         await expect(pass).not.toContainText("Hamburguesa gratis");
         await expect(pass.locator(".app-pass-preview-header")).toBeVisible();
         await expect(pass.locator(".app-pass-preview-content")).toBeVisible();
         await expect(pass.locator(".app-pass-preview-reward")).toBeVisible();
-        await expect(pass.locator(".app-pass-preview-qr")).toBeVisible();
+        const wideCard = (await pass.boundingBox()).width >= 448;
+        if (wideCard) {
+            await expect(pass.locator(".app-pass-preview-qr")).toBeVisible();
+            await expect(pass.locator(".app-pass-preview-manual-code")).toBeVisible();
+        } else {
+            await expect(pass.locator(".app-pass-preview-qr")).toBeHidden();
+            await expect(pass.locator(".app-pass-preview-manual-code")).toBeHidden();
+        }
         await expect(pass).toHaveClass(/app-pass-preview--with-qr/);
-        await expect(pass).toContainText("30 SEP");
+        await expect(pass).toContainText("Válido hasta el 30 de septiembre");
         await expect(pass).toContainText("48273");
         await expect(
             page.getByText(
@@ -1922,7 +1943,10 @@ test("public landing scales the approved sample and keeps every section reachabl
             "href",
             "#pass",
         );
-        await expect(page.getByRole("img", { name: "QR de ejemplo" })).toBeVisible();
+        await expect(pass.locator(".app-pass-preview-qr img")).toHaveAttribute(
+            "src",
+            /preview-pass-qr\.svg$/,
+        );
 
         const stepNumbers = page.locator("#how-it-works ol > li > span");
         await expect(stepNumbers).toHaveText(["01", "02", "03"]);
@@ -1965,7 +1989,7 @@ test("public landing scales the approved sample and keeps every section reachabl
             return {
                 thumb: box("[data-thumbnail]"),
                 pass: passBox,
-                qr: box(".landing-pass-qr"),
+                qr: box(".app-pass-preview-qr-image"),
                 code: box(".app-pass-preview-manual-code"),
                 thumbnailWidth: thumbnail.clientWidth,
                 scale: thumbnailStyle.getPropertyValue("--landing-scale"),
@@ -1988,12 +2012,20 @@ test("public landing scales the approved sample and keeps every section reachabl
 
         expect(geometry.pass.width).toBeCloseTo(geometry.thumb.width, 0);
         expect(geometry.pass.height).toBeCloseTo(geometry.thumb.height, 0);
-        expect(geometry.pass.width / geometry.pass.height).toBeCloseTo(1.5, 2);
-        expect(geometry.qr.x).toBeGreaterThan(geometry.pass.x + geometry.pass.width / 2);
-        expect(geometry.code.y).toBeGreaterThan(geometry.qr.y);
-        expect(geometry.code.bottom).toBeLessThanOrEqual(geometry.pass.bottom);
+        // Narrow cards reflow readable type instead of shrinking to a fixed aspect ratio.
+        expect(geometry.passOffsetWidth).toBeCloseTo(geometry.pass.width, 0);
+        if (width >= 768) expect(geometry.pass.height).toBeGreaterThanOrEqual(384);
+        if (geometry.pass.width >= 448) {
+            expect(geometry.qr.x).toBeGreaterThan(geometry.pass.x + geometry.pass.width / 2);
+            expect(geometry.code.y).toBeGreaterThan(geometry.qr.y);
+            expect(geometry.code.bottom).toBeLessThanOrEqual(geometry.pass.bottom);
+        } else {
+            expect(geometry.qr.width).toBe(0);
+            expect(geometry.code.width).toBe(0);
+            expect(geometry.code.height).toBe(0);
+        }
 
-        if (width <= 375) {
+        if (geometry.pass.width < 448) {
             expect(geometry.renderedPadding.left).toBeGreaterThanOrEqual(15.99);
             expect(geometry.renderedPadding.right).toBeGreaterThanOrEqual(15.99);
         } else {
