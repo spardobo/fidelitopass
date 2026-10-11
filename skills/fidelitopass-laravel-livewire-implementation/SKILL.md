@@ -1,6 +1,6 @@
 ---
 name: fidelitopass-laravel-livewire-implementation
-description: "Trigger: FidelitoPass Laravel, PHP, Livewire, Eloquent, Actions or Jobs implementation. Apply PHP conventions and route domain decisions to their owners."
+description: "Trigger: FidelitoPass PHP, Laravel, Livewire, Eloquent, Actions, Jobs, Support, integrations or Pest implementation, refactoring and review. Apply readable PHP, third-person PHPDoc and semantic groups; route domain decisions to owners."
 license: Apache-2.0
 metadata:
   author: FidelitoPass
@@ -9,38 +9,51 @@ metadata:
 
 ## Activation Contract
 
-Use for project Laravel/Livewire/PHP changes, including mixed components; exclude presentation-only, JavaScript-only and delivery planning work. Framework skills and installed source own APIs.
+Use for PHP generation, modification, refactoring and review, including mixed components. Exclude presentation-only, JavaScript-only and delivery planning work. Framework skills and installed source own APIs.
+
+Apply these PHP refinements over generic style suggestions. Honor explicit user instructions; do not change shared standards or global formatter configuration for local style.
+
+For snippets, do not invent files, dependencies or policy. Missing owners block only dependent decisions.
 
 ## Hard Rules
 
-- Apply the shared quality and PHP implementation references; assess readability independently of tests.
-- Prefer conventional Laravel/Eloquent, concrete injection and cohesive native Livewire components; preserve stable starter formats and server authority.
-- Keep domain, data, security, time and presentation policy with document owners.
-- Document reusable public/domain boundaries and non-obvious contracts for IDE use. Prefer names, types and structure over narration; preserve useful generics, shapes, errors and side-effect guarantees.
+- Apply [PHP implementation](references/implementation-details.md) and available [shared quality](../shared/code-quality.md) before writing. Generate readable code immediately; tests/formatters do not certify readability.
+- Prefer conventional Laravel/Eloquent, concrete injection and cohesive native Livewire; preserve starter formats and server authority. Keep domain, data, security, time and presentation policy with document owners.
+- Document classes and every named callable, including private methods/constructors, with an English third-person singular opening verb and useful parameter/return/exception contracts. Do not rename methods into third-person verbs; apply the reference's PHPDoc syntax.
+- Use three-line separators only for at least two meaningful semantic groups in the same class/procedural/test file, each containing one to N related callables. Otherwise use none. Reject isolated banners, per-method boxes and artificial groups; keep a blank line above/below, before PHPDoc, never inside bodies.
+- Keep constructors, framework/Livewire lifecycle hooks and Pest/PHPUnit configuration/setup/teardown unboxed at the top after state. Preserve documentation; exclude them from labeled groups/counts.
+- Expand conditions, queries, payloads and assertions by meaning; separate ideas with blank lines. Extract complete responsibilities, not helpers per step or layers merely to shorten methods.
+- Preserve observable semantics during refactoring, including replay, credentials and failure classification. Never silently fix behavior, add retries or expose secret-bearing failures through exception chaining; apply both references' preservation rules.
 
 ## Decision Gates
 
 | Situation | Action |
 | --- | --- |
 | Consequential command | Use one focused Action for its complete boundary; keep routine edits direct. |
-| Abstraction | Apply architecture's pragmatic design principles and the shared efficiency gate. |
-| Mixed component | Own PHP here; load the [Blade/Flux skill](../fidelitopass-blade-flux-implementation/SKILL.md) and/or [JavaScript skill](../fidelitopass-javascript-alpine-implementation/SKILL.md) when those responsibilities are affected. |
-| Missing source or unresolved intent | Stop before editing; report the exact conflict. |
+| Abstraction | Apply architecture's pragmatic design principles and shared efficiency gate. |
+| Mixed component | Load the [Blade/Flux skill](../fidelitopass-blade-flux-implementation/SKILL.md) and/or [JavaScript skill](../fidelitopass-javascript-alpine-implementation/SKILL.md) for affected responsibilities. |
+| Refactor | Establish observable behavior first; report suspected defects separately. |
+| Missing source or unresolved intent | Report the exact gap; pause dependent work only. |
 
 ## Execution Steps
 
-1. Read the work item, nearby source/tests and installed configuration. Select and consult necessary owners through [Documentation routing](../../AGENTS.md#documentation-routing), not automatic traversal.
-2. Apply both references. Verify uncertain APIs with targeted framework guidance or installed source.
-3. Make the smallest server-authoritative change; verify its natural boundary under the quality strategy.
+1. Identify inputs, outputs, effects, trust boundaries and order. Inspect instructions, callers/tests, installed APIs and tooling; select necessary owners through [Documentation routing](../../AGENTS.md#documentation-routing).
+2. Read relevant [readability examples](references/readability-examples.md) before the task's first code change; reuse calibration later. Read only needed [recipes](references/project-recipes.md).
+3. Write cohesive code with authoritative order visible; preserve behavior unless functional change is requested.
+4. Apply the delivery gate below to every changed class/test; revise violations before returning.
+5. Run configured formatting and applicable checks/tests. Read the final diff for lost grouping, changed contracts and readability.
+
+## Delivery Gate
+
+Apply [Final calibration](references/readability-examples.md#final-calibration) and the implementation reference's PHPDoc, semantic groups, formatting, behavior preservation and Pest readability sections. Tests/formatters do not waive this gate.
 
 ## Output Contract
 
-Report paths, consulted owner sections/API evidence, observed checks, material design/readability decisions and risks. Separate measured performance from assumptions, not reports per helper.
+Deliver requested code/files, meaningful changes and observed checks. State verification limits and material owner/API evidence. Never claim equivalence from formatting or performance from cleaner code.
 
 ## References
 
 - [Shared code quality](../shared/code-quality.md) — reusable cross-language gates.
-- [PHP implementation](references/implementation-details.md) — PHP/Livewire conventions and targeted owners.
-
-- [Project recipes](references/project-recipes.md) — read only the relevant implementation example for data, authoritative operations, Wallet or credential retirement; inspect current source first.
-- [Readable PHP example](references/readability-examples.md) — optional calibration for names, paragraphs and useful contracts, not a class template.
+- [PHP implementation](references/implementation-details.md) — mandatory PHP/Livewire rules and targeted owners.
+- [Project recipes](references/project-recipes.md) — source-sensitive examples, not scaffolding or domain authority.
+- [Readability examples](references/readability-examples.md) — mandatory relevant calibration, not compulsory templates.

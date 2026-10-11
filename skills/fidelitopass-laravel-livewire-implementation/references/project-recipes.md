@@ -2,6 +2,10 @@
 
 Read the relevant section only when implementing data, authoritative operations, Wallet mapping or credential retirement. These recipes preserve useful implementation material moved from normative documents. They are illustrative and source-sensitive: inspect current migrations, installed APIs and callers before applying them. Documents own the guarantees; current code owns exact names and schema. Do not copy the whole reference or create all listed classes/tables as a scaffold.
 
+Apply [PHP formatting and behavior preservation](implementation-details.md#conditions-queries-and-payloads) while translating a recipe into code. Use the relevant [readability example](readability-examples.md) before the first edit. Recipes guide owner-approved implementation, not silent functional changes during refactoring. Keep PHP method documentation in third person. Use separators only to distinguish at least two actual semantic groups in the same class/file, each containing one to N callables, with a blank line above and below. Use none when only one grouping is useful.
+
+Keep constructors and framework/Livewire lifecycle hooks unboxed at the top after state. Apply the same rule to test configuration and setup/teardown hooks. Do not place these elements under an actions/tests/helpers banner or count them as a group to justify separators elsewhere.
+
 ## Contents
 
 - [Command and transaction recipes](#consequential-command-names)
@@ -11,10 +15,13 @@ Read the relevant section only when implementing data, authoritative operations,
 - [Credential retirement](#retired-credential-migration)
 - [Logging](#operational-logging-implementation)
 - [Wallet payload mapping](#google-wallet-payload-mapping)
+- [Recipe-to-code review](#recipe-to-code-review)
 
 ## Consequential command names
 
 Possible Action names; use existing naming contracts when already established:
+
+Do not rename an existing Action or add an `Action` suffix solely to match this list. Do not split a complete command into separate Actions for each step of its recipe.
 
 ```text
 PublishPromotionAction
@@ -266,3 +273,11 @@ Use the Google Wallet loyalty Class/Object model:
 - Alternate barcode text/manual code for quick fallback where suitable.
 
 Avoid custom dynamic progress images in MVP. Numeric progress keeps the presentation stable and easy to synchronize.
+
+## Recipe-to-code review
+
+- Keep authorization, replay, authoritative time and domain writes in the same owned order required by the relevant documents. Make the sequence visible with paragraphs and cohesive method names, not decorative boxes inside the transaction callback.
+- Keep provider-specific HTTP and payload work inside its Integration. Label configuration, signing, Class confirmation, Object binding reconciliation and transport only when at least two actual method groups benefit from that distinction. Do not use an isolated banner or invent responsibilities to add another.
+- Represent nested provider payloads one field per line; preserve native keys, insertion order, string literals, immutable bindings and localized content. Keep a small leaf array inline when it is clearer.
+- Distinguish a confirmed provider Object, local transaction commit and customer Wallet save. Preserve uncertain outcome classification and existing retry policy; an illustrative transaction recipe does not authorize another provider POST.
+- Keep tests at the operation's natural boundary, using readable setup, datasets and assertion chains. Verify behavior rather than private helper names. Recheck the final implementation against the SKILL delivery gate before returning it.
