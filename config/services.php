@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'google_wallet' => [
+        'issuer_id' => env('GOOGLE_WALLET_ISSUER_ID'),
+        'credentials_path' => env('GOOGLE_WALLET_CREDENTIALS_PATH'),
+        'logo_url' => env('GOOGLE_WALLET_LOGO_URL'),
+        'connect_timeout' => 3,
+        'timeout' => 10,
+    ],
+
 ];
