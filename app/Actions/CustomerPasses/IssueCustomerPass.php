@@ -91,10 +91,6 @@ final class IssueCustomerPass
         return $pass;
     }
 
-    // -----------------------------------------------------------------------------
-    // issuance persistence and binding validation
-    // -----------------------------------------------------------------------------
-
     /**
      * Locks the Business, returns a matching replay, or persists a new pass.
      *

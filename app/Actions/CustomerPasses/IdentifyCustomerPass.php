@@ -86,10 +86,6 @@ final class IdentifyCustomerPass
         }
     }
 
-    // -----------------------------------------------------------------------------
-    // private credential lookup
-    // -----------------------------------------------------------------------------
-
     /**
      * Finds a pass within the selected Business through exactly one valid private credential.
      *
