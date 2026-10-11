@@ -18,7 +18,7 @@ Rule-relevant model dates remain immutable under [Application date handling](dat
 
 Each consequential operation has one complete authoritative transaction boundary. The [architecture transaction contracts](../architecture/overview.md#visit-validation-transaction) define locking, operation time, idempotency and finality for Visit validation and Redemption.
 
-Network/provider calls never execute inside that transaction. Wallet synchronization occurs after the authoritative commit. If Google Wallet synchronization fails, domain state remains committed.
+Network/provider calls never execute inside that transaction. Existing-pass Wallet synchronization occurs after the authoritative commit. If Google Wallet synchronization fails, domain state remains committed. Initial issuance instead uses the architecture's [initial issuance boundary](../architecture/overview.md#initial-issuance-boundary): confirmed Google creation precedes the local transaction; no cross-system rollback guarantee exists.
 
 ## Authorization
 
@@ -34,6 +34,8 @@ Server-side validation is authoritative; client validation is UX only. Promotion
 
 The provider boundary owns Class/Object payload mapping, object creation/update, Save-to-Wallet issuance payloads and provider error classification.
 
+Initial issuance distinguishes confirmed provider success, definitive failure and unknown outcome. Do not publish success after an unknown provider or commit result, infer rollback, or blindly repeat creation. Reuse the current operation identifier where available; do not add a durable attempt table or persistent browser identity. A confirmed local rollback may leave the accepted provider orphan, with no cleanup/recovery guarantee.
+
 It does not own Promotion eligibility, Visit acceptance, Reward completion or Redemption authorization. PostgreSQL remains domain truth. Synchronization reloads current authoritative state, tolerates duplicate execution and preserves committed outcomes under the architecture's [background-work contract](../architecture/overview.md#background-work).
 
 ## Structured logging
@@ -46,13 +48,13 @@ Production writes one JSON object per log record to `stderr` so container/platfo
 
 Each request receives one UUID correlation identifier shared by its log records. Apply the [security logging contract](../architecture/security.md#structured-security-logging), including response correlation where appropriate.
 
-Stable context includes the event, request correlation, relevant actor and domain identities, outcome and reason. Include only relevant fields; source owns exact field names.
+Stable context includes the event, request correlation, relevant actor and domain identities, outcome and reason. Initial-issuance technical records use sanitized correlation/operation identifiers in application logs, not a separate database attempt registry. Include only relevant fields; source owns exact field names.
 
 Use stable machine-readable names for acceptance, replay, rejection, unlock, redemption, cancellation, provider failure and throttling events. Their exact names belong to implementation.
 
 ### Secret hygiene
 
-Never log passwords, session/cookie values, authorization headers, raw validation tokens, Google Wallet private keys, full Save-to-Wallet JWTs or sensitive provider payloads. The security owner retains the broader sensitive-field policy.
+Never log passwords, session/cookie values, authorization headers, raw validation tokens, manual fallback codes, Google Wallet private keys, full Save-to-Wallet JWTs or sensitive provider payloads. The security owner retains the broader sensitive-field policy.
 
 ## Error handling
 

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/', 'pages::landing')->name('home');
+Route::livewire('join/{public_id}', 'pages::join')->whereUuid('public_id')->name('public.join');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::business.summary')->name('dashboard');

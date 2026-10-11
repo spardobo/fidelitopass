@@ -27,7 +27,7 @@ Implementation status (separate from this product design): registration, login, 
 
 - Product landing page that explains the value proposition and how Promotions work.
 - Clear registration/sign-in entry point for Businesses.
-- Public Business join page reached from the permanent acquisition QR.
+- Public Business join page reached from the permanent acquisition QR. Show Business identity and a clearly labelled fictional pass example using saved appearance, independent of active, scheduled or waiting Promotion state.
 
 ### Business
 
@@ -46,7 +46,7 @@ Implementation status (separate from this product design): registration, login, 
 ### Customer
 
 - Join without a FidelitoPass account.
-- Save one persistent Google Wallet pass per Business.
+- Explicitly request a Business pass: confirm Google Object creation before local issuance, then receive the private save handoff and manual fallback code.
 - Understand the active Promotion directly from the pass.
 - Present the pass on each visit.
 - See numeric progress, next action, Reward, and deadline.
@@ -112,7 +112,7 @@ MVP does not include:
 
 ### One-pass rule
 
-A Customer keeps one persistent Wallet pass for one Business. Promotion changes update the pass instead of creating a new card.
+Promotion changes update the same issued Wallet pass instead of creating a new card. Acquisition has no customer account or persistent browser identity; a new visit can create another pair, including after an abandoned handoff. This accepted duplication does not require a durable attempt registry or orphan recovery.
 
 ### Database-clock rule
 

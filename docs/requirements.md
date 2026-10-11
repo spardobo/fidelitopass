@@ -4,10 +4,10 @@ This document defines observable MVP behaviour, not implementation status. The s
 
 ## Summary
 
-- Total requirements: **35**.
-- Must: **35**.
+- Total requirements: **37**.
+- Must: **37**.
 - Should: **0**.
-- Functional: **24**.
+- Functional: **26**.
 - Quality/technical: **11**.
 
 ## Requirement register
@@ -18,37 +18,39 @@ This document defines observable MVP behaviour, not implementation status. The s
 | 2 | REQ-BIZ-002 | Must | Business | Functional | Configure Business profile and IANA timezone. |
 | 3 | REQ-PUB-001 | Must | Public | Functional | Present a product landing page. |
 | 4 | REQ-PUB-002 | Must | Public | Functional | Present the Business join page from the permanent QR. |
-| 5 | REQ-CHL-001 | Must | Promotion | Functional | Create editable draft points-based Promotions. |
-| 6 | REQ-CHL-002 | Must | Promotion | Functional | Configure Promotion-owned extra points. |
-| 7 | REQ-CHL-003 | Must | Promotion | Functional | Publish local dates and immutable Promotion terms. |
-| 8 | REQ-CHL-004 | Must | Promotion | Functional | Reject overlapping published Promotion windows. |
-| 9 | REQ-CHL-005 | Must | Promotion | Functional | Lock published Promotion terms and support cancellation. |
-| 10 | REQ-PAS-001 | Must | Pass | Functional | Provide one permanent acquisition QR per Business. |
-| 11 | REQ-PAS-002 | Must | Pass | Functional | Create an anonymous Customer pass without registration. |
-| 12 | REQ-PAS-003 | Must | Wallet | Functional | Reuse one persistent Google Wallet pass across Promotions. |
-| 13 | REQ-VIS-001 | Must | Validation | Functional | Identify a Customer pass by scanner or manual code. |
-| 14 | REQ-VIS-002 | Must | Validation | Functional | Restrict validation and redemption to the owning Business. |
-| 15 | REQ-VIS-003 | Must | Visit | Quality/technical | Timestamp accepted Visits from PostgreSQL time. |
-| 16 | REQ-VIS-004 | Must | Visit | Functional | Accept legitimate repeat Visits while remaining retry-safe. |
-| 17 | REQ-EVL-001 | Must | Evaluation | Functional | Award points for every accepted Visit. |
-| 18 | REQ-EVL-002 | Must | Evaluation | Functional | Apply recurring weekday multiplier windows. |
-| 19 | REQ-EVL-003 | Must | Evaluation | Functional | Evaluate Promotion completion from earned points. |
-| 20 | REQ-EVL-004 | Must | Evaluation | Quality/technical | Preserve awarded points as immutable Visit outcomes. |
-| 21 | REQ-REW-001 | Must | Reward | Functional | Unlock one Reward entitlement on completion. |
-| 22 | REQ-REW-002 | Must | Reward | Functional | Redeem one available Reward exactly once. |
-| 23 | REQ-REW-003 | Must | Reward | Functional | Reject Reward use after Promotion expiry or cancellation. |
-| 24 | REQ-WAL-001 | Must | Wallet | Functional | Present deterministic Wallet content for every customer state. |
-| 25 | REQ-WAL-002 | Must | Wallet | Quality/technical | Synchronize Wallet after commit and recover safely from provider failure. |
-| 26 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
-| 27 | REQ-UX-002 | Must | UX | Functional | Keep the validation workflow fast and scanner-first. |
-| 28 | REQ-UX-003 | Must | UX | Quality/technical | Keep core flows responsive with basic keyboard and touch accessibility. |
-| 29 | REQ-UX-004 | Must | UX | Functional | Present explicit success, point-award, reward, expiry, and error states. |
-| 30 | REQ-SEC-001 | Must | Security | Quality/technical | Separate public acquisition identity from private validation authority. |
-| 31 | REQ-SEC-002 | Must | Security | Quality/technical | Enforce server-side authorization, validation, and abuse controls. |
-| 32 | REQ-SEC-003 | Must | Security | Quality/technical | Produce structured security-relevant logs without secrets. |
-| 33 | REQ-DAT-001 | Must | Data | Quality/technical | Enforce critical integrity in PostgreSQL. |
-| 34 | REQ-REL-001 | Must | Reliability | Quality/technical | Preserve committed domain facts when external synchronization fails. |
-| 35 | REQ-QLT-001 | Must | Quality | Quality/technical | Verify critical rules and complete journeys proportionately. |
+| 5 | REQ-PUB-003 | Must | Public | Functional | Share one illustrative pass structure across public and owner previews. |
+| 6 | REQ-CHL-001 | Must | Promotion | Functional | Create editable draft points-based Promotions. |
+| 7 | REQ-CHL-002 | Must | Promotion | Functional | Configure Promotion-owned extra points. |
+| 8 | REQ-CHL-003 | Must | Promotion | Functional | Publish local dates and immutable Promotion terms. |
+| 9 | REQ-CHL-004 | Must | Promotion | Functional | Reject overlapping published Promotion windows. |
+| 10 | REQ-CHL-005 | Must | Promotion | Functional | Lock published Promotion terms and support cancellation. |
+| 11 | REQ-PAS-001 | Must | Pass | Functional | Provide one permanent acquisition QR per Business. |
+| 12 | REQ-PAS-002 | Must | Pass | Functional | Create an anonymous Customer pass without registration. |
+| 13 | REQ-PAS-003 | Must | Wallet | Functional | Reuse one persistent Google Wallet pass across Promotions. |
+| 14 | REQ-VIS-001 | Must | Validation | Functional | Identify a Customer pass by scanner or manual code. |
+| 15 | REQ-VIS-002 | Must | Validation | Functional | Restrict validation and redemption to the owning Business. |
+| 16 | REQ-VIS-003 | Must | Visit | Quality/technical | Timestamp accepted Visits from PostgreSQL time. |
+| 17 | REQ-VIS-004 | Must | Visit | Functional | Accept legitimate repeat Visits while remaining retry-safe. |
+| 18 | REQ-EVL-001 | Must | Evaluation | Functional | Award points for every accepted Visit. |
+| 19 | REQ-EVL-002 | Must | Evaluation | Functional | Apply recurring weekday multiplier windows. |
+| 20 | REQ-EVL-003 | Must | Evaluation | Functional | Evaluate Promotion completion from earned points. |
+| 21 | REQ-EVL-004 | Must | Evaluation | Quality/technical | Preserve awarded points as immutable Visit outcomes. |
+| 22 | REQ-REW-001 | Must | Reward | Functional | Unlock one Reward entitlement on completion. |
+| 23 | REQ-REW-002 | Must | Reward | Functional | Redeem one available Reward exactly once. |
+| 24 | REQ-REW-003 | Must | Reward | Functional | Reject Reward use after Promotion expiry or cancellation. |
+| 25 | REQ-WAL-001 | Must | Wallet | Functional | Present deterministic Wallet content for every customer state. |
+| 26 | REQ-WAL-002 | Must | Wallet | Quality/technical | Synchronize Wallet after commit and recover safely from provider failure. |
+| 27 | REQ-WAL-003 | Must | Wallet | Functional | Confirm initial Google Object creation before local Customer pass issuance. |
+| 28 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
+| 29 | REQ-UX-002 | Must | UX | Functional | Keep the validation workflow fast and scanner-first. |
+| 30 | REQ-UX-003 | Must | UX | Quality/technical | Keep core flows responsive with basic keyboard and touch accessibility. |
+| 31 | REQ-UX-004 | Must | UX | Functional | Present explicit success, point-award, reward, expiry, and error states. |
+| 32 | REQ-SEC-001 | Must | Security | Quality/technical | Separate public acquisition identity from private validation authority. |
+| 33 | REQ-SEC-002 | Must | Security | Quality/technical | Enforce server-side authorization, validation, and abuse controls. |
+| 34 | REQ-SEC-003 | Must | Security | Quality/technical | Produce structured security-relevant logs without secrets. |
+| 35 | REQ-DAT-001 | Must | Data | Quality/technical | Enforce critical integrity in PostgreSQL. |
+| 36 | REQ-REL-001 | Must | Reliability | Quality/technical | Preserve committed domain facts when external synchronization fails. |
+| 37 | REQ-QLT-001 | Must | Quality | Quality/technical | Verify critical rules and complete journeys proportionately. |
 
 ## Detailed requirements
 
@@ -134,23 +136,41 @@ As a Business owner discovering FidelitoPass, I want to understand the product i
 **Type:** Functional
 **Module:** Public
 
-As a customer in a Business, I want a clear joining page so that I can understand the current Promotion before saving the pass.
+As a customer in a Business, I want a clear joining page so that I can recognize the Business and understand the pass before saving it.
 
 **Acceptance Criteria**
 
-**Scenario: Active Promotion**
+**Scenario: Recognize the Business without authentication**
 
-- **Given** a Business with an Active Promotion.
-- **When** its acquisition QR page is opened.
-- **Then** the customer sees the generated Promotion description, Reward, validity, and Add to Google Wallet action.
+- **Given** a Business with or without saved appearance or persisted Promotions.
+- **When** its permanent acquisition URL is opened anonymously.
+- **Then** show its identity and a fictional pass example in the saved colour, or neutral styling when appearance is unsaved, with the caption **Promoción de ejemplo.**
+- **And** the example does not query or disclose active, scheduled, ended, draft or cancelled Promotion terms, private credentials or earned customer progress.
+- **And** opening the page creates no Customer pass and calls no provider. Add to Google Wallet is available only when the separate real saving flow is implemented.
 
-**Scenario: No Active Promotion**
+**Verification:** Public Livewire/feature tests and browser review.
 
-- **Given** a Business with no Active Promotion.
-- **When** its acquisition QR page is opened.
-- **Then** the customer can still save the persistent Business pass and sees a waiting-for-next-Promotion message.
+#### REQ-PUB-003 — Shared illustrative pass presentation
 
-**Verification:** Public Livewire/feature tests.
+**Priority:** Must
+**Type:** Functional
+**Module:** Public
+
+As a person viewing a pass example, I want one recognizable card structure so that I understand the same product across landing, acquisition and Business appearance previews.
+
+This requirement governs illustrative cards only. It does not change issued Wallet states, Promotion scoring or the separate saving requirements.
+
+**Acceptance Criteria**
+
+**Scenario: Share a truthful illustrative structure**
+
+- **Given** the landing, Business join, Business Pase overview or appearance editor.
+- **When** its example card renders.
+- **Then** use one semantic layout ordered as Business, divider, literal **PROMOCIÓN**, Reward, Reward description, obtained/required points, optional illustrative today multiplier, divider and a Spanish day/month validity label.
+- **And** retain the same brand mark. Landing and join show mock QR and sample manual code identified as nonoperational examples when their card container is at least `448px` wide; below that width hide both regions and their divider. Owner overview and appearance editor always omit both. Responsive hiding of mocks is not a security boundary.
+- **And** landing, join and owner use three distinct fictional examples; overview and appearance editor share the owner example. Omit the extra-points row when its optional message is absent.
+
+**Verification:** Rendered structure/data feature tests, responsive browser review and owner appearance-reactivity checks.
 
 ### Promotion
 
@@ -320,15 +340,17 @@ As a Business owner, I want to print one QR once so that I do not replace physic
 **Type:** Functional
 **Module:** Pass
 
-As a customer, I want to save the loyalty pass immediately so that registration does not interrupt my visit.
+As a customer, I want to request the loyalty pass without an account so that registration does not interrupt my visit.
+
+REQ-WAL-003 replaces this requirement's initial-issuance timing; its no-registration and no-contact-fields obligations remain unchanged.
 
 **Acceptance Criteria**
 
 **Scenario: Join without personal profile**
 
 - **Given** the public Business join page.
-- **When** the customer starts the Wallet flow.
-- **Then** FidelitoPass creates a Customer pass without customer contact fields.
+- **When** the customer explicitly requests saving and initial issuance succeeds under REQ-WAL-003.
+- **Then** FidelitoPass creates a Customer pass without customer contact fields or persistent browser identity.
 
 **Verification:** Persistence and public-flow tests.
 
@@ -616,13 +638,44 @@ As a Business owner, I want accepted Visits and Redemptions to remain valid even
 - **When** Wallet synchronization fails.
 - **Then** the Visit remains committed, the failure is logged with correlation context, and synchronization can be retried.
 
-**Scenario: Initial issuance retry**
-
-- **Given** a Customer pass exists but Wallet provisioning failed.
-- **When** provisioning is retried.
-- **Then** the same Customer pass is reused instead of creating a duplicate local identity.
+REQ-WAL-003 replaces the initial-issuance retry obligation. This requirement still governs post-commit synchronization for existing Customer passes, including accepted Visits and Redemptions.
 
 **Verification:** Integration/job failure tests.
+
+#### REQ-WAL-003 — Google-first initial Customer pass issuance
+
+**Priority:** Must
+**Type:** Functional
+**Module:** Wallet
+
+As a customer, I want an explicit saving result so that a failed Google creation does not leave a newly issued local Customer pass.
+
+This replaces only the initial-issuance timing in REQ-PAS-002 and the initial-issuance retry obligation in REQ-WAL-002. Anonymous access, persistent updates across Promotions and post-commit Visit/Redemption safety remain unchanged.
+
+**Acceptance Criteria**
+
+**Scenario: Confirm creation before local issuance**
+
+- **Given** a public Business join page with real saving available.
+- **When** the customer explicitly selects saving.
+- **Then** show loading while the backend requests Google Loyalty Object creation through REST; only confirmed Google success permits the local Customer pass transaction.
+- **And** only after confirmed local commit, privately deliver the Save-to-Wallet JWT referencing that existing Object and the manual fallback code. Describe issuance success without claiming the customer saved or downloaded the pass.
+
+**Scenario: Failure or uncertain outcome**
+
+- **Given** initial issuance has started.
+- **When** the provider request or local transaction fails or has an uncertain outcome.
+- **Then** a definitive Google creation failure leaves no local Customer pass.
+- **And** if Google creation succeeds but the local transaction has a confirmed rollback, accept the provider orphan without an automatic cleanup or recovery guarantee.
+- **And** an unknown Google or local commit outcome is not success or proof of rollback; do not blindly allocate another pair to hide uncertainty.
+
+**Scenario: Anonymous reacquisition and repeated submission**
+
+- **Given** acquisition has no customer account, persistent browser identity or durable attempt reservation.
+- **When** a new acquisition visit requests a pass, including after abandonment.
+- **Then** another pair may be created. Reuse the current operation identity where available to avoid double-click duplicates, without promising cross-visit deduplication or durable recovery.
+
+**Verification:** Provider/local-transaction fault tests, repeated-submission tests and browser handoff evidence when saving is implemented.
 
 ### UX
 

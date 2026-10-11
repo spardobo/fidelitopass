@@ -199,6 +199,12 @@ Use Google Wallet loyalty Class/Object semantics:
 
 The application does not use Wallet state as a source of truth.
 
+### Initial issuance boundary
+
+Initial issuance follows [REQ-WAL-003](../requirements.md#req-wal-003--google-first-initial-customer-pass-issuance): explicit Save requests Google Object creation outside a database transaction, then confirmed provider success permits the local Customer pass transaction. Only confirmed local commit permits the private existing-Object save JWT and manual-code response. This is not an atomic transaction across Google and PostgreSQL and does not confirm the user's Wallet save.
+
+[ADR-006](decisions/006-google-first-initial-wallet-issuance.md) records the accepted orphan/anonymous-reacquisition tradeoffs and the absence of durable attempt or browser identity. PostgreSQL remains domain truth. Visit/Redemption synchronization still follows local commit; the initial issuance gate does not change those boundaries.
+
 ## Background work
 
 Wallet synchronization is the main asynchronous/retryable responsibility.

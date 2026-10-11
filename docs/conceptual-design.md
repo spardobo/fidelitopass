@@ -15,7 +15,7 @@ The product deliberately avoids customer accounts, CRM, marketing automation, PO
 ## Product principles
 
 1. One business can publish repeated loyalty Promotions over time.
-2. One customer keeps one Google Wallet pass per business.
+2. Each issued Customer pass stays linked to one Business across Promotions.
 3. The Wallet pass persists; Promotion content changes inside the same pass.
 4. A business has at most one active Promotion at a time.
 5. Every Promotion uses points as its only progress unit.
@@ -203,11 +203,11 @@ MVP has one Reward per Promotion.
 ### Join the Business
 
 1. The customer scans the permanent acquisition QR.
-2. A lightweight Business join page explains the current Promotion or waiting state.
-3. The customer selects **Add to Google Wallet**.
-4. FidelitoPass creates an anonymous Customer pass.
-5. Google Wallet receives the Business pass.
-6. No customer registration is required.
+2. A lightweight Business join page identifies the Business and shows a clearly labelled fictional pass example in its saved colour, independent of persisted Promotions. The example is not an issued pass or a usable validation credential.
+3. The customer explicitly selects **Add to Google Wallet** and sees a loading state.
+4. FidelitoPass asks Google to create the Business Loyalty Object. Only confirmed creation allows an anonymous Customer pass to be committed locally.
+5. After the local commit succeeds, the customer privately receives the Google save handoff for that existing Object and the manual fallback code. This confirms issuance, not that the customer saved the pass in Wallet.
+6. No customer registration or persistent browser identity is required. A new acquisition visit can create another pair; abandoning an issued pair does not reclaim it.
 
 ### Validate a visit
 

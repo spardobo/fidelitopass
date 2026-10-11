@@ -45,7 +45,7 @@
         </header>
 
         <section aria-label="{{ __('business.pass.editor_title') }}" class="app-pass-editor-layout grid min-w-0 gap-6">
-            <div class="app-pass-preview-rail @container">
+            <div class="app-pass-preview-rail @container/pass-preview">
                 <flux:heading level="2" size="base" class="app-role-support! font-medium! text-app-ink!">
                     {{ __('business.pass.preview_appearance_title') }}
                 </flux:heading>
@@ -53,6 +53,12 @@
                     :business-name="$this->business->name"
                     :background-color="$this->previewColor"
                     :text-color="$this->previewTextColor"
+                    :show-credentials="false"
+                    :reward="__('business.pass.color_sample_reward')"
+                    :reward-description="__('business.pass.color_sample_description')"
+                    :progress="__('business.pass.color_sample_progress')"
+                    :extra-points="__('business.pass.color_sample_extra_points')"
+                    :deadline="__('business.pass.color_sample_deadline')"
                 />
                 <div class="app-note-with-icon text-app-ink-help">
                     <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
@@ -194,11 +200,17 @@
         </header>
 
         <section aria-labelledby="pass-overview-heading" class="app-pass-overview-layout grid min-w-0 gap-6 rounded-2xl border border-app-border bg-app-surface p-4 sm:p-6">
-            <div class="app-pass-preview-rail @container">
+            <div class="app-pass-preview-rail @container/pass-preview">
                 <x-pass-preview
                     :business-name="$this->business->name"
                     :background-color="$this->previewColor"
                     :text-color="$this->previewTextColor"
+                    :show-credentials="false"
+                    :reward="__('business.pass.color_sample_reward')"
+                    :reward-description="__('business.pass.color_sample_description')"
+                    :progress="__('business.pass.color_sample_progress')"
+                    :extra-points="__('business.pass.color_sample_extra_points')"
+                    :deadline="__('business.pass.color_sample_deadline')"
                 />
                 <div class="app-note-with-icon text-app-ink-help">
                     <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
