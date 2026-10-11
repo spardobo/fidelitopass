@@ -25,7 +25,7 @@ not independently persisted published date columns. Drafts use the current Busin
 
 A draft can be saved only when its local start date is the current date or later in the Business timezone used for that save. Its final local date must be the start date or later. Recheck both values on every create and update. After locking the Business and, for an update, the draft Promotion, capture one PostgreSQL wall-clock instant and derive the current Business-local date with `AT TIME ZONE`.
 
-An existing draft whose start date has passed remains available to view and edit. Reject its save until the owner corrects the dates; never shift the dates or remove the draft automatically. Publication must perform a fresh current-date check under its own locks. Publication is outside R08.
+An existing draft whose start date has passed remains available to view and edit. Reject its save until the owner corrects the dates; never shift the dates or remove the draft automatically. Publication must perform a fresh current-date check under its own locks.
 
 On publication:
 

@@ -114,4 +114,9 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    'customer_pass_lookup' => [
+        'max_attempts' => 10,
+        'decay_seconds' => 60,
+    ],
+
 ];
