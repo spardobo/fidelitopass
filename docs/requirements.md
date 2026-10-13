@@ -146,7 +146,7 @@ As a customer in a Business, I want a clear joining page so that I can recognize
 - **When** its permanent acquisition URL is opened anonymously.
 - **Then** show its identity and a fictional pass example in the saved colour, or neutral styling when appearance is unsaved, with the caption **Promoción de ejemplo.**
 - **And** the example does not query or disclose active, scheduled, ended, draft or cancelled Promotion terms, private credentials or earned customer progress.
-- **And** opening the page creates no Customer pass and calls no provider. Add to Google Wallet is available only when the separate real saving flow is implemented.
+- **And** opening the page creates no Customer pass and calls no provider. Add to Google Wallet is available only when the separate real saving flow is implemented and the Business has saved its appearance. With unsaved appearance, explain that the Business has not prepared its pass and omit the issuance action.
 
 **Verification:** Public Livewire/feature tests and browser review.
 
@@ -166,7 +166,7 @@ This requirement governs illustrative cards only. It does not change issued Wall
 
 - **Given** the landing, Business join, Business Pase overview or appearance editor.
 - **When** its example card renders.
-- **Then** use one semantic layout ordered as Business, divider, literal **PROMOCIÓN**, Reward, Reward description, obtained/required points, optional illustrative today multiplier, divider and a Spanish day/month validity label.
+- **Then** use one semantic layout ordered as Business, divider, literal **PROMOCIÓN**, Reward title, optional Reward description, generated earning terms, obtained/required points, optional illustrative current Visit value, divider and a Spanish day/month/year validity label.
 - **And** retain the same brand mark. Landing and join show mock QR and sample manual code identified as nonoperational examples when their card container is at least `448px` wide; below that width hide both regions and their divider. Owner overview and appearance editor always omit both. Responsive hiding of mocks is not a security boundary.
 - **And** landing, join and owner use three distinct fictional examples; overview and appearance editor share the owner example. Omit the extra-points row when its optional message is absent.
 
@@ -660,6 +660,14 @@ This replaces only the initial-issuance timing in REQ-PAS-002 and the initial-is
 - **When** the customer explicitly selects saving.
 - **Then** show loading while the backend requests Google Loyalty Object creation through REST; only confirmed Google success permits the local Customer pass transaction.
 - **And** only after confirmed local commit, privately deliver the Save-to-Wallet JWT referencing that existing Object and the manual fallback code. Describe issuance success without claiming the customer saved or downloaded the pass.
+
+**Scenario: Appearance is not configured**
+
+- **Given** the Business has not saved its pass appearance, or reset it after the page opened.
+- **When** an initial saving request arrives.
+- **Then** recheck the persisted appearance before preparing credentials or contacting Google. Create no local Customer pass.
+- **And** return a private, non-cacheable `409` response with `code: business_unconfigured`, `outcome: definitive`, `stage: preparation` and `retry_allowed: false`. Show the explicit unconfigured message and offer no further issuance from that page.
+- **And** do not expose provider diagnostics or change the existing `502`/`503` failure and uncertainty contracts for configured Businesses.
 
 **Scenario: Failure or uncertain outcome**
 

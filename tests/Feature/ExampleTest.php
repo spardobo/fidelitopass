@@ -19,6 +19,7 @@ class ExampleTest extends TestCase
             ->assertDontSeeText('comparte su QR público');
     }
 
+    /** Verifies the fictional landing offer, progress and year-bearing validity without generated earning terms. */
     public function test_landing_presents_the_product_workflow_and_one_illustrative_promotion(): void
     {
         $response = $this->get(route('home'));
@@ -26,8 +27,10 @@ class ExampleTest extends TestCase
         $response->assertOk()
             ->assertSeeText('Promociones')
             ->assertSeeText('PROMOCIÓN')
-            ->assertSeeText('Hoy tus puntos valen x2')
-            ->assertSeeText('Válido hasta el 30 de septiembre')
+            ->assertSeeText('Ahora tu visita vale 2 puntos.')
+            ->assertSeeText('Válido hasta el 30 de septiembre de 2026')
+            ->assertSeeText('Disfruta de un consumo de cortesía al completar tu meta.')
+            ->assertDontSeeText('Consigue 15 puntos hasta el 30 SEP 2026.')
             ->assertSeeText('9 / 15 puntos')
             ->assertSeeText('Un consumo de cortesía')
             ->assertSeeText('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.')

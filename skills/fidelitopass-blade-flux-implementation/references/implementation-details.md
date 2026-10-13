@@ -1,6 +1,6 @@
 # Blade, Flux and Tailwind implementation
 
-Apply [shared code quality](../../shared/code-quality.md) before these presentation-specific conventions. Cooperate with the [PHP owner](../../fidelitopass-laravel-livewire-implementation/SKILL.md) for mixed Livewire components; do not move server rules into markup or local client state. Load the [JavaScript skill](../../fidelitopass-javascript-alpine-implementation/SKILL.md) when client behavior is affected; keep its algorithms and lifecycle implementation outside this reference.
+Apply [shared coding standards](../../shared/coding-standards.md) before these presentation-specific conventions. Cooperate with the [PHP owner](../../fidelitopass-laravel-livewire-implementation/SKILL.md) for mixed Livewire components; do not move server rules into markup or local client state. Load the [JavaScript skill](../../fidelitopass-javascript-alpine-implementation/SKILL.md) when client behavior is affected; keep its algorithms and lifecycle implementation outside this reference.
 
 ## Composition and framework gates
 

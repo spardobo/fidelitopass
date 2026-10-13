@@ -4,9 +4,11 @@ namespace Tests\Feature\Settings;
 
 use App\Models\Business;
 use App\Models\User;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -133,5 +135,66 @@ class SecurityTest extends TestCase
 
         Exceptions::assertReported(\RuntimeException::class);
         $this->assertSame($original, $user->fresh()->getRawOriginal());
+    }
+
+    /** Reports genuine setup failures once without enabling retired credential persistence. */
+    public function test_two_factor_setup_failure_is_reported_without_exposing_secrets(): void
+    {
+        $user = \Mockery::mock(User::class)->makePartial();
+        $user->forceFill(['id' => 42, 'two_factor_secret' => 'private-test-secret']);
+        $user->shouldReceive('fresh')->once()->andReturnSelf();
+        $user->shouldReceive('twoFactorQrCodeSvg')->once()->andThrow(new \RuntimeException('private-qr-failure'));
+        $this->actingAs($user);
+        $this->mock(EnableTwoFactorAuthentication::class)
+            ->shouldReceive('__invoke')->once()->with($user);
+        Exceptions::fake();
+
+        Livewire::test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
+            ->call('startTwoFactorSetup')
+            ->assertHasErrors(['setupData'])
+            ->assertSet('qrCodeSvg', '')
+            ->assertSet('manualSetupKey', '')
+            ->assertDontSee('private-qr-failure');
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(\RuntimeException::class);
+    }
+
+    /** Keeps ordinary setup absence out of operational exception reporting. */
+    public function test_missing_two_factor_setup_is_not_reported_as_server_failure(): void
+    {
+        $user = \Mockery::mock(User::class)->makePartial();
+        $user->forceFill(['id' => 42]);
+        $user->shouldReceive('fresh')->once()->andReturnSelf();
+        $this->actingAs($user);
+        $this->mock(EnableTwoFactorAuthentication::class)
+            ->shouldReceive('__invoke')->once()->with($user);
+        Exceptions::fake();
+
+        Livewire::test('pages::settings.two-factor-setup-modal', ['requiresConfirmation' => true])
+            ->call('startTwoFactorSetup')
+            ->assertHasErrors(['setupData'])
+            ->assertSet('qrCodeSvg', '')
+            ->assertSet('manualSetupKey', '');
+
+        Exceptions::assertNothingReported();
+    }
+
+    /** Reports failed recovery-code decryption once without persisting retired fields. */
+    public function test_two_factor_recovery_decryption_failure_is_reported_once(): void
+    {
+        $user = \Mockery::mock(User::class)->makePartial();
+        $user->forceFill(['id' => 42, 'two_factor_recovery_codes' => 'private-invalid-ciphertext']);
+        $user->shouldReceive('hasEnabledTwoFactorAuthentication')->once()->andReturnTrue();
+        $this->actingAs($user);
+        Exceptions::fake();
+
+        Livewire::test('pages::settings.two-factor.recovery-codes')
+            ->assertHasErrors(['recoveryCodes'])
+            ->assertSet('recoveryCodes', [])
+            ->assertDontSee('private-invalid-ciphertext');
+
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(DecryptException::class);
     }
 }

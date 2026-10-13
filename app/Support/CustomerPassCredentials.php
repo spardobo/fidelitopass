@@ -2,54 +2,72 @@
 
 namespace App\Support;
 
+use App\Exceptions\CustomerPassCreationException;
 use App\Models\Business;
 use App\Models\CustomerPass;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
+use JsonSerializable;
 use LogicException;
 use PDOException;
-use RuntimeException;
+use Random\RandomException;
+use Random\Randomizer;
 use SensitiveParameter;
 
 /**
- * Retains private current-operation material outside sessions, queues and browser state.
+ * Generates and holds the private credentials for one pass creation attempt.
+ *
+ * The public ID identifies the pass; the token and manual code identify it privately.
+ * This object is not intended for session, queue or browser storage.
  */
-final readonly class CustomerPassCredentials
+final readonly class CustomerPassCredentials implements JsonSerializable
 {
+    private const MAX_CODE_ATTEMPTS = 10;
+
+    private const MANUAL_CODE_LENGTH = 5;
+
+    private const TOKEN_BYTES = 32;
+
     /**
-     * Retains server-generated material for the current issuance operation only.
+     * Stores one generated credential set without additional reads or writes.
      *
-     * @param  int  $businessId  Persisted Business bound before provider creation.
-     * @param  string  $publicId  UUIDv7 reused as this operation's pass identity.
-     * @param  string  $validationToken  Private 256-bit opaque scan credential.
-     * @param  string  $manualCode  Normalized Business-scoped fallback code.
+     * @param  int  $businessId  Database ID of the owning business.
+     * @param  string  $publicPassId  Public UUID reused for this pass and creation attempt.
+     * @param  string  $validationToken  Private token placed in the pass QR code.
+     * @param  string  $manualCode  Business-scoped fallback code for manual identification.
      */
     private function __construct(
-        private int $businessId,
-        private string $publicId,
-        #[SensitiveParameter] private string $validationToken,
-        #[SensitiveParameter] private string $manualCode,
+        public int $businessId,
+        public string $publicPassId,
+        #[SensitiveParameter] public string $validationToken,
+        #[SensitiveParameter] public string $manualCode,
     ) {}
 
     /**
-     * Prepares credentials without writes, checking manual collisions before the provider call.
+     * Generates a credential set after finding an unused manual code for the business.
      *
-     * @param  Business  $business  Persisted Business receiving the anonymous pass.
-     * @return self Private material to retain and replay only within this operation.
+     * Checks at most ten candidate codes without reserving or writing a record.
+     * Database constraints still protect against concurrent collisions during persistence.
      *
-     * @throws LogicException When the Business has not been persisted.
-     * @throws RuntimeException When allocation is exhausted or the collision query fails,
-     *                          without private SQL context.
+     * @param  Business  $business  Persisted business that will own the pass.
+     * @param  Randomizer|null  $randomizer  Optional native random source for isolated tests; production defaults to Secure.
+     * @return self Public pass ID, private scan token and manual code for one attempt.
+     *
+     * @throws CustomerPassCreationException If the business, database read or random allocation prevents preparation.
      */
-    public static function prepare(Business $business): self
+    public static function prepare(Business $business, ?Randomizer $randomizer = null): self
     {
+        // require a persisted owner before allocating credentials
         if (! $business->exists) {
-            throw new LogicException('Customer pass preparation requires a persisted Business.');
+            throw CustomerPassCreationException::preparationFailed('business_not_persisted');
         }
 
+        // check for a free manual code before allocating the pass identity and scan token
         try {
-            for ($attempt = 0; $attempt < 10; $attempt++) {
-                $manualCode = strtoupper(Str::random(12));
+            $randomizer ??= new Randomizer;
+
+            for ($codeAttempt = 0; $codeAttempt < self::MAX_CODE_ATTEMPTS; $codeAttempt++) {
+                $manualCode = str_pad((string) $randomizer->getInt(0, 99999), self::MANUAL_CODE_LENGTH, '0', STR_PAD_LEFT);
 
                 if (
                     ! CustomerPass::query()
@@ -60,129 +78,61 @@ final readonly class CustomerPassCredentials
                     return new self(
                         $business->id,
                         (string) Str::uuid7(),
-                        bin2hex(random_bytes(32)),
+                        bin2hex(random_bytes(self::TOKEN_BYTES)),
                         $manualCode,
                     );
                 }
             }
-        } catch (QueryException|PDOException) {
-            // omits the original failure to protect the private manual-code binding.
-            throw new RuntimeException('Customer pass credential preparation failed.');
+        } catch (QueryException|PDOException $exception) {
+            // omit the original exception because query bindings contain the private code
+            throw CustomerPassCreationException::preparationFailed('credential_query_failed', [
+                'exception_class' => $exception::class,
+                'sqlstate' => $exception->errorInfo[0] ?? null,
+            ]);
+        } catch (RandomException $exception) {
+            throw CustomerPassCreationException::preparationFailed('randomness_unavailable', ['exception_class' => $exception::class]);
         }
 
-        throw new RuntimeException('Customer pass credential preparation could not allocate a code.');
-    }
-
-    // -----------------------------------------------------------------------------
-    // operation bindings and credential access
-    // -----------------------------------------------------------------------------
-
-    /**
-     * Exposes the owning Business binding for trusted local persistence.
-     *
-     * @return int Business identity selected before provider orchestration.
-     */
-    public function businessId(): int
-    {
-        return $this->businessId;
+        throw CustomerPassCreationException::preparationFailed('manual_code_exhausted');
     }
 
     /**
-     * Exposes the stable identity reused for this issuance operation and its pass.
+     * Calculates the token hash used for local storage and lookup.
      *
-     * @return string Server-generated UUIDv7; not a private validation credential.
+     * @return string Lowercase SHA-256 hash of the hexadecimal token string, not of its decoded bytes.
      */
-    public function publicId(): string
-    {
-        return $this->publicId;
-    }
-
-    /**
-     * Exposes the private scan credential only to trusted payload and handoff callers.
-     *
-     * @return string Opaque 256-bit token; never persist or place it in logs or public links.
-     */
-    public function validationToken(): string
-    {
-        return $this->validationToken;
-    }
-
-    /**
-     * Derives the storage and lookup verifier without revealing the private scan token.
-     *
-     * @return string Lowercase hexadecimal SHA-256 verifier of the high-entropy token.
-     */
-    public function validationTokenHash(): string
+    public function hashValidationToken(): string
     {
         return hash('sha256', $this->validationToken);
     }
 
     /**
-     * Exposes the private operational fallback for the authenticated owning Business.
+     * Exposes only non-secret identifiers during ordinary object inspection.
      *
-     * @return string Twelve uppercase alphanumeric characters; not standalone authorization.
-     */
-    public function manualCode(): string
-    {
-        return $this->manualCode;
-    }
-
-    // -----------------------------------------------------------------------------
-    // credential validation and normalization
-    // -----------------------------------------------------------------------------
-
-    /**
-     * Rejects public identifiers and malformed scan input before querying pass records.
-     *
-     * @param  string  $token  Untrusted private scan input.
-     * @return bool Whether the input has the exact generated token format.
-     */
-    public static function isValidationToken(#[SensitiveParameter] string $token): bool
-    {
-        return preg_match('/^[a-f0-9]{64}$/D', $token) === 1;
-    }
-
-    /**
-     * Accepts case-insensitive manual entry with optional spaces and hyphens.
-     *
-     * @param  string  $code  Untrusted manual entry, bounded before normalization.
-     * @return string|null Canonical twelve-character code, or null for invalid input.
-     */
-    public static function normalizeManualCode(#[SensitiveParameter] string $code): ?string
-    {
-        if (strlen($code) > 64) {
-            return null;
-        }
-
-        $normalized = strtoupper(str_replace([' ', '-'], '', $code));
-
-        return preg_match('/^[A-Z0-9]{12}$/D', $normalized) === 1
-            ? $normalized
-            : null;
-    }
-
-    // -----------------------------------------------------------------------------
-    // inspection and serialization safeguards
-    // -----------------------------------------------------------------------------
-
-    /**
-     * Limits ordinary object inspection to non-secret ownership and correlation identities.
-     *
-     * @return array{business_id: int, operation_id: string} Debug context excluding tokens,
-     *                                                       verifiers and manual codes.
+     * @return array{business_id: int, operation_id: string} Safe debug metadata, without credentials or hashes.
      */
     public function __debugInfo(): array
     {
+        return ['business_id' => $this->businessId, 'operation_id' => $this->publicPassId];
+    }
+
+    /**
+     * Selects public identifiers for ordinary JSON without disclosing credentials.
+     *
+     * @return array{businessId: int, publicPassId: string} Nonsecret identity metadata only.
+     */
+    public function jsonSerialize(): array
+    {
         return [
-            'business_id' => $this->businessId,
-            'operation_id' => $this->publicId,
+            'businessId' => $this->businessId,
+            'publicPassId' => $this->publicPassId,
         ];
     }
 
     /**
-     * Prevents accidental durable session, queue or cache storage of private operation material.
+     * Rejects storage of the credential set in PHP serialized state.
      *
-     * @return array{} No serializable state; this operation always rejects.
+     * @return array{} No value is returned because serialization is rejected.
      *
      * @throws LogicException Whenever serialization is attempted.
      */
@@ -192,9 +142,9 @@ final readonly class CustomerPassCredentials
     }
 
     /**
-     * Prevents reconstruction of prepared material from serialized input.
+     * Rejects reconstruction of credentials from serialized input.
      *
-     * @param  array<array-key, mixed>  $data  Untrusted serialized state; never accepted.
+     * @param  array<array-key, mixed>  $data  Serialized data; never accepted.
      *
      * @throws LogicException Whenever deserialization is attempted.
      */

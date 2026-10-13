@@ -42,7 +42,7 @@ Report paths, owners/API evidence, checks, resource/readability decisions and ri
 
 ## References
 
-- [Shared quality](../shared/code-quality.md).
+- [Shared coding standards](../shared/coding-standards.md).
 - [JavaScript implementation](references/implementation-details.md).
 
 - [Readable JavaScript examples](references/readability-examples.md) — optional names/paragraph/resource calibration; no mandatory controller or request framework.

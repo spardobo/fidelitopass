@@ -47,7 +47,8 @@ async function expectReadableCard(card) {
             business: "h2",
             label: "h3",
             reward: ".app-role-marketing-pass-reward, .app-role-pass-preview-reward",
-            description: ".app-pass-preview-details > p:last-child",
+            description: ".app-pass-preview-details > p:nth-of-type(2)",
+            earningTerms: ".app-pass-preview-details > p:nth-of-type(3)",
             progress: ".app-role-marketing-pass-metric, .app-role-pass-preview-metric",
             extra: ".app-pass-preview-extra-points p",
             deadline: ".app-pass-preview-validity p, .app-pass-preview-reward > p",
@@ -83,6 +84,7 @@ async function expectReadableCard(card) {
         label: [14, 1.35, 500],
         reward: [wide ? 24 : 22, 1.25, 600],
         description: [16, 1.45, 400],
+        earningTerms: [16, 1.45, 400],
         progress: [wide ? 28 : 26, 1.15, 700],
         extra: [14, 1.35, 400],
         deadline: [14, 1.35, 400],
@@ -235,8 +237,10 @@ for (const width of [320, 1280]) {
                     "font-size",
                     width === 320 ? "24px" : "28px",
                 );
-                await expect(main.getByRole("button")).toHaveCount(0);
-                await expect(main.locator("input, canvas")).toHaveCount(0);
+                await expect(
+                    main.getByRole("button", { name: "Unirme y añadir a Google Wallet" }),
+                ).toBeEnabled();
+                await expect(main.locator("input:not([type=hidden]), canvas")).toHaveCount(0);
                 await expect(card.locator(".app-pass-preview-qr img")).toHaveAttribute(
                     "src",
                     /preview-pass-qr\.svg$/,
@@ -264,13 +268,12 @@ for (const width of [320, 1280]) {
                     "No sirven para validar visitas. No es un pase emitido.",
                 );
                 await expect(main).not.toContainText(
-                    /9 \/ 15|Google Wallet|Tu Pase ya está listo|Promoción actual|Próxima promoción|Todavía no está activa/,
+                    /9 \/ 15|Tu Pase ya está listo|Promoción actual|Próxima promoción|Todavía no está activa/,
                 );
-                await expect(card).not.toContainText(
-                    /Capuchino|desayuno artesanal|Consigue|09:00|×3/,
-                );
+                await expect(card).not.toContainText(/Capuchino|desayuno artesanal|09:00|×3/);
+                await expect(card).not.toContainText(/Consigue \d+ puntos hasta/);
                 await expect(card.locator(".app-pass-preview-extra-points")).toHaveText(
-                    "Hoy tus puntos valen x2",
+                    "Ahora tu visita vale 2 puntos.",
                 );
                 const content = await card.innerText();
                 const terms = [
@@ -279,8 +282,8 @@ for (const width of [320, 1280]) {
                     "Un beneficio especial",
                     "Accede a un beneficio exclusivo al completar tu meta.",
                     "3 / 10 puntos",
-                    "Hoy tus puntos valen x2",
-                    "Válido hasta el 15 de octubre",
+                    "Ahora tu visita vale 2 puntos.",
+                    "Válido hasta el 15 de octubre de 2026",
                 ];
                 let previous = -1;
                 for (const term of terms) {
@@ -391,6 +394,12 @@ test("public information remains readable without JavaScript", async ({ browser 
         await expect(page.locator(".app-pass-preview-qr")).toBeHidden();
         await expect(page.locator(".app-pass-preview-manual-code")).toBeHidden();
         await expect(page.getByRole("main")).toContainText("No sirven para validar visitas.");
+        await expect(
+            page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }),
+        ).toBeDisabled();
+        await expect(
+            page.getByText("Activa JavaScript para solicitar tu pase.", { exact: false }),
+        ).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
             true,
         );
@@ -511,8 +520,8 @@ for (const width of [320, 1280]) {
             expect((await label.boundingBox()).height).toBeCloseTo(18.9, 1);
             await expect(card).toContainText("Una recompensa especial");
             await expect(card).toContainText("4 / 12 puntos");
-            await expect(card).toContainText("Hoy tus puntos valen x3");
-            await expect(card).toContainText("Válido hasta el 20 de noviembre");
+            await expect(card).toContainText("Ahora tu visita vale 3 puntos.");
+            await expect(card).toContainText("Válido hasta el 20 de noviembre de 2026");
             await expect(card.getByRole("img", { name: "QR de ejemplo" })).toHaveCount(0);
             await expect(card.locator(".app-pass-preview-manual-code")).toHaveCount(0);
             await expect(card).not.toContainText("48273");
@@ -589,7 +598,236 @@ test("card container owns the 448px role boundary and wrapped icons keep first-l
         .evaluate(
             (text) =>
                 (text.textContent =
-                    "Hoy tus puntos valen x2 al completar una visita en este ejemplo."),
+                    "Ahora tu visita vale 2 puntos al completar una visita en este ejemplo."),
         );
     await expectReadableCard(card);
+});
+
+test("explicit saving guards duplicates and reopens only the confirmed private handoff", async ({
+    page,
+    context,
+}) => {
+    await page.addInitScript(() => {
+        window.walletFeedback = [];
+        document.addEventListener("toast-show", (event) =>
+            window.walletFeedback.push(structuredClone(event.detail)),
+        );
+    });
+    const publicId = fixture.businesses.active.publicId;
+    const saveUrl = "https://pay.google.com/gp/v/save/header.payload.signature";
+    let requests = 0;
+    let release;
+    const responding = new Promise((resolve) => {
+        release = resolve;
+    });
+    await page.route(`**/join/${publicId}/save`, async (route) => {
+        requests++;
+        expect(route.request().method()).toBe("POST");
+        expect(route.request().headers()["x-csrf-token"]).toBeTruthy();
+        await responding;
+        await route.fulfill({
+            status: 201,
+            json: { save_url: saveUrl, manual_code: "00007" },
+            headers: { "Cache-Control": "no-store, private" },
+        });
+    });
+    await context.route("https://pay.google.com/**", (route) =>
+        route.fulfill({ body: "Wallet handoff stub" }),
+    );
+    await page.goto(`/join/${publicId}`);
+    const save = page.getByRole("button", { name: "Unirme y añadir a Google Wallet" });
+
+    await save.click();
+    await expect(save).toBeDisabled();
+    await expect(save).toHaveText("", { useInnerText: true });
+    await expect(save.locator("svg")).toBeVisible();
+    await expect(page.locator("[data-customer-pass-acquisition]")).toHaveAttribute(
+        "aria-busy",
+        "true",
+    );
+    await page.locator("[data-customer-pass-acquisition]").dispatchEvent("submit");
+    expect(requests).toBe(1);
+    release();
+
+    await expect(page.locator("[data-customer-pass-acquisition]").getByRole("status")).toHaveCount(
+        0,
+    );
+    const manualCode = page.getByText("00007", { exact: true });
+    await expect(manualCode).toBeVisible();
+    await expect(manualCode).toHaveCSS("font-size", "48px");
+    await expect(page.locator("ui-toast-group")).toHaveCount(0);
+    await expect(page.locator("ui-toast")).toHaveCount(1);
+    const handoff = page.getByRole("link", {
+        name: "Agregar a la Billetera de Google (nueva pestaña)",
+    });
+    await expect(handoff).toHaveAttribute("href", saveUrl);
+    await expect(handoff).toBeFocused();
+    await expect(handoff).toHaveAttribute("target", "_blank");
+    await expect(handoff).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(handoff.locator("img")).toHaveAttribute(
+        "src",
+        /images\/google-wallet\/add-to-google-wallet-es-419\.svg$/,
+    );
+    const brandGeometry = await handoff.evaluate((link) => {
+        const image = link.querySelector("img");
+        const bounds = image.getBoundingClientRect();
+        const wrapper = getComputedStyle(link.parentElement);
+        return {
+            width: bounds.width,
+            height: bounds.height,
+            clearSpace: [
+                wrapper.paddingTop,
+                wrapper.paddingRight,
+                wrapper.paddingBottom,
+                wrapper.paddingLeft,
+            ],
+        };
+    });
+    expect(brandGeometry.height).toBeGreaterThanOrEqual(48);
+    expect(brandGeometry.width / brandGeometry.height).toBeCloseTo(239 / 55, 4);
+    expect(brandGeometry.clearSpace).toEqual(["8px", "8px", "8px", "8px"]);
+    await expect(
+        page.locator("form > div").filter({ has: page.locator("[data-flux-error]") }),
+    ).toBeHidden();
+    await expect(page.getByRole("main")).toHaveCSS("gap", "16px");
+    await expect(page.locator('[data-flux-toast-dialog][data-variant="success"]')).toBeVisible();
+    await expect(page.locator("ui-toast")).toHaveAttribute("position", "bottom end");
+    for (let opening = 0; opening < 2; opening++) {
+        const popupReady = page.waitForEvent("popup");
+        await handoff.click();
+        const popup = await popupReady;
+        await popup.waitForURL(saveUrl);
+        await popup.close();
+    }
+    expect(requests).toBe(1);
+    const feedback = await page.evaluate(() => window.walletFeedback);
+    expect(feedback).toHaveLength(1);
+    expect(feedback[0].slots.text).toBe("Tu pase fue creado.");
+    expect(feedback[0].dataset).not.toHaveProperty("position");
+    expect(JSON.stringify(feedback)).not.toContain(saveUrl);
+    expect(JSON.stringify(feedback)).not.toContain("00007");
+    await expect(page.getByRole("article")).toContainText("3 / 10 puntos");
+    await expect(page.getByRole("article")).not.toContainText("00007");
+});
+
+for (const [outcome, retryAllowed] of [
+    ["definitive", true],
+    ["unknown", false],
+]) {
+    test(`saving ${outcome} exposes only the permitted retry interaction`, async ({ page }) => {
+        await page.addInitScript(() => {
+            window.walletFeedback = [];
+            document.addEventListener("toast-show", (event) =>
+                window.walletFeedback.push(structuredClone(event.detail)),
+            );
+        });
+        const publicId = fixture.businesses.active.publicId;
+        let requests = 0;
+        await page.route(`**/join/${publicId}/save`, (route) => {
+            requests++;
+            return route.fulfill({
+                status: 503,
+                json: { outcome, stage: "provider", retry_allowed: retryAllowed },
+            });
+        });
+        await page.goto(`/join/${publicId}`);
+        const save = page.getByRole("button", { name: "Unirme y añadir a Google Wallet" });
+        await page.evaluate(() =>
+            window.Flux.toast({
+                text: "Tu pase fue creado.",
+                variant: "success",
+            }),
+        );
+        await expect(page.locator("ui-toast")).toHaveAttribute("position", "bottom end");
+        await page.evaluate(() => (window.walletFeedback = []));
+
+        await save.click();
+        const error = page
+            .locator("[data-customer-pass-acquisition]")
+            .getByRole("alert")
+            .filter({ visible: true });
+        await expect(error).toBeVisible();
+        await expect(page.locator('[data-flux-toast-dialog][data-variant="danger"]')).toBeVisible();
+        const toast = page.locator('[data-flux-toast-dialog][data-variant="danger"]');
+        await expect(toast).toContainText("Hubo un problema al generar tu pase.");
+        await expect(page.locator("ui-toast")).toHaveAttribute("position", "bottom end");
+        await expect(toast).not.toContainText(await error.textContent());
+        if (retryAllowed) {
+            await expect(error).toContainText("Inténtalo más tarde o contacta con el negocio.");
+            await expect(save).toBeEnabled();
+            await save.click();
+            await expect.poll(() => requests).toBe(2);
+        } else {
+            await expect(error).toContainText(
+                "No pudimos confirmar si tu pase se creó. Para evitar duplicados, no lo solicites de nuevo. Contacta con el negocio.",
+            );
+            await expect(save).toBeDisabled();
+            await page.locator("[data-customer-pass-acquisition]").dispatchEvent("submit");
+            expect(requests).toBe(1);
+        }
+        await expect
+            .poll(() => page.evaluate(() => window.walletFeedback.length))
+            .toBe(retryAllowed ? 2 : 1);
+        const feedback = await page.evaluate(() => window.walletFeedback);
+        for (const event of feedback) {
+            expect(event.dataset).not.toHaveProperty("position");
+        }
+        await expect(
+            page.getByRole("link", { name: "Agregar a la Billetera de Google (nueva pestaña)" }),
+        ).toBeHidden();
+    });
+}
+
+test("unconfigured join stays public without an issuance action", async ({ page }) => {
+    const publicId = fixture.businesses.waiting.publicId;
+    let requests = 0;
+    await page.route(`**/join/${publicId}/save`, (route) => {
+        requests++;
+        return route.abort();
+    });
+    await page.goto(`/join/${publicId}`);
+    await expect(page.getByRole("article")).toContainText("Un beneficio especial");
+    await expect(page.getByRole("main")).toContainText(
+        "Este negocio todavía no ha preparado su pase. Consulta al negocio para saber cuándo estará disponible.",
+    );
+    await expect(page.getByRole("button", { name: "Unirme y añadir a Google Wallet" })).toHaveCount(
+        0,
+    );
+    await expect(page.locator("[data-customer-pass-acquisition]")).toHaveCount(0);
+    expect(requests).toBe(0);
+});
+
+test("appearance reset after page load explains the prerequisite without a retry", async ({
+    page,
+}) => {
+    const publicId = fixture.businesses.active.publicId;
+    let requests = 0;
+    await page.route(`**/join/${publicId}/save`, (route) => {
+        requests++;
+        return route.fulfill({
+            status: 409,
+            json: {
+                outcome: "definitive",
+                stage: "preparation",
+                retry_allowed: false,
+                code: "business_unconfigured",
+                message: "Private provider diagnostic",
+            },
+        });
+    });
+    await page.goto(`/join/${publicId}`);
+    const form = page.locator("[data-customer-pass-acquisition]");
+    await page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }).click();
+    await expect(form.getByRole("alert").filter({ visible: true })).toContainText(
+        "Este negocio todavía no ha preparado su pase.",
+    );
+    await expect(
+        page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }),
+    ).toBeHidden();
+    await expect(
+        page.getByRole("link", { name: "Agregar a la Billetera de Google (nueva pestaña)" }),
+    ).toBeHidden();
+    await form.dispatchEvent("submit");
+    expect(requests).toBe(1);
+    await expect(page.getByRole("main")).not.toContainText("Private provider diagnostic");
 });

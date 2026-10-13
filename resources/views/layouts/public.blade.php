@@ -6,9 +6,13 @@
     <body class="min-h-screen bg-canvas text-ink antialiased">
         {{ $slot }}
 
-        <flux:toast.group>
+        @if ($stackToasts ?? true)
+            <flux:toast.group>
+                <flux:toast class="app-theme" />
+            </flux:toast.group>
+        @else
             <flux:toast class="app-theme" />
-        </flux:toast.group>
+        @endif
 
         @if (session()->pull('account.feedback') === 'deleted')
             <span

@@ -65,9 +65,11 @@
                 <flux:text class="app-role-pass-preview-reward min-w-0 text-inherit!">
                     {{ $reward ?? __('business.pass.color_sample_reward') }}
                 </flux:text>
-                <flux:text class="app-role-pass-preview-compact text-inherit!">
-                    {{ $rewardDescription ?? __('business.pass.color_sample_description') }}
-                </flux:text>
+                @if ($rewardDescription !== null && $rewardDescription !== '')
+                    <flux:text class="app-role-pass-preview-compact text-inherit!">
+                        {{ $rewardDescription }}
+                    </flux:text>
+                @endif
             </div>
             <flux:text class="app-role-pass-preview-metric text-inherit!">
                 {{ $progress ?? __('business.pass.color_sample_progress') }}

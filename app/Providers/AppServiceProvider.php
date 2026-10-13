@@ -11,15 +11,7 @@ use Illuminate\Validation\Rules\Password;
 class AppServiceProvider extends ServiceProvider
 {
     /**
-     * register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
-
-    /**
-     * bootstrap any application services.
+     * Bootstraps application defaults.
      */
     public function boot(): void
     {
@@ -27,7 +19,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * configure default behaviors for production-ready applications.
+     * Configures immutable dates and production safeguards.
      */
     protected function configureDefaults(): void
     {

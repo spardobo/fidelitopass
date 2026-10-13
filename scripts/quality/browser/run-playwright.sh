@@ -11,7 +11,7 @@ if [ "$#" -gt 0 ]; then
 fi
 
 # the image version matches @playwright/test and owns every browser dependency.
-docker run --rm --init --ipc=host \
+docker run --rm --pull=never --init --ipc=host \
     --user "$(id -u):$(id -g)" \
     --env HOME=/tmp \
     --env CI="${CI:-}" \

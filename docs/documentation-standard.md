@@ -32,7 +32,7 @@ Technical documents use controlled English inspired by ASD-STE100. The project d
 
 ## Knowledge ownership
 
-Each knowledge domain has one primary home. A summary in a dependent document is not another authority: requirements make domain rules testable, presentation applies them, and acceptance evidence does not redefine them. Documents own product/domain meaning, observable outcomes, architecture, security, data, presentation contracts and quality/delivery policy. Architecture owns the contextual application of principles, patterns and boundaries. Implementation skills own coding HOW: framework recipes, source readability, formatting, comments, API documentation and client lifecycle handling. Their shared code-quality reference is the sole cross-language convention owner.
+Each knowledge domain has one primary home. A summary in a dependent document is not another authority: requirements make domain rules testable, presentation applies them, and acceptance evidence does not redefine them. Documents own product/domain meaning, observable outcomes, architecture, security, data, presentation contracts and quality/delivery policy. Architecture owns the contextual application of principles, patterns and boundaries. Implementation skills own coding HOW: framework recipes, source readability, formatting, comments, API documentation and client lifecycle handling. Their shared coding-standards reference is the sole cross-language convention owner.
 
 Use [Documentation routing](../AGENTS.md#documentation-routing) for document owners and [Intent routing](../AGENTS.md#intent-routing) for matching skills; do not maintain parallel routing tables.
 
@@ -148,7 +148,7 @@ Examples:
 - Promotion-owned x2/x3/x5 point rule change -> Promotion owner + affected acceptance/presentation.
 - Time model change -> conceptual/database/ADR + affected tests.
 - New page interaction -> UX + affected requirement.
-- New framework or readable-code convention -> matching implementation skill/reference; shared editorial guidance -> shared code-quality reference; architectural principles -> architecture.
+- New framework or readable-code convention -> matching implementation skill/reference; shared editorial guidance -> shared coding-standards reference; architectural principles -> architecture.
 - Changed provider timing or application integrity guarantee -> application/architecture contract.
 - Changed test depth -> quality strategy.
 

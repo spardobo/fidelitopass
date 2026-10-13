@@ -2,6 +2,8 @@
 
 Read the relevant section only when implementing data, authoritative operations, Wallet mapping or credential retirement. These recipes preserve useful implementation material moved from normative documents. They are illustrative and source-sensitive: inspect current migrations, installed APIs and callers before applying them. Documents own the guarantees; current code owns exact names and schema. Do not copy the whole reference or create all listed classes/tables as a scaffold.
 
+Apply [PHP formatting and behavior preservation](implementation-details.md#conditions-queries-and-payloads) while translating a recipe into code. Use the relevant [readability example](readability-examples.md) before the first edit. Recipes guide owner-approved implementation, not silent functional changes during refactoring. Follow [shared readability and documentation](../../shared/coding-standards.md#comments-and-documentation) and [PHPDoc syntax](implementation-details.md#phpdoc-syntax) rather than adding recipe-specific grouping rules.
+
 ## Contents
 
 - [Command and transaction recipes](#consequential-command-names)
@@ -11,15 +13,17 @@ Read the relevant section only when implementing data, authoritative operations,
 - [Credential retirement](#retired-credential-migration)
 - [Logging](#operational-logging-implementation)
 - [Wallet payload mapping](#google-wallet-payload-mapping)
+- [Recipe-to-code review](#recipe-to-code-review)
 
 ## Consequential command names
 
 Possible Action names; use existing naming contracts when already established:
 
+Do not rename an existing Action or add an `Action` suffix solely to match this list. Do not split a complete command into separate Actions for each step of its recipe.
+
 ```text
 PublishPromotionAction
 CancelPromotionAction
-IssueCustomerPassAction
 ValidateVisitAction
 RedeemRewardAction
 ```
@@ -252,7 +256,9 @@ The retirement migration drops only existing columns among `users.two_factor_sec
 
 ## Operational logging implementation
 
-Use Laravel's Monolog integration and configured JSON output. Keep stable context keys such as `event`, `request_id`, `actor_type`, `actor_id`, `business_id`, `promotion_id`, `customer_pass_id`, `outcome` and `reason` where relevant. Example event names: `visit.accepted`, `visit.replayed`, `visit.rejected`, `reward.unlocked`, `reward.redeemed`, `promotion.cancelled`, `wallet.sync_failed`, `auth.throttled`. These are source-owned conventions, not claims about already installed logging. Keep emission timestamp distinct from authoritative domain time when delayed work needs both.
+Use Laravel's Monolog integration and configured JSON output with explicit safe inputs. Apply the [operational logging contract](../../../docs/development/operational-logging.md) for the native envelope, supported sinks, open context and native emergency limits. Pass the authored event code as the log message. Keep stable context keys such as `request_id`, `actor_type`, `actor_id`, `business_id`, `promotion_id`, `customer_pass_id`, `outcome` and `reason` where relevant. Example event names: `visit.accepted`, `visit.replayed`, `visit.rejected`, `reward.unlocked`, `reward.redeemed`, `promotion.cancelled`, `wallet.sync_failed`, `auth.throttled`. These are source-owned conventions, not claims about already installed logging. Keep emission timestamp distinct from authoritative domain time when delayed work needs both.
+
+Register `App\Logging\JsonLoggingTap::class` on emitting leaf channels, not stack, null or emergency. Its only responsibility is to configure native `Monolog\Formatter\JsonFormatter` with `BATCH_MODE_NEWLINES`, the default record newline and native `includeStacktraces()`. This formatter option applies to exception records; it does not authorize raw exceptions at application callsites. Do not duplicate formatter configuration or add diagnostic methods, processors or enrichment to the tap. The short bootstrap reporter records the actual exception class/source location and maps the complete native trace through `Arr::only($frame, ['file', 'line', 'class', 'function'])` before calling `Log`. Keep native paths and symbols; do not add a frame cap or custom normalizer. Inherit request correlation only from active middleware context and return `false` to suppress duplicate reporting. Never pass raw Throwables: Laravel's `MessageLogged` listeners receive original context, which Monolog processors cannot sanitize. Middleware owns common request context and cleanup; individual log calls retain event-specific safe values without automatic traces.
 
 ## Google Wallet payload mapping
 
@@ -266,3 +272,11 @@ Use the Google Wallet loyalty Class/Object model:
 - Alternate barcode text/manual code for quick fallback where suitable.
 
 Avoid custom dynamic progress images in MVP. Numeric progress keeps the presentation stable and easy to synchronize.
+
+## Recipe-to-code review
+
+- Keep authorization, replay, authoritative time and domain writes in the same owned order required by the relevant documents. Make the sequence visible with paragraphs and cohesive method names, not decorative boxes inside the transaction callback.
+- Keep provider-specific HTTP and payload work inside its Integration. Label configuration, signing, Class confirmation, Object binding reconciliation and transport only when at least two actual method groups benefit from that distinction. Do not use an isolated banner or invent responsibilities to add another.
+- Represent nested provider payloads one field per line; preserve native keys, insertion order, string literals, immutable bindings and localized content. Keep a small leaf array inline when it is clearer.
+- Distinguish a confirmed provider Object, local transaction commit and customer Wallet save. Preserve uncertain outcome classification and existing retry policy; an illustrative transaction recipe does not authorize another provider POST.
+- Keep tests at the operation's natural boundary, using readable setup, datasets and assertion chains. Verify behavior rather than private helper names. Recheck the final implementation against the SKILL delivery gate before returning it.

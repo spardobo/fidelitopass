@@ -1,9 +1,13 @@
 <?php
 
+use App\Http\Controllers\CreateCustomerPassController;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/', 'pages::landing')->name('home');
 Route::livewire('join/{public_id}', 'pages::join')->whereUuid('public_id')->name('public.join');
+Route::post('join/{public_id}/save', CreateCustomerPassController::class)
+    ->whereUuid('public_id')
+    ->name('public.join.save');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::business.summary')->name('dashboard');

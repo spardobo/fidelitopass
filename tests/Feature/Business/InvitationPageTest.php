@@ -1,12 +1,12 @@
 <?php
 
+use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
 use App\Models\Business;
 use App\Models\User;
 use App\Support\BusinessAcquisitionQr;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
@@ -182,7 +182,9 @@ it('does not mutate domain records while opening and refreshing the invitation',
     $passBefore = $pass->fresh()->getRawOriginal();
     $promotionBefore = $promotion->fresh()->getRawOriginal();
     Queue::fake();
-    Http::preventStrayRequests();
+    $this->mock(GoogleWalletPassCreator::class)
+        ->shouldReceive('create')
+        ->never();
     $writes = [];
     $captureWrites = true;
     DB::listen(function ($query) use (&$writes, &$captureWrites) {
