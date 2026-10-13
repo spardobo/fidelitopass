@@ -2,176 +2,156 @@
 
 namespace App\Support;
 
+use App\Data\Wallet\WalletPresentation;
+use App\Data\Wallet\WalletTextModule;
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\Promotion;
 use Carbon\CarbonImmutable;
+use Carbon\Exceptions\InvalidFormatException;
+use Carbon\Exceptions\InvalidTimeZoneException;
+use Illuminate\Database\QueryException;
+use PDOException;
 
 /**
- * Resolves real initial content for a new pass with no progress or prior Promotion relationship.
+ * Builds initial pass content from the business's current promotion.
+ *
+ * This does not create a participation or update any existing customer's progress.
  */
 class InitialWalletPresentation
 {
     /**
-     * Uses the authoritative PostgreSQL operation clock without writing loyalty facts.
+     * Receives the clock used for promotion selection.
      *
-     * @param  DatabaseClock  $clock  Shared source of the operation instant.
+     * @param  DatabaseClock  $clock  Source of one authoritative database instant.
      */
     public function __construct(private DatabaseClock $clock) {}
 
     /**
-     * Selects current published Promotion terms or waiting content using one database instant.
+     * Builds active-promotion content or waiting content using one database time reading.
      *
-     * Serves new passes only and never synthesizes a historical result or participation.
+     * @param  Business  $business  Persisted owner of the new pass.
+     * @return WalletPresentation Initial progress and ordered sections, without pass credentials.
      *
-     * @param  Business  $business  Persisted owner whose current Promotion is presented.
-     * @return array{
-     *     state: 'waiting'|'active',
-     *     progress: ?string,
-     *     text_modules: list<array{id: string, header: string, body: string}>
-     * } Spanish initial content, without credentials or provider fields.
+     * @throws QueryException If the clock, promotion or eager-loading query fails.
+     * @throws PDOException If the database driver fails.
+     * @throws InvalidFormatException If a stored timestamp cannot be parsed.
+     * @throws InvalidTimeZoneException If a stored timezone cannot be used.
      */
-    public function resolve(Business $business): array
+    public function build(Business $business): WalletPresentation
     {
-        $reading = $this->clock->captureForBusinessTimezone($business->timezone);
+        $time = $this->clock->capture($business->timezone);
 
         $promotion = $business->promotions()
             ->with('extraPoints')
             ->where('status', PromotionStatus::Published)
             ->whereNull('cancelled_at')
-            ->where('starts_at', '<=', $reading['instant'])
-            ->where('ends_at', '>', $reading['instant'])
+            ->where('starts_at', '<=', $time->instant)
+            ->where('ends_at', '>', $time->instant)
             ->first();
 
         if ($promotion === null) {
-            return $this->waitingPresentation();
+            return $this->buildWaitingContent();
         }
 
-        $localInstant = CarbonImmutable::parse($reading['instant'])
+        $localTime = CarbonImmutable::parse($time->instant)
             ->setTimezone($promotion->timezone_snapshot);
 
-        return $this->activePresentation($promotion, $localInstant);
+        return $this->buildActiveContent($promotion, $localTime);
     }
 
-    // -----------------------------------------------------------------------------
-    // initial presentation states
-    // -----------------------------------------------------------------------------
-
     /**
-     * Builds waiting content without progress or Promotion terms.
+     * Builds the message displayed when there is no active promotion.
      *
-     * @return array{
-     *     state: 'waiting',
-     *     progress: null,
-     *     text_modules: list<array{id: string, header: string, body: string}>
-     * } Waiting content for a new pass.
+     * @return WalletPresentation Waiting content, without points or invented promotion terms.
      */
-    private function waitingPresentation(): array
+    private function buildWaitingContent(): WalletPresentation
     {
-        return [
-            'state' => 'waiting',
-            'progress' => null,
-            'text_modules' => [
-                [
-                    'id' => 'promotion',
-                    'header' => __('👀 PRÓXIMA PROMOCIÓN'),
-                    'body' => __('business.pass.waiting_state_heading')
-                        .' '.__('business.pass.waiting_state_description'),
-                ],
-            ],
-        ];
+        return new WalletPresentation(
+            null,
+            new WalletTextModule(
+                'promotion',
+                __('business.pass.waiting_card_title'),
+                __('business.pass.waiting_state_heading').' '.__('business.pass.waiting_state_description'),
+            ),
+        );
     }
 
     /**
-     * Builds zero-progress content from the active Promotion and its local operation instant.
+     * Builds zero-progress content using the first applicable bonus window and the existing deadline rule.
      *
-     * Uses the first matching extra-points window and the inclusive local deadline.
-     * Does not create participation, visits or reward entitlements.
+     * @param  Promotion  $promotion  Published promotion with extraPoints already loaded.
+     * @param  CarbonImmutable  $localTime  Operation instant in the promotion's frozen timezone.
+     * @return WalletPresentation Zero-progress text and current promotion, visit, reward and deadline sections.
      *
-     * @param  Promotion  $promotion  Current published Promotion with extraPoints already loaded.
-     * @param  CarbonImmutable  $localInstant  Operation instant in the Promotion's frozen timezone.
-     * @return array{
-     *     state: 'active',
-     *     progress: string,
-     *     text_modules: list<array{id: string, header: string, body: string}>
-     * } Initial content reflecting the active Promotion's terms.
+     * @throws InvalidFormatException If the stored promotion deadline cannot be parsed.
+     * @throws InvalidTimeZoneException If the stored promotion timezone is invalid.
      */
-    private function activePresentation(
-        Promotion $promotion,
-        CarbonImmutable $localInstant,
-    ): array {
-        $localTime = $localInstant->format('H:i:s.u');
-
+    private function buildActiveContent(Promotion $promotion, CarbonImmutable $localTime): WalletPresentation
+    {
+        // preserve the first matching bonus window and its inclusive-start, exclusive-end bounds
+        $timeOfDay = $localTime->format('H:i:s.u');
         $window = $promotion->extraPoints->first(
-            fn ($window) => $window->weekday === $localInstant->isoWeekday()
+            fn ($window) => $window->weekday === $localTime->isoWeekday()
                 && (
                     $window->start_time === null
                     || (
-                        $localTime >= $window->start_time
-                        && $localTime < $window->end_time
+                        $timeOfDay >= $window->start_time
+                        && $timeOfDay < $window->end_time
                     )
                 ),
         );
 
-        $points = $window->multiplier ?? 1;
+        $visitPoints = $window->multiplier ?? 1;
 
-        $deadline = CarbonImmutable::parse($promotion->ends_at)
+        // render the final included local date without changing the stored deadline
+        $finalLocalDate = CarbonImmutable::parse($promotion->ends_at)
             ->setTimezone($promotion->timezone_snapshot)
             ->subDay();
 
-        $deadline->locale('es');
+        $finalLocalDate->locale('es');
+        $finalLocalDateText = $finalLocalDate->translatedFormat('d M Y');
+        $finalLocalDateText = mb_strtoupper(str_replace('.', '', $finalLocalDateText));
+        $targetPoints = $promotion->target_points;
 
-        $endDate = $deadline->translatedFormat('d M Y');
-        $endDate = mb_strtoupper(str_replace('.', '', $endDate));
+        $validity = __('Válido hasta el :date', ['date' => $finalLocalDateText]);
+        $visit = $visitPoints > 1
+            ? __('⚡ Ahora tu visita vale :points puntos.', ['points' => $visitPoints])
+            : __('Tu visita ahora vale 1 punto.');
 
-        $target = $promotion->target_points;
+        $reward = $promotion->reward_title;
+        if ($promotion->reward_description !== null && $promotion->reward_description !== '') {
+            $reward .= "\n".$promotion->reward_description;
+        }
 
-        return [
-            'state' => 'active',
-            'progress' => __(':progress / :target puntos', [
-                'progress' => 0,
-                'target' => $target,
-            ]),
-            'text_modules' => [
-                [
-                    'id' => 'promotion',
-                    'header' => __('🎯 PROMOCIÓN ACTUAL'),
-                    'body' => __('Consigue :target puntos hasta el :date.', [
-                        'target' => $target,
-                        'date' => $endDate,
-                    ]),
-                ],
-                [
-                    'id' => 'next_action',
-                    'header' => __('Tu progreso'),
-                    'body' => __('Te faltan :points puntos.', [
-                        'points' => $target,
-                    ]),
-                ],
-                [
-                    'id' => 'visit',
-                    'header' => __('Valor de tu visita'),
-                    'body' => $points > 1
-                        ? __('⚡ Ahora tu visita vale :points puntos.', [
-                            'points' => $points,
-                        ])
-                        : __('Tu visita ahora vale 1 punto.'),
-                ],
-                [
-                    'id' => 'reward',
-                    'header' => __('Tu recompensa'),
-                    'body' => __('🎁 :reward', [
-                        'reward' => $promotion->reward_title,
-                    ]),
-                ],
-                [
-                    'id' => 'deadline',
-                    'header' => __('Fecha límite'),
-                    'body' => __('Válido hasta el :date', [
-                        'date' => $endDate,
-                    ]),
-                ],
-            ],
-        ];
+        // keep the actual reward and progress without generated earning terms
+        return new WalletPresentation(
+            __(':progress / :target puntos', ['progress' => 0, 'target' => $targetPoints]),
+            new WalletTextModule(
+                'next_action',
+                __('Tu progreso'),
+                __('Te faltan :points puntos.', ['points' => $targetPoints]),
+            ),
+            new WalletTextModule(
+                'visit',
+                __('Valor de tu visita'),
+                $visit,
+            ),
+            new WalletTextModule(
+                'reward',
+                __('PROMOCIÓN'),
+                $reward,
+            ),
+            new WalletTextModule(
+                'deadline',
+                __('Fecha límite'),
+                $validity,
+            ),
+            new WalletTextModule(
+                'compact_promotion',
+                __('PROMOCIÓN'),
+                $promotion->reward_title."\n".$validity."\n\n".$visit,
+            ),
+        );
     }
 }

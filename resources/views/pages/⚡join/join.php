@@ -8,7 +8,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Layout('layouts::public'), Title('join.page_title')] class extends Component
+new #[Layout('layouts::public', ['stackToasts' => false]), Title('join.page_title')] class extends Component
 {
     #[Locked]
     public string $publicId;

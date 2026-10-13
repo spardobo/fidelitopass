@@ -10,7 +10,7 @@ new class extends Component
     public array $recoveryCodes = [];
 
     /**
-     * Loads enabled two-factor recovery codes into display state; decryption errors are recorded in the component error bag.
+     * Loads enabled two-factor recovery codes into display state; decryption failures are reported once and recorded in the component error bag.
      */
     public function mount(): void
     {
@@ -37,7 +37,9 @@ new class extends Component
         if ($user->hasEnabledTwoFactorAuthentication() && $user->two_factor_recovery_codes) {
             try {
                 $this->recoveryCodes = json_decode(decrypt($user->two_factor_recovery_codes), true);
-            } catch (Exception) {
+            } catch (Exception $exception) {
+                report($exception);
+
                 $this->addError('recoveryCodes', 'Failed to load recovery codes');
 
                 $this->recoveryCodes = [];

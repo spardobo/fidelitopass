@@ -79,7 +79,7 @@ Core-flow baseline requires responsive layouts, keyboard-visible focus, semantic
 - Structure focused tests with Arrange, Act, Assert.
 - Test observable behaviour and domain outcomes, not private methods.
 - Use real PostgreSQL when behaviour depends on transactions, constraints, `timestamptz`, `AT TIME ZONE`, or row locks; assert that mutations capture one post-lock PostgreSQL operation instant for deadline checks, local award evaluation, and domain timestamps.
-- Fake Google Wallet at the provider boundary for deterministic automated tests.
+- Fake Google Wallet at the configured native SDK transport boundary for deterministic automated tests. Verify authenticated serialized requests, bounded transport, documented enum aliases and exact immutable bindings. Cover authentication before object writes, redirect rejection and one same-identity confirmation read without repeating creation. Do not require SDK-owned serialization details or complete nested appearance echoes. No-provider checks must guard the creation entry point rather than an unused HTTP facade.
 - Keep one real-device Wallet verification checklist for release confidence.
 - Fix or remove flaky required tests; do not normalize retry-until-green.
 - Keep fixtures small and explicit.
@@ -204,12 +204,18 @@ Structured logging is part of quality because it supports diagnosis.
 
 Verify:
 
-- Request IDs are present where expected.
-- JSON production formatter is valid.
+- Request IDs come only from actual request middleware. In-scope records inherit UUID7 logging context without explicit callsite fields or response headers; standalone records and reports after middleware cleanup do not recover or generate one.
+- All eight severity records, configured collection handlers and batches preserve the same JSON envelope; filtering retains configured severity semantics.
 - Domain/security event names are stable.
-- No raw validation token or credential appears in representative log output.
+- Classified creation failures retain the actual provider method/status and preceding write evidence when confirmation fails, plus available source exception class and SQLSTATE. Exercise class GET/POST/PATCH, authentication, transport and readback failures without real provider effects. Assert that application-authored reason codes and binding field paths survive while raw provider codes, messages, bodies and credential-like values do not. Preserve one failure event and existing public outcome/retry contracts.
+- Genuine handled settings failures are reported once. Missing setup data remains ordinary absence and does not create an exception report or restore retired two-factor persistence.
+- Open scalar and nested safe context and native extras survive without field registration. Application callsites use authored codes and explicit nonsecret parameters, not whole objects or arbitrary request data. Privacy assertions exercise those boundaries; the formatter does not sanitize arbitrary inputs.
+- Unexpected exception reporting includes class, the distinct throw site and the complete native caller chain once, inheriting request correlation only while middleware context is active. Frames retain only file, line, class and function metadata, with native server-side paths and closure/anonymous class labels unchanged. Verify a chain longer than 20 frames without an application cap. Assert absence of raw messages, SQL/bindings, ordinary and sensitive arguments, frame objects, causes and raw exceptions in native listener context; ignored framework exceptions remain ignored. Customer-facing responses do not expose diagnostic paths or traces.
+- Native manager/configuration and destination/listener failures exercise the selected failure-visibility behavior. A failed completion log does not undo committed state, record a false domain failure or repeat provider creation. Native last-resort text/raw construction diagnostics are an accepted limit, not a JSON/privacy guarantee.
+- Sequential requests receive fresh server-owned correlation without worker-context leakage. Exceptional unwind clears logging correlation. Successful and failing responses have no X-Request-ID header.
+- Schema fixtures match the native message, numeric severity, uppercase severity name, channel, datetime and open metadata contract, including native batch newline behavior; new authored codes and safe fields need no registration. Contract assertions do not imply full JSON Schema draft validation.
 
-No external log-management service is required for MVP.
+These checks cover observed cases, not every future sink or configuration failure. No external log-management service is required for MVP.
 
 ## Release confidence checklist
 

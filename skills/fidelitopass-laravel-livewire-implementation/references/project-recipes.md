@@ -2,9 +2,7 @@
 
 Read the relevant section only when implementing data, authoritative operations, Wallet mapping or credential retirement. These recipes preserve useful implementation material moved from normative documents. They are illustrative and source-sensitive: inspect current migrations, installed APIs and callers before applying them. Documents own the guarantees; current code owns exact names and schema. Do not copy the whole reference or create all listed classes/tables as a scaffold.
 
-Apply [PHP formatting and behavior preservation](implementation-details.md#conditions-queries-and-payloads) while translating a recipe into code. Use the relevant [readability example](readability-examples.md) before the first edit. Recipes guide owner-approved implementation, not silent functional changes during refactoring. Keep PHP method documentation in third person. Use separators only to distinguish at least two actual semantic groups in the same class/file, each containing one to N callables, with a blank line above and below. Use none when only one grouping is useful.
-
-Keep constructors and framework/Livewire lifecycle hooks unboxed at the top after state. Apply the same rule to test configuration and setup/teardown hooks. Do not place these elements under an actions/tests/helpers banner or count them as a group to justify separators elsewhere.
+Apply [PHP formatting and behavior preservation](implementation-details.md#conditions-queries-and-payloads) while translating a recipe into code. Use the relevant [readability example](readability-examples.md) before the first edit. Recipes guide owner-approved implementation, not silent functional changes during refactoring. Follow [shared readability and documentation](../../shared/coding-standards.md#comments-and-documentation) and [PHPDoc syntax](implementation-details.md#phpdoc-syntax) rather than adding recipe-specific grouping rules.
 
 ## Contents
 
@@ -26,7 +24,6 @@ Do not rename an existing Action or add an `Action` suffix solely to match this 
 ```text
 PublishPromotionAction
 CancelPromotionAction
-IssueCustomerPassAction
 ValidateVisitAction
 RedeemRewardAction
 ```
@@ -259,7 +256,9 @@ The retirement migration drops only existing columns among `users.two_factor_sec
 
 ## Operational logging implementation
 
-Use Laravel's Monolog integration and configured JSON output. Keep stable context keys such as `event`, `request_id`, `actor_type`, `actor_id`, `business_id`, `promotion_id`, `customer_pass_id`, `outcome` and `reason` where relevant. Example event names: `visit.accepted`, `visit.replayed`, `visit.rejected`, `reward.unlocked`, `reward.redeemed`, `promotion.cancelled`, `wallet.sync_failed`, `auth.throttled`. These are source-owned conventions, not claims about already installed logging. Keep emission timestamp distinct from authoritative domain time when delayed work needs both.
+Use Laravel's Monolog integration and configured JSON output with explicit safe inputs. Apply the [operational logging contract](../../../docs/development/operational-logging.md) for the native envelope, supported sinks, open context and native emergency limits. Pass the authored event code as the log message. Keep stable context keys such as `request_id`, `actor_type`, `actor_id`, `business_id`, `promotion_id`, `customer_pass_id`, `outcome` and `reason` where relevant. Example event names: `visit.accepted`, `visit.replayed`, `visit.rejected`, `reward.unlocked`, `reward.redeemed`, `promotion.cancelled`, `wallet.sync_failed`, `auth.throttled`. These are source-owned conventions, not claims about already installed logging. Keep emission timestamp distinct from authoritative domain time when delayed work needs both.
+
+Register `App\Logging\JsonLoggingTap::class` on emitting leaf channels, not stack, null or emergency. Its only responsibility is to configure native `Monolog\Formatter\JsonFormatter` with `BATCH_MODE_NEWLINES`, the default record newline and native `includeStacktraces()`. This formatter option applies to exception records; it does not authorize raw exceptions at application callsites. Do not duplicate formatter configuration or add diagnostic methods, processors or enrichment to the tap. The short bootstrap reporter records the actual exception class/source location and maps the complete native trace through `Arr::only($frame, ['file', 'line', 'class', 'function'])` before calling `Log`. Keep native paths and symbols; do not add a frame cap or custom normalizer. Inherit request correlation only from active middleware context and return `false` to suppress duplicate reporting. Never pass raw Throwables: Laravel's `MessageLogged` listeners receive original context, which Monolog processors cannot sanitize. Middleware owns common request context and cleanup; individual log calls retain event-specific safe values without automatic traces.
 
 ## Google Wallet payload mapping
 

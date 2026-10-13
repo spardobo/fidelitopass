@@ -46,20 +46,25 @@ new class extends Component
     }
 
     /**
-     * Load the two-factor authentication setup data for the user.
+     * Loads setup secrets and reports genuine server failures without treating absence as an exception.
      */
     private function loadSetupData(): void
     {
         $user = auth()->user()?->fresh();
 
-        try {
-            if (! $user || ! $user->two_factor_secret) {
-                throw new Exception('Two-factor setup secret is not available.');
-            }
+        if (! $user || ! $user->two_factor_secret) {
+            $this->addError('setupData', 'Failed to fetch setup data.');
+            $this->reset('qrCodeSvg', 'manualSetupKey');
 
+            return;
+        }
+
+        try {
             $this->qrCodeSvg = $user->twoFactorQrCodeSvg();
             $this->manualSetupKey = decrypt($user->two_factor_secret);
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            report($exception);
+
             $this->addError('setupData', 'Failed to fetch setup data.');
 
             $this->reset('qrCodeSvg', 'manualSetupKey');

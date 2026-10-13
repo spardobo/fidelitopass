@@ -8,6 +8,13 @@ readonly mail_container="fidelitopass-browser-mail-$$"
 readonly port=8017
 readonly base_url="http://${app_service}:${port}"
 readonly fixture=scripts/quality/browser/promotion-fixture.php
+scenario_fixture="$fixture"
+spec=tests/Browser/business-promotion-draft.spec.js
+if test "${1:-}" = --public-join; then
+    scenario_fixture=scripts/quality/browser/public-join-fixture.php
+    spec=tests/Browser/public-join.spec.js
+    shift
+fi
 server_started=false
 launcher_pid=
 mail_started=false
@@ -77,7 +84,7 @@ app "$fixture" guard
 testing_reserved=true
 app "$fixture" reset
 export PLAYWRIGHT_PROMOTION_FIXTURE
-PLAYWRIGHT_PROMOTION_FIXTURE=$(app "$fixture" seed)
+PLAYWRIGHT_PROMOTION_FIXTURE=$(app "$scenario_fixture" seed)
 
 docker run --detach --rm --pull=never --name "$mail_container" \
     --network fidelitopass-network "$mail_image" >/dev/null
@@ -90,5 +97,5 @@ app "$fixture" ready
 export PLAYWRIGHT_BASE_URL="$base_url"
 export PLAYWRIGHT_MAILPIT_URL="http://${mail_container}:8025"
 scripts/quality/browser/run-playwright.sh test:e2e \
-    tests/Browser/business-promotion-draft.spec.js --project=chromium --workers=1 "$@"
-app "$fixture" verify
+    "$spec" --project=chromium --workers=1 "$@"
+app "$scenario_fixture" verify

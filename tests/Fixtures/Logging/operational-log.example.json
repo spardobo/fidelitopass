@@ -1,0 +1,19 @@
+{
+    "message": "customer_pass.creation.completed",
+    "context": {
+        "business_id": 1,
+        "customer_pass_id": 2,
+        "request_id": "018f1111-2222-7333-8444-555555555555",
+        "stage": "local",
+        "outcome": "issued",
+        "confirmed_by_readback": false,
+        "provider_confirmation": {
+            "by_readback": false
+        }
+    },
+    "level": 200,
+    "level_name": "INFO",
+    "channel": "application",
+    "datetime": "2030-01-01T03:00:00+03:00",
+    "extra": {}
+}

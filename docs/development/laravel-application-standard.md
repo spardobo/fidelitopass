@@ -34,7 +34,11 @@ Server-side validation is authoritative; client validation is UX only. Promotion
 
 The provider boundary owns Class/Object payload mapping, object creation/update, Save-to-Wallet issuance payloads and provider error classification.
 
-Initial issuance distinguishes confirmed provider success, definitive failure and unknown outcome. Do not publish success after an unknown provider or commit result, infer rollback, or blindly repeat creation. Reuse the current operation identifier where available; do not add a durable attempt table or persistent browser identity. A confirmed local rollback may leave the accepted provider orphan, with no cleanup/recovery guarantee.
+Official Google client, authentication and signing dependencies own authentication, request serialization and response models. The application retains issuance policy and classifies native failures by available HTTP status. Authenticate before object creation; authentication failure must not imply an attempted object write. Authentication and Wallet requests use bounded timeouts, TLS verification, no redirects and no automatic retries. Provider-library logging must not emit raw requests or secret-bearing errors.
+
+Require the deterministic Class identity and provider approval before individual issuance. Update only owned appearance when business names, logo, color or primary layout references differ; submit Class creation and appearance updates as `UNDER_REVIEW`, as required by Google. Google alone decides approval. Require the returned Class identity and approval again after each write before creating an Object. A successful update need not echo every nested visual field. Accept documented approval and barcode enum aliases, but compare Object identity, Class binding, manual code and barcode value exactly. Incomplete Object confirmation requires the same-identity read, never a second creation request. Redirects cannot establish success.
+
+Initial issuance distinguishes confirmed provider success, definitive failure and unknown outcome. Do not publish success after an unknown provider or commit result, infer rollback, or blindly repeat creation. Reuse the current operation identifier where available; do not add a durable attempt table or persistent browser identity. A confirmed local rollback may leave the accepted provider orphan, with no cleanup/recovery guarantee. A model event that cancels the local save is a failed issuance, not a confirmed commit. The private HTTP handoff selects only the Save-to-Wallet URL and manual code; internal operation metadata must not enter the response.
 
 It does not own Promotion eligibility, Visit acceptance, Reward completion or Redemption authorization. PostgreSQL remains domain truth. Synchronization reloads current authoritative state, tolerates duplicate execution and preserves committed outcomes under the architecture's [background-work contract](../architecture/overview.md#background-work).
 
@@ -42,13 +46,15 @@ It does not own Promotion eligibility, Visit acceptance, Reward completion or Re
 
 ### Production format
 
-Production writes one JSON object per log record to `stderr` so container/platform collectors can ingest it. Local development may use a human-readable channel, but event semantics remain the same.
+Configured application channels use one native Monolog JSON object per record at all eight PSR severities, with explicit safe callsite context. Production defaults to `stderr`; local development defaults to rotating files. Explicit deployment severity/channel settings remain authoritative. The [operational logging contract](operational-logging.md) defines the envelope and supported collection boundaries.
+
+Logging uses native failure behavior without protective wrappers. A logging failure may change the HTTP result or interrupt reporting, but cannot undo an already committed domain fact or authorize an automatic provider retry. Last-resort native emergency output and pre-bootstrap diagnostics are outside the configured JSON guarantee. Logging is not a durable audit guarantee.
 
 ### Correlation
 
-Each request receives one UUID correlation identifier shared by its log records. Apply the [security logging contract](../architecture/security.md#structured-security-logging), including response correlation where appropriate.
+Request middleware alone generates and shares one UUID correlation identifier while its context is active. Individual log calls do not supply request identifiers. Standalone logs and reports after middleware cleanup may have no request correlation. Apply the [security logging contract](../architecture/security.md#structured-security-logging). Request correlation is internal logging metadata, not a response header.
 
-Stable context includes the event, request correlation, relevant actor and domain identities, outcome and reason. Initial-issuance technical records use sanitized correlation/operation identifiers in application logs, not a separate database attempt registry. Include only relevant fields; source owns exact field names.
+Stable context includes the event, middleware-owned request correlation when in scope, relevant actor and domain identities, outcome and reason. Initial-issuance technical records use sanitized correlation/operation identifiers in application logs, not a separate database attempt registry. Include only relevant fields; source owns exact field names.
 
 Use stable machine-readable names for acceptance, replay, rejection, unlock, redemption, cancellation, provider failure and throttling events. Their exact names belong to implementation.
 
@@ -58,7 +64,7 @@ Never log passwords, session/cookie values, authorization headers, raw validatio
 
 ## Error handling
 
-Expected domain rejections become clear UI states. Unexpected exceptions return a safe generic message, include the request ID when useful for support and retain detailed server-side context without secrets. Production never exposes stack traces. Apply the [security error contract](../architecture/security.md#error-handling), including enumeration protection.
+Expected domain rejections become clear UI states. Unexpected exceptions return a safe generic message without a request correlation header. Configured reports retain the actual exception class, source location and complete native caller chain with only file, line, class and function metadata. Native server-side paths and symbols remain unchanged; reports exclude raw exception messages, arguments, frame objects, SQL, bindings and causes. Production responses never expose stack traces or source paths. Apply the [security error contract](../architecture/security.md#error-handling), including enumeration protection.
 
 ## Security headers
 

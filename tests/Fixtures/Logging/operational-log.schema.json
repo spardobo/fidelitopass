@@ -1,0 +1,60 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "message",
+        "context",
+        "level",
+        "level_name",
+        "channel",
+        "datetime",
+        "extra"
+    ],
+    "properties": {
+        "message": {
+            "type": "string"
+        },
+        "context": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "level": {
+            "type": "integer",
+            "enum": [
+                100,
+                200,
+                250,
+                300,
+                400,
+                500,
+                550,
+                600
+            ]
+        },
+        "level_name": {
+            "type": "string",
+            "enum": [
+                "DEBUG",
+                "INFO",
+                "NOTICE",
+                "WARNING",
+                "ERROR",
+                "CRITICAL",
+                "ALERT",
+                "EMERGENCY"
+            ]
+        },
+        "channel": {
+            "type": "string"
+        },
+        "datetime": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "extra": {
+            "type": "object",
+            "additionalProperties": true
+        }
+    }
+}
