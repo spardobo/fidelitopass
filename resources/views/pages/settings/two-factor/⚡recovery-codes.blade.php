@@ -95,6 +95,7 @@ new class extends Component
                     icon="arrow-path"
                     variant="filled"
                     wire:click="regenerateRecoveryCodes"
+                    class="app-button-secondary"
                 >
                     {{ __('Regenerate codes') }}
                 </flux:button>

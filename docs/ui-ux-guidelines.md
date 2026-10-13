@@ -40,6 +40,8 @@ These are distinct **roles**, not a near-colour palette to consolidate, except w
 | Scheduled surface | `#403152` | Scheduled context outside the scoped Pase status-badge mapping below |
 | Danger hover; ready operational hover | `#482B32`; `#46355E` | Danger button hover; enabled header registration action hover, not accent hover |
 
+Neutral secondary actions use a visible solid boundary with the secondary-button border role, including filled controls. Apply the same treatment to equivalent neutral actions across pages and account dialogs. Preserve native disabled/loading feedback and keep primary, danger, ghost/icon and navigation actions distinct.
+
 For a secondary action on an emphasized surface, use the reusable `app-button-secondary-on-emphasis` treatment with Flux's outline variant. Keep its background transparent at rest and use the priority-ink role for the visible border and text. Hover and active states add a light priority-ink tint only while enabled. Reuse the shared button geometry and keyboard-focus treatment, and retain native disabled and loading semantics. Ordinary neutral cards keep the existing gray secondary treatment; contextual availability does not authorize a global rollout.
 
 Focus is context-dependent: main-content inputs/selects/textareas use a `2px` **`#A77BFF`** outline with `3px` offset and accent border; general focus uses a `2px` **`#CDB0FF`** outline with `3px` offset outside that context absent a stronger component rule. Do not claim one universal focus colour or copy mockup selectors into Flux. Verify actual installed DOM and focus in browser.
@@ -459,7 +461,7 @@ Do not use optimistic UI for redemption.
 
 ## Accessibility baseline
 
-All native application modals dim the mounted page with one black 45% native backdrop. Keep modal panels, content and native opening/dismissal transitions unchanged; do not add a second overlay or blur.
+All native application modals dim the mounted page with one black 55% native backdrop. Keep modal panels, content and native opening/dismissal transitions unchanged; do not add a second overlay or blur.
 
 All native application modals share thin accent scrollbars on transparent tracks, including account modals. For fine pointers with hover support, reveal the scrollbar on hover, keyboard focus or focus within the scroll surface. For touch and coarse pointers, keep it available without hover. Respect reduced motion. Apply this appearance automatically without changing each modal's viewport bounds, scroll container, footer layout or native controls. Reserve stable scrollbar space only where the existing scroll-body layout needs it, not on every descendant. Keep an 8px inline-end content gap before the scrollbar in publication review and published-detail bodies, without adding horizontal overflow or padding to nested fields and cards.
 

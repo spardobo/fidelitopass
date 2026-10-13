@@ -338,7 +338,19 @@ for (const width of [375, 1280]) {
                     path: testInfo.outputPath(`delete-account-${width}.png`),
                     fullPage: true,
                 });
-                await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+                const cancel = dialog.getByRole("button", { name: "Cancelar", exact: true });
+                await expect(cancel).toHaveCSS("background-color", "rgb(56, 56, 56)");
+                await expect(cancel).toHaveCSS("border-color", "rgb(130, 130, 130)");
+                await expect(cancel).toHaveCSS("border-width", "1px");
+                await expect(cancel).toHaveCSS("border-style", "solid");
+                await expect
+                    .poll(() =>
+                        dialog.evaluate(
+                            (element) => getComputedStyle(element, "::backdrop").backgroundColor,
+                        ),
+                    )
+                    .toBe("rgba(0, 0, 0, 0.55)");
+                await cancel.click();
                 await expect(dialog).not.toBeVisible();
                 await expect(remove).toBeFocused();
                 await page.reload();

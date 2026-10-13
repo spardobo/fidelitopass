@@ -120,7 +120,7 @@ select:focus[data-flux-control] {
 
 /* dim the page through the native backdrop without changing modal panels or transitions. */
 [data-flux-modal] > dialog::backdrop {
-    background-color: rgb(0 0 0 / 45%);
+    background-color: rgb(0 0 0 / 55%);
 }
 
 /* shared modal scrollbar appearance; each modal retains its own scroll layout. */
@@ -460,7 +460,7 @@ select:focus[data-flux-control] {
     @apply app-control! app-role-action! app-focus! whitespace-normal!;
 }
 @utility app-button-secondary {
-    @apply app-button! border-app-secondary-button-border! bg-app-secondary-button! text-app-ink!;
+    @apply app-button! border! border-app-secondary-button-border! bg-app-secondary-button! text-app-ink!;
     @apply hover:bg-app-secondary-button-hover! active:bg-app-secondary-button-hover!;
 }
 @utility app-button-secondary-on-emphasis {

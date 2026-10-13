@@ -162,7 +162,7 @@ async function expectModalScrollbarAppearance(page, dialog, body, hasTouch) {
         .poll(() =>
             dialog.evaluate((element) => getComputedStyle(element, "::backdrop").backgroundColor),
         )
-        .toBe("rgba(0, 0, 0, 0.45)");
+        .toBe("rgba(0, 0, 0, 0.55)");
     await expect(dialog).toHaveCSS("scrollbar-width", "thin");
     await expect(body).toHaveCSS("scrollbar-width", "thin");
     await expect(body).toHaveCSS("overflow-y", "auto");
@@ -267,7 +267,7 @@ for (const hasTouch of [false, true]) {
                         (element) => getComputedStyle(element, "::backdrop").backgroundColor,
                     ),
                 )
-                .toBe("rgba(0, 0, 0, 0.45)");
+                .toBe("rgba(0, 0, 0, 0.55)");
             await expect(
                 detail.getByRole("button", { name: "Volver al resumen" }),
             ).toBeInViewport();
@@ -579,6 +579,11 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(appearanceToast).toHaveCount(1);
     await expect(appearanceToast).toBeVisible();
     await expect(appearanceToast).toContainText("Apariencia guardada");
+    const editAppearance = page.getByRole("link", { name: "Editar apariencia", exact: true });
+    await expect(editAppearance).toHaveCSS("background-color", "rgb(56, 56, 56)");
+    await expect(editAppearance).toHaveCSS("border-color", "rgb(130, 130, 130)");
+    await expect(editAppearance).toHaveCSS("border-width", "1px");
+    await expect(editAppearance).toHaveCSS("border-style", "solid");
     await expect(page.getByRole("heading", { name: "Tu primera razón para volver" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Crear primera promoción" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Borradores", exact: true })).toHaveCount(0);
@@ -624,14 +629,45 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     const measureButton = (button) =>
         button.evaluate((element) => {
             const style = getComputedStyle(element);
+            let surface = element.parentElement;
+            while (getComputedStyle(surface).backgroundColor === "rgba(0, 0, 0, 0)") {
+                surface = surface.parentElement;
+            }
+            const surfaceColor = getComputedStyle(surface).backgroundColor;
+            const luminance = (color) => {
+                const channels = color
+                    .match(/[\d.]+/g)
+                    .slice(0, 3)
+                    .map(Number);
+                const linear = channels.map((channel) => {
+                    const value = channel / 255;
+                    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+                });
+                return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+            };
+            const contrast = (first, second) => {
+                const a = luminance(first);
+                const b = luminance(second);
+                return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+            };
+            const bounds = element.getBoundingClientRect();
 
             return {
                 background: style.backgroundColor,
                 borderColor: style.borderColor,
+                borderWidth: style.borderWidth,
+                borderStyle: style.borderStyle,
                 color: style.color,
                 minHeight: style.minHeight,
                 borderRadius: style.borderRadius,
                 usesNeutralAppButton: element.classList.contains("app-button-secondary"),
+                surfaceColor,
+                textContrast: contrast(style.color, style.backgroundColor),
+                boundaryContrast: contrast(style.borderColor, surfaceColor),
+                outlineWidth: style.outlineWidth,
+                outlineStyle: style.outlineStyle,
+                width: bounds.width,
+                height: bounds.height,
             };
         });
     const [saveButtonStyle, reviewButtonStyle, addRuleButtonStyle] = await Promise.all([
@@ -639,6 +675,37 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
         measureButton(reviewButton),
         measureButton(addRuleButton),
     ]);
+    const neutralStates = [{ state: "rest", ...addRuleButtonStyle }];
+    await addRuleButton.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath("neutral-add-points-rest.png") });
+    await addRuleButton.hover();
+    neutralStates.push({ state: "hover", ...(await measureButton(addRuleButton)) });
+    await page.mouse.down();
+    neutralStates.push({ state: "active", ...(await measureButton(addRuleButton)) });
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
+    await addRuleButton.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(addRuleButton).toBeFocused();
+    neutralStates.push({ state: "focus", ...(await measureButton(addRuleButton)) });
+    console.log("neutral-button-states", JSON.stringify(neutralStates));
+    for (const style of [saveButtonStyle, ...neutralStates]) {
+        expect(style.borderWidth).toBe("1px");
+        expect(style.borderStyle).toBe("solid");
+        expect(style.borderColor).toBe("rgb(130, 130, 130)");
+        expect(style.background).toBe(
+            ["hover", "active"].includes(style.state) ? "rgb(68, 68, 68)" : "rgb(56, 56, 56)",
+        );
+        expect(style.textContrast).toBeGreaterThanOrEqual(4.5);
+        expect(style.boundaryContrast).toBeGreaterThanOrEqual(3);
+        expect(style.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(neutralStates.find(({ state }) => state === "focus").outlineWidth).toBe("2px");
+    expect(neutralStates.find(({ state }) => state === "focus").outlineStyle).toBe("solid");
+    await page.mouse.move(0, 0);
+    await addRuleButton.evaluate((button) => button.blur());
+
     expect(saveButtonStyle.usesNeutralAppButton).toBe(true);
     expect(saveButtonStyle.background).toBe("rgb(56, 56, 56)");
     expect(saveButtonStyle.borderColor).toBe("rgb(130, 130, 130)");
@@ -1253,6 +1320,8 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     const passEditLink = savedDraft.getByRole("link", { name: "Editar borrador" });
     await expect(passEditLink).toHaveCSS("background-color", "rgb(56, 56, 56)");
     await expect(passEditLink).toHaveCSS("border-color", "rgb(130, 130, 130)");
+    await expect(passEditLink).toHaveCSS("border-width", "1px");
+    await expect(passEditLink).toHaveCSS("border-style", "solid");
     await passEditLink.hover();
     await expect(passEditLink).toHaveCSS("background-color", "rgb(68, 68, 68)");
     await page.setViewportSize({ width: 375, height: 812 });
