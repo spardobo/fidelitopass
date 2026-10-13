@@ -11,7 +11,7 @@ const EDITED_TIMEZONE = "Europe/Madrid";
 const INVALID_TIMEZONE = "Invalid/Timezone";
 
 const COLORS = {
-    canvas: "rgb(36, 36, 36)",
+    canvas: "rgb(28, 28, 28)",
     authenticatedSurface: "rgb(39, 39, 39)",
     accountSurface: "rgb(46, 46, 46)",
     authCard: "rgb(46, 46, 46)",

@@ -10,7 +10,7 @@
 
 /* shared semantic roles; equal values do not merge distinct responsibilities. */
 @theme static {
-    --color-app-canvas: #242424;
+    --color-app-canvas: #1C1C1C;
     --color-app-surface: #2E2E2E;
     --color-app-emphasis: #3D2E55;
     --color-app-accent: #A77BFF;
@@ -29,9 +29,9 @@
     --color-app-priority-border: #8465AC;
     --color-app-control: #222222;
     --color-app-control-border: #7D7D7D;
-    --color-app-secondary-button: #383838;
-    --color-app-secondary-button-border: #828282;
-    --color-app-secondary-button-hover: #444444;
+    --color-app-secondary-button: var(--color-app-surface);
+    --color-app-secondary-button-border: #7A7A7A;
+    --color-app-secondary-button-hover: #363636;
     --color-app-danger-ink: #FFB4BE;
     --color-app-danger-surface: #382426;
     --color-app-danger-border: #91525A;
@@ -116,6 +116,11 @@ input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-surface;
+}
+
+/* dim the page through the native backdrop without changing modal panels or transitions. */
+[data-flux-modal] > dialog::backdrop {
+    background-color: rgb(0 0 0 / 55%);
 }
 
 /* shared modal scrollbar appearance; each modal retains its own scroll layout. */
@@ -455,7 +460,7 @@ select:focus[data-flux-control] {
     @apply app-control! app-role-action! app-focus! whitespace-normal!;
 }
 @utility app-button-secondary {
-    @apply app-button! border-app-secondary-button-border! bg-app-secondary-button! text-app-ink!;
+    @apply app-button! border! border-app-secondary-button-border! bg-app-secondary-button! text-app-ink!;
     @apply hover:bg-app-secondary-button-hover! active:bg-app-secondary-button-hover!;
 }
 @utility app-button-secondary-on-emphasis {

@@ -156,12 +156,12 @@
                     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         @if ($this->isDirty)
                             <flux:modal.trigger name="discard-pass-appearance">
-                                <flux:button type="button" class="app-role-action! min-h-11">
+                                <flux:button type="button" class="app-button-secondary min-h-11">
                                     {{ __('business.pass.cancel') }}
                                 </flux:button>
                             </flux:modal.trigger>
                         @else
-                            <flux:button type="button" wire:click="cancel" class="app-role-action! min-h-11">
+                            <flux:button type="button" wire:click="cancel" class="app-button-secondary min-h-11">
                                 {{ __('business.pass.cancel') }}
                             </flux:button>
                         @endif
@@ -178,7 +178,7 @@
                     </div>
                     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         <flux:modal.close class="w-full sm:w-auto">
-                            <flux:button type="button" class="app-role-action! min-h-11 w-full sm:w-auto">{{ __('business.pass.continue_editing') }}</flux:button>
+                            <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">{{ __('business.pass.continue_editing') }}</flux:button>
                         </flux:modal.close>
                         <flux:button type="button" wire:click="cancel" variant="primary" class="app-button-primary min-h-11 w-full sm:w-auto">
                             {{ __('business.pass.discard_changes') }}
@@ -238,7 +238,7 @@
                         <flux:text size="lg" class="app-role-body!">{{ __('business.pass.saved_description', ['business' => $this->business->name]) }}</flux:text>
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
-                        <flux:button href="{{ route('business.pass.appearance') }}" variant="filled" class="app-role-action! min-h-11">
+                        <flux:button href="{{ route('business.pass.appearance') }}" variant="filled" class="app-button-secondary min-h-11">
                             {{ __('business.pass.edit_appearance') }}
                         </flux:button>
                         <flux:button href="{{ route('business.invite') }}" variant="ghost" class="app-role-action! min-h-11">

@@ -399,6 +399,7 @@ new #[Title('Security settings')] class extends Component
                 <flux:button
                     variant="outline"
                     wire:click="closeDeleteModal"
+                    class="app-button-secondary"
                 >
                     {{ __('Cancel') }}
                 </flux:button>

@@ -25,12 +25,12 @@ These are distinct **roles**, not a near-colour palette to consolidate, except w
 
 | Role | Exact value | Context / state |
 | --- | --- | --- |
-| Shell; canvas | `#242424`; `#242424` | Page-colored shell/header/footer and canvas |
+| Shell; canvas | `#1C1C1C`; `#1C1C1C` | Page-colored shell/header/footer and canvas |
 | Neutral surface; large neutral; raised surface | `#2E2E2E`; `#2E2E2E`; `#363636` | All neutral cards/FAQ/auth panels and hero/large neutral panels share one target; retain the distinct raised role |
 | Border; line; panel border | `#525252`; `#484848`; `#525252` | Neutral boundary; panel line; panel-specific boundary (retain separate tokens) |
 | Priority surface; border; ink | `#3D2E55`; `#8465AC`; `#E4D6FA` | Active Promotion and general-information card |
 | Control surface; border | `#222222`; `#7D7D7D` | Inputs inside cards; recognizable field outline |
-| Secondary button; border; hover | `#383838`; `#828282`; `#444444` | Neutral action and its hover, not primary lavender |
+| Secondary button; border; hover / pressed | `#2E2E2E`; `#7A7A7A`; `#363636` | Same neutral surface at rest; subtle neutral hover / pressed states |
 | Primary; secondary; help ink | `#F6F5F2`; `#C7C4CE`; `#B0ACB8` | Reading hierarchy |
 | Accent; hover; pressed | `#A77BFF`; `#B893FF`; `#9566EB` | Primary action state |
 | Ink on accent; accent text / general focus | `#17131F`; `#CDB0FF` | Primary button text; readable link / general focus-visible outline |
@@ -39,6 +39,8 @@ These are distinct **roles**, not a near-colour palette to consolidate, except w
 | Danger ink; surface; border | `#FFB4BE`; `#382426`; `#91525A` | Error / cancelled status, with explanation |
 | Scheduled surface | `#403152` | Scheduled context outside the scoped Pase status-badge mapping below |
 | Danger hover; ready operational hover | `#482B32`; `#46355E` | Danger button hover; enabled header registration action hover, not accent hover |
+
+Neutral secondary actions use a visible solid boundary with the secondary-button border role, including filled controls. Apply the same treatment to equivalent neutral actions across pages and account dialogs. Preserve native disabled/loading feedback and keep primary, danger, ghost/icon and navigation actions distinct.
 
 For a secondary action on an emphasized surface, use the reusable `app-button-secondary-on-emphasis` treatment with Flux's outline variant. Keep its background transparent at rest and use the priority-ink role for the visible border and text. Hover and active states add a light priority-ink tint only while enabled. Reuse the shared button geometry and keyboard-focus treatment, and retain native disabled and loading semantics. Ordinary neutral cards keep the existing gray secondary treatment; contextual availability does not authorize a global rollout.
 
@@ -458,6 +460,8 @@ Do not use optimistic UI for redemption.
 - Do not use optimistic updates for Visit creation, Reward unlock, or Redemption.
 
 ## Accessibility baseline
+
+All native application modals dim the mounted page with one black 55% native backdrop. Keep modal panels, content and native opening/dismissal transitions unchanged; do not add a second overlay or blur.
 
 All native application modals share thin accent scrollbars on transparent tracks, including account modals. For fine pointers with hover support, reveal the scrollbar on hover, keyboard focus or focus within the scroll surface. For touch and coarse pointers, keep it available without hover. Respect reduced motion. Apply this appearance automatically without changing each modal's viewport bounds, scroll container, footer layout or native controls. Reserve stable scrollbar space only where the existing scroll-body layout needs it, not on every descendant. Keep an 8px inline-end content gap before the scrollbar in publication review and published-detail bodies, without adding horizontal overflow or padding to nested fields and cards.
 

@@ -211,7 +211,7 @@ new class extends Component
                     <div class="flex items-center space-x-3">
                         <flux:button
                             variant="outline"
-                            class="flex-1"
+                            class="app-button-secondary flex-1"
                             wire:click="resetVerification"
                         >
                             {{ __('Back') }}
