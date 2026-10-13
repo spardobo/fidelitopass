@@ -158,6 +158,11 @@ async function expectModalScrollbarAppearance(page, dialog, body, hasTouch) {
         () => matchMedia("(hover: hover) and (pointer: fine)").matches,
     );
     expect(finePointer).toBe(!hasTouch);
+    await expect
+        .poll(() =>
+            dialog.evaluate((element) => getComputedStyle(element, "::backdrop").backgroundColor),
+        )
+        .toBe("rgba(0, 0, 0, 0.45)");
     await expect(dialog).toHaveCSS("scrollbar-width", "thin");
     await expect(body).toHaveCSS("scrollbar-width", "thin");
     await expect(body).toHaveCSS("overflow-y", "auto");
@@ -217,6 +222,11 @@ for (const hasTouch of [false, true]) {
             request,
         }) => {
             await registerVerifiedBusiness(page, request);
+            await expect(page.locator("body")).toHaveCSS("background-color", "rgb(28, 28, 28)");
+            await expect(page.locator("body > header")).toHaveCSS(
+                "background-color",
+                "rgb(28, 28, 28)",
+            );
             await page.goto("/promotions/create");
             const dates = await promotionDateCases(page);
             await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill("Café de cortesía");
@@ -246,6 +256,23 @@ for (const hasTouch of [false, true]) {
             const detailBody = detail.locator('[data-test="promotion-detail-scroll-body"]');
             await expect(detailBody).toHaveCSS("scrollbar-gutter", "auto");
             await expectModalScrollbarAppearance(page, detail, detailBody, hasTouch);
+            await page.keyboard.press("Escape");
+            await page.goto("/dashboard");
+            const summaryOpener = page.getByRole("button", { name: "Ver detalle", exact: true });
+            await summaryOpener.click();
+            await expect(detail).toBeVisible();
+            await expect
+                .poll(() =>
+                    detail.evaluate(
+                        (element) => getComputedStyle(element, "::backdrop").backgroundColor,
+                    ),
+                )
+                .toBe("rgba(0, 0, 0, 0.45)");
+            await expect(
+                detail.getByRole("button", { name: "Volver al resumen" }),
+            ).toBeInViewport();
+            await page.keyboard.press("Escape");
+            await expect(detail).not.toBeVisible();
         });
     });
 }

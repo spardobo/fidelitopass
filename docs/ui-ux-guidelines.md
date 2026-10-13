@@ -25,7 +25,7 @@ These are distinct **roles**, not a near-colour palette to consolidate, except w
 
 | Role | Exact value | Context / state |
 | --- | --- | --- |
-| Shell; canvas | `#242424`; `#242424` | Page-colored shell/header/footer and canvas |
+| Shell; canvas | `#1C1C1C`; `#1C1C1C` | Page-colored shell/header/footer and canvas |
 | Neutral surface; large neutral; raised surface | `#2E2E2E`; `#2E2E2E`; `#363636` | All neutral cards/FAQ/auth panels and hero/large neutral panels share one target; retain the distinct raised role |
 | Border; line; panel border | `#525252`; `#484848`; `#525252` | Neutral boundary; panel line; panel-specific boundary (retain separate tokens) |
 | Priority surface; border; ink | `#3D2E55`; `#8465AC`; `#E4D6FA` | Active Promotion and general-information card |
@@ -458,6 +458,8 @@ Do not use optimistic UI for redemption.
 - Do not use optimistic updates for Visit creation, Reward unlock, or Redemption.
 
 ## Accessibility baseline
+
+All native application modals dim the mounted page with one black 45% native backdrop. Keep modal panels, content and native opening/dismissal transitions unchanged; do not add a second overlay or blur.
 
 All native application modals share thin accent scrollbars on transparent tracks, including account modals. For fine pointers with hover support, reveal the scrollbar on hover, keyboard focus or focus within the scroll surface. For touch and coarse pointers, keep it available without hover. Respect reduced motion. Apply this appearance automatically without changing each modal's viewport bounds, scroll container, footer layout or native controls. Reserve stable scrollbar space only where the existing scroll-body layout needs it, not on every descendant. Keep an 8px inline-end content gap before the scrollbar in publication review and published-detail bodies, without adding horizontal overflow or padding to nested fields and cards.
 

@@ -3,7 +3,7 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-canvas text-ink">
+    <body class="min-h-screen bg-app-canvas text-ink">
         <header data-flux-header class="app-theme [grid-area:header] border-b border-app-line bg-app-canvas">
             <div class="mx-auto grid max-w-[68rem] grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-2 px-4 md:gap-x-8 md:px-0 min-[900px]:min-h-[90px] max-[1120px]:md:px-6">
                 <a href="{{ route('dashboard') }}" wire:navigate aria-label="FidelitoPass" class="app-focus flex min-h-18 items-center min-[900px]:min-h-11">

@@ -635,7 +635,7 @@ test("runtime fits the hero without ResizeObserver while no-JS remains readable"
                 await expect(page.locator("#business")).toHaveCSS("opacity", "1");
                 await expect(page.locator(".landing-world")).toHaveCSS(
                     "background-color",
-                    "rgb(36, 36, 36)",
+                    "rgb(28, 28, 28)",
                 );
                 await expect(page.locator("#home")).toHaveCSS(
                     "background-color",
@@ -1093,16 +1093,16 @@ test("shared palette and matching exterior gaps preserve public geometry", async
                     .locator("header")
                     .evaluate((header) => getComputedStyle(header).backgroundColor),
             )
-            .toBe("rgb(36, 36, 36)");
+            .toBe("rgb(28, 28, 28)");
         await expect(page.locator(".landing-world")).toHaveCSS(
             "background-color",
-            "rgb(36, 36, 36)",
+            "rgb(28, 28, 28)",
         );
         await expect(page.locator("#home")).toHaveCSS("background-color", "rgb(46, 46, 46)");
     }
     await page.goto("/login");
 
-    await expect(page.locator("body")).toHaveCSS("background-color", "rgb(36, 36, 36)");
+    await expect(page.locator("body")).toHaveCSS("background-color", "rgb(28, 28, 28)");
 });
 
 test("active auth panels consume approved roles despite saved appearance", async ({ browser }) => {
@@ -1150,7 +1150,7 @@ test("active auth panels consume approved roles despite saved appearance", async
                     };
                 });
                 console.log("auth-backgrounds", appearance, route, JSON.stringify(colors));
-                expect.soft(colors.canvas).toBe("rgb(36, 36, 36)");
+                expect.soft(colors.canvas).toBe("rgb(28, 28, 28)");
                 expect.soft(colors.panel).toBe("rgb(46, 46, 46)");
                 expect.soft(colors.accent).toBe("rgb(167, 123, 255)");
                 expect(colors.contrast).toBeGreaterThanOrEqual(4.5);
@@ -1220,8 +1220,8 @@ test("global application palette edits propagate to public and auth roles", asyn
             ),
         Object.keys(overrides),
     );
-    expect.soft(defaults).toEqual(["#242424", "#2E2E2E", "#3D2E55", "#A77BFF"]);
-    await expect(page.locator(".landing-world")).toHaveCSS("background-color", "rgb(36, 36, 36)");
+    expect.soft(defaults).toEqual(["#1C1C1C", "#2E2E2E", "#3D2E55", "#A77BFF"]);
+    await expect(page.locator(".landing-world")).toHaveCSS("background-color", "rgb(28, 28, 28)");
 
     for (const route of ["/login", "/register"]) {
         await page.goto(route);
@@ -1316,7 +1316,7 @@ test("closing spacing survives scrolled resize and resets only with its layout o
 
 test("public surface roles retain readable contextual ink across responsive viewports", async ({
     page,
-}) => {
+}, testInfo) => {
     // motion is covered separately; settled surfaces expose their actual reading context.
     await page.emulateMedia({ reducedMotion: "reduce" });
     const roles = [
@@ -1329,19 +1329,19 @@ test("public surface roles retain readable contextual ink across responsive view
         {
             role: "canvas",
             selector: ".landing-world",
-            expectedBackground: "rgb(36, 36, 36)",
+            expectedBackground: "rgb(28, 28, 28)",
             textSelectors: [],
         },
         {
             role: "header",
             selector: "header",
-            expectedBackground: "rgb(36, 36, 36)",
+            expectedBackground: "rgb(28, 28, 28)",
             textSelectors: ["nav a"],
         },
         {
             role: "footer",
             selector: "footer",
-            expectedBackground: "rgb(36, 36, 36)",
+            expectedBackground: "rgb(28, 28, 28)",
             textSelectors: ["a"],
         },
         {
@@ -1412,6 +1412,15 @@ test("public surface roles retain readable contextual ink across responsive view
             .evaluate((el) => {
                 el.open = true;
             });
+
+        await waitForFonts(page);
+        expect(await page.evaluate(() => document.fonts.check('400 16px "Onest Variable"'))).toBe(
+            true,
+        );
+        await page.screenshot({
+            path: testInfo.outputPath(`surface-contrast-${width}x${height}.png`),
+            fullPage: true,
+        });
 
         const matrix = await page.evaluate((roles) => {
             const channels = (color) => color.match(/[\d.]+/g).map(Number);
@@ -1786,7 +1795,7 @@ test("public palette, focus and responsive hero geometry follow the landing role
         await expect(hero).toHaveCSS("background-color", "rgb(46, 46, 46)");
         await expect(page.locator(".landing-world")).toHaveCSS(
             "background-color",
-            "rgb(36, 36, 36)",
+            "rgb(28, 28, 28)",
         );
         await expect(primary).toHaveCSS("background-color", "rgb(167, 123, 255)");
         await expect(primary).toHaveCSS("color", "rgb(23, 19, 31)");
