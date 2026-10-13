@@ -339,8 +339,8 @@ for (const width of [375, 1280]) {
                     fullPage: true,
                 });
                 const cancel = dialog.getByRole("button", { name: "Cancelar", exact: true });
-                await expect(cancel).toHaveCSS("background-color", "rgb(56, 56, 56)");
-                await expect(cancel).toHaveCSS("border-color", "rgb(130, 130, 130)");
+                await expect(cancel).toHaveCSS("background-color", "rgb(46, 46, 46)");
+                await expect(cancel).toHaveCSS("border-color", "rgb(122, 122, 122)");
                 await expect(cancel).toHaveCSS("border-width", "1px");
                 await expect(cancel).toHaveCSS("border-style", "solid");
                 await expect

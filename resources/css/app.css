@@ -29,9 +29,9 @@
     --color-app-priority-border: #8465AC;
     --color-app-control: #222222;
     --color-app-control-border: #7D7D7D;
-    --color-app-secondary-button: #383838;
-    --color-app-secondary-button-border: #828282;
-    --color-app-secondary-button-hover: #444444;
+    --color-app-secondary-button: var(--color-app-surface);
+    --color-app-secondary-button-border: #7A7A7A;
+    --color-app-secondary-button-hover: #363636;
     --color-app-danger-ink: #FFB4BE;
     --color-app-danger-surface: #382426;
     --color-app-danger-border: #91525A;

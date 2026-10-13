@@ -580,8 +580,8 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(appearanceToast).toBeVisible();
     await expect(appearanceToast).toContainText("Apariencia guardada");
     const editAppearance = page.getByRole("link", { name: "Editar apariencia", exact: true });
-    await expect(editAppearance).toHaveCSS("background-color", "rgb(56, 56, 56)");
-    await expect(editAppearance).toHaveCSS("border-color", "rgb(130, 130, 130)");
+    await expect(editAppearance).toHaveCSS("background-color", "rgb(46, 46, 46)");
+    await expect(editAppearance).toHaveCSS("border-color", "rgb(122, 122, 122)");
     await expect(editAppearance).toHaveCSS("border-width", "1px");
     await expect(editAppearance).toHaveCSS("border-style", "solid");
     await expect(page.getByRole("heading", { name: "Tu primera razón para volver" })).toBeVisible();
@@ -664,6 +664,8 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
                 surfaceColor,
                 textContrast: contrast(style.color, style.backgroundColor),
                 boundaryContrast: contrast(style.borderColor, surfaceColor),
+                innerBoundaryContrast: contrast(style.borderColor, style.backgroundColor),
+                outlineColor: style.outlineColor,
                 outlineWidth: style.outlineWidth,
                 outlineStyle: style.outlineStyle,
                 width: bounds.width,
@@ -693,31 +695,44 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     for (const style of [saveButtonStyle, ...neutralStates]) {
         expect(style.borderWidth).toBe("1px");
         expect(style.borderStyle).toBe("solid");
-        expect(style.borderColor).toBe("rgb(130, 130, 130)");
+        expect(style.borderColor).toBe("rgb(122, 122, 122)");
         expect(style.background).toBe(
-            ["hover", "active"].includes(style.state) ? "rgb(68, 68, 68)" : "rgb(56, 56, 56)",
+            ["hover", "active"].includes(style.state) ? "rgb(54, 54, 54)" : "rgb(46, 46, 46)",
         );
         expect(style.textContrast).toBeGreaterThanOrEqual(4.5);
         expect(style.boundaryContrast).toBeGreaterThanOrEqual(3);
         expect(style.height).toBeGreaterThanOrEqual(44);
     }
+    for (const style of neutralStates) {
+        expect([style.width, style.height]).toEqual([203, 44]);
+    }
+    expect(neutralStates.find(({ state }) => state === "focus").outlineColor).toBe(
+        "rgb(205, 176, 255)",
+    );
     expect(neutralStates.find(({ state }) => state === "focus").outlineWidth).toBe("2px");
     expect(neutralStates.find(({ state }) => state === "focus").outlineStyle).toBe("solid");
     await page.mouse.move(0, 0);
     await addRuleButton.evaluate((button) => button.blur());
 
+    await page.evaluate(() =>
+        document.documentElement.style.setProperty("--color-app-surface", "#313131"),
+    );
+    await expect(addRuleButton).toHaveCSS("background-color", "rgb(49, 49, 49)");
+    await page.evaluate(() => document.documentElement.style.removeProperty("--color-app-surface"));
+    await expect(addRuleButton).toHaveCSS("background-color", "rgb(46, 46, 46)");
+
     expect(saveButtonStyle.usesNeutralAppButton).toBe(true);
-    expect(saveButtonStyle.background).toBe("rgb(56, 56, 56)");
-    expect(saveButtonStyle.borderColor).toBe("rgb(130, 130, 130)");
+    expect(saveButtonStyle.background).toBe("rgb(46, 46, 46)");
+    expect(saveButtonStyle.borderColor).toBe("rgb(122, 122, 122)");
     expect(saveButtonStyle.minHeight).toBe("44px");
     expect(saveButtonStyle.background).toBe(addRuleButtonStyle.background);
     expect(saveButtonStyle.color).toBe(addRuleButtonStyle.color);
     expect(saveButtonStyle.background).not.toBe(reviewButtonStyle.background);
     expect(saveButtonStyle.color).not.toBe(reviewButtonStyle.color);
     await saveButton.hover();
-    await expect(saveButton).toHaveCSS("background-color", "rgb(68, 68, 68)");
+    await expect(saveButton).toHaveCSS("background-color", "rgb(54, 54, 54)");
     await page.mouse.down();
-    await expect(saveButton).toHaveCSS("background-color", "rgb(68, 68, 68)");
+    await expect(saveButton).toHaveCSS("background-color", "rgb(54, 54, 54)");
     await page.mouse.up();
     const promotionHeaderSpacing = await page.evaluate(() => {
         const header = document.querySelector("main > header");
@@ -1318,12 +1333,12 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     expect(desktopDraftSpacing.padding).toBe("24px");
     expect(desktopDraftSpacing.gap).toBe(16);
     const passEditLink = savedDraft.getByRole("link", { name: "Editar borrador" });
-    await expect(passEditLink).toHaveCSS("background-color", "rgb(56, 56, 56)");
-    await expect(passEditLink).toHaveCSS("border-color", "rgb(130, 130, 130)");
+    await expect(passEditLink).toHaveCSS("background-color", "rgb(46, 46, 46)");
+    await expect(passEditLink).toHaveCSS("border-color", "rgb(122, 122, 122)");
     await expect(passEditLink).toHaveCSS("border-width", "1px");
     await expect(passEditLink).toHaveCSS("border-style", "solid");
     await passEditLink.hover();
-    await expect(passEditLink).toHaveCSS("background-color", "rgb(68, 68, 68)");
+    await expect(passEditLink).toHaveCSS("background-color", "rgb(54, 54, 54)");
     await page.setViewportSize({ width: 375, height: 812 });
     await expect(draftCards.first()).toHaveCSS("padding", "16px");
     await page.setViewportSize({ width: 1440, height: 1000 });

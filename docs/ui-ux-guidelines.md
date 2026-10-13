@@ -30,7 +30,7 @@ These are distinct **roles**, not a near-colour palette to consolidate, except w
 | Border; line; panel border | `#525252`; `#484848`; `#525252` | Neutral boundary; panel line; panel-specific boundary (retain separate tokens) |
 | Priority surface; border; ink | `#3D2E55`; `#8465AC`; `#E4D6FA` | Active Promotion and general-information card |
 | Control surface; border | `#222222`; `#7D7D7D` | Inputs inside cards; recognizable field outline |
-| Secondary button; border; hover | `#383838`; `#828282`; `#444444` | Neutral action and its hover, not primary lavender |
+| Secondary button; border; hover / pressed | `#2E2E2E`; `#7A7A7A`; `#363636` | Same neutral surface at rest; subtle neutral hover / pressed states |
 | Primary; secondary; help ink | `#F6F5F2`; `#C7C4CE`; `#B0ACB8` | Reading hierarchy |
 | Accent; hover; pressed | `#A77BFF`; `#B893FF`; `#9566EB` | Primary action state |
 | Ink on accent; accent text / general focus | `#17131F`; `#CDB0FF` | Primary button text; readable link / general focus-visible outline |
