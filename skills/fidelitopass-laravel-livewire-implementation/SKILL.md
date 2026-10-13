@@ -17,11 +17,9 @@ For snippets, do not invent files, dependencies or policy. Missing owners block 
 
 ## Hard Rules
 
-- Apply [PHP implementation](references/implementation-details.md) and available [shared quality](../shared/code-quality.md) before writing. Generate readable code immediately; tests/formatters do not certify readability.
+- Apply [PHP implementation](references/implementation-details.md) and available [shared coding standards](../shared/coding-standards.md) before writing. Generate readable code immediately; tests/formatters do not certify readability.
 - Prefer conventional Laravel/Eloquent, concrete injection and cohesive native Livewire; preserve starter formats and server authority. Keep domain, data, security, time and presentation policy with document owners.
-- Document classes and every named callable, including private methods/constructors, with an English third-person singular opening verb and useful parameter/return/exception contracts. Do not rename methods into third-person verbs; apply the reference's PHPDoc syntax.
-- Use three-line separators only for at least two meaningful semantic groups in the same class/procedural/test file, each containing one to N related callables. Otherwise use none. Reject isolated banners, per-method boxes and artificial groups; keep a blank line above/below, before PHPDoc, never inside bodies.
-- Keep constructors, framework/Livewire lifecycle hooks and Pest/PHPUnit configuration/setup/teardown unboxed at the top after state. Preserve documentation; exclude them from labeled groups/counts.
+- Follow [shared readability and documentation](../shared/coding-standards.md#comments-and-documentation) for concise scoped names, meaningful blocks and responsibility-first contracts. Apply the reference's [PHPDoc syntax](references/implementation-details.md#phpdoc-syntax); document every named PHP callable with each parameter, non-void result and known failures; retain useful types and security/transaction guarantees.
 - Expand conditions, queries, payloads and assertions by meaning; separate ideas with blank lines. Extract complete responsibilities, not helpers per step or layers merely to shorten methods.
 - Preserve observable semantics during refactoring, including replay, credentials and failure classification. Never silently fix behavior, add retries or expose secret-bearing failures through exception chaining; apply both references' preservation rules.
 
@@ -45,7 +43,7 @@ For snippets, do not invent files, dependencies or policy. Missing owners block 
 
 ## Delivery Gate
 
-Apply [Final calibration](references/readability-examples.md#final-calibration) and the implementation reference's PHPDoc, semantic groups, formatting, behavior preservation and Pest readability sections. Tests/formatters do not waive this gate.
+Apply [Final calibration](references/readability-examples.md#final-calibration) and shared readability and the implementation reference's PHPDoc, formatting, behavior preservation and Pest readability sections. Tests/formatters do not waive this gate.
 
 ## Output Contract
 
@@ -53,7 +51,7 @@ Deliver requested code/files, meaningful changes and observed checks. State veri
 
 ## References
 
-- [Shared code quality](../shared/code-quality.md) — reusable cross-language gates.
+- [Shared coding standards](../shared/coding-standards.md) — reusable cross-language gates.
 - [PHP implementation](references/implementation-details.md) — mandatory PHP/Livewire rules and targeted owners.
 - [Project recipes](references/project-recipes.md) — source-sensitive examples, not scaffolding or domain authority.
 - [Readability examples](references/readability-examples.md) — mandatory relevant calibration, not compulsory templates.

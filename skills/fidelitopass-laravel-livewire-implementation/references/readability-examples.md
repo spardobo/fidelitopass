@@ -98,191 +98,50 @@ Read the provider guards first, then the local result. This function owns the co
 
 ## Cohesive presentation builders
 
-Keep clock capture and Promotion selection visible in the public method. Extract complete state builders that own their output, rather than a helper for each text module. This class uses existing project models and collaborators; it is not a standalone application or a request to add another presentation subsystem. The constructor stays unboxed at the top. Two optional separators distinguish the public resolution method from the private state builders, each with a blank line above and below. If this distinction does not help a particular class, omit both separators; never group the constructor merely to create a second block.
+Keep source selection and complete output construction discoverable. Extract a state builder only when it owns a meaningful output, not a helper for each field or section. The pure example below consumes prepared localized rows; it does not query, choose a domain state or define product copy.
 
 ```php
 <?php
 
-namespace App\Support;
-
-use App\Enums\PromotionStatus;
-use App\Models\Business;
-use App\Models\Promotion;
-use Carbon\CarbonImmutable;
-
-/**
- * Resolves real initial content for a new pass without prior Promotion participation.
- */
-class InitialWalletPresentation
+/** Contains one prepared report section without changing its content. */
+final readonly class ReportSection
 {
     /**
-     * Uses the authoritative database clock without writing loyalty facts.
+     * Stores the localized heading and body.
      *
-     * @param DatabaseClock $clock Shared source of the operation instant.
+     * @param string $heading Prepared section heading.
+     * @param string $body Prepared section content.
      */
-    public function __construct(private DatabaseClock $clock) {}
+    public function __construct(
+        public string $heading,
+        public string $body,
+    ) {}
+}
 
-    // -----------------------------------------------------------------------------
-    // presentation resolution
-    // -----------------------------------------------------------------------------
+/**
+ * Builds ordered sections from prepared report rows.
+ *
+ * @param list<array{heading: string, body: string}> $rows Localized rows selected by the caller.
+ * @return list<ReportSection> Immutable sections in the supplied order.
+ */
+function buildReportSections(array $rows): array
+{
+    $sections = [];
 
-    /**
-     * Selects active published Promotion terms or waiting content using one database instant.
-     *
-     * @param Business $business Persisted owner whose current Promotion is presented.
-     * @return array{
-     *     state: 'waiting'|'active',
-     *     progress: ?string,
-     *     text_modules: list<array{id: string, header: string, body: string}>
-     * } Spanish initial content, without credentials or provider fields.
-     */
-    public function resolve(Business $business): array
-    {
-        $reading = $this->clock->captureForBusinessTimezone($business->timezone);
-
-        $promotion = $business->promotions()
-            ->with('extraPoints')
-            ->where('status', PromotionStatus::Published)
-            ->whereNull('cancelled_at')
-            ->where('starts_at', '<=', $reading['instant'])
-            ->where('ends_at', '>', $reading['instant'])
-            ->first();
-
-        if ($promotion === null) {
-            return $this->waitingPresentation();
-        }
-
-        $localInstant = CarbonImmutable::parse($reading['instant'])
-            ->setTimezone($promotion->timezone_snapshot);
-
-        return $this->activePresentation($promotion, $localInstant);
-    }
-
-    // -----------------------------------------------------------------------------
-    // initial presentation states
-    // -----------------------------------------------------------------------------
-
-    /**
-     * Builds waiting content without progress or Promotion terms.
-     *
-     * @return array{
-     *     state: 'waiting',
-     *     progress: null,
-     *     text_modules: list<array{id: string, header: string, body: string}>
-     * } Spanish waiting content for a new pass.
-     */
-    private function waitingPresentation(): array
-    {
-        return [
-            'state' => 'waiting',
-            'progress' => null,
-            'text_modules' => [
-                [
-                    'id' => 'promotion',
-                    'header' => __('👀 PRÓXIMA PROMOCIÓN'),
-                    'body' => __('business.pass.waiting_state_heading')
-                        .' '.__('business.pass.waiting_state_description'),
-                ],
-            ],
-        ];
-    }
-
-    /**
-     * Builds zero-progress content from the active Promotion and its local operation instant.
-     *
-     * Uses the first matching multiplier window and the inclusive local deadline.
-     * Does not create participation, visits or reward entitlements.
-     *
-     * @param Promotion $promotion Published Promotion with extraPoints already loaded.
-     * @param CarbonImmutable $localInstant Operation instant in the frozen Promotion timezone.
-     * @return array{
-     *     state: 'active',
-     *     progress: string,
-     *     text_modules: list<array{id: string, header: string, body: string}>
-     * } Spanish initial content reflecting the active Promotion terms.
-     */
-    private function activePresentation(
-        Promotion $promotion,
-        CarbonImmutable $localInstant,
-    ): array {
-        $localTime = $localInstant->format('H:i:s.u');
-
-        $window = $promotion->extraPoints->first(
-            fn ($window) => $window->weekday === $localInstant->isoWeekday()
-                && (
-                    $window->start_time === null
-                    || (
-                        $localTime >= $window->start_time
-                        && $localTime < $window->end_time
-                    )
-                ),
+    foreach ($rows as $row) {
+        $sections[] = new ReportSection(
+            heading: $row['heading'],
+            body: $row['body'],
         );
-
-        $points = $window->multiplier ?? 1;
-
-        $deadline = CarbonImmutable::parse($promotion->ends_at)
-            ->setTimezone($promotion->timezone_snapshot)
-            ->subDay();
-
-        $deadline->locale('es');
-
-        $endDate = $deadline->translatedFormat('d M Y');
-        $endDate = mb_strtoupper(str_replace('.', '', $endDate));
-
-        $target = $promotion->target_points;
-
-        return [
-            'state' => 'active',
-            'progress' => __(':progress / :target puntos', [
-                'progress' => 0,
-                'target' => $target,
-            ]),
-            'text_modules' => [
-                [
-                    'id' => 'promotion',
-                    'header' => __('🎯 PROMOCIÓN ACTUAL'),
-                    'body' => __('Consigue :target puntos hasta el :date.', [
-                        'target' => $target,
-                        'date' => $endDate,
-                    ]),
-                ],
-                [
-                    'id' => 'next_action',
-                    'header' => __('Tu progreso'),
-                    'body' => __('Te faltan :points puntos.', [
-                        'points' => $target,
-                    ]),
-                ],
-                [
-                    'id' => 'visit',
-                    'header' => __('Valor de tu visita'),
-                    'body' => $points > 1
-                        ? __('⚡ Ahora tu visita vale :points puntos.', [
-                            'points' => $points,
-                        ])
-                        : __('Tu visita ahora vale 1 punto.'),
-                ],
-                [
-                    'id' => 'reward',
-                    'header' => __('Tu recompensa'),
-                    'body' => __('🎁 :reward', [
-                        'reward' => $promotion->reward_title,
-                    ]),
-                ],
-                [
-                    'id' => 'deadline',
-                    'header' => __('Fecha límite'),
-                    'body' => __('Válido hasta el :date', [
-                        'date' => $endDate,
-                    ]),
-                ],
-            ],
-        ];
     }
+
+    return $sections;
 }
 ```
 
-Keep the supplied date conversion and `locale()` call intact during refactoring. Do not reinterpret this example as permission to change clocks, select a different Promotion, sort windows, alter copy or reset existing progress. Add relevant `@throws` when actual collaborator contracts are available rather than inventing them.
+The carrier exposes directly stored immutable data without trivial getters. This example does not require a carrier for every row or result: keep a shaped array when it is equally clear. Use the same property convention for sensitive stored values. Select fields explicitly at serialization and transport boundaries; readonly is not secrecy. Calculated predicates and safe projections remain methods because they perform behavior.
+
+The construction loop is one responsibility and needs no additional helpers. A larger builder can separate source selection from complete state outputs when that reduces caller context. Preserve actual clock capture, timezone conversion, localization, selection and output order during a refactor; this generic example replaces none of those contracts. Add relevant `@throws` only when actual collaborator contracts establish failures.
 
 ## Transaction and integration preservation
 
@@ -294,109 +153,62 @@ Keep preconditions, transaction ownership, serialized lookup, exact replay, conf
 - Distinguish confirmed provider creation, confirmed local commit and customer Wallet save. An unknown provider or commit outcome does not prove rollback or authorize another POST.
 - Preserve loose comparisons where the existing contract uses them. Formatting a provider comparison from `!=` to `!==` can reject previously accepted values.
 
-This pure fixture function illustrates an existing Integration comparison; it does not validate provider approval or make HTTP requests:
+This pure fixture comparison selects owned leaf values explicitly. Unrelated metadata can occur inside a nested object, not only at the top level. It does not validate a live provider response or establish an identity-binding policy:
 
 ```php
 <?php
 
 /**
- * Compares owned Class fields while ignoring unrelated provider metadata.
+ * Compares selected fixture appearance fields without nested provider metadata.
  *
- * @param array<string, mixed> $actual Approved provider Class supplied by the caller.
- * @param array{
- *     issuerName: mixed,
- *     programName: mixed,
- *     programLogo: mixed,
- *     hexBackgroundColor: mixed,
- *     classTemplateInfo: mixed
- * } $expected Current platform-owned fields required for the comparison.
- * @return bool Whether the owned fields match using the existing comparison semantics.
+ * @param array{name: string, logo: array{url: string}} $actual Coherent fixture with possible extra metadata.
+ * @param array{name: string, logo: array{url: string}} $expected Owned fixture values.
+ * @return bool Whether the selected leaf values match exactly.
  */
-function matchesOwnedClassFields(array $actual, array $expected): bool
+function matchesOwnedAppearance(array $actual, array $expected): bool
 {
-    foreach ([
-        'issuerName',
-        'programName',
-        'programLogo',
-        'hexBackgroundColor',
-        'classTemplateInfo',
-    ] as $field) {
-        if (($actual[$field] ?? null) != $expected[$field]) {
-            return false;
-        }
-    }
-
-    return true;
+    return $actual['name'] === $expected['name']
+        && $actual['logo']['url'] === $expected['logo']['url'];
 }
 ```
 
-For a larger Integration, distinguish at least two actual method groups under titles such as `deployment configuration`, `JWT signing and encoding`, `class preparation and confirmation`, `object issuance and binding reconciliation`, and `provider HTTP transport`. Each group may contain one to N methods. If only one grouping is useful, use no boxes. Preserve blank lines around separators and secret parameter attributes. Do not invent interfaces, extra Services, retries, token caching or new response correction.
+Comparing the entire `logo` map would also compare unrelated nested keys. Actual adapters must define their owned projection and required binding checks from the relevant contract; do not infer them from this fixture. Its strict string comparison is not permission to replace an existing loose comparison, normalize a credential or ignore an owned nested field.
+
+In a larger Integration, keep configuration, signing, Class confirmation, Object reconciliation and transport responsibilities discoverable through names and adjacent methods. Use only useful phase/rationale comments under the [shared guidance](../../shared/coding-standards.md#comments-and-documentation). Preserve secret parameter attributes. Do not invent interfaces, extra Services, retries, token caching or new response correction.
 
 ## Readable Pest tests
 
-This test uses existing project collaborators to verify waiting content without local issuance or provider calls. It illustrates unboxed configuration/setup, expanded mock chains and assertions. Only one actual test responsibility is present, so the entire example uses no separator boxes. Preserve all existing tests, datasets and side-effect checks when refactoring; do not replace broader coverage with this small example.
+This fixture test exercises the pure calculation above. It illustrates direct setup and expanded assertions, not production persistence or a provider deployment. Preserve broader scenarios, datasets, native transport mocks and side-effect checks when refactoring; this small example does not replace them.
 
 ```php
 <?php
 
-use App\Models\Business;
-use App\Support\DatabaseClock;
-use App\Support\InitialWalletPresentation;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
+it('summarizes accepted points without changing the fixture facts', function () {
+    $awardedPoints = [2, 3];
+    $targetPoints = 8;
 
-uses(RefreshDatabase::class);
+    $result = summarizePromotionProgress($awardedPoints, $targetPoints);
 
-beforeEach(function () {
-    Http::preventStrayRequests();
-
-    $this->business = Business::factory()->create([
-        'timezone' => 'America/La_Paz',
-    ]);
-
-    $this->mock(DatabaseClock::class)
-        ->shouldReceive('captureForBusinessTimezone')
-        ->once()
-        ->with('America/La_Paz')
-        ->andReturn([
-            'instant' => '2030-01-02 12:00:00+00',
-            'business_date' => '2030-01-02',
-        ]);
-});
-
-it('renders waiting content when no promotion exists', function () {
-    $presentation = app(InitialWalletPresentation::class)->resolve($this->business);
-
-    expect($presentation['state'])
-        ->toBe('waiting')
-        ->and($presentation['progress'])
-        ->toBeNull()
-        ->and($presentation['text_modules'][0])
-        ->toMatchArray([
-            'id' => 'promotion',
-            'header' => '👀 PRÓXIMA PROMOCIÓN',
+    expect($result)
+        ->toBe([
+            'earned' => 5,
+            'remaining' => 3,
+            'completed' => false,
         ]);
 
-    expect(DB::table('customer_passes')->count())
-        ->toBe(0)
-        ->and(DB::table('promotion_participations')->count())
-        ->toBe(0);
-
-    Http::assertNothingSent();
+    expect($awardedPoints)
+        ->toBe([2, 3]);
 });
 ```
 
-Setup and teardown never receive banners and do not count as test groups. The example has only one actual test responsibility, so it has no boxes. In a larger file, distinct groups such as `waiting presentation`, `active presentation` and `promotion fixtures` may justify separators; each can contain one to N tests/helpers. Do not invent distinctions or count hooks to reach a minimum group count.
+Setup and teardown names already communicate their role. Keep related scenarios adjacent and separate responsibilities with whitespace; do not manufacture groups to justify headings.
 
-Keep a short scalar dataset row inline when clear; expand long rows and associative fixtures. Preserve array spread position because later entries override earlier ones. Document named fixture helpers, not every test callback. Add no style-only tests for helper names or separator text.
+Keep a short scalar dataset row inline when clear; expand long rows and associative fixtures. Preserve array spread position because later entries override earlier ones. Document each named fixture helper with parameters and returned meaning; anonymous callbacks need no ceremonial boilerplate. Add no style-only tests for helper names or separator text.
 
 ## Final calibration
 
 - Generate this readable structure on the first pass; tests and Pint do not substitute for the delivery gate.
-- Use third-person English documentation, concrete names and truthful contracts. Names remain in the established callable verb form.
-- Use zero boxes or at least two meaningful method/function groups in the same class/procedural file. Each group contains one to N callables, with a blank line above and below its banner. Reject isolated banners and artificial splits.
-- Keep constructors, framework/Livewire lifecycle hooks, test configuration and test setup/teardown unboxed at the top and exclude them from the group count. Preserve normal documentation where applicable.
+- Review every name and block under [shared readability](../../shared/coding-standards.md#readability-and-cohesion), and each useful contract under [PHPDoc syntax](implementation-details.md#phpdoc-syntax). Keep names concise in scope and guarantees truthful; neither brevity nor documentation volume is the goal.
 - Keep queries, conditions, payloads and assertions visible without a helper per line.
 - Preserve comparisons, normalization timing, query order, clock usage, exception handling and private material.
 - Distinguish structural review, syntax checks, runtime tests and independent generation checks when reporting verification.

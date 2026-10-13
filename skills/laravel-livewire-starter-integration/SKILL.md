@@ -17,7 +17,7 @@ Use for UI integration in a Laravel + Livewire starter. Do not use for domain-on
 - Preserve stock authentication/settings screens and their component format; never convert stable SFCs just for uniformity.
 - Keep authorization and validation server-side, including policy checks on Livewire actions. Never treat hidden fields or UI visibility as access control.
 - Reuse the shared Flux, Tailwind, and Vite pipeline; avoid duplicate stylesheets, theme systems, or JavaScript navigation frameworks.
-- For FidelitoPass, load the linked implementation skills for affected responsibilities: PHP server logic, Blade/Flux markup and/or JavaScript client behavior. Apply their required references, including shared code quality; presentation-only integration does not automatically load PHP. Document owners retain outcome/risk policy; do not copy it here or guess installed APIs.
+- For FidelitoPass, load the linked implementation skills for affected responsibilities: PHP server logic, Blade/Flux markup and/or JavaScript client behavior. Apply their required references, including shared coding standards; presentation-only integration does not automatically load PHP. Document owners retain outcome/risk policy; do not copy it here or guess installed APIs.
 
 ## Decision Gates
 
@@ -43,5 +43,5 @@ Report paths, consulted sections/API evidence, actual checks, material presentat
 - [PHP/Livewire skill](../fidelitopass-laravel-livewire-implementation/SKILL.md) / [component integration](../fidelitopass-laravel-livewire-implementation/references/implementation-details.md#livewire-structure-and-authority).
 - [Blade/Flux skill](../fidelitopass-blade-flux-implementation/SKILL.md) / [composition](../fidelitopass-blade-flux-implementation/references/implementation-details.md#composition-and-framework-gates).
 - [JavaScript skill](../fidelitopass-javascript-alpine-implementation/SKILL.md) / [lifecycle](../fidelitopass-javascript-alpine-implementation/references/implementation-details.md#resource-ownership-and-disposal).
-- [Shared code quality](../shared/code-quality.md) — cross-language conventions.
+- [Shared coding standards](../shared/coding-standards.md) — cross-language conventions.
 - [UI outcomes](../../docs/ui-ux-guidelines.md) and [application contracts](../../docs/development/laravel-application-standard.md) — select affected sections only.

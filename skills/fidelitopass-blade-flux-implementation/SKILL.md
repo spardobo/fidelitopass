@@ -13,7 +13,7 @@ Use for project presentation and mixed Livewire markup; exclude server policy, s
 
 ## Hard Rules
 
-- Apply both references; do not duplicate shared quality rules.
+- Apply both references; do not duplicate shared coding standards rules.
 - Prefer suitable Flux semantics and scoped Tailwind layout/spacing; retain correct native HTML. Verify APIs before customization.
 - Preserve server authority, starter formats, shared assets and translated Spanish copy.
 - Group attributes semantically; wrap selectively; separate body text without altering inline whitespace.
@@ -39,7 +39,7 @@ Report paths, consulted sections/API evidence, checks, fallback/readability deci
 
 ## References
 
-- [Shared quality](../shared/code-quality.md).
+- [Shared coding standards](../shared/coding-standards.md).
 - [Presentation implementation](references/implementation-details.md).
 
 - [Readable markup examples](references/readability-examples.md) — optional paragraph/text/attribute calibration; preserve whitespace and rendered contracts.

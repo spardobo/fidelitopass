@@ -29,7 +29,7 @@ Load the implementation skills matching the affected responsibilities. Mixed Liv
 | Integrate a page, layout or navigation into the Livewire starter                                             | `skills/laravel-livewire-starter-integration/SKILL.md`          |
 | Select or scope delivery work, change board state, or establish completion                                   | `skills/fidelitopass-delivery-planning/SKILL.md`                |
 
-Implementation skills own coding HOW; architecture owns design principles and their shared code-quality reference owns cross-language readability conventions. They do not redefine product or risk policy. Select outcome/contract documents through the routing table below; `docs/README.md` explains the design order and each owner's role.
+Implementation skills own coding HOW; architecture owns design principles and their shared coding-standards reference owns cross-language readability conventions. They do not redefine product or risk policy. Select outcome/contract documents through the routing table below; `docs/README.md` explains the design order and each owner's role.
 
 ## Documentation routing
 
@@ -61,7 +61,7 @@ This table routes knowledge; it does not redefine domain rules or require readin
 - Owner-approved requirements and the relevant domain/presentation owners define intended behaviour. Accepted ADRs retain decision authority. Source, migrations, installed dependencies and observed checks establish what is implemented and which APIs exist; neither plans nor documentation prove rollout.
 - Global domain and visual rules apply to new scoped work; they do not expand the authorized rollout or establish application-wide compliance. Preserve unrelated screens and historical evidence.
 - Reconcile apparent contradictions against the relevant owner and current evidence. Correct a clear scoped implementation mismatch without inventing a product decision. If intent is genuinely unresolved or reconciliation needs an unauthorized policy change, stop and ask with the exact conflict. Never rewrite policy to justify incidental code.
-- Apply the matching implementation skills and their shared [code-quality contract](skills/shared/code-quality.md#readability-and-cohesion) for readable-code conventions and acceptance independently of behavior tests. Consult the affected language reference for formatting, API documentation and lifecycle HOW; do not maintain parallel rules here.
+- Apply the matching implementation skills and their shared [coding-standards contract](skills/shared/coding-standards.md#readability-and-cohesion) for readable-code conventions and acceptance independently of behavior tests. Consult the affected language reference for formatting, API documentation and lifecycle HOW; do not maintain parallel rules here.
 - Documentation changes follow `docs/documentation-standard.md`; product and presentation owners retain visible-copy requirements.
 
 ## Delegated context and evidence
