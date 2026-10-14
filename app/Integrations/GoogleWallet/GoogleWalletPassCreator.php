@@ -9,7 +9,7 @@ use App\Enums\PassCreationStage;
 use App\Exceptions\CustomerPassCreationException;
 use App\Models\Business;
 use App\Support\CustomerPassCredentials;
-use App\Support\InitialWalletPresentation;
+use App\Support\WalletPresentationBuilder;
 use Carbon\Exceptions\InvalidFormatException;
 use Carbon\Exceptions\InvalidTimeZoneException;
 use Firebase\JWT\JWT;
@@ -33,6 +33,10 @@ use Throwable;
 /**
  * Owns Google payloads, authentication and confirmation; never writes local pass records.
  *
+ * WalletPresentationBuilder selects content; buildObject() adds each pass's credentials.
+ * buildClass() defines the shared Business layout by referencing that Object's module IDs.
+ * create() confirms the provider Object; the calling Action owns local commit and URL release.
+ *
  * @phpstan-import-type WalletConfiguration from GoogleWalletConfiguration
  */
 class GoogleWalletPassCreator
@@ -40,12 +44,12 @@ class GoogleWalletPassCreator
     /**
      * Receives content, configuration and an optional native transport for isolated tests.
      *
-     * @param  InitialWalletPresentation  $presentation  Selects the current promotion without domain writes.
+     * @param  WalletPresentationBuilder  $presentation  Builds initial content through the shared scenario selection.
      * @param  GoogleWalletConfiguration  $configuration  Loads fresh operation settings and credentials.
      * @param  HttpClient|null  $http  Tests may replace its handler, not SDK behavior.
      */
     public function __construct(
-        private InitialWalletPresentation $presentation,
+        private WalletPresentationBuilder $presentation,
         private GoogleWalletConfiguration $configuration,
         #[SensitiveParameter] private ?HttpClient $http = null,
     ) {}
@@ -188,7 +192,26 @@ class GoogleWalletPassCreator
     }
 
     /**
-     * Maps business appearance to the native class payload.
+     * Defines shared Business appearance and where each Object's content appears.
+     *
+     * The Object stores text modules; this Class selects them by ID, not by insertion order.
+     * Main-card rows: card_primary -> card_secondary; inactive announcements always occupy both rows.
+     * Above QR: barcode_top.body supplies progress only while earning; credentials remain in every state.
+     * Below QR: no extra template field; the manual code remains the barcode's alternateText.
+     *
+     * Swipe-up detail positions follow the card's reading order:
+     * 1. barcode_top: progress with its heading, only while earning.
+     * 2. details_code: manual code in every state.
+     * 3. details_primary, otherwise card_primary: current/previous Reward or its empty message.
+     * 4-5. details_primary_description/date: optional description, then the relevant date.
+     * 6. details_context: active Visit value, canje guidance or thanks, without a heading.
+     * 7. details_secondary, otherwise card_secondary: upcoming Reward or its empty message.
+     * 8-9. details_secondary_description/date: optional upcoming description, then start date.
+     * 10. details_history: latest real personal redemption, omitted when none exists.
+     *
+     * Each fields list contains alternatives for ONE position, not several displayed items.
+     * Google uses its first available value and omits empty items; it controls final geometry.
+     * oneItem centers the card item; the API exposes no alignment control for native detail cells.
      *
      * @param  Business  $business  Source of program name and background color.
      * @param  string  $classId  Deterministic provider class ID.
@@ -197,34 +220,62 @@ class GoogleWalletPassCreator
      */
     private function buildClass(Business $business, string $classId, string $logoUrl): LoyaltyClass
     {
-        // keep compact content on the card, with safe fallbacks for older objects
-        $cardFields = [
-            ['fieldPath' => "object.textModulesData['compact_promotion']"],
-            ['fieldPath' => "object.textModulesData['reward']"],
-            ['fieldPath' => "object.textModulesData['promotion']"],
-        ];
+        // oneItem makes each available role a separate full-width row
+        $rows = [];
 
-        // retain full details without repeating the compact summary
+        foreach (['card_primary', 'card_secondary'] as $id) {
+            $rows[] = [
+                'oneItem' => [
+                    'item' => [
+                        'firstValue' => [
+                            'fields' => [['fieldPath' => "object.textModulesData['{$id}']"]],
+                        ],
+                    ],
+                ],
+            ];
+        }
+
+        // each outer entry adds a detail position; inner fields select its first available content
         $details = [];
 
         foreach ([
             [
-                ['fieldPath' => "object.textModulesData['progress']"],
-                ['fieldPath' => 'object.loyaltyPoints.balance'],
+                ['fieldPath' => "object.textModulesData['barcode_top']"],
             ],
             [
-                ['fieldPath' => "object.textModulesData['manual_code']"],
-                ['fieldPath' => 'object.accountId'],
+                ['fieldPath' => "object.textModulesData['details_code']"],
             ],
             [
-                ['fieldPath' => "object.textModulesData['reward']"],
-                ['fieldPath' => "object.textModulesData['promotion']"],
+                ['fieldPath' => "object.textModulesData['details_primary']"],
+                ['fieldPath' => "object.textModulesData['card_primary']"],
             ],
-            [['fieldPath' => "object.textModulesData['deadline']"]],
-            [['fieldPath' => "object.textModulesData['visit']"]],
+            [
+                ['fieldPath' => "object.textModulesData['details_primary_description']"],
+            ],
+            [
+                ['fieldPath' => "object.textModulesData['details_primary_date']"],
+            ],
+            [
+                ['fieldPath' => "object.textModulesData['details_context']"],
+            ],
+            [
+                ['fieldPath' => "object.textModulesData['details_secondary']"],
+                ['fieldPath' => "object.textModulesData['card_secondary']"],
+            ],
+            [
+                ['fieldPath' => "object.textModulesData['details_secondary_description']"],
+            ],
+            [
+                ['fieldPath' => "object.textModulesData['details_secondary_date']"],
+            ],
+            [
+                ['fieldPath' => "object.textModulesData['details_history']"],
+            ],
         ] as $fields) {
             $details[] = [
-                'item' => ['firstValue' => ['fields' => $fields]],
+                'item' => [
+                    'firstValue' => ['fields' => $fields],
+                ],
             ];
         }
 
@@ -236,21 +287,12 @@ class GoogleWalletPassCreator
             'programLogo' => ['sourceUri' => ['uri' => $logoUrl]],
             'hexBackgroundColor' => strtoupper($business->pass_background_color),
             'classTemplateInfo' => [
-                'cardTemplateOverride' => [
-                    'cardRowTemplateInfos' => [
-                        [
-                            'oneItem' => [
-                                'item' => ['firstValue' => ['fields' => $cardFields]],
-                            ],
-                        ],
-                    ],
-                ],
+                'cardTemplateOverride' => ['cardRowTemplateInfos' => $rows],
                 'cardBarcodeSectionDetails' => [
                     'firstTopDetail' => [
                         'fieldSelector' => [
                             'fields' => [
-                                ['fieldPath' => "object.textModulesData['progress'].body"],
-                                ['fieldPath' => 'object.loyaltyPoints.balance'],
+                                ['fieldPath' => "object.textModulesData['barcode_top'].body"],
                             ],
                         ],
                     ],
@@ -259,14 +301,21 @@ class GoogleWalletPassCreator
             ],
         ]);
 
-        // omission would retain the former below-barcode field during PATCH
+        // PATCH omission would retain an old bottom detail; explicit null clears it without removing alternateText
         $class->getClassTemplateInfo()->getCardBarcodeSectionDetails()['firstBottomDetail'] = GoogleModel::NULL_VALUE;
 
         return $class;
     }
 
     /**
-     * Maps initial promotion content and credentials without changing an existing pass.
+     * Builds a new pass's Object values without updating an existing pass or choosing layout order.
+     *
+     * Calling the builder without a pass gives zero active progress and no personal-history module.
+     * Its sections become textModulesData; buildClass() decides which sections appear on each surface.
+     * Non-null progress becomes labelled barcode_top; the card selects only its body, not its detail heading.
+     * Credentials stay outside the content builder: the private token is barcode.value, while the
+     * manual code supplies barcode.alternateText, accountId and the details_code text module.
+     * Object state ACTIVE enables the pass; it does not mean the Business has an active Promotion.
      *
      * @param  Business  $business  Promotion owner.
      * @param  CustomerPassCredentials  $credentials  Private barcode and separate manual code.
@@ -274,6 +323,8 @@ class GoogleWalletPassCreator
      * @param  string  $objectId  Individual Google object.
      * @return LoyaltyObject Initial Wallet presentation.
      *
+     * @throws \IntlException If ICU cannot format a presentation date.
+     * @throws \InvalidArgumentException If the progress translation is not a string.
      * @throws QueryException If the initial presentation database read fails.
      * @throws PDOException If the database driver fails.
      * @throws InvalidFormatException If a stored promotion timestamp cannot be parsed.
@@ -293,10 +344,11 @@ class GoogleWalletPassCreator
             'body' => $section->body,
         ], $content->sections);
 
-        // select progress without a caption or a default loyalty-points label
+        // omit the progress module entirely in the inactive overview; zero progress is still shown
         if ($content->progress !== null) {
             $sections[] = [
-                'id' => 'progress',
+                'id' => 'barcode_top',
+                'header' => __('wallet.labels.progress'),
                 'body' => $content->progress,
             ];
         }
@@ -308,14 +360,14 @@ class GoogleWalletPassCreator
             'barcode' => [
                 'type' => 'QR_CODE',
                 'value' => $credentials->validationToken,
-                'alternateText' => __('Código manual: :code', ['code' => $credentials->manualCode]),
+                'alternateText' => __('wallet.labels.barcode_alternate', ['code' => $credentials->manualCode]),
             ],
             'accountId' => $credentials->manualCode,
             'textModulesData' => [
                 ...$sections,
                 [
-                    'id' => 'manual_code',
-                    'header' => __('Código manual'),
+                    'id' => 'details_code',
+                    'header' => __('wallet.labels.manual_code'),
                     'body' => $credentials->manualCode,
                 ],
             ],

@@ -4,10 +4,10 @@ This document defines observable MVP behaviour, not implementation status. The s
 
 ## Summary
 
-- Total requirements: **37**.
-- Must: **37**.
+- Total requirements: **38**.
+- Must: **38**.
 - Should: **0**.
-- Functional: **26**.
+- Functional: **27**.
 - Quality/technical: **11**.
 
 ## Requirement register
@@ -41,16 +41,17 @@ This document defines observable MVP behaviour, not implementation status. The s
 | 25 | REQ-WAL-001 | Must | Wallet | Functional | Present deterministic Wallet content for every customer state. |
 | 26 | REQ-WAL-002 | Must | Wallet | Quality/technical | Synchronize Wallet after commit and recover safely from provider failure. |
 | 27 | REQ-WAL-003 | Must | Wallet | Functional | Confirm initial Google Object creation before local Customer pass issuance. |
-| 28 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
-| 29 | REQ-UX-002 | Must | UX | Functional | Keep the validation workflow fast and scanner-first. |
-| 30 | REQ-UX-003 | Must | UX | Quality/technical | Keep core flows responsive with basic keyboard and touch accessibility. |
-| 31 | REQ-UX-004 | Must | UX | Functional | Present explicit success, point-award, reward, expiry, and error states. |
-| 32 | REQ-SEC-001 | Must | Security | Quality/technical | Separate public acquisition identity from private validation authority. |
-| 33 | REQ-SEC-002 | Must | Security | Quality/technical | Enforce server-side authorization, validation, and abuse controls. |
-| 34 | REQ-SEC-003 | Must | Security | Quality/technical | Produce structured security-relevant logs without secrets. |
-| 35 | REQ-DAT-001 | Must | Data | Quality/technical | Enforce critical integrity in PostgreSQL. |
-| 36 | REQ-REL-001 | Must | Reliability | Quality/technical | Preserve committed domain facts when external synchronization fails. |
-| 37 | REQ-QLT-001 | Must | Quality | Quality/technical | Verify critical rules and complete journeys proportionately. |
+| 28 | REQ-WAL-004 | Must | Wallet | Functional | Show Business activity while inactive and retain personal redemption history. |
+| 29 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
+| 30 | REQ-UX-002 | Must | UX | Functional | Keep the validation workflow fast and scanner-first. |
+| 31 | REQ-UX-003 | Must | UX | Quality/technical | Keep core flows responsive with basic keyboard and touch accessibility. |
+| 32 | REQ-UX-004 | Must | UX | Functional | Present explicit success, point-award, reward, expiry, and error states. |
+| 33 | REQ-SEC-001 | Must | Security | Quality/technical | Separate public acquisition identity from private validation authority. |
+| 34 | REQ-SEC-002 | Must | Security | Quality/technical | Enforce server-side authorization, validation, and abuse controls. |
+| 35 | REQ-SEC-003 | Must | Security | Quality/technical | Produce structured security-relevant logs without secrets. |
+| 36 | REQ-DAT-001 | Must | Data | Quality/technical | Enforce critical integrity in PostgreSQL. |
+| 37 | REQ-REL-001 | Must | Reliability | Quality/technical | Preserve committed domain facts when external synchronization fails. |
+| 38 | REQ-QLT-001 | Must | Quality | Quality/technical | Verify critical rules and complete journeys proportionately. |
 
 ## Detailed requirements
 
@@ -297,6 +298,8 @@ As a customer, I want the Promotion rules to stay stable after play begins so th
 - **Given** a scheduled or Active Promotion.
 - **When** the owner confirms cancellation under the Business row lock, retaining the published Promotion snapshot.
 - **Then** the cancellation instant is recorded at the single post-lock PostgreSQL operation instant, effective progress and redemption stop immediately, remaining future occupancy is released, and Wallet presentation becomes cancelled/waiting; prior Visits, awarded points, original published terms and UTC window remain historical. Cancellation never rewrites the original local-date terms represented by the frozen UTC window and timezone snapshot.
+
+The inactive Wallet overview in REQ-WAL-004 replaces only the cancelled/waiting presentation clause above; cancellation eligibility, timing and historical integrity remain unchanged.
 
 **Scenario: Ended Promotion**
 
@@ -618,7 +621,7 @@ As a customer, I want the card to explain itself every time I open it so that I 
 
 - **Given** a Customer pass with a current Promotion state.
 - **When** its Wallet model is built.
-- **Then** the structural fields stay fixed while points, current Visit value, Reward, deadline, and state values update.
+- **Then** preserve Business identity and QR/manual credentials while showing only scenario-relevant content. Show actual progress and current Visit value while earning; hide them once a Reward is available or redeemed. Keep the Reward and its applicable deadline or redemption date, without changing stored points or entitlement facts.
 
 **Verification:** Presentation-mapping tests and real-device review.
 
@@ -684,6 +687,30 @@ This replaces only the initial-issuance timing in REQ-PAS-002 and the initial-is
 - **Then** another pair may be created. Reuse the current operation identity where available to avoid double-click duplicates, without promising cross-visit deduplication or durable recovery.
 
 **Verification:** Provider/local-transaction fault tests, repeated-submission tests and browser handoff evidence when saving is implemented.
+
+#### REQ-WAL-004 — Business activity and personal redemption history
+
+**Priority:** Must
+**Type:** Functional
+**Module:** Wallet
+
+As a customer, I want to see the Business's recent and upcoming Promotions while none is active and remember my latest redeemed Reward so that I have a reason to return.
+
+This extends REQ-WAL-001's scenario-relevant presentation with contextual inactive content and independent personal history. It does not change Promotion eligibility, points or redemption finality.
+
+**Acceptance Criteria**
+
+**Scenario: Current or inactive pass**
+
+- **Given** a new or existing Customer pass of a Business, with or without participation or redeemed Rewards.
+- **When** its Wallet presentation is built at one current PostgreSQL instant.
+- **Then** an active Promotion shows its Reward, applicable date and contextual main-card message; progress and current Visit value appear only while earning. Past and upcoming announcements are absent. Details follow the card order, with titled progress, separate optional Reward-description and state-date cells, and the contextual message in its own untitled cell. Generated headings are uppercase; merchant-authored text is preserved.
+- **And** without an active Promotion, show both previous and upcoming Business announcement blocks, independently of customer participation. Populate them from the last Promotion that had a positive active period and the nearest published, uncancelled future Promotion respectively. Progress and current Visit value are absent.
+- **And** previous selection uses effective end descending and ID descending; cancellation during activity is labelled as cancellation, while cancellation at or before the start is excluded. Upcoming selection uses start ascending and ID ascending. Keep each missing announcement block with a friendly localized empty message, without invented terms or dates. Details preserve previous-before-upcoming order, inserting each available Reward description and date beside its title.
+- **And** the latest redeemed Reward belongs only to that pass and Business, ordered by redemption instant then ID descending, and appears only in details when it exists. Absent history produces no placeholder or invitation. All dates use their Promotion's frozen timezone; redemption dates have a redemption-specific label.
+- **And** presentation reads do not create participation, Visits or entitlements, and preserve the pass's QR, manual code and identity.
+
+**Verification:** PostgreSQL-backed mapping and isolation tests, native Wallet transport tests and real-device review.
 
 ### UX
 

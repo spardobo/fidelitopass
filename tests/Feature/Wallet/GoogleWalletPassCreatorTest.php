@@ -20,6 +20,8 @@ use Tests\Support\GoogleWalletHttpFake;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    app()->setLocale('es');
+
     $this->http = new GoogleWalletHttpFake;
     app()->instance(Client::class, $this->http->client);
 
@@ -76,13 +78,16 @@ beforeEach(function () {
                             'item' => [
                                 'firstValue' => [
                                     'fields' => [
-                                        ['fieldPath' => "object.textModulesData['compact_promotion']"],
-                                        ['fieldPath' => "object.textModulesData['reward']"],
-                                        ['fieldPath' => "object.textModulesData['promotion']"],
+                                        ['fieldPath' => "object.textModulesData['card_primary']"],
                                     ],
                                 ],
                             ],
                         ],
+                    ],
+                    [
+                        'oneItem' => ['item' => ['firstValue' => ['fields' => [
+                            ['fieldPath' => "object.textModulesData['card_secondary']"],
+                        ]]]],
                     ],
                 ],
             ],
@@ -91,8 +96,7 @@ beforeEach(function () {
                 'firstTopDetail' => [
                     'fieldSelector' => [
                         'fields' => [
-                            ['fieldPath' => "object.textModulesData['progress'].body"],
-                            ['fieldPath' => 'object.loyaltyPoints.balance'],
+                            ['fieldPath' => "object.textModulesData['barcode_top'].body"],
                         ],
                     ],
                 ],
@@ -102,19 +106,22 @@ beforeEach(function () {
                     'item' => ['firstValue' => ['fields' => $fields]],
                 ], [
                     [
-                        ['fieldPath' => "object.textModulesData['progress']"],
-                        ['fieldPath' => 'object.loyaltyPoints.balance'],
+                        ['fieldPath' => "object.textModulesData['barcode_top']"],
                     ],
                     [
-                        ['fieldPath' => "object.textModulesData['manual_code']"],
-                        ['fieldPath' => 'object.accountId'],
+                        ['fieldPath' => "object.textModulesData['details_code']"],
                     ],
                     [
-                        ['fieldPath' => "object.textModulesData['reward']"],
-                        ['fieldPath' => "object.textModulesData['promotion']"],
+                        ['fieldPath' => "object.textModulesData['details_primary']"],
+                        ['fieldPath' => "object.textModulesData['card_primary']"],
                     ],
-                    [['fieldPath' => "object.textModulesData['deadline']"]],
-                    [['fieldPath' => "object.textModulesData['visit']"]],
+                    [['fieldPath' => "object.textModulesData['details_primary_description']"]],
+                    [['fieldPath' => "object.textModulesData['details_primary_date']"]],
+                    [['fieldPath' => "object.textModulesData['details_context']"]],
+                    [['fieldPath' => "object.textModulesData['details_secondary']"], ['fieldPath' => "object.textModulesData['card_secondary']"]],
+                    [['fieldPath' => "object.textModulesData['details_secondary_description']"]],
+                    [['fieldPath' => "object.textModulesData['details_secondary_date']"]],
+                    [['fieldPath' => "object.textModulesData['details_history']"]],
                 ]),
             ],
         ],
@@ -206,7 +213,7 @@ it('preserves a leading-zero manual code through SDK payload and exact confirmat
     expect($requests)->toHaveCount(1);
     expect($requests[0][0]['accountId'])->toBe('05130');
     expect($requests[0][0]['barcode']['alternateText'])->toBe('Código manual: 05130');
-    expect(collect($requests[0][0]['textModulesData'])->firstWhere('id', 'manual_code')['body'])->toBe('05130');
+    expect(collect($requests[0][0]['textModulesData'])->firstWhere('id', 'details_code')['body'])->toBe('05130');
     $this->assertDatabaseCount('customer_passes', 0);
 })->with(['exact' => false, 'manual-style separator rejected' => true]);
 
@@ -450,25 +457,30 @@ it('maps real current promotion content and zero new-pass progress into the prov
         }
 
         expect($request->data())->not->toHaveKey('loyaltyPoints');
-        expect(collect($request['textModulesData'])->firstWhere('id', 'progress'))->toBe([
+        expect(collect($request['textModulesData'])->firstWhere('id', 'barcode_top'))->toBe([
             'body' => '0 / 7 puntos',
-            'id' => 'progress',
+            'header' => 'TU PROGRESO',
+            'id' => 'barcode_top',
         ]);
-        expect(collect($request['textModulesData'])->firstWhere('id', 'reward')['body'])->toBe("Una hogaza artesanal\nPan integral de masa madre.");
-        expect(collect($request['textModulesData'])->firstWhere('id', 'compact_promotion'))->toBe([
-            'body' => "Una hogaza artesanal\nVálido hasta el 31 DIC 2098\n\nTu visita ahora vale 1 punto.",
-            'header' => 'PROMOCIÓN',
-            'id' => 'compact_promotion',
+        expect(collect($request['textModulesData'])->firstWhere('id', 'details_primary')['body'])->toBe('Una hogaza artesanal');
+        expect(collect($request['textModulesData'])->firstWhere('id', 'details_primary_description')['body'])->toBe('Pan integral de masa madre.');
+        expect(collect($request['textModulesData'])->firstWhere('id', 'details_context'))->toBe([
+            'body' => 'Tu visita ahora vale 1 punto.', 'header' => '', 'id' => 'details_context',
+        ]);
+        expect(collect($request['textModulesData'])->firstWhere('id', 'card_primary'))->toBe([
+            'body' => "Una hogaza artesanal\nTienes hasta el 31 dic 2098.\n\nTu visita ahora vale 1 punto.",
+            'header' => 'TU PRÓXIMA RECOMPENSA',
+            'id' => 'card_primary',
         ]);
         expect(collect($request['textModulesData'])->firstWhere('id', 'promotion'))->toBeNull();
         expect(json_encode($request->data(), JSON_UNESCAPED_UNICODE))->not->toContain('Consigue', '"Puntos"');
-        expect(collect($request['textModulesData'])->firstWhere('id', 'deadline')['body'])
-            ->toBe('Válido hasta el 31 DIC 2098');
-        expect(collect($request['textModulesData'])->firstWhere('id', 'manual_code'))
+        expect(collect($request['textModulesData'])->firstWhere('id', 'details_primary_date')['body'])
+            ->toBe('Tienes hasta el 31 dic 2098.');
+        expect(collect($request['textModulesData'])->firstWhere('id', 'details_code'))
             ->toHaveCount(3)
             ->toMatchArray([
-                'id' => 'manual_code',
-                'header' => 'Código manual',
+                'id' => 'details_code',
+                'header' => 'CÓDIGO MANUAL',
                 'body' => $this->credentials->manualCode,
             ]);
 
@@ -496,18 +508,16 @@ it('places progress above the barcode and compact content below it with separate
         $template['cardTemplateOverride']['cardRowTemplateInfos'],
     ))->toBe([
         [
-            "object.textModulesData['compact_promotion']",
-            "object.textModulesData['reward']",
-            "object.textModulesData['promotion']",
+            "object.textModulesData['card_primary']",
         ],
+        ["object.textModulesData['card_secondary']"],
     ]);
     expect($template['cardBarcodeSectionDetails'])->toBe([
         'firstBottomDetail' => null,
         'firstTopDetail' => [
             'fieldSelector' => [
                 'fields' => [
-                    ['fieldPath' => "object.textModulesData['progress'].body"],
-                    ['fieldPath' => 'object.loyaltyPoints.balance'],
+                    ['fieldPath' => "object.textModulesData['barcode_top'].body"],
                 ],
             ],
         ],
@@ -516,15 +526,50 @@ it('places progress above the barcode and compact content below it with separate
         fn (array $detail) => array_column($detail['item']['firstValue']['fields'], 'fieldPath'),
         $template['detailsTemplateOverride']['detailsItemInfos'],
     ))->toBe([
-        ["object.textModulesData['progress']", 'object.loyaltyPoints.balance'],
-        ["object.textModulesData['manual_code']", 'object.accountId'],
-        ["object.textModulesData['reward']", "object.textModulesData['promotion']"],
-        ["object.textModulesData['deadline']"],
-        ["object.textModulesData['visit']"],
+        ["object.textModulesData['barcode_top']"],
+        ["object.textModulesData['details_code']"],
+        ["object.textModulesData['details_primary']", "object.textModulesData['card_primary']"],
+        ["object.textModulesData['details_primary_description']"],
+        ["object.textModulesData['details_primary_date']"],
+        ["object.textModulesData['details_context']"],
+        ["object.textModulesData['details_secondary']", "object.textModulesData['card_secondary']"],
+        ["object.textModulesData['details_secondary_description']"],
+        ["object.textModulesData['details_secondary_date']"],
+        ["object.textModulesData['details_history']"],
     ]);
 });
 
-it('keeps waiting copy and labelled manual digits without inventing progress or active sections', function () {
+it('localizes credential labels through Laravel without changing their values', function () {
+    app()->setLocale('en');
+    app('translator')->addLines([
+        'wallet.labels.manual_code' => 'Manual lookup code',
+        'wallet.labels.barcode_alternate' => 'Lookup code: :code',
+    ], 'en');
+    $this->http->respondWith(walletResponses($this->class, $this->object));
+
+    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
+
+    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'POST'
+        && $request->url() === $this->objectUrl);
+    expect($writes)->toHaveCount(1);
+    $object = $writes[0][0]->data();
+
+    expect($object['barcode'])->toBe([
+        'alternateText' => 'Lookup code: '.$this->credentials->manualCode,
+        'type' => 'QR_CODE',
+        'value' => $this->credentials->validationToken,
+    ]);
+    expect($object['accountId'])->toBe($this->credentials->manualCode);
+    expect(collect($object['textModulesData'])->firstWhere('id', 'details_code'))->toBe([
+        'body' => $this->credentials->manualCode,
+        'header' => 'Manual lookup code',
+        'id' => 'details_code',
+    ]);
+    expect(app()->getLocale())->toBe('en');
+    $this->assertDatabaseCount('customer_passes', 0);
+});
+
+it('keeps business overview and labelled manual digits without inventing progress or active sections', function () {
     $this->http->respondWith(walletResponses($this->class, $this->object));
 
     app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
@@ -534,11 +579,11 @@ it('keeps waiting copy and labelled manual digits without inventing progress or 
     expect($writes)->toHaveCount(1);
     $object = $writes[0][0]->data();
     expect($object)->not->toHaveKey('loyaltyPoints');
-    expect(array_column($object['textModulesData'], 'id'))->toBe(['promotion', 'manual_code']);
-    expect($object['textModulesData'][0])->toBe([
-        'body' => 'Tu tarjeta ya está lista. Aquí aparecerá la próxima promoción del negocio.',
-        'header' => '⏳ Espera a la próxima promoción',
-        'id' => 'promotion',
+    expect(array_column($object['textModulesData'], 'id'))->toBe(['card_primary', 'card_secondary', 'details_code']);
+    expect(collect($object['textModulesData'])->firstWhere('id', 'card_primary'))->toBe([
+        'body' => "¡Qué bueno tenerte por aquí!\nAún no hay promociones anteriores.",
+        'header' => 'NUESTRA ÚLTIMA PROMOCIÓN',
+        'id' => 'card_primary',
     ]);
     expect($object['barcode'])->toBe([
         'alternateText' => 'Código manual: '.$this->credentials->manualCode,
@@ -569,27 +614,20 @@ it('patches a barcode-only template difference without changing any object progr
         ->toHaveKey('firstBottomDetail', null);
 })->with(['firstTopDetail', 'firstBottomDetail']);
 
-it('repairs barcode progress fallbacks without resetting existing nonzero object progress', function (string $layout) {
+it('repairs the current barcode progress reference without resetting existing nonzero object progress', function (string $layout) {
     $class = $this->class;
     $fields = &$class['classTemplateInfo']['cardBarcodeSectionDetails']['firstTopDetail']['fieldSelector']['fields'];
     $fields = match ($layout) {
-        'legacy balance only' => [$fields[1]],
-        'missing fallback' => [$fields[0]],
-        'reordered fallback' => array_reverse($fields),
-        'trailing fallback' => [...$fields, ['fieldPath' => 'object.accountId']],
-        'previous principal layout' => [['fieldPath' => "object.textModulesData['deadline'].body"]],
+        'missing reference' => [],
+        'wrong reference' => [['fieldPath' => 'object.accountId']],
+        'extra reference' => [...$fields, ['fieldPath' => 'object.accountId']],
     };
     unset($fields);
 
-    if ($layout === 'previous principal layout') {
-        $class['classTemplateInfo']['cardTemplateOverride']['cardRowTemplateInfos'][0]['oneItem']['item']['firstValue']['fields'] = [
-            ['fieldPath' => "object.textModulesData['progress'].body"],
-            ['fieldPath' => 'object.loyaltyPoints.balance'],
-        ];
-    }
-
     $object = $this->object;
-    $object['loyaltyPoints'] = ['balance' => ['string' => '5 / 7 puntos']];
+    $object['textModulesData'] = [
+        ['id' => 'barcode_top', 'body' => '5 / 7 puntos'],
+    ];
     $responses = walletResponses($class, $object);
     $responses[$this->objectUrl] = GoogleWalletHttpFake::json([], 409);
     $responses[$this->objectUrl.'/'.$this->objectId] = GoogleWalletHttpFake::json($object);
@@ -613,14 +651,13 @@ it('repairs barcode progress fallbacks without resetting existing nonzero object
     $barcode = $patches[0][0]['classTemplateInfo']['cardBarcodeSectionDetails'];
     expect($barcode['firstTopDetail']['fieldSelector']['fields'])
         ->toBe([
-            ['fieldPath' => "object.textModulesData['progress'].body"],
-            ['fieldPath' => 'object.loyaltyPoints.balance'],
+            ['fieldPath' => "object.textModulesData['barcode_top'].body"],
         ]);
     expect($this->http->requests(fn (Request $request) => $request->method() === 'GET'
         && $request->url() === $this->objectUrl.'/'.$this->objectId))->toHaveCount(1);
     expect($this->http->requests(fn (Request $request) => $request->method() === 'POST'
         && $request->url() === $this->objectUrl))->toHaveCount(1);
-})->with(['legacy balance only', 'missing fallback', 'reordered fallback', 'trailing fallback', 'previous principal layout']);
+})->with(['missing reference', 'wrong reference', 'extra reference']);
 
 it('repairs an unexpected trailing barcode reference without updating objects', function (string $detail) {
     $class = $this->class;
@@ -1197,7 +1234,6 @@ it('keeps pre-object transport failure definitive and strips unsafe transport de
     );
     $this->http->respondWith($responses);
     $previousTraceSetting = ini_set('zend.exception_ignore_args', '0');
-
     try {
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Transport failure must stop issuance.');
@@ -1635,7 +1671,7 @@ it('repairs missing or changed primary layout references with one owned PATCH', 
     $rows = &$class['classTemplateInfo']['cardTemplateOverride']['cardRowTemplateInfos'];
 
     match ($change) {
-        'fallback order' => $rows[0]['oneItem']['item']['firstValue']['fields'] = array_reverse($rows[0]['oneItem']['item']['firstValue']['fields']),
+        'row order' => $rows = array_reverse($rows),
         'missing row' => array_pop($rows),
         'extra row' => $rows[] = $rows[0],
         'missing reference' => $rows[0]['oneItem']['item']['firstValue']['fields'] = [],
@@ -1658,7 +1694,7 @@ it('repairs missing or changed primary layout references with one owned PATCH', 
     expect($patches[0][0]['classTemplateInfo'])->toBe($this->class['classTemplateInfo']);
     expect($this->http->requests())->toHaveCount(4);
 })->with([
-    'fallback order',
+    'row order',
     'missing row',
     'extra row',
     'missing reference',
@@ -1672,9 +1708,9 @@ it('repairs changed full-detail selectors without exposing the compact summary t
     match ($change) {
         'order' => $details = array_reverse($details),
         'missing item' => array_pop($details),
-        'summary reference' => $details[2]['item']['firstValue']['fields'][0]['fieldPath'] = "object.textModulesData['compact_promotion']",
-        'fallback order' => $details[1]['item']['firstValue']['fields'] = array_reverse($details[1]['item']['firstValue']['fields']),
-        'trailing fallback' => $details[2]['item']['firstValue']['fields'][] = ['fieldPath' => 'object.accountId'],
+        'summary reference' => $details[2]['item']['firstValue']['fields'][0]['fieldPath'] = "object.textModulesData['card_primary']",
+        'state priority' => $details[2]['item']['firstValue']['fields'] = array_reverse($details[2]['item']['firstValue']['fields']),
+        'extra reference' => $details[2]['item']['firstValue']['fields'][] = ['fieldPath' => 'object.accountId'],
     };
     unset($details);
 
@@ -1691,18 +1727,18 @@ it('repairs changed full-detail selectors without exposing the compact summary t
     expect($patches)->toHaveCount(1);
     expect($patches[0][0]->url())->toBe($this->classUrl.'/'.$this->classId);
     expect($patches[0][0]['classTemplateInfo'])->toBe($this->class['classTemplateInfo']);
-})->with(['order', 'missing item', 'summary reference', 'fallback order', 'trailing fallback']);
+})->with(['order', 'missing item', 'summary reference', 'state priority', 'extra reference']);
 
-it('repairs reversed swipe-up detail order while preserving legacy object content and credentials', function () {
+it('repairs reversed swipe-up detail order while preserving current object content and credentials', function () {
     $class = $this->class;
     $class['classTemplateInfo']['detailsTemplateOverride']['detailsItemInfos'] = array_reverse(
         $class['classTemplateInfo']['detailsTemplateOverride']['detailsItemInfos'],
     );
     $object = [
         ...$this->object,
-        'loyaltyPoints' => ['balance' => ['string' => '5 / 7 puntos']],
         'textModulesData' => [
-            ['id' => 'reward', 'header' => 'PROMOCIÓN', 'body' => "Una hogaza artesanal\nPan integral de masa madre."],
+            ['id' => 'barcode_top', 'body' => '5 / 7 puntos'],
+            ['id' => 'details_primary', 'header' => 'TU PRÓXIMA RECOMPENSA', 'body' => "Una hogaza artesanal\nPan integral de masa madre."],
         ],
     ];
     $responses = walletResponses($class, $object);
