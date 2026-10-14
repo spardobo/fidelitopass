@@ -84,7 +84,7 @@ async function expectInvitationState(page, appearanceSaved) {
     });
     const action = appearanceSaved
         ? qr.getByRole("button", { name: "Descargar QR", exact: true })
-        : qr.getByRole("link", { name: "Preparar pase", exact: true });
+        : qr.getByRole("link", { name: "Preparar tu tarjeta", exact: true });
 
     await expect(navigation.locator('[aria-current="page"]')).toHaveCount(1);
     await expect(
@@ -99,7 +99,7 @@ async function expectInvitationState(page, appearanceSaved) {
         ).toBeVisible();
         await expect(action).toBeEnabled();
     } else {
-        await expect(qr.getByText("Pase sin preparar", { exact: true })).toBeVisible();
+        await expect(qr.getByText("Tarjeta sin preparar", { exact: true })).toBeVisible();
         await expect(action).toHaveAttribute("href", /\/pass\/appearance$/);
         await expect(qr.getByRole("button", { name: "Descargar QR", exact: true })).toHaveCount(0);
         await expect(qr.getByRole("group").locator("p")).toHaveCount(1);
@@ -107,7 +107,7 @@ async function expectInvitationState(page, appearanceSaved) {
     await expect(action).toHaveAccessibleDescription(
         appearanceSaved
             ? "Imprime el QR y colócalo junto a tu caja."
-            : "Elige un color y guarda la apariencia del pase.",
+            : "Elige un color y guarda la apariencia de la tarjeta.",
     );
     await expect(main.getByRole("img")).toHaveCount(appearanceSaved ? 1 : 0);
     await expect(main.getByRole("button")).toHaveCount(appearanceSaved ? 1 : 0);
@@ -127,7 +127,7 @@ async function expectInvitationState(page, appearanceSaved) {
     await expect(steps).toHaveCount(3);
     for (const [index, heading] of [
         "Coloca el QR en tu negocio",
-        "Tus clientes guardan el pase",
+        "Tus clientes guardan la tarjeta",
         "Confirma cada visita",
     ].entries()) {
         await expect(
@@ -144,7 +144,7 @@ async function expectInvitationState(page, appearanceSaved) {
     ).toBeVisible();
     await expect(
         instructions.getByText(
-            "El QR público será solo para guardar el pase, no autoriza visitas ni canjes.",
+            "El QR público será solo para guardar la tarjeta, no autoriza visitas ni canjes.",
             { exact: true },
         ),
     ).toBeVisible();
@@ -180,9 +180,9 @@ async function expectInvitationPresentation(page, width, appearanceSaved) {
     const qrSlot = qr.getByRole("group", { name: "Vista del QR del negocio" });
     const action = appearanceSaved
         ? qr.getByRole("button", { name: "Descargar QR", exact: true })
-        : qr.getByRole("link", { name: "Preparar pase", exact: true });
+        : qr.getByRole("link", { name: "Preparar tu tarjeta", exact: true });
     const intro = main.getByText(
-        "Comparte el pase de tu negocio e invita a tus clientes a volver.",
+        "Comparte la tarjeta de tu negocio e invita a tus clientes a volver.",
         { exact: true },
     );
 
@@ -378,10 +378,10 @@ for (const width of [1280, 375]) {
             .getByRole("link", { name: "Invitar clientes", exact: true })
             .click();
         await expect(page).toHaveURL(/\/invite$/);
-        await expect(page.getByText("Pase sin preparar", { exact: true })).toBeVisible();
+        await expect(page.getByText("Tarjeta sin preparar", { exact: true })).toBeVisible();
         await expect(
             page.getByText(
-                "Prepara el pase del negocio para que tus clientes puedan guardarlo en Google Wallet.",
+                "Prepara la tarjeta del negocio para que tus clientes puedan guardarla en Google Wallet.",
                 {
                     exact: true,
                 },
@@ -406,7 +406,7 @@ for (const width of [1280, 375]) {
 
         await page
             .getByRole("main")
-            .getByRole("link", { name: "Preparar pase", exact: true })
+            .getByRole("link", { name: "Preparar tu tarjeta", exact: true })
             .press("Enter");
         await expect(page).toHaveURL(/\/pass\/appearance$/);
         await page.getByLabel("Código hexadecimal").fill("#A77BFF");
@@ -419,11 +419,11 @@ for (const width of [1280, 375]) {
         await invitation.click();
         await expect(page).toHaveURL(/\/invite$/);
         await expect(
-            page.getByText("Tus clientes escanean este QR y guardan su pase en Google Wallet.", {
+            page.getByText("Tus clientes escanean este QR y guardan su tarjeta en Google Wallet.", {
                 exact: true,
             }),
         ).toBeVisible();
-        await expect(page.getByText("Pase sin preparar", { exact: true })).toHaveCount(0);
+        await expect(page.getByText("Tarjeta sin preparar", { exact: true })).toHaveCount(0);
         await expectInvitationState(page, true);
         const savedSlots = await expectInvitationPresentation(page, width, true);
         expect(savedSlots.qrSlot.width).toBe(unsavedSlots.qrSlot.width);

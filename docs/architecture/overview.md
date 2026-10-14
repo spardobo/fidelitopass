@@ -223,7 +223,7 @@ Jobs:
 
 MVP surfaces:
 
-Public product landing and Business acquisition; authenticated Summary, Pase/Promotion management, invitation, Visit confirmation and settings. Route names and paths belong to source.
+Public product landing and Business acquisition; authenticated Summary, pass/Promotion management, invitation, Visit confirmation and settings. Route names and paths belong to source.
 
 No customer profile portal is required.
 

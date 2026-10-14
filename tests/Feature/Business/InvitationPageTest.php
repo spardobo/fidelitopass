@@ -36,10 +36,10 @@ it('explains preparation without treating the default preview as saved appearanc
     $this->actingAs($business->user)
         ->get('/invite')
         ->assertSee($business->name)
-        ->assertSee('Pase sin preparar')
-        ->assertSee('Prepara el pase del negocio para que tus clientes puedan guardarlo en Google Wallet.')
-        ->assertSee('Elige un color y guarda la apariencia del pase.')
-        ->assertSee('Preparar pase')
+        ->assertSee('Tarjeta sin preparar')
+        ->assertSee('Prepara la tarjeta del negocio para que tus clientes puedan guardarla en Google Wallet.')
+        ->assertSee('Elige un color y guarda la apariencia de la tarjeta.')
+        ->assertSee('Preparar tu tarjeta')
         ->assertSee('href="'.route('business.pass.appearance').'"', false)
         ->assertDontSee('Descargar QR')
         ->assertDontSee('Apariencia guardada');
@@ -69,11 +69,11 @@ it('keeps saved appearance eligible independently of an active Promotion', funct
 
     $this->actingAs($business->user)
         ->get('/invite')
-        ->assertSee('Tus clientes escanean este QR y guardan su pase en Google Wallet.')
+        ->assertSee('Tus clientes escanean este QR y guardan su tarjeta en Google Wallet.')
         ->assertSee('Imprime el QR y colócalo junto a tu caja.')
         ->assertDontSee('No necesitas una promoción activa')
         ->assertDontSee('con o sin una promoción activa')
-        ->assertDontSee('Preparar pase')
+        ->assertDontSee('Preparar tu tarjeta')
         ->assertDontSee('Apariencia guardada')
         ->assertDontSee('Un café');
 })->with(['without a Promotion' => false, 'with an active Promotion' => true]);
@@ -95,15 +95,15 @@ it('reloads current owned appearance on subsequent Livewire requests', function 
     $business = Business::factory()->create();
     $page = Livewire::actingAs($business->user)
         ->test('pages::business.invitation')
-        ->assertSee('Pase sin preparar');
+        ->assertSee('Tarjeta sin preparar');
 
     $business->update(['name' => 'Renamed Business', 'pass_background_color' => '#A77BFF']);
 
     $page->refresh()
         ->assertSee('Renamed Business')
-        ->assertSee('Tus clientes escanean este QR y guardan su pase en Google Wallet.')
-        ->assertDontSee('Pase sin preparar')
-        ->assertDontSee('Preparar pase');
+        ->assertSee('Tus clientes escanean este QR y guardan su tarjeta en Google Wallet.')
+        ->assertDontSee('Tarjeta sin preparar')
+        ->assertDontSee('Preparar tu tarjeta');
 });
 
 it('rechecks owner verification on subsequent Livewire requests', function () {
@@ -143,9 +143,9 @@ it('reserves the QR area with one contextual appearance or download action', fun
     $response = $this->actingAs($business->user)->get('/invite');
     $response->assertSee('Cómo invitar a tus clientes')
         ->assertSee('Coloca el QR en tu negocio')
-        ->assertSee('Tus clientes guardan el pase')
+        ->assertSee('Tus clientes guardan la tarjeta')
         ->assertSee('Confirma cada visita')
-        ->assertSee($color === null ? 'Preparar pase' : 'Descargar QR')
+        ->assertSee($color === null ? 'Preparar tu tarjeta' : 'Descargar QR')
         ->assertDontSee('Falta integrar')
         ->assertDontSee('maqueta')
         ->assertDontSee('Apariencia guardada');

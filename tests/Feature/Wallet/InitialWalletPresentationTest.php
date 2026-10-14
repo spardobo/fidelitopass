@@ -40,7 +40,7 @@ it('renders only the real waiting state when no active promotion applies', funct
             [
                 'id' => 'promotion',
                 'header' => '⏳ Espera a la próxima promoción',
-                'body' => 'Tu Pase ya está listo. Aquí aparecerá la próxima promoción del negocio.',
+                'body' => 'Tu tarjeta ya está lista. Aquí aparecerá la próxima promoción del negocio.',
             ],
         ])
         ->and(json_encode($presentation, JSON_UNESCAPED_UNICODE))

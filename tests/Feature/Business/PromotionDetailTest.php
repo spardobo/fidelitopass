@@ -216,7 +216,7 @@ it('keeps Summary detail read only with a contextual native close action', funct
         ->call('showPromotionDetail', $promotion->public_id, $origin)
         ->assertSet('promotionDetailOrigin', $origin)
         ->assertSee('Volver al resumen')
-        ->assertDontSee('Volver al pase')
+        ->assertDontSee('Volver a tu tarjeta')
         ->assertDontSee('Cancelar promoción')
         ->call('dismissPromotionDetail')
         ->assertSet('selectedPromotionId', null)

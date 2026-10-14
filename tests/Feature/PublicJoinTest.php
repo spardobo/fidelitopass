@@ -52,8 +52,8 @@ it('renders explicit private saving with a server-selected endpoint and no issue
     $manualCode = $xpath->query('//form//*[@x-text="manualCode"]')->item(0);
     expect(explode(' ', $manualCode->getAttribute('class')))->toContain('text-5xl', 'font-mono', 'select-all');
     $response->assertSee('Unirme y añadir a Google Wallet')->assertSee('Promoción de ejemplo.');
-    $response->assertSee('Muéstralo en el negocio si no puedes escanear tu pase. Guárdalo antes de salir de esta página.');
-    $response->assertDontSee('Si Google Wallet no se abre, vuelve a usar este enlace. No se creará otro pase.');
+    $response->assertSee('Muéstralo en el negocio si no puedes escanear tu tarjeta. Guárdalo antes de salir de esta página.');
+    $response->assertDontSee('Si Google Wallet no se abre, vuelve a usar este enlace. No se creará otra tarjeta.');
     $response->assertDontSee('https://pay.google.com/gp/v/save/');
     $this->assertDatabaseCount('customer_passes', 0);
 });
@@ -70,12 +70,12 @@ it('renders native Flux failure alerts with fixed localized feedback and a defau
     expect($errors)->toHaveCount(3);
     expect($errors->item(0)->textContent)->toContain(__('join.unconfigured_error'));
     expect($errors->item(1)->textContent)->toContain('Inténtalo más tarde o contacta con el negocio.');
-    expect($errors->item(2)->textContent)->toContain('No pudimos confirmar si tu pase se creó. Para evitar duplicados, no lo solicites de nuevo. Contacta con el negocio.');
+    expect($errors->item(2)->textContent)->toContain('No pudimos confirmar si tu tarjeta se creó. Para evitar duplicados, no la solicites de nuevo. Contacta con el negocio.');
     expect($xpath->query('//ui-toast-group'))->toHaveCount(0);
     expect($xpath->query('//ui-toast'))->toHaveCount(1);
     expect($xpath->query('//ui-toast')->item(0)->getAttribute('position'))->toBe('bottom end');
     $feedback = $xpath->query('//form')->item(0)->getAttribute('x-on:submit.prevent');
-    expect($feedback)->toContain('Hubo un problema al generar tu pase.', __('join.issued_description'));
+    expect($feedback)->toContain('Hubo un problema al generar tu tarjeta.', __('join.issued_description'));
     expect($feedback)->not->toContain(__('join.retryable_error'), __('join.unknown_error'));
     expect($feedback)->not->toContain('position');
     expect($xpath->query('//form//*[@x-ref="readyFeedback"]'))->toHaveCount(0);
@@ -257,7 +257,7 @@ it('opens the permanent acquisition URL anonymously without requiring saved appe
     $this->get(app(BusinessAcquisitionQr::class)->url($business))
         ->assertSee('Café Central')
         ->assertSee('Promoción de ejemplo.')
-        ->assertDontSee('Tu Pase ya está listo.')
+        ->assertDontSee('Tu tarjeta ya está lista.')
         ->assertDontSee('Crear cuenta');
 
     $this->assertGuest();
@@ -270,7 +270,7 @@ it('explains unsaved appearance without an actionable issuance form or provider 
     $response = $this->get(route('public.join', $business->public_id));
 
     $response->assertOk()
-        ->assertSee('Este negocio todavía no ha preparado su pase. Consulta al negocio para saber cuándo estará disponible.')
+        ->assertSee('Este negocio todavía no ha preparado su tarjeta. Consulta al negocio para saber cuándo estará disponible.')
         ->assertSee('Promoción de ejemplo.')
         ->assertSee('Un beneficio especial')
         ->assertDontSee('data-customer-pass-acquisition', false)
@@ -333,7 +333,7 @@ it('escapes Business copy and excludes persisted Reward and private credentials 
         ->assertDontSee('validation_token')->assertDontSee('manual_code')
         ->assertDontSee('private-validation-hash')->assertDontSee('482731')
         ->assertDontSee('issuer.private-object')->assertDontSee($pass->public_id)
-        ->assertSee('Unirme y añadir a Google Wallet')->assertDontSee('Tu Pase ya está listo.');
+        ->assertSee('Unirme y añadir a Google Wallet')->assertDontSee('Tu tarjeta ya está lista.');
 
     expect($writes)->toBeEmpty();
     $this->assertDatabaseCount('customer_passes', 1);
