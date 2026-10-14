@@ -62,7 +62,7 @@ async function expectPassNavigationToBeActive(page) {
     const navigation = page.getByRole("navigation", { name: "Navegación principal" });
 
     await expect(navigation.locator('a[aria-current="page"]')).toHaveCount(1);
-    await expect(navigation.getByRole("link", { name: "Pase", exact: true })).toHaveAttribute(
+    await expect(navigation.getByRole("link", { name: "Tu Tarjeta", exact: true })).toHaveAttribute(
         "aria-current",
         "page",
     );
@@ -346,7 +346,7 @@ test("isolated owner inspects frozen Promotions, history and safe cancellation",
         "data-promotion-detail-phase",
         "active",
     );
-    await dialog.getByRole("button", { name: "Volver al pase" }).click();
+    await dialog.getByRole("button", { name: "Volver a tu tarjeta" }).click();
     await expect(activeOpener).toBeFocused();
 
     // all lifecycle badges are measured on the actual authenticated page, not cloned markup.
@@ -561,7 +561,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
         const header = document.querySelector("main > header");
         const navigation = document.querySelector("[data-flux-header]");
         const backLink = Array.from(header.querySelectorAll("a, button")).find((link) =>
-            link.textContent.includes("Volver al pase"),
+            link.textContent.includes("Volver a tu tarjeta"),
         );
         const identity = header.querySelector('p[class*="app-role-body"]');
 
@@ -584,7 +584,9 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(editAppearance).toHaveCSS("border-color", "rgb(122, 122, 122)");
     await expect(editAppearance).toHaveCSS("border-width", "1px");
     await expect(editAppearance).toHaveCSS("border-style", "solid");
-    await expect(page.getByRole("heading", { name: "Tu primera razón para volver" })).toBeVisible();
+    await expect(
+        page.getByRole("heading", { name: "La primera razón para que tus clientes vuelvan" }),
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: "Crear primera promoción" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Borradores", exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Nueva promoción" })).toHaveCount(0);
@@ -738,7 +740,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
         const header = document.querySelector("main > header");
         const navigation = document.querySelector("[data-flux-header]");
         const backLink = Array.from(header.querySelectorAll("a")).find((link) =>
-            link.textContent.includes("Volver al pase"),
+            link.textContent.includes("Volver a tu tarjeta"),
         );
         const identity = header.querySelector('p[class*="app-role-body"]');
 
@@ -948,7 +950,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
         buttons.forEach((button) => button.click());
     });
 
-    await page.getByRole("link", { name: "Volver al pase" }).focus();
+    await page.getByRole("link", { name: "Volver a tu tarjeta" }).focus();
     await page.keyboard.press("Tab");
 
     const rewardTitle = page.getByLabel("¿Qué recompensa recibirá tu cliente?");
@@ -1292,9 +1294,9 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(page.getByRole("heading", { name: "Borradores (1)", exact: true })).toBeVisible();
     const newPromotionLink = page.getByRole("link", { name: "Nueva promoción" });
     await expect(newPromotionLink).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Tu primera razón para volver" })).toHaveCount(
-        0,
-    );
+    await expect(
+        page.getByRole("heading", { name: "La primera razón para que tus clientes vuelvan" }),
+    ).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Crear primera promoción" })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("pass-drafts-desktop.png"), fullPage: true });
 
@@ -1418,14 +1420,14 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
 
     const existingRewardTitle = page.getByLabel("¿Qué recompensa recibirá tu cliente?");
     await existingRewardTitle.fill("Cambio temporal");
-    await expect(page.getByRole("button", { name: "Volver al pase" })).toBeVisible();
-    await page.getByRole("button", { name: "Volver al pase" }).click();
+    await expect(page.getByRole("button", { name: "Volver a tu tarjeta" })).toBeVisible();
+    await page.getByRole("button", { name: "Volver a tu tarjeta" }).click();
     await expect(page.getByText("Los cambios que no guardaste se perderán.")).toBeVisible();
     await page.getByRole("button", { name: "Seguir editando" }).click();
     await existingRewardTitle.fill("Café de cortesía");
-    await expect(page.getByRole("link", { name: "Volver al pase" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Volver al pase" })).toBeHidden();
-    await page.getByRole("link", { name: "Volver al pase" }).click();
+    await expect(page.getByRole("link", { name: "Volver a tu tarjeta" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Volver a tu tarjeta" })).toBeHidden();
+    await page.getByRole("link", { name: "Volver a tu tarjeta" }).click();
     await expect(page).toHaveURL(/\/pass$/);
 
     console.info(
@@ -1477,7 +1479,7 @@ test("disables competing Promotion actions while a save request is pending", asy
     const saveButton = page.getByRole("button", { name: "Guardar borrador" });
     const addRuleButton = page.getByRole("button", { name: "Añadir puntos extra" });
     const removeRuleButton = page.getByRole("button", { name: /Quitar la regla de/ }).first();
-    const cleanBackLink = page.getByRole("link", { name: "Volver al pase" });
+    const cleanBackLink = page.getByRole("link", { name: "Volver a tu tarjeta" });
     const cancelButton = page.getByRole("button", { name: "Cancelar", exact: true });
     let requestCount = 0;
     let resolveRequestStarted;
@@ -1559,7 +1561,7 @@ test("disables competing Promotion actions while a save request is pending", asy
     await expect(cleanBackLink).toHaveCSS("opacity", "1");
 
     const targetPoints = page.getByLabel("¿Cuántos puntos necesita?");
-    const dirtyBackButton = page.getByRole("button", { name: "Volver al pase" });
+    const dirtyBackButton = page.getByRole("button", { name: "Volver a tu tarjeta" });
     await targetPoints.fill("");
     await expect(dirtyBackButton).toBeVisible();
     await cancelButton.click();
@@ -1636,7 +1638,7 @@ test("confirms leaving a fresh draft changed only in general information", async
         "Borrador sin guardar",
     );
 
-    await page.getByRole("button", { name: "Volver al pase" }).click();
+    await page.getByRole("button", { name: "Volver a tu tarjeta" }).click();
     await expect(page.getByText("Los cambios que no guardaste se perderán.")).toBeVisible();
     await page.getByRole("button", { name: "Seguir editando" }).click();
     await expect(rewardTitle).toHaveValue("Borrador sin guardar");

@@ -12,7 +12,7 @@ it('renders enabled product destinations and POST logout for the authenticated o
 
     $response = $this->actingAs($business->user)->get(route('dashboard'));
 
-    $response->assertSee('Resumen')->assertSee('Pase')->assertSee('Invitar clientes')
+    $response->assertSee('Resumen')->assertSee('Tu Tarjeta')->assertSee('Invitar clientes')
         ->assertSee('Registrar visita')->assertSee('Abrir menú de cuenta')
         ->assertSee('Navegación principal')->assertSee('Perfil')->assertSee('Seguridad')->assertSee('Cerrar sesión')
         ->assertSee('data-flux-avatar', false);

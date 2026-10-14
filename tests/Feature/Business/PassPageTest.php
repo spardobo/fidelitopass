@@ -9,6 +9,71 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
+it('distinguishes the personal page title from the business card name', function () {
+    $business = Business::factory()->create(['name' => 'Jaqaku']);
+
+    $response = $this->actingAs($business->user)
+        ->get(route('business.pass'))
+        ->assertOk();
+
+    $document = new DOMDocument;
+    $document->loadHTML($response->getContent(), LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+    $xpath = new DOMXPath($document);
+
+    expect(trim($xpath->query('//title')->item(0)->textContent))->toBe('Tu Tarjeta - '.config('app.name'));
+    expect(trim($xpath->query('//main//h1')->item(0)->textContent))->toBe('Tarjeta Jaqaku');
+    expect(trim($xpath->query('//nav[@aria-label="Navegación principal"]//a[@href="'.route('business.pass').'"]')->item(0)->textContent))->toBe('Tu Tarjeta');
+    expect($business->fresh()->pass_background_color)->toBeNull();
+});
+
+it('uses personal navigation to the owner card without changing destinations', function () {
+    $business = Business::factory()->create();
+    $this->actingAs($business->user);
+
+    $this->get(route('dashboard'))
+        ->assertOk()
+        ->assertSeeText('Ir a tu tarjeta')
+        ->assertSee(route('business.pass'), false);
+
+    $this->get(route('business.pass.appearance'))
+        ->assertOk()
+        ->assertSeeText('Volver a tu tarjeta')
+        ->assertSee(route('business.pass'), false);
+
+    $this->get(route('business.promotions.create'))
+        ->assertOk()
+        ->assertSeeText('Volver a tu tarjeta')
+        ->assertSee(route('business.pass'), false);
+
+    expect($business->fresh()->pass_background_color)->toBeNull();
+});
+
+it('addresses card configuration to the owner while preserving the customer example', function (bool $saved) {
+    $business = Business::factory()->create([
+        'name' => 'Jaqaku',
+        'pass_background_color' => $saved ? '#A77BFF' : null,
+    ]);
+
+    $response = $this->actingAs($business->user)
+        ->get(route('business.pass'))
+        ->assertOk()
+        ->assertSeeText('Tarjeta Jaqaku')
+        ->assertSeeText('Recibe una recompensa al completar tu meta.')
+        ->assertSeeText('Ahora tu visita vale 3 puntos.');
+
+    if ($saved) {
+        $response->assertSeeText('Tu tarjeta acompaña a tus clientes')
+            ->assertSeeText('Tus clientes conservan tu tarjeta. Cuando una promoción termina, la siguiente se presenta en esa misma tarjeta.')
+            ->assertSeeText('La primera razón para que tus clientes vuelvan')
+            ->assertDontSeeText('Tu primera razón para volver');
+    } else {
+        $response->assertSeeText('Primero prepara tu tarjeta para crear promociones.')
+            ->assertDontSeeText('La primera razón para que tus clientes vuelvan');
+    }
+
+    expect($business->fresh()->pass_background_color)->toBe($saved ? '#A77BFF' : null);
+})->with(['unsaved appearance' => false, 'saved appearance' => true]);
+
 it('shows an unsaved pass appearance without persisting its preview fallback', function () {
     $business = Business::factory()->create();
 
@@ -41,7 +106,7 @@ it('keeps a freshly registered business in the unsaved pass state', function () 
     $this->actingAs($user)
         ->get(route('business.pass'))
         ->assertOk()
-        ->assertSee('Pase sin preparar')
+        ->assertSee('Tarjeta sin preparar')
         ->assertDontSee(__('business.pass.saved_status'));
 });
 
@@ -52,7 +117,7 @@ it('keeps the pass overview focused on appearance status and promotions', functi
         ->get(route('business.pass'))
         ->assertOk()
         ->assertSee(__('business.pass.prepare'))
-        ->assertSee('Primero prepara el pase para crear promociones.')
+        ->assertSee('Primero prepara tu tarjeta para crear promociones.')
         ->assertDontSee('pass-background-color')
         ->assertDontSee('pass-background-hex');
 });

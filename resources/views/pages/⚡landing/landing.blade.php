@@ -99,7 +99,7 @@
                     {{ __('landing.hero.heading') }}
                 </flux:heading>
                 <flux:text size="lg" class="app-role-body max-w-[680px] text-[#C4C4C4]!">
-                    {{ __('landing.hero.description') }}
+                    <x-landing-domain-copy :text="__('landing.hero.description')" />
                 </flux:text>
                 <flux:button variant="primary" href="{{ route('register') }}" class="landing-button app-role-action! app-primary-colors app-focus landing-button-primary min-h-app-control h-auto min-w-0 max-w-full wrap-anywhere whitespace-normal rounded-full transition-transform duration-300 hover:-translate-y-[3px] active:scale-[.98]">
                     {{ __('landing.actions.create_account') }}
@@ -138,7 +138,7 @@
                     {{ __('landing.benefits.proposition_heading') }}
                 </flux:heading>
                 <flux:text size="lg" class="mt-4 text-[#C4C4C4]!">
-                    {{ __('landing.benefits.problem') }}
+                    <x-landing-domain-copy :text="__('landing.benefits.problem')" />
                 </flux:text>
             </div>
 
@@ -149,7 +149,7 @@
                         {{ __('landing.benefits.challenge_heading') }}
                     </flux:heading>
                     <flux:text size="lg" class="mt-3 text-app-ink-priority!">
-                        {{ __('landing.benefits.challenge_description') }}
+                        <x-landing-domain-copy :text="__('landing.benefits.challenge_description')" />
                     </flux:text>
                 </article>
 
@@ -159,7 +159,7 @@
                         {{ __('landing.benefits.progress_heading') }}
                     </flux:heading>
                     <flux:text size="lg" class="mt-3 text-[#E0E0E0]!">
-                        {{ __('landing.benefits.progress_description') }}
+                        <x-landing-domain-copy :text="__('landing.benefits.progress_description')" />
                     </flux:text>
                 </article>
             </div>
@@ -199,7 +199,7 @@
                 {{ __('landing.steps.heading') }}
             </flux:heading>
             <flux:text size="lg" class="mt-4 max-w-[680px] text-[#C4C4C4]!">
-                {{ __('landing.steps.description') }}
+                <x-landing-domain-copy :text="__('landing.steps.description')" />
             </flux:text>
             <ol class="mt-8 grid gap-6 md:grid-cols-3">
                 @foreach ([
@@ -215,7 +215,7 @@
                             {{ $heading }}
                         </flux:heading>
                         <flux:text size="lg" class="mt-3 text-[#E0E0E0]!">
-                            {{ $detail }}
+                            <x-landing-domain-copy :text="$detail" />
                         </flux:text>
                     </li>
                 @endforeach
@@ -230,13 +230,13 @@
                 {{ __('landing.challenge.heading') }}
             </flux:heading>
             <flux:text size="lg" class="mt-4 max-w-[680px] text-app-ink-priority!">
-                {{ __('landing.challenge.description') }}
+                <x-landing-domain-copy :text="__('landing.challenge.description')" />
             </flux:text>
             <flux:text size="lg" class="mt-4 max-w-[680px] text-app-ink-priority!">
-                {{ __('landing.challenge.detail') }}
+                <x-landing-domain-copy :text="__('landing.challenge.detail')" />
             </flux:text>
             <flux:text class="mt-6 border-t border-app-priority-border pt-5 text-app-ink-priority!">
-                {{ __('landing.challenge.example_note') }}
+                <x-landing-domain-copy :text="__('landing.challenge.example_note')" />
             </flux:text>
         </section>
 
@@ -248,10 +248,10 @@
                 {{ __('landing.wallet.heading') }}
             </flux:heading>
             <flux:text size="lg" class="mt-4 max-w-[680px] text-[#C4C4C4]!">
-                {{ __('landing.wallet.description') }}
+                <x-landing-domain-copy :text="__('landing.wallet.description')" />
             </flux:text>
             <flux:text size="lg" class="mt-4 text-[#E0E0E0]!">
-                {{ __('landing.wallet.closing') }}
+                <x-landing-domain-copy :text="__('landing.wallet.closing')" />
             </flux:text>
         </section>
 
@@ -270,7 +270,7 @@
                             <flux:icon.chevron-down variant="outline" class="size-5 text-app-ink-help transition-transform duration-160 ease-[ease] group-open/faq:[transform:rotate(180deg)] group-open/faq:text-app-accent-text" />
                         </summary>
                         <flux:text size="lg" class="mt-4 border-t border-app-line pt-4 text-[#E0E0E0]!">
-                            {{ $item['answer'] }}
+                            <x-landing-domain-copy :text="$item['answer']" />
                         </flux:text>
                     </details>
                 @endforeach
@@ -283,7 +283,7 @@
                 {{ __('landing.business_cta.heading') }}
             </flux:heading>
             <flux:text size="lg" class="mt-4">
-                {{ __('landing.business_cta.description') }}
+                <x-landing-domain-copy :text="__('landing.business_cta.description')" />
             </flux:text>
             <flux:button variant="primary" href="{{ route('register') }}" class="landing-button app-role-action! app-focus mt-6 min-h-app-control h-auto whitespace-normal rounded-full bg-app-on-accent! text-white! transition-transform duration-300 hover:-translate-y-[3px] hover:bg-[#303030]! active:scale-[.98]">
                 {{ __('landing.actions.create_account') }}

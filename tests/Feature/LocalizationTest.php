@@ -39,15 +39,37 @@ test('landing page translates its title, description and accessible navigation',
     $this->get(route('home'))
         ->assertOk()
         ->assertSee('FidelitoPass - Dale a tus clientes una razón para volver.')
-        ->assertSee('Crea Promociones de puntos y ofrece a tus clientes un Pase para Google Wallet con su progreso y recompensas.')
+        ->assertSee('Crea Promociones de puntos y ofrece a tus clientes tu Tarjeta para Google Wallet con su progreso y recompensas.')
         ->assertSee('aria-label="Secciones de la página"', false)
-        ->assertSee('Pase de ejemplo de CAFÉ CENTRAL')
-        ->assertSee('El Pase')
+        ->assertSee('Tarjeta de ejemplo de CAFÉ CENTRAL')
+        ->assertSee('Tu Tarjeta')
         ->assertSee('Beneficios')
-        ->assertSee('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.')
+        ->assertSeeText('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu Cliente obtiene un consumo de cortesía.')
         ->assertDontSee('landing.hero.sample.business')
         ->assertDontSee('landing.hero.card_aria')
         ->assertDontSee('tarjeta Wallet');
+});
+
+test('landing descriptions emphasize domain concepts without changing surrounding text or other surfaces', function (): void {
+    $copy = 'Tu negocio y tus clientes usan una tarjeta. Promoción, promociones, negocios, cliente, tarjetas, recompensa y recompensas. Negociotarjeta no es un concepto. <em>Texto literal</em>';
+    $translator = app('translator');
+    $translator->get('landing.hero.description', [], 'es');
+    $translator->addLines(['landing.hero.description' => $copy], 'es');
+
+    $response = $this->get(route('home'))->assertOk();
+    $document = new DOMDocument;
+    $document->loadHTML($response->getContent(), LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+    $xpath = new DOMXPath($document);
+    $description = $xpath->query('//section[@id="home"]//p[contains(@class,"app-role-body")]')->item(0);
+    $terms = $xpath->query('.//strong', $description);
+
+    expect(array_map(static fn (DOMNode $node): string => $node->textContent, iterator_to_array($terms)))
+        ->toBe(['Negocio', 'Clientes', 'Tarjeta', 'Promoción', 'Promociones', 'Negocios', 'Cliente', 'Tarjetas', 'Recompensa', 'Recompensas']);
+    expect(trim($description->textContent))->toBe('Tu Negocio y tus Clientes usan una Tarjeta. Promoción, Promociones, Negocios, Cliente, Tarjetas, Recompensa y Recompensas. Negociotarjeta no es un concepto. <em>Texto literal</em>');
+    expect($xpath->query('.//em', $description)->length)->toBe(0);
+    expect($xpath->query('//header//strong | //main//h1//strong | //main//h2//strong | //main//h3//strong | //article[@data-pass]//strong | //*[@data-tagline]//strong')->length)->toBe(0);
+    $response->assertSee('Dale a tus clientes una razón para volver.')
+        ->assertSee('Crea Promociones de puntos y ofrece a tus clientes tu Tarjeta para Google Wallet con su progreso y recompensas.');
 });
 
 test('design preview is unavailable in every environment', function (): void {
@@ -58,11 +80,11 @@ test('project pages resolve grouped translations without leaking keys', function
     expect(__('landing.page_title'))->toBe('FidelitoPass - Dale a tus clientes una razón para volver.');
 
     $blade = file_get_contents(resource_path('views/pages/⚡landing/landing.blade.php'));
-    expect($blade)->not->toMatch('/CAFÉ CENTRAL|RETO ACTUAL|Consigue 15 puntos|9 \/ 15 puntos|Hamburguesa gratis|Código manual|48273|Retos que se renuevan|Progreso en puntos|>\s*El pase\s*</u');
+    expect($blade)->not->toMatch('/CAFÉ CENTRAL|RETO ACTUAL|Consigue 15 puntos|9 \/ 15 puntos|Hamburguesa gratis|Código manual|48273|Retos que se renuevan|Progreso en puntos|>\s*La tarjeta\s*</u');
 
-    expect(__('landing.page_description'))->toStartWith('Crea Promociones de puntos y ofrece a tus clientes un Pase');
+    expect(__('landing.page_description'))->toStartWith('Crea Promociones de puntos y ofrece a tus clientes tu Tarjeta');
     expect(__('landing.navigation.page_sections'))->toBe('Secciones de la página');
-    expect(__('landing.hero.pass_aria'))->toContain('Pase de ejemplo');
+    expect(__('landing.hero.pass_aria'))->toContain('Tarjeta de ejemplo');
     expect(array_intersect(['card_aria', 'card_caption', 'card_progress', 'card_detail', 'card_badge'], array_keys(__('landing.hero'))))->toBe([]);
     expect(__('business.profile_title'))->toBe('Perfil del negocio');
     expect(__('business.dashboard.page_title'))->toBe('Resumen');

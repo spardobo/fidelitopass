@@ -33,12 +33,12 @@ Implementation status (separate from this product design): registration, login, 
 
 - Register and authenticate.
 - Configure Business name, logo/branding basics, and IANA timezone.
-- Use Summary as the ordinary authenticated application home, without requiring it as a first stop after registration or sign-in; its setup action and navigation lead to the same Pase route, without a forced wizard.
+- Use Summary as the ordinary authenticated application home, without requiring it as a first stop after registration or sign-in; its setup action and navigation lead to the same pass route, without a forced wizard.
 - Create multiple editable drafts and future scheduled instances of one points-based Promotion mechanic, each with Business-local start and end dates, target points, one Reward and optional description.
 - Configure a fixed one-point regular Visit and Promotion-owned extra points: any number of nonoverlapping weekly local-weekday x2, x3 or x5 windows (whole-day or timed), never inherited from Business-global settings or another Promotion.
 - Preview deterministic customer Wallet copy before publication and reconfirm if the Business timezone changes after review.
 - Publish non-overlapping effective Promotion windows, freezing goal, Reward title and description, dates, timezone, and entire multiplier schedule even when scheduled; cancel scheduled or active Promotions without erasing their original snapshot or history.
-- View draft, active, scheduled, ended and cancelled Promotions and minimal operational counters on Pase and Summary.
+- View draft, active, scheduled, ended and cancelled Promotions and minimal operational counters on the pass page and Summary.
 - Display/download the permanent acquisition QR.
 - Validate a Customer pass in one scanner-first dialog with manual-code fallback immediately below the scanner, followed by explicit confirmation and result in the same dialog.
 - Redeem an available Reward.

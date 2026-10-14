@@ -2,7 +2,7 @@
 
 return [
     'summary' => 'Resumen',
-    'pass' => 'Pase',
+    'pass' => 'Tu Tarjeta',
     'invite_customers' => 'Invitar clientes',
     'main_navigation' => 'Navegación principal',
 ];

@@ -536,7 +536,7 @@ it('keeps waiting copy and labelled manual digits without inventing progress or 
     expect($object)->not->toHaveKey('loyaltyPoints');
     expect(array_column($object['textModulesData'], 'id'))->toBe(['promotion', 'manual_code']);
     expect($object['textModulesData'][0])->toBe([
-        'body' => 'Tu Pase ya está listo. Aquí aparecerá la próxima promoción del negocio.',
+        'body' => 'Tu tarjeta ya está lista. Aquí aparecerá la próxima promoción del negocio.',
         'header' => '⏳ Espera a la próxima promoción',
         'id' => 'promotion',
     ]);

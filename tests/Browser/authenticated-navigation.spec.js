@@ -44,7 +44,7 @@ const RESPONSIVE_WIDTHS = [320, 768, 900];
 const REMOVED_HEADER_LINKS = ["Search", "Repository", "Documentation"];
 
 const NAVIGATION_DESTINATIONS = [
-    ["Pase", "/pass"],
+    ["Tu Tarjeta", "/pass"],
     ["Invitar clientes", "/invite"],
     ["Registrar visita", "/visits/create"],
 ];
@@ -100,7 +100,9 @@ async function expectBusinessWorkspaceRoles(page) {
 
     await page.goto("/dashboard");
     await expect(
-        page.getByText("Prepara tu pase y tu primera promoción desde Pase.", { exact: true }),
+        page.getByText("Prepara tu tarjeta y tu primera promoción desde Tu Tarjeta.", {
+            exact: true,
+        }),
     ).toHaveCount(0);
 }
 
@@ -541,7 +543,7 @@ for (const width of AUTHENTICATED_WIDTHS) {
         await expect(summary).toHaveCSS("color", COLORS.primaryLight);
 
         const pass = navigation.getByRole("link", {
-            name: "Pase",
+            name: "Tu Tarjeta",
             exact: true,
         });
 

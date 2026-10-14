@@ -46,7 +46,7 @@ for (const locale of ["en-US", "en-GB"]) {
                 await window.Livewire.find(root.getAttribute("wire:id")).$refresh();
             });
             await expectRegionalDates(page.locator("main time[datetime]"));
-            await page.getByRole("link", { name: "Ir a Pase", exact: true }).click();
+            await page.getByRole("link", { name: "Ir a tu tarjeta", exact: true }).click();
             await expect(page).toHaveURL(/\/pass$/);
             await expectRegionalDates(page.locator("main time[datetime]"));
 
@@ -54,7 +54,7 @@ for (const locale of ["en-US", "en-GB"]) {
             const detail = page.locator('dialog[data-modal="promotion-detail"]');
             await expect(detail).toBeVisible();
             await expectRegionalDates(detail.locator("time[datetime]"));
-            await detail.getByRole("button", { name: "Volver al pase", exact: true }).click();
+            await detail.getByRole("button", { name: "Volver a tu tarjeta", exact: true }).click();
 
             await page.goto("/promotions/create");
             const start = page.locator("#local-start-date");

@@ -12,8 +12,8 @@ class ExampleTest extends TestCase
     {
         $this->get(route('home'))
             ->assertOk()
-            ->assertSeeText('Configura tu negocio y crea Promociones que dan a tus clientes una razón para volver.')
-            ->assertSeeText('Comparte tu QR público para que tus clientes guarden el Pase en Google Wallet, sin crear una cuenta.')
+            ->assertSeeText('Configura tu Negocio y crea Promociones que dan a tus Clientes una razón para volver.')
+            ->assertSeeText('Comparte tu QR público para que tus Clientes guarden tu Tarjeta en Google Wallet, sin crear una cuenta.')
             ->assertDontSeeText('El formulario de registro no solicita datos de pago.')
             ->assertDontSeeText('La propuesta:')
             ->assertDontSeeText('comparte su QR público');
@@ -33,10 +33,10 @@ class ExampleTest extends TestCase
             ->assertDontSeeText('Consigue 15 puntos hasta el 30 SEP 2026.')
             ->assertSeeText('9 / 15 puntos')
             ->assertSeeText('Un consumo de cortesía')
-            ->assertSeeText('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.')
-            ->assertSeeText('Crea tu cuenta, configura tu negocio y publica tu Promoción. Comparte el Pase, confirma las visitas y entrega las recompensas.')
+            ->assertSeeText('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu Cliente obtiene un consumo de cortesía.')
+            ->assertSeeText('Crea tu cuenta, configura tu Negocio y publica tu Promoción. Comparte tu Tarjeta, confirma las visitas y entrega las Recompensas.')
             ->assertSeeText('Cada visita habitual suma 1 punto. Ofrece Puntos extra en los días u horarios definidos para tu Promoción.')
-            ->assertSeeText('No necesita una cuenta de FidelitoPass. Tu cliente participa con el Pase de tu negocio en Google Wallet.')
+            ->assertSeeText('No necesita una cuenta de FidelitoPass. Tu Cliente participa con tu Tarjeta en Google Wallet.')
             ->assertDontSeeText('Cuando esté disponible')
             ->assertDontSeeText('más adelante')
             ->assertDontSeeText('aún no está disponible')
@@ -44,6 +44,23 @@ class ExampleTest extends TestCase
             ->assertSee('href="'.route('login').'"', false)
             ->assertDontSeeText('Reto actual')
             ->assertDontSeeText('Retos de puntos');
+    }
+
+    public function test_landing_capitalizes_domain_terms_in_faq_questions(): void
+    {
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSeeText('¿Necesita el Cliente una cuenta?')
+            ->assertSeeText('¿Cuándo se canjea la Recompensa?')
+            ->assertSeeText('¿Cómo empieza mi Negocio?');
+    }
+
+    public function test_landing_uses_sentence_case_for_the_wallet_eyebrow(): void
+    {
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSeeText('Tu tarjeta para volver')
+            ->assertDontSeeText('Tu Tarjeta para volver');
     }
 
     public function test_an_anonymous_visitor_can_follow_the_localized_product_story(): void
@@ -56,16 +73,16 @@ class ExampleTest extends TestCase
             ->assertSee('class="dark"', false)
             ->assertSee('Dale a tus clientes una razón para volver.')
             ->assertSee('Diseña la Promoción')
-            ->assertSee('Comparte el Pase')
+            ->assertSee('Comparte tu Tarjeta')
             ->assertSee('Reconoce cada visita')
             ->assertSee('9 / 15 puntos')
-            ->assertSee('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.')
+            ->assertSeeText('Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu Cliente obtiene un consumo de cortesía.')
             ->assertSee('Código manual')
             ->assertSee('Un motivo para volver')
             ->assertSee('Progreso a la vista')
             ->assertSee('QR de ejemplo')
             ->assertDontSee('landing.hero.sample.progress')
-            ->assertSee('La Promoción cambia. El Pase se queda.')
+            ->assertSee('La Promoción cambia. Tu Tarjeta se queda.')
             ->assertSee('Una meta con fecha. Una visita que suma.')
             ->assertDontSee('tarjeta Wallet')
             ->assertDontSee('landing.hero.card_aria')
@@ -80,7 +97,7 @@ class ExampleTest extends TestCase
             ->assertSee('Inicia sesión')
             ->assertDontSee('aria-label="Modo oscuro"', false)
             ->assertSee('name="description"', false)
-            ->assertSee('Crea Promociones de puntos y ofrece a tus clientes un Pase para Google Wallet con su progreso y recompensas.')
+            ->assertSee('Crea Promociones de puntos y ofrece a tus clientes tu Tarjeta para Google Wallet con su progreso y recompensas.')
             ->assertSee('FidelitoPass - Dale a tus clientes una razón para volver.')
             ->assertDontSee('landing.css')
             ->assertDontSee('landing.js')

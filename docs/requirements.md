@@ -82,7 +82,7 @@ As a Business owner, I want a protected account so that only I can configure my 
 
 - **Given** a new owner registering.
 - **When** registration supplies Owner authentication fields, a Business name, and a visible, manually editable, server-validated IANA timezone confirmed by explicit submission. Fresh registration may prefill a supported browser-configured timezone as a suggestion, not a verified Business location; unavailable or unsupported detection leaves manual selection. Selectable and server-accepted identifiers are the intersection of native PHP defaults and ICU-recognized system zones; missing ICU support fails closed.
-- **Then** Owner and Business are created atomically with the confirmed IANA identity, never a guessed location or stored numeric offset. After authentication and email verification, normal web destination handling applies rather than a required first stop or forced redirect to Summary. Summary is the ordinary authenticated application home; when Promotion preparation is incomplete, its CTA points to the same Pase route as navigation, without a forced wizard. Profile and logout remain accessible. A scheduled Promotion completes preparation but does not permit Visits before its start.
+- **Then** Owner and Business are created atomically with the confirmed IANA identity, never a guessed location or stored numeric offset. After authentication and email verification, normal web destination handling applies rather than a required first stop or forced redirect to Summary. Summary is the ordinary authenticated application home; when Promotion preparation is incomplete, its CTA points to the same pass route as navigation, without a forced wizard. Profile and logout remain accessible. A scheduled Promotion completes preparation but does not permit Visits before its start.
 
 **Verification:** Laravel authentication and route-boundary feature tests.
 
@@ -164,7 +164,7 @@ This requirement governs illustrative cards only. It does not change issued Wall
 
 **Scenario: Share a truthful illustrative structure**
 
-- **Given** the landing, Business join, Business Pase overview or appearance editor.
+- **Given** the landing, Business join, Business pass overview or appearance editor.
 - **When** its example card renders.
 - **Then** use one semantic layout ordered as Business, divider, literal **PROMOCIÓN**, Reward title, optional Reward description, generated earning terms, obtained/required points, optional illustrative current Visit value, divider and a Spanish day/month/year validity label.
 - **And** retain the same brand mark. Landing and join show mock QR and sample manual code identified as nonoperational examples when their card container is at least `448px` wide; below that width hide both regions and their divider. Owner overview and appearance editor always omit both. Responsive hiding of mocks is not a security boundary.
@@ -186,7 +186,7 @@ As a Business owner, I want to create a simple points target so that customers a
 
 **Scenario: Create a Promotion**
 
-- **Given** the Pase page and a full-page Promotion editor with **Información general** and **Puntos extra** sections.
+- **Given** the pass page and a full-page Promotion editor with **Información general** and **Puntos extra** sections.
 - **When** the owner provides start and end dates, target points, Reward title and description, and optional owned multiplier windows.
 - **Then** FidelitoPass previews points as progress and saves the complete editable draft atomically; multiple drafts and future scheduled Promotions of this one mechanic may coexist.
 

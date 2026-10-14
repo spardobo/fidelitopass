@@ -5,7 +5,7 @@ const EXPECTED_NAVIGATION = [
     ["#benefits", "Beneficios"],
     ["#how-it-works", "Cómo funciona"],
     ["#challenges", "Promociones"],
-    ["#pass", "El Pase"],
+    ["#pass", "Tu Tarjeta"],
     ["#questions", "Preguntas frecuentes"],
     ["#business", "Empezar"],
 ];
@@ -58,6 +58,73 @@ async function removeCssVariables(page, names) {
         }
     }, names);
 }
+
+test("descriptive paragraphs emphasize the five domain concepts without changing other roles", async ({
+    page,
+}, testInfo) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/");
+        await waitForFonts(page);
+
+        await expect(
+            page.locator("#pass").getByText("Tu tarjeta para volver", { exact: true }),
+        ).toBeVisible();
+        for (const question of [
+            "¿Necesita el Cliente una cuenta?",
+            "¿Cuándo se canjea la Recompensa?",
+            "¿Cómo empieza mi Negocio?",
+        ]) {
+            await expect(
+                page.locator("#questions summary").filter({ hasText: question }),
+            ).toBeVisible();
+        }
+
+        const terms = page.locator("main p strong");
+        expect(await terms.count()).toBeGreaterThan(0);
+        const labels = await terms.allTextContents();
+        for (const label of labels) {
+            expect(label).toMatch(
+                /^(Negocios?|Clientes?|Promoci(?:ón|ones)|Tarjetas?|Recompensas?)$/,
+            );
+        }
+        for (const concept of ["Negocio", "Cliente", "Promoción", "Tarjeta", "Recompensa"]) {
+            expect(labels).toContain(concept);
+        }
+
+        for (const term of await terms.all()) {
+            const style = await term.evaluate((element) => {
+                const own = getComputedStyle(element);
+                const paragraph = getComputedStyle(element.closest("p"));
+                return {
+                    weight: own.fontWeight,
+                    size: own.fontSize,
+                    paragraphSize: paragraph.fontSize,
+                    color: own.color,
+                    paragraphColor: paragraph.color,
+                };
+            });
+            expect(style.weight).toBe("700");
+            expect(style.size).toBe(style.paragraphSize);
+            expect(style.color).toBe(style.paragraphColor);
+        }
+
+        await expect(
+            page.locator(
+                "header strong, h1 strong, h2 strong, h3 strong, [data-pass] strong, [data-tagline] strong",
+            ),
+        ).toHaveCount(0);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(
+            false,
+        );
+        await page.screenshot({
+            path: testInfo.outputPath(`domain-emphasis-${width}.png`),
+            fullPage: true,
+        });
+    }
+});
 
 test("sample pass responds with a stronger bounded mouse tilt and returns to rest", async ({
     page,
@@ -1903,7 +1970,7 @@ test("public landing reflows the readable sample and keeps every section reachab
         await expect(page.getByRole("main")).toHaveCount(1);
         await expect(page.getByRole("contentinfo")).toHaveCount(1);
         const pass = page.locator("[data-pass]");
-        await expect(pass).toHaveAttribute("aria-label", /Pase de ejemplo/);
+        await expect(pass).toHaveAttribute("aria-label", /Tarjeta de ejemplo/);
         await expect(page).toHaveTitle(
             "FidelitoPass - Dale a tus clientes una razón para volver. - FidelitoPass",
         );
@@ -1915,7 +1982,7 @@ test("public landing reflows the readable sample and keeps every section reachab
             "Un consumo de cortesía",
             "Disfruta de un consumo de cortesía",
             "9 / 15 puntos",
-            "Hoy tus puntos valen x2",
+            "Ahora tu visita vale 2 puntos.",
             "Válido hasta el 30 de septiembre",
         ];
         const cardText = await pass.innerText();
@@ -1926,7 +1993,7 @@ test("public landing reflows the readable sample and keeps every section reachab
             previous = position;
         }
         await expect(pass).toContainText("9 / 15 puntos");
-        await expect(pass).toContainText("Hoy tus puntos valen x2");
+        await expect(pass).toContainText("Ahora tu visita vale 2 puntos.");
         await expect(pass).toContainText("Un consumo de cortesía");
         await expect(pass).not.toContainText("Hamburguesa gratis");
         await expect(pass.locator(".app-pass-preview-header")).toBeVisible();
@@ -1945,7 +2012,7 @@ test("public landing reflows the readable sample and keeps every section reachab
         await expect(pass).toContainText("48273");
         await expect(
             page.getByText(
-                "Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu cliente obtiene un consumo de cortesía.",
+                "Ejemplo: 1 punto por visita, 2 los martes. Al llegar a 15 puntos antes del plazo, tu Cliente obtiene un consumo de cortesía.",
             ),
         ).toBeVisible();
         await expect(page.locator('header nav a[href="#pass"]').first()).toHaveAttribute(

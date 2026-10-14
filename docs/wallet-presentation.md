@@ -135,7 +135,7 @@ CAFÉ CENTRAL
 
 ⏳ Espera a la próxima promoción
 
-Tu Pase ya está listo.
+Tu tarjeta ya está lista.
 Aquí aparecerá la próxima promoción del negocio.
 
 [barcode]
@@ -202,7 +202,7 @@ CAFÉ CENTRAL
 
 Gracias por volver.
 
-Tu Pase seguirá listo
+Tu tarjeta seguirá lista
 para la próxima promoción.
 
 [barcode]
@@ -218,7 +218,7 @@ CAFÉ CENTRAL
 
 Esta promoción ya terminó.
 
-Tu Pase seguirá listo
+Tu tarjeta seguirá lista
 para la próxima promoción.
 
 [barcode]
@@ -235,7 +235,7 @@ CAFÉ CENTRAL
 El plazo de esta promoción terminó
 y la recompensa ya no está disponible.
 
-Tu Pase seguirá listo
+Tu tarjeta seguirá lista
 para la próxima promoción.
 
 [barcode]
@@ -251,7 +251,7 @@ PROMOCIÓN CANCELADA
 
 Esta promoción ya no está activa.
 
-Tu Pase seguirá listo
+Tu tarjeta seguirá lista
 para la próxima promoción.
 
 [barcode]

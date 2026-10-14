@@ -265,10 +265,10 @@ for (const width of [320, 1280]) {
                     0.1,
                 );
                 await expect(main).toContainText(
-                    "No sirven para validar visitas. No es un pase emitido.",
+                    "No sirven para validar visitas. No es una tarjeta emitida.",
                 );
                 await expect(main).not.toContainText(
-                    /9 \/ 15|Tu Pase ya está listo|Promoción actual|Próxima promoción|Todavía no está activa/,
+                    /9 \/ 15|Tu tarjeta ya está lista|Promoción actual|Próxima promoción|Todavía no está activa/,
                 );
                 await expect(card).not.toContainText(/Capuchino|desayuno artesanal|09:00|×3/);
                 await expect(card).not.toContainText(/Consigue \d+ puntos hasta/);
@@ -398,7 +398,7 @@ test("public information remains readable without JavaScript", async ({ browser 
             page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }),
         ).toBeDisabled();
         await expect(
-            page.getByText("Activa JavaScript para solicitar tu pase.", { exact: false }),
+            page.getByText("Activa JavaScript para solicitar tu tarjeta.", { exact: false }),
         ).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
             true,
@@ -702,7 +702,7 @@ test("explicit saving guards duplicates and reopens only the confirmed private h
     expect(requests).toBe(1);
     const feedback = await page.evaluate(() => window.walletFeedback);
     expect(feedback).toHaveLength(1);
-    expect(feedback[0].slots.text).toBe("Tu pase fue creado.");
+    expect(feedback[0].slots.text).toBe("Tu tarjeta fue creada.");
     expect(feedback[0].dataset).not.toHaveProperty("position");
     expect(JSON.stringify(feedback)).not.toContain(saveUrl);
     expect(JSON.stringify(feedback)).not.toContain("00007");
@@ -734,7 +734,7 @@ for (const [outcome, retryAllowed] of [
         const save = page.getByRole("button", { name: "Unirme y añadir a Google Wallet" });
         await page.evaluate(() =>
             window.Flux.toast({
-                text: "Tu pase fue creado.",
+                text: "Tu tarjeta fue creada.",
                 variant: "success",
             }),
         );
@@ -749,7 +749,7 @@ for (const [outcome, retryAllowed] of [
         await expect(error).toBeVisible();
         await expect(page.locator('[data-flux-toast-dialog][data-variant="danger"]')).toBeVisible();
         const toast = page.locator('[data-flux-toast-dialog][data-variant="danger"]');
-        await expect(toast).toContainText("Hubo un problema al generar tu pase.");
+        await expect(toast).toContainText("Hubo un problema al generar tu tarjeta.");
         await expect(page.locator("ui-toast")).toHaveAttribute("position", "bottom end");
         await expect(toast).not.toContainText(await error.textContent());
         if (retryAllowed) {
@@ -759,7 +759,7 @@ for (const [outcome, retryAllowed] of [
             await expect.poll(() => requests).toBe(2);
         } else {
             await expect(error).toContainText(
-                "No pudimos confirmar si tu pase se creó. Para evitar duplicados, no lo solicites de nuevo. Contacta con el negocio.",
+                "No pudimos confirmar si tu tarjeta se creó. Para evitar duplicados, no la solicites de nuevo. Contacta con el negocio.",
             );
             await expect(save).toBeDisabled();
             await page.locator("[data-customer-pass-acquisition]").dispatchEvent("submit");
@@ -788,7 +788,7 @@ test("unconfigured join stays public without an issuance action", async ({ page 
     await page.goto(`/join/${publicId}`);
     await expect(page.getByRole("article")).toContainText("Un beneficio especial");
     await expect(page.getByRole("main")).toContainText(
-        "Este negocio todavía no ha preparado su pase. Consulta al negocio para saber cuándo estará disponible.",
+        "Este negocio todavía no ha preparado su tarjeta. Consulta al negocio para saber cuándo estará disponible.",
     );
     await expect(page.getByRole("button", { name: "Unirme y añadir a Google Wallet" })).toHaveCount(
         0,
@@ -819,7 +819,7 @@ test("appearance reset after page load explains the prerequisite without a retry
     const form = page.locator("[data-customer-pass-acquisition]");
     await page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }).click();
     await expect(form.getByRole("alert").filter({ visible: true })).toContainText(
-        "Este negocio todavía no ha preparado su pase.",
+        "Este negocio todavía no ha preparado su tarjeta.",
     );
     await expect(
         page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }),

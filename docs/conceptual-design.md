@@ -85,7 +85,7 @@ The Business stores:
 - One validated, visible IANA timezone used as the default for new Promotions.
 - The permanent acquisition QR identity.
 
-Registration saves the Business name and its visible, validated IANA timezone atomically with the owner. Summary is the ordinary authenticated application home, not a required first stop after sign-in; its Pase setup action opens the same Pase route as navigation, not a separate wizard. The acquisition QR remains public and permanent, never a validation credential.
+Registration saves the Business name and its visible, validated IANA timezone atomically with the owner. Summary is the ordinary authenticated application home, not a required first stop after sign-in; its pass setup action opens the same pass route as navigation, not a separate wizard. The acquisition QR remains public and permanent, never a validation credential.
 
 Changing the Business timezone affects only future Promotion publication. Drafts display the current Business timezone; if it changes after the owner reviewed a draft, publication asks the owner to reconfirm before freezing the new timezone. Each published Promotion stores its own timezone snapshot so historical behaviour never changes when Business settings change later.
 
@@ -192,7 +192,7 @@ MVP has one Reward per Promotion.
 
 ### Create and publish a Promotion
 
-1. The Business owner navigates to Pase after authentication, either through normal navigation or Summary's setup action; both use the same Pase route.
+1. The Business owner navigates to the pass page after authentication, either through normal navigation or Summary's setup action; both use the same pass route.
 2. The owner defines Promotion dates, target points, one Reward with optional description, and optional **multiplier windows** (weekdays, times and values).
 3. The owner reviews this Promotion's configuration in the current Business timezone; a timezone change since review requires reconfirmation before publication.
 4. FidelitoPass shows a deterministic Wallet preview.
