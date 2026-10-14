@@ -202,6 +202,8 @@ If a local gate becomes consistently too slow, move the expensive check later ra
 
 Structured logging is part of quality because it supports diagnosis.
 
+PHPUnit forces the application logging destination to the `null` channel. Expected application events do not write to the test console. Keep all severity levels, native log events, shared context and listener failures observable to assertions. Logging-format and destination-failure tests explicitly select the real channels they verify. This test-only destination does not change production logging or suppress test-runner failures.
+
 Verify:
 
 - Request IDs come only from actual request middleware. In-scope records inherit UUID7 logging context without explicit callsite fields or response headers; standalone records and reports after middleware cleanup do not recover or generate one.
