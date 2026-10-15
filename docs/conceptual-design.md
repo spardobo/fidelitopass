@@ -221,7 +221,7 @@ MVP has one Reward per Promotion.
 7. Inside one transaction, FidelitoPass acquires the relevant Customer pass and Promotion locks, then captures one post-lock PostgreSQL operation instant; it reuses that instant to check validity, resolve the Business-local point value, and record the Visit instant and awarded points.
 8. FidelitoPass sums awarded points for the active Promotion and derives the new progress.
 9. FidelitoPass creates the Reward entitlement if the target points have been reached.
-10. Wallet synchronization is requested after local state commits.
+10. FidelitoPass confirms the resulting Wallet content before committing local state. Provider failure rolls back the tentative operation; a lost response or failed local commit can leave Wallet ahead of PostgreSQL.
 
 ### Redeem a reward
 
@@ -231,7 +231,7 @@ MVP has one Reward per Promotion.
 4. The primary action becomes **Redeem reward**.
 5. The Business confirms.
 6. After acquiring the relevant entitlement and Promotion locks, FidelitoPass captures one post-lock PostgreSQL operation instant, uses it for the redemption deadline check, and records it as the final redemption timestamp with the operator.
-7. Wallet is synchronized after commit.
+7. FidelitoPass confirms the resulting Wallet content before committing the redemption. Failure rolls back the tentative local operation, without a cross-system rollback guarantee.
 
 ### Finish a Promotion
 

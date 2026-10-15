@@ -102,7 +102,7 @@ Core rules:
 - One Redemption.
 - Promotion expiry/cancellation, including effective occupancy after cancellation and exclusive-end rejection.
 - Cross-Business authorization.
-- Wallet provider failure after commit.
+- Wallet provider confirmation before commit, rollback on failure and explicit unknown remote outcomes.
 
 This list defines the CORE tier of the risk-based 100/80/0 guidance. Each identified rule requires direct automated evidence.
 
@@ -117,7 +117,7 @@ Use Laravel feature tests for:
 - Pass lookup.
 - Rate limiting.
 - Structured log context when custom logic exists.
-- Wallet job dispatch after commit.
+- Synchronous Wallet updates, total provider deadline, no retries, same-Object identity and sanitized failures.
 
 Use database constraints directly in tests when the invariant should survive application bypass.
 

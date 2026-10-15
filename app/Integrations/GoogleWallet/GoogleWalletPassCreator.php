@@ -13,20 +13,15 @@ use App\Support\WalletPresentationBuilder;
 use Carbon\Exceptions\InvalidFormatException;
 use Carbon\Exceptions\InvalidTimeZoneException;
 use Firebase\JWT\JWT;
-use Google\Client as GoogleClient;
 use Google\Model as GoogleModel;
 use Google\Service\Exception as GoogleServiceException;
 use Google\Service\Walletobjects;
 use Google\Service\Walletobjects\LoyaltyClass;
 use Google\Service\Walletobjects\LoyaltyObject;
 use GuzzleHttp\Client as HttpClient;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Middleware;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use PDOException;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Log\NullLogger;
 use SensitiveParameter;
 use Throwable;
 
@@ -88,7 +83,7 @@ class GoogleWalletPassCreator
         $object = $this->buildObject($business, $credentials, $classId, $objectId);
 
         // authenticate, reconcile the business class, and confirm exactly one object
-        $wallet = $this->authenticate($settings);
+        $wallet = (new GoogleWalletClient($this->http))->authenticate($settings);
         $this->createOrUpdateClass($wallet, $class);
         $confirmedByReadback = $this->createAndConfirmObject($wallet, $object);
 
@@ -130,65 +125,6 @@ class GoogleWalletPassCreator
         }
 
         return 'https://pay.google.com/gp/v/save/'.$jwt;
-    }
-
-    /**
-     * Authenticates before object insertion and disables automatic retries and redirects.
-     *
-     * @param  WalletConfiguration  $settings  Selected service-account fields and request limits.
-     * @return Walletobjects Native SDK resources with an operation-local access token.
-     *
-     * @throws CustomerPassCreationException If OAuth cannot complete safely.
-     */
-    private function authenticate(#[SensitiveParameter] array $settings): Walletobjects
-    {
-        // bound transport and reject redirects that the SDK would otherwise decode as models
-        $handler = ($this->http ?? new HttpClient)->getConfig('handler');
-        $stack = $handler instanceof HandlerStack ? clone $handler : HandlerStack::create($handler);
-        $stack->push(Middleware::mapResponse(static function (ResponseInterface $response): ResponseInterface {
-            $status = $response->getStatusCode();
-
-            if ($status < 200 || ($status >= 300 && $status < 400)) {
-                throw new GoogleServiceException('Unexpected provider response.', $status);
-            }
-
-            return $response;
-        }));
-        $http = new HttpClient([
-            'handler' => $stack,
-            'connect_timeout' => $settings['connect_timeout'],
-            'timeout' => $settings['timeout'],
-            'allow_redirects' => false,
-            'http_errors' => true,
-            'verify' => true,
-            'headers' => ['Accept' => 'application/json'],
-        ]);
-
-        // keep credentials and payloads out of SDK logs, and pin the public Google API
-        $client = new GoogleClient(['retry' => ['retries' => 0], 'universe_domain' => 'googleapis.com']);
-        $client->setLogger(new NullLogger);
-        $client->setHttpClient($http);
-        $client->setAuthConfig($settings['account']);
-        $client->addScope(Walletobjects::WALLET_OBJECT_ISSUER);
-
-        // distinguish OAuth failure from an object write that might already have succeeded
-        try {
-            $accessTokenResponse = $client->fetchAccessTokenWithAssertion($http);
-        } catch (Throwable $exception) {
-            throw CustomerPassCreationException::fromProvider($exception, GoogleWalletStage::OAuth, 'POST');
-        }
-
-        if (! is_string($accessTokenResponse['access_token'] ?? null) || $accessTokenResponse['access_token'] === '') {
-            throw CustomerPassCreationException::providerRejected(
-                GoogleWalletStage::OAuth,
-                'malformed_response',
-                ['http_method' => 'POST'],
-            );
-        }
-
-        $client->useApplicationDefaultCredentials(false);
-
-        return new Walletobjects($client);
     }
 
     /**

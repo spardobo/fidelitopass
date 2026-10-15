@@ -18,7 +18,7 @@ Rule-relevant model dates remain immutable under [Application date handling](dat
 
 Each consequential operation has one complete authoritative transaction boundary. The [architecture transaction contracts](../architecture/overview.md#visit-validation-transaction) define locking, operation time, idempotency and finality for Visit validation and Redemption.
 
-Network/provider calls never execute inside that transaction. Existing-pass Wallet synchronization occurs after the authoritative commit. If Google Wallet synchronization fails, domain state remains committed. Initial issuance instead uses the architecture's [initial issuance boundary](../architecture/overview.md#initial-issuance-boundary): confirmed Google creation precedes the local transaction; no cross-system rollback guarantee exists.
+Existing-pass Wallet updates execute inside that transaction under the synchronous MVP exception: provider confirmation gates commit, and failure escapes to roll back tentative writes. Do not retry a transaction that may already have written remotely. Authentication and all provider requests share ten seconds total with no automatic retries. A lost response or failed local commit can leave remote content ahead of PostgreSQL; no distributed rollback is guaranteed. Initial issuance instead uses the architecture's [initial issuance boundary](../architecture/overview.md#initial-issuance-boundary): confirmed Google creation precedes the local transaction; no cross-system rollback guarantee exists.
 
 ## Authorization
 
@@ -40,7 +40,7 @@ Require the deterministic Class identity and provider approval before individual
 
 Initial issuance distinguishes confirmed provider success, definitive failure and unknown outcome. Do not publish success after an unknown provider or commit result, infer rollback, or blindly repeat creation. Reuse the current operation identifier where available; do not add a durable attempt table or persistent browser identity. A confirmed local rollback may leave the accepted provider orphan, with no cleanup/recovery guarantee. A model event that cancels the local save is a failed issuance, not a confirmed commit. The private HTTP handoff selects only the Save-to-Wallet URL and manual code; internal operation metadata must not enter the response.
 
-It does not own Promotion eligibility, Visit acceptance, Reward completion or Redemption authorization. PostgreSQL remains domain truth. Synchronization reloads current authoritative state, tolerates duplicate execution and preserves committed outcomes under the architecture's [background-work contract](../architecture/overview.md#background-work).
+It does not own Promotion eligibility, Visit acceptance, Reward completion or Redemption authorization. PostgreSQL remains domain truth. Synchronization reads the caller's tentative state and sends an absolute replacement of owned text modules to the same Object. Verify identity and credentials before writing, then confirm the returned content; one same-Object read may complete an incomplete write response. Preserve existing committed outcomes under the architecture's [synchronization boundary](../architecture/overview.md#existing-pass-synchronization-boundary). Provider-confirmed logs do not claim local commit or device display.
 
 ## Structured logging
 
