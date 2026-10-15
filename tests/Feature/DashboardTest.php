@@ -87,6 +87,8 @@ class DashboardTest extends TestCase
 
     public function test_saved_appearance_and_draft_do_not_complete_publication(): void
     {
+        app()->setLocale('es');
+
         $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
         $business->promotions()->create([
             'local_start_date' => '2098-01-01',
@@ -101,7 +103,7 @@ class DashboardTest extends TestCase
             ->assertDontSee('1. Prepara tu tarjeta')
             ->assertDontSee('2. Crea tu primera promoción')
             ->assertDontSee('Borrador privado')
-            ->assertDontSee('01/01/2098 – 01/31/2098');
+            ->assertDontSee('1/1/2098 – 31/1/2098');
     }
 
     public function test_saved_appearance_without_a_draft_keeps_promotion_preparation_pending(): void
@@ -319,6 +321,8 @@ class DashboardTest extends TestCase
 
     public function test_scheduled_promotion_completes_preparation_but_waits_for_activity(): void
     {
+        app()->setLocale('es');
+
         $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
         $this->promotion($business, 'published', '2098-10-01 04:00:00+00', '2098-11-01 04:00:00+00');
 
@@ -329,7 +333,7 @@ class DashboardTest extends TestCase
             ->assertSee('Un café de cortesía')
             ->assertSee('datetime="2098-10-01"', false)
             ->assertSee('datetime="2098-10-31"', false)
-            ->assertSee('10/01/2098')->assertSee('10/31/2098')
+            ->assertSee('1/10/2098')->assertSee('31/10/2098')
             ->assertSee('Aún no admite visitas ni canjes')
             ->assertSee('Recompensas desbloqueadas');
     }
@@ -391,6 +395,8 @@ class DashboardTest extends TestCase
 
     public function test_scheduled_summary_groups_frozen_metadata_without_inventing_saved_appearance(): void
     {
+        app()->setLocale('es');
+
         $business = Business::factory()->create(['timezone' => 'Asia/Tokyo']);
         $this->promotion($business, 'published', '2098-10-01 04:00:00+00', '2098-11-01 04:00:00+00');
 
@@ -401,11 +407,11 @@ class DashboardTest extends TestCase
             ->assertSeeTextInOrder(['Promoción', 'Programada', 'Un café de cortesía', 'Meta', 'Vigencia', 'Actividad de esta promoción', 'Puntos de esta promoción', 'Próxima promoción'])
             ->assertSee('No hay una próxima promoción programada.')
             ->assertSeeText('Comienza el')
-            ->assertSee('10/01/2098')->assertSeeText('Aún no admite visitas ni canjes.');
+            ->assertSee('1/10/2098')->assertSeeText('Aún no admite visitas ni canjes.');
         $document = new \DOMDocument;
         $document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
         $xpath = new \DOMXPath($document);
-        $this->assertSame(['8 puntos', '10/01/2098 – 10/31/2098'], array_map(
+        $this->assertSame(['8 puntos', '1/10/2098 – 31/10/2098'], array_map(
             fn (\DOMNode $node): string => trim($node->textContent),
             iterator_to_array($xpath->query('//section[@aria-labelledby="promotion-title"]//dd')),
         ));
@@ -479,6 +485,8 @@ class DashboardTest extends TestCase
 
     public function test_active_promotion_displays_frozen_terms_and_extra_points_before_preparation(): void
     {
+        app()->setLocale('es');
+
         $business = Business::factory()->create(['timezone' => 'Asia/Tokyo', 'pass_background_color' => '#A77BFF']);
         $promotion = $this->promotion($business, 'published', '2020-01-01 04:00:00+00', '2098-01-01 04:00:00+00');
         $promotion->update(['reward_description' => 'Preparado al momento con café de especialidad.']);
@@ -487,7 +495,7 @@ class DashboardTest extends TestCase
 
         $response = $this->actingAs($business->user)->get(route('dashboard'));
 
-        $response->assertSeeTextInOrder(['Promoción', 'Un café de cortesía', 'Meta', '8 puntos', '01/01/2020 – 12/31/2097', 'Actividad de esta promoción', 'Puntos de esta promoción', 'Visita habitual', '1 punto', 'Puntos extra', 'Martes · 14:00–17:00', '×3'])
+        $response->assertSeeTextInOrder(['Promoción', 'Un café de cortesía', 'Meta', '8 puntos', '1/1/2020 – 31/12/2097', 'Actividad de esta promoción', 'Puntos de esta promoción', 'Visita habitual', '1 punto', 'Puntos extra', 'Martes · 14:00–17:00', '×3'])
             ->assertDontSee('Preparación del negocio')
             ->assertSee('Viernes · Todo el día')
             ->assertSee('×5')
@@ -502,7 +510,7 @@ class DashboardTest extends TestCase
             fn (\DOMNode $node): string => trim($node->textContent),
             iterator_to_array($xpath->query('//section[@aria-labelledby="promotion-title"]//dt')),
         ));
-        $this->assertSame(['8 puntos', '01/01/2020 – 12/31/2097'], array_map(
+        $this->assertSame(['8 puntos', '1/1/2020 – 31/12/2097'], array_map(
             fn (\DOMNode $node): string => trim($node->textContent),
             iterator_to_array($xpath->query('//section[@aria-labelledby="promotion-title"]//dd')),
         ));
@@ -644,6 +652,8 @@ class DashboardTest extends TestCase
 
     public function test_active_statistics_present_persisted_facts_before_upcoming_and_preparation(): void
     {
+        app()->setLocale('es');
+
         $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
         $promotion = $this->promotion($business, 'published', '2020-01-01 04:00:00+00', '2098-01-01 04:00:00+00');
         $pass = CustomerPass::factory()->for($business)->create();
@@ -681,7 +691,7 @@ class DashboardTest extends TestCase
         $document = new \DOMDocument;
         $document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
         $xpath = new \DOMXPath($document);
-        $this->assertSame(['12 puntos', '02/01/2098 – 02/28/2098'], array_map(
+        $this->assertSame(['12 puntos', '1/2/2098 – 28/2/2098'], array_map(
             fn (\DOMNode $node): string => trim($node->textContent),
             iterator_to_array($xpath->query('//section[@aria-labelledby="next-promotion-title"]//dd')),
         ));
