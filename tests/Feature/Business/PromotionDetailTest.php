@@ -46,8 +46,8 @@ it('opens frozen owned terms with the current database phase', function (string 
         ->assertSee('12 puntos')
         ->assertSee('datetime="2018-11-03"', false)
         ->assertSee('datetime="2018-11-04"', false)
-        ->assertSee('11/03/2018')
-        ->assertSee('11/04/2018')
+        ->assertSee('3/11/2018')
+        ->assertSee('4/11/2018')
         ->assertSee(__('business.promotion.review_no_extra_points'))
         ->assertDontSee('Confirmar publicación');
 
@@ -145,7 +145,7 @@ it('keeps historical rows concise while preserving full original terms in detail
 
     expect($row)->not->toBeNull();
     expect($row->textContent)->toContain(
-        'Premio original', '11/03/2018 – 11/04/2018', __('business.pass.view_promotion_detail'),
+        'Premio original', '3/11/2018 – 4/11/2018', __('business.pass.view_promotion_detail'),
         $status === PromotionStatus::Cancelled ? __('business.pass.promotion_cancelled_status') : __('business.pass.promotion_ended_status'),
     )->not->toContain('Condiciones originales', '12 puntos');
 
@@ -238,7 +238,7 @@ it('rejects unrecognized Summary detail origins and locks focus identity against
 
 it('centers shared summary fact icons and labels on their main value rows', function () {
     $response = $this->blade(
-        '<x-promotion-summary reward-title="Saved reward" target-points="12" start-date="2018-11-03" end-date="2018-11-04" :extra-points="$rules" />',
+        '<x-promotion-summary reward-title="Saved reward" target-points="12" start-date="2018-11-03" end-date="2018-11-04" start-date-label="3/11/2018" end-date-label="4/11/2018" :extra-points="$rules" />',
         ['rules' => [['weekday' => 1, 'start_time' => null, 'end_time' => null, 'multiplier' => 2]]],
     );
     $document = new DOMDocument;
@@ -247,7 +247,7 @@ it('centers shared summary fact icons and labels on their main value rows', func
 
     expect($xpath->query('//dl/div[contains(@class,"items-center")]')->length)->toBe(2);
     expect($xpath->query('//dl/div/span[@aria-hidden="true" and contains(@class,"col-start-1") and contains(@class,"row-start-1") and not(contains(@class,"row-span-2"))]')->length)->toBe(2);
-    expect(trim($xpath->query('//dl/div[2]/dd[1]')->item(0)->textContent))->toBe('11/03/2018 – 11/04/2018');
+    expect(trim($xpath->query('//dl/div[2]/dd[1]')->item(0)->textContent))->toBe('3/11/2018 – 4/11/2018');
     expect(trim($xpath->query('//dl/div[2]/dd[2]')->item(0)?->textContent ?? ''))->toBe(__('business.promotion.inclusive_end_date'));
     expect($xpath->query('//details[@data-promotion-review-extra-rules]/summary[contains(@class,"items-center")]/span[@aria-hidden="true" and contains(@class,"row-start-1") and not(contains(@class,"row-span-2"))]')->length)->toBe(1);
 });

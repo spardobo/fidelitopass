@@ -7,6 +7,7 @@ use App\Models\Business;
 use App\Models\Promotion;
 use App\Support\DatabaseClock;
 use App\Support\PromotionDraftValidator;
+use App\Support\RegionalDate;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -438,7 +439,9 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     /**
      * Prepares local dates, the current timezone, UTC boundaries, and scheduled state for review.
      *
-     * @return array{start_date: string, end_date: string, timezone: string, starts_at: string, ends_at: string, is_scheduled: bool} Read-only publication summary for the current submission.
+     * @return array{start_date: string, end_date: string, start_date_label: string, end_date_label: string, timezone: string, starts_at: string, ends_at: string, is_scheduled: bool} Read-only publication summary for the current submission.
+     *
+     * @throws IntlException When ICU cannot format a date.
      */
     #[Computed]
     public function publicationReview(): array
@@ -449,6 +452,8 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
         return [
             'start_date' => $this->localStartDate,
             'end_date' => $this->localEndDate,
+            'start_date_label' => RegionalDate::format($this->localDateBoundary($this->localStartDate, $timezone)),
+            'end_date_label' => RegionalDate::format($this->localDateBoundary($this->localEndDate, $timezone)),
             'timezone' => $timezone,
             'starts_at' => $bounds['starts_at'],
             'ends_at' => $bounds['ends_at'],

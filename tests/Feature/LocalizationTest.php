@@ -6,10 +6,12 @@ use App\Models\Business;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Support\DatabaseClock;
+use App\Support\RegionalDate;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -25,6 +27,28 @@ test('Spanish is the initial interface locale', function (): void {
         ->assertSeeText('Contraseña')
         ->assertDontSeeText('Log in to your account');
 });
+
+test('calendar-date labels follow the application region before JavaScript runs', function (string $locale, array $expected): void {
+    app()->setLocale($locale);
+
+    $html = Blade::render(
+        '<x-promotion-summary reward-title="Test" target-points="1" start-date="2026-05-03" end-date="2026-10-16" :start-date-label="$startLabel" :end-date-label="$endLabel" />',
+        [
+            'startLabel' => RegionalDate::format(new DateTimeImmutable('2026-05-03', new DateTimeZone('UTC'))),
+            'endLabel' => RegionalDate::format(new DateTimeImmutable('2026-10-16', new DateTimeZone('UTC'))),
+        ],
+    );
+    $document = new DOMDocument;
+    $document->loadHTML($html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+    $dates = iterator_to_array($document->getElementsByTagName('time'));
+
+    expect(array_map(static fn (DOMElement $date): string => $date->textContent, $dates))->toBe($expected);
+    expect(array_map(static fn (DOMElement $date): string => $date->getAttribute('datetime'), $dates))
+        ->toBe(['2026-05-03', '2026-10-16']);
+})->with([
+    'Spain' => ['es_ES', ['3/5/2026', '16/10/2026']],
+    'English' => ['en', ['5/3/2026', '10/16/2026']],
+]);
 
 test('guest pages render Spanish copy', function (string $path, string $label): void {
     $this->get($path)->assertSeeText($label);

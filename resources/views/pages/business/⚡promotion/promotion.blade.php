@@ -2,7 +2,9 @@
     class="app-theme app-workspace app-promotion-page"
     data-test="promotion-editor"
     wire:ignore.self
+    x-on:picker-display="dateLabels[$event.detail.model] = $event.detail.value"
     x-data="{
+        dateLabels: { localStartDate: '', localEndDate: '' },
         initialState: @js([
             'rewardTitle' => $rewardTitle,
             'rewardDescription' => $rewardDescription,
@@ -148,35 +150,21 @@
                         </div>
 
                         <div class="grid min-w-0 items-start gap-4 sm:grid-cols-2">
-                            <flux:field>
-                                <flux:label for="local-start-date" class="app-label!">
-                                    <span aria-hidden="true" class="text-app-danger-ink me-1">*</span> {{ __('business.promotion.start_date') }}
-                                </flux:label>
-                                <flux:input
-                                    id="local-start-date"
-                                    wire:model="localStartDate"
-                                    type="date"
-                                    required
-                                    min="{{ $minimumStartDate }}"
-                                    input:class="app-input!"
-                                />
-                                <flux:error name="localStartDate" class="app-error" />
-                            </flux:field>
+                            <x-date-time-picker
+                                id="local-start-date" wire:model="localStartDate" type="date" required :min="$minimumStartDate"
+                                :label="__('business.promotion.start_date')"
+                                input:class="app-input!"
+                            />
 
-                            <flux:field>
-                                <flux:label for="local-end-date" class="app-label!">
-                                    <span aria-hidden="true" class="text-app-danger-ink me-1">*</span> {{ __('business.promotion.end_date') }}
-                                </flux:label>
-                                <flux:input
-                                    id="local-end-date"
-                                    wire:model="localEndDate"
-                                    type="date"
-                                    required
-                                    min="{{ $minimumStartDate }}"
-                                    input:class="app-input!"
-                                />
-                                <flux:error name="localEndDate" class="app-error" />
-                            </flux:field>
+                            <x-date-time-picker
+
+                                id="local-end-date" wire:model="localEndDate" type="date" required :min="$minimumStartDate"
+
+                                :label="__('business.promotion.end_date')"
+
+                                input:class="app-input!"
+
+                            />
                         </div>
 
                         <div class="app-note-with-icon text-app-ink-help">
@@ -208,7 +196,7 @@
                         <div class="grid min-w-0 items-start gap-4 sm:grid-cols-2">
                             <flux:field>
                                 <flux:label for="extra-weekday" class="app-label!">{{ __('business.promotion.rule_weekday') }}</flux:label>
-                                <flux:select id="extra-weekday" wire:model.live="draftWeekday" class="app-input!">
+                                <flux:select id="extra-weekday" wire:model="draftWeekday" class="app-input!">
                                     <option value="">{{ __('business.promotion.choose_weekday') }}</option>
                                     @foreach ([1, 2, 3, 4, 5, 6, 7] as $weekday)
                                         <option value="{{ $weekday }}">{{ __('business.promotion.weekdays.'.$weekday) }}</option>
@@ -219,7 +207,7 @@
 
                             <flux:field>
                                 <flux:label for="extra-multiplier" class="app-label!">{{ __('business.promotion.rule_multiplier') }}</flux:label>
-                                <flux:select id="extra-multiplier" wire:model.live="draftMultiplier" class="app-input!">
+                                <flux:select id="extra-multiplier" wire:model="draftMultiplier" class="app-input!">
                                     @foreach ([2, 3, 5] as $multiplier)
                                         <option value="{{ $multiplier }}">{{ __('business.promotion.multiplier_option', ['multiplier' => $multiplier, 'points' => $multiplier]) }}</option>
                                     @endforeach
@@ -254,16 +242,16 @@
 
                         @if ($draftMode === 'timed')
                             <div class="grid min-w-0 items-start gap-4 sm:grid-cols-2">
-                                <flux:field>
-                                    <flux:label for="extra-start-time" class="app-label!">{{ __('business.promotion.start_time') }}</flux:label>
-                                    <flux:input id="extra-start-time" wire:model.live.debounce.300ms="draftStartTime" type="time" input:class="app-input!" />
-                                    <flux:error name="draftStartTime" class="app-error" />
-                                </flux:field>
-                                <flux:field>
-                                    <flux:label for="extra-end-time" class="app-label!">{{ __('business.promotion.end_time') }}</flux:label>
-                                    <flux:input id="extra-end-time" wire:model.live.debounce.300ms="draftEndTime" type="time" input:class="app-input!" />
-                                    <flux:error name="draftEndTime" class="app-error" />
-                                </flux:field>
+                                <x-date-time-picker
+                                    id="extra-start-time" wire:model="draftStartTime" type="time"
+                                    :label="__('business.promotion.start_time')"
+                                    input:class="app-input!"
+                                />
+                                <x-date-time-picker
+                                    id="extra-end-time" wire:model="draftEndTime" type="time"
+                                    :label="__('business.promotion.end_time')"
+                                    input:class="app-input!"
+                                />
                             </div>
                         @endif
 
@@ -373,6 +361,7 @@
                 x-data="{
                     notDefined: @js(__('business.promotion.not_defined')),
                     datesNotDefined: @js(__('business.promotion.dates_not_defined')),
+                    pointsLabel: @js(__('business.promotion.points', ['points' => ':points'])),
                 }"
             >
                 <section class="space-y-5 rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6">
@@ -401,7 +390,7 @@
                             <dd
                                 class="app-role-action! text-end text-app-ink"
                                 data-test="summary-target"
-                                x-text="$wire.targetPoints !== '' ? `${$wire.targetPoints} puntos` : @js(__('business.promotion.not_defined'))"
+                                x-text="$wire.targetPoints !== '' ? pointsLabel.replace(':points', $wire.targetPoints) : notDefined"
                             >
                                 {{ $targetPoints !== '' ? __('business.promotion.points', ['points' => $targetPoints]) : __('business.promotion.not_defined') }}
                             </dd>
@@ -421,7 +410,7 @@
                             <dd
                                 class="app-role-action! max-w-40 text-end text-app-ink"
                                 data-test="summary-validity"
-                                x-text="$regionalDates.range($wire.localStartDate, $wire.localEndDate) || datesNotDefined"
+                                x-text="dateLabels.localStartDate && dateLabels.localEndDate ? `${dateLabels.localStartDate} – ${dateLabels.localEndDate}` : datesNotDefined"
                             >
                                 {{-- Unvalidated editor input must not be parsed for the server fallback. --}}
                                 @if ($localStartDate !== '' && $localEndDate !== '')
@@ -489,6 +478,8 @@
                         :target-points="$targetPoints"
                         :start-date="$this->publicationReview['start_date']"
                         :end-date="$this->publicationReview['end_date']"
+                        :start-date-label="$this->publicationReview['start_date_label']"
+                        :end-date-label="$this->publicationReview['end_date_label']"
                         :extra-points="$extraPoints"
                         data-test="promotion-review-summary"
                     />

@@ -14,14 +14,14 @@
         "test:documentation-validator": "node --test scripts/quality/documentation/validate-documentation.test.mjs",
         "test:e2e": "playwright test",
         "test:e2e:list": "playwright test --list",
-        "prepare": "husky",
-        "test:regional-dates": "node --test tests/JavaScript/regional-dates.test.mjs"
+        "prepare": "husky"
     },
     "dependencies": {
         "@fontsource-variable/onest": "^5.3.1",
         "@laravel/passkeys": "^0.4.0",
         "@tailwindcss/vite": "^4.1.11",
         "concurrently": "^10.0.3",
+        "flatpickr": "4.6.13",
         "laravel-vite-plugin": "^3.1",
         "tailwindcss": "^4.0.7",
         "vite": "^8.3.0",
