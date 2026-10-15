@@ -63,7 +63,7 @@ Keep dependent bindings together when separating them would obscure or alter the
 
 ### Translation catalog ownership
 
-Each project-owned screen or component with copy owns a PHP translation catalog, whether shared or local. Layouts with copy also own a catalog. Use owner-prefixed group keys such as `app-navigation.summary` from `lang/es/app-navigation.php`; keep visible and accessibility copy together. Reuse domain-owned terms from their existing catalog instead of duplicating them for each consumer. Do not create empty catalogs for textless components or catalogs for individual Flux/vendor controls.
+Each project-owned screen or component with copy owns a PHP translation catalog, whether shared or local. Layouts with copy also own a catalog. Use owner-prefixed group keys such as `app-navigation.summary` from `../../../lang/es`; keep visible and accessibility copy together. Reuse domain-owned terms from their existing catalog instead of duplicating them for each consumer. Do not create empty catalogs for textless components or catalogs for individual Flux/vendor controls.
 
 Reserve `lang/es.json` for inherited or generic starter strings as a project convention, not a Laravel restriction. Do not add JSON entries that match PHP group keys: Laravel checks exact JSON keys before group lookup. Migrate existing copy only within the authorized scope; audit other consumers before removing a JSON entry and retain generic entries still used by starter screens.
 

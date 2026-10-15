@@ -19,6 +19,7 @@ Select affected language owners through [project intent routing](../../AGENTS.md
 - Expose inputs, decisions, data flow and side effects as a top-to-bottom narrative. Make actual resource setup, ownership and cleanup order visible.
 - Use one blank line between logical paragraphs, keeping steps of one idea together. Keep methods and handlers cohesive; split by responsibility, not line counts. Prefer early returns when they clarify branches. Avoid dense expressions, callback tangles, generic wrappers and arbitrary helper fragmentation.
 - Assess the human reading path independently of tests and formatting. Require every abstraction, heading and extraction to reduce reading effort; passing behavior tests does not certify readability.
+- Make responsibilities, inputs, decisions, outputs, side effects and failure paths understandable through names, structure and declaration contracts.
 
 ## Types and value organization
 
@@ -55,6 +56,7 @@ Verify installed APIs and suitability for required semantics rather than assumin
 Use names, types and structure first. Apply these rules to new code and refactors; do not add comments merely to satisfy a template.
 
 - In PHP and JavaScript, use a brief lowercase English `//` comment without a final period where it clarifies a meaningful phase, required order or non-obvious rationale. Use the target language's native comment syntax elsewhere. Preserve actual acronym and identifier capitalization. Describe purpose rather than narrating each call.
+- Keep each internal explanatory comment to one physical line; do not spread one explanation across consecutive inline comments. Put longer context in the owning declaration's documentation, using PHPDoc/JSDoc where applicable.
 - Separate logical blocks with one blank line. Do not use decorative separator boxes, per-method headings, artificial groups or constructor/lifecycle/test-setup banners. In Blade, use the language's comment syntax only where a useful semantic region needs a label.
 
 ## Callable documentation
