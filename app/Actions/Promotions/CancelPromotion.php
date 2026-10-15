@@ -70,7 +70,7 @@ class CancelPromotion
             }
 
             $ownedPromotion->status = PromotionStatus::Cancelled;
-            $ownedPromotion->cancelled_at = $operation['instant'];
+            $ownedPromotion->setAttribute('cancelled_at', $operation['instant']);
             $ownedPromotion->updated_at = $operation['instant'];
             $ownedPromotion->save();
 

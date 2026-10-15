@@ -12,9 +12,8 @@ use Illuminate\Support\Str;
 
 /**
  * @property PromotionStatus $status
- * @property-read CarbonImmutable|null $cancelled_at
- * @property-write \DateTimeInterface|string|null $cancelled_at
- */
+ * @property CarbonImmutable|null $cancelled_at
+ **/
 #[Fillable(['local_start_date', 'local_end_date', 'target_points', 'reward_title', 'reward_description'])]
 class Promotion extends Model
 {
