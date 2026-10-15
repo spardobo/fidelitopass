@@ -1,7 +1,6 @@
 <?php
 
 use App\Data\Time\DatabaseTime;
-use App\Data\Wallet\WalletTextModule;
 use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
 use App\Models\Business;
 use App\Models\CustomerPass;
@@ -22,8 +21,41 @@ describe('initial issuance', function () {
             ->shouldReceive('create')
             ->never();
         $this->business = Business::factory()->create(['timezone' => 'America/La_Paz']);
+        $this->pass = $this->business->customerPasses()->make(['manual_code' => '00123']);
         $this->mock(DatabaseClock::class)->shouldReceive('capture')->once()
             ->with('America/La_Paz')->andReturn(new DatabaseTime('2030-01-02 12:00:00+00', '2030-01-02'));
+    });
+
+    it('localizes the manual-code detail without persisting the prepared pass', function () {
+        app()->setLocale('en');
+        app('translator')->addLines([
+            'wallet.labels.manual_code' => 'Manual code',
+        ], 'en');
+
+        $before = lifecycleFacts();
+        $attributes = $this->pass->getAttributes();
+
+        $modules = app(WalletPresentationBuilder::class)
+            ->build($this->business, $this->pass);
+
+        expect(end($modules))
+            ->toBe([
+                'id' => 'details_code',
+                'header' => 'Manual code',
+                'body' => '00123',
+            ]);
+
+        expect($this->pass->exists)
+            ->toBeFalse();
+
+        expect($this->pass->getAttributes())
+            ->toBe($attributes);
+
+        expect(app()->getLocale())
+            ->toBe('en');
+
+        expect(lifecycleFacts())
+            ->toBe($before);
     });
 
     // business overview before a pass exists
@@ -43,15 +75,17 @@ describe('initial issuance', function () {
             ['id' => 'card_secondary', 'header' => 'LO PRÓXIMO PARA TI', 'body' => $upcoming ?? "Aún no hay una promoción programada.\nCuando haya novedades, las verás aquí."],
         ];
 
-        $content = app(WalletPresentationBuilder::class)->build($this->business);
-        $sections = array_map(static fn (WalletTextModule $section): array => [
-            'id' => $section->id,
-            'header' => $section->header,
-            'body' => $section->body,
-        ], array_values(array_filter($content->sections, static fn (WalletTextModule $section): bool => str_starts_with($section->id, 'card_'))));
+        $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
+        $sections = array_values(array_filter($content, static fn (array $section): bool => str_starts_with($section['id'], 'card_')));
 
-        expect($content->progress)->toBeNull();
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBeNull();
         expect($sections)->toBe($expected);
+        expect(end($content))->toBe([
+            'id' => 'details_code',
+            'header' => 'CÓDIGO MANUAL',
+            'body' => '00123',
+        ]);
+        expect($this->pass->exists)->toBeFalse();
         expect(json_encode($sections, JSON_UNESCAPED_UNICODE))->not->toContain('Foreign reward', 'Todavía ninguna');
         expect(lifecycleFacts())->toBe($before);
         expect(DB::table('customer_passes')->count())->toBe(0);
@@ -78,19 +112,19 @@ describe('initial issuance', function () {
         ]);
         $before = lifecycleFacts();
 
-        $content = app(WalletPresentationBuilder::class)->build($this->business);
-        $sections = collect($content->sections)->keyBy('id');
+        $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
+        $sections = collect($content)->keyBy('id');
 
-        expect($content->progress)->toBe('0 / 8 puntos');
-        expect($sections->keys()->all())->toBe(['card_primary', 'details_primary', 'details_primary_date', 'details_context']);
-        expect($sections['details_primary']->header)->toBe('TU PRÓXIMA RECOMPENSA');
-        expect($sections['details_primary']->body)->toBe('Un pan artesanal');
-        expect($sections['details_primary_date']->body)->toBe('Tienes hasta el 4 ene 2030.');
-        expect($sections['details_context']->header)->toBe('');
-        expect($sections['details_context']->body)->toBe($expectedPoints > 1
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBe('0 / 8 puntos');
+        expect($sections->keys()->all())->toBe(['card_primary', 'details_primary', 'details_primary_date', 'details_context', 'barcode_top', 'details_code']);
+        expect($sections['details_primary']['header'])->toBe('TU PRÓXIMA RECOMPENSA');
+        expect($sections['details_primary']['body'])->toBe('Un pan artesanal');
+        expect($sections['details_primary_date']['body'])->toBe('Tienes hasta el 4 ene 2030.');
+        expect($sections['details_context']['header'])->toBe('');
+        expect($sections['details_context']['body'])->toBe($expectedPoints > 1
             ? "⚡ Ahora tu visita vale {$expectedPoints} puntos."
             : 'Tu visita ahora vale 1 punto.');
-        expect($sections['card_primary']->body)->toBe(
+        expect($sections['card_primary']['body'])->toBe(
             "Un pan artesanal\nTienes hasta el 4 ene 2030.\n\n".($expectedPoints > 1
                 ? "⚡ Ahora tu visita vale {$expectedPoints} puntos."
                 : 'Tu visita ahora vale 1 punto.'),
@@ -108,22 +142,22 @@ describe('initial issuance', function () {
     it('separates the optional real Reward description without inventing absent content', function (?string $description) {
         lifecyclePromotion($this->business, ['reward_description' => $description]);
 
-        $content = app(WalletPresentationBuilder::class)->build($this->business);
-        $reward = collect($content->sections)->firstWhere('id', 'details_primary');
+        $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
+        $reward = collect($content)->firstWhere('id', 'details_primary');
 
-        expect($reward->header)->toBe('TU PRÓXIMA RECOMPENSA');
-        expect($reward->body)->toBe('Un pan artesanal');
-        $descriptionSection = collect($content->sections)->firstWhere('id', 'details_primary_description');
+        expect($reward['header'])->toBe('TU PRÓXIMA RECOMPENSA');
+        expect($reward['body'])->toBe('Un pan artesanal');
+        $descriptionSection = collect($content)->firstWhere('id', 'details_primary_description');
         if ($description === null || $description === '') {
             expect($descriptionSection)->toBeNull();
         } else {
-            expect($descriptionSection->header)->toBe('QUÉ INCLUYE');
-            expect($descriptionSection->body)->toBe($description);
+            expect($descriptionSection['header'])->toBe('QUÉ INCLUYE');
+            expect($descriptionSection['body'])->toBe($description);
         }
-        expect($content->progress)->toBe('0 / 8 puntos');
-        $compact = collect($content->sections)->firstWhere('id', 'card_primary');
-        expect($compact->header)->toBe('TU PRÓXIMA RECOMPENSA');
-        expect($compact->body)->toBe("Un pan artesanal\nTienes hasta el 4 ene 2030.\n\nTu visita ahora vale 1 punto.");
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBe('0 / 8 puntos');
+        $compact = collect($content)->firstWhere('id', 'card_primary');
+        expect($compact['header'])->toBe('TU PRÓXIMA RECOMPENSA');
+        expect($compact['body'])->toBe("Un pan artesanal\nTienes hasta el 4 ene 2030.\n\nTu visita ahora vale 1 punto.");
     })->with([
         'real description' => ['Pan integral de masa madre.'],
         'absent description' => [null],
@@ -168,7 +202,7 @@ describe('existing pass', function () {
         };
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = collect($content->sections)->keyBy('id');
+        $sections = collect($content)->keyBy('id');
 
         expect($sections->keys()->all())->toBe([
             'card_primary',
@@ -176,20 +210,22 @@ describe('existing pass', function () {
             'details_primary_date',
             'details_context',
             ...($state === 'redeemed' ? ['details_history'] : []),
+            ...($state === 'progress' ? ['barcode_top'] : []),
+            'details_code',
         ]);
-        expect($content->progress)->toBe($state === 'progress' ? '3 / 8 puntos' : null);
-        expect($sections['details_primary']->header)->toBe($heading);
-        expect($sections['details_primary']->body)->toBe('Un pan artesanal');
-        expect($sections['details_primary_date']->header)->toBe($state === 'redeemed' ? 'FECHA DEL CANJE' : 'FECHA LÍMITE');
-        expect($sections['details_primary_date']->body)->toBe($date);
-        expect($sections['card_primary']->header)->toBe($heading);
-        expect($sections['card_primary']->body)->toBe("Un pan artesanal\n{$date}\n\n{$context}");
-        expect($sections['details_context']->header)->toBe('');
-        expect($sections['details_context']->body)->toBe($context);
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBe($state === 'progress' ? '3 / 8 puntos' : null);
+        expect($sections['details_primary']['header'])->toBe($heading);
+        expect($sections['details_primary']['body'])->toBe('Un pan artesanal');
+        expect($sections['details_primary_date']['header'])->toBe($state === 'redeemed' ? 'FECHA DEL CANJE' : 'FECHA LÍMITE');
+        expect($sections['details_primary_date']['body'])->toBe($date);
+        expect($sections['card_primary']['header'])->toBe($heading);
+        expect($sections['card_primary']['body'])->toBe("Un pan artesanal\n{$date}\n\n{$context}");
+        expect($sections['details_context']['header'])->toBe('');
+        expect($sections['details_context']['body'])->toBe($context);
 
         if ($state === 'redeemed') {
-            expect($sections['details_history']->header)->toBe('TU ÚLTIMO CANJE');
-            expect($sections['details_history']->body)->toBe("Un pan artesanal\nCanjeada el 2 ene 2030");
+            expect($sections['details_history']['header'])->toBe('TU ÚLTIMO CANJE');
+            expect($sections['details_history']['body'])->toBe("Un pan artesanal\nCanjeada el 2 ene 2030");
         }
 
         expect(lifecycleFacts())->toBe($before);
@@ -212,7 +248,7 @@ describe('existing pass', function () {
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
 
-        expect($content->progress)->toBeNull();
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBeNull();
         expect(DB::table('visits')->sum('awarded_points'))->toBe(10);
         expect(json_encode($content, JSON_UNESCAPED_UNICODE))->not->toContain('Past announcement', 'Future announcement');
         expect(lifecycleFacts())->toBe($before);
@@ -234,11 +270,11 @@ describe('existing pass', function () {
         ]);
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = collect($content->sections)->keyBy('id');
+        $sections = collect($content)->keyBy('id');
 
-        expect($content->progress)->toBe('0 / 8 puntos')
-            ->and($sections['details_primary']->body)->toBe('New reward')
-            ->and($sections['details_history']->body)->toBe("Previous reward\nCanjeada el 1 ene 2030")
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBe('0 / 8 puntos')
+            ->and($sections['details_primary']['body'])->toBe('New reward')
+            ->and($sections['details_history']['body'])->toBe("Previous reward\nCanjeada el 1 ene 2030")
             ->and(DB::table('promotion_participations')->where('promotion_id', $active->id)->count())->toBe(0);
     });
 
@@ -261,8 +297,8 @@ describe('existing pass', function () {
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
 
-        expect($content->sections[0]->body)->toBe("More recent business reward\nSe canceló el 2 ene 2030");
-        expect(collect($content->sections)->firstWhere('id', 'details_history')->body)
+        expect($content[0]['body'])->toBe("More recent business reward\nSe canceló el 2 ene 2030");
+        expect(collect($content)->firstWhere('id', 'details_history')['body'])
             ->toBe("My redeemed reward\nCanjeada el 1 ene 2030");
         expect(lifecycleFacts())->toBe($before);
     });
@@ -294,13 +330,9 @@ describe('existing pass', function () {
         ];
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = array_map(static fn (WalletTextModule $section): array => [
-            'id' => $section->id,
-            'header' => $section->header,
-            'body' => $section->body,
-        ], array_values(array_filter($content->sections, static fn (WalletTextModule $section): bool => str_starts_with($section->id, 'card_'))));
+        $sections = array_values(array_filter($content, static fn (array $section): bool => str_starts_with($section['id'], 'card_')));
 
-        expect($content->progress)->toBeNull();
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBeNull();
         expect($sections)->toBe($expected);
         expect(lifecycleFacts())->toBe($before);
     })->with([
@@ -321,8 +353,8 @@ describe('existing pass', function () {
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
 
-        expect($content->progress)->toBeNull();
-        expect($content->sections[0]->body)->toBe($expectedDate === null
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBeNull();
+        expect($content[0]['body'])->toBe($expectedDate === null
             ? "¡Qué bueno tenerte por aquí!\nAún no hay promociones anteriores."
             : "Un pan artesanal\n".$expectedDate);
         expect(lifecycleFacts())->toBe($before);
@@ -372,8 +404,8 @@ describe('existing pass', function () {
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
 
-        expect($content->sections[0]->body)->toBe("Latest effective end\nTerminó el 1 ene 2030");
-        expect($content->sections[1]->body)->toBe("Nearest announced\nEmpieza el 4 ene 2030");
+        expect($content[0]['body'])->toBe("Latest effective end\nTerminó el 1 ene 2030");
+        expect($content[1]['body'])->toBe("Nearest announced\nEmpieza el 4 ene 2030");
         expect(DB::table('promotion_participations')->count())->toBe(0);
     });
 
@@ -387,14 +419,14 @@ describe('existing pass', function () {
         ]);
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = collect($content->sections)->keyBy('id');
+        $sections = collect($content)->keyBy('id');
 
-        expect($content->progress)->toBe($progress);
-        expect($content->sections[0]->header)->toBe($primary);
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBe($progress);
+        expect($content[0]['header'])->toBe($primary);
         expect($sections->has('card_secondary'))->toBe($secondary !== '');
 
         if ($secondary !== '') {
-            expect($sections['card_secondary']->body)->toBe($secondary);
+            expect($sections['card_secondary']['body'])->toBe($secondary);
         }
     })->with([
         'before start' => ['2030-01-02 03:59:59.999999+00', null, 'NUESTRA ÚLTIMA PROMOCIÓN', "Un pan artesanal\nEmpieza el 2 ene 2030"],
@@ -411,9 +443,9 @@ describe('existing pass', function () {
         ]);
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = collect($content->sections)->keyBy('id');
+        $sections = collect($content)->keyBy('id');
 
-        expect($sections['card_primary']->body)->toContain($active ? 'Tienes hasta el 10 mar 2030.' : 'Terminó el 10 mar 2030');
+        expect($sections['card_primary']['body'])->toContain($active ? 'Tienes hasta el 10 mar 2030.' : 'Terminó el 10 mar 2030');
     })->with(['active' => true, 'ended' => false]);
 
     // active locale, translation fallback and regional formatting
@@ -430,10 +462,10 @@ describe('existing pass', function () {
         ], 'en');
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = collect($content->sections)->keyBy('id');
+        $sections = collect($content)->keyBy('id');
 
-        expect($sections['card_primary']->header)->toBe($active ? 'Active catalog title' : 'Previous catalog title');
-        expect($sections['card_primary']->body)->toContain('wallet.active.title');
+        expect($sections['card_primary']['header'])->toBe($active ? 'Active catalog title' : 'Previous catalog title');
+        expect($sections['card_primary']['body'])->toContain('wallet.active.title');
         expect($sections->has('details_history'))->toBeFalse();
         expect(app()->getLocale())->toBe('en');
     })->with(['active' => true, 'inactive' => false]);
@@ -453,23 +485,23 @@ describe('existing pass', function () {
         };
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = collect($content->sections)->keyBy('id');
+        $sections = collect($content)->keyBy('id');
 
-        expect($content->progress)->toBe($state === 'progress' ? '3 / 8 puntos' : null);
-        expect($sections['details_primary']->header)->toBe($heading);
-        expect($sections['details_primary']->body)->toBe('Un pan artesanal');
-        expect($sections['details_primary_description']->header)->toBe('QUÉ INCLUYE');
-        expect($sections['details_primary_description']->body)->toBe('Contenido del negocio sin traducir.');
-        expect($sections['details_primary_date']->header)->toBe($state === 'redeemed' ? 'FECHA DEL CANJE' : 'FECHA LÍMITE');
-        expect($sections['details_primary_date']->body)->toBe($date);
-        expect($sections['card_primary']->header)->toBe($heading);
-        expect($sections['card_primary']->body)->toBe("Un pan artesanal\n{$date}\n\n{$context}");
-        expect($sections['details_context']->header)->toBe('');
-        expect($sections['details_context']->body)->toBe($context);
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBe($state === 'progress' ? '3 / 8 puntos' : null);
+        expect($sections['details_primary']['header'])->toBe($heading);
+        expect($sections['details_primary']['body'])->toBe('Un pan artesanal');
+        expect($sections['details_primary_description']['header'])->toBe('QUÉ INCLUYE');
+        expect($sections['details_primary_description']['body'])->toBe('Contenido del negocio sin traducir.');
+        expect($sections['details_primary_date']['header'])->toBe($state === 'redeemed' ? 'FECHA DEL CANJE' : 'FECHA LÍMITE');
+        expect($sections['details_primary_date']['body'])->toBe($date);
+        expect($sections['card_primary']['header'])->toBe($heading);
+        expect($sections['card_primary']['body'])->toBe("Un pan artesanal\n{$date}\n\n{$context}");
+        expect($sections['details_context']['header'])->toBe('');
+        expect($sections['details_context']['body'])->toBe($context);
         expect($sections->has('details_history'))->toBe($state === 'redeemed');
 
         if ($state === 'redeemed') {
-            expect($sections['details_history']->body)->toBe("Un pan artesanal\nCanjeada el Jan 2, 2030");
+            expect($sections['details_history']['body'])->toBe("Un pan artesanal\nCanjeada el Jan 2, 2030");
         }
 
         expect($sections->has('details_context'))->toBeTrue();
@@ -495,13 +527,13 @@ describe('existing pass', function () {
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
 
-        expect($content->progress)->toBeNull();
-        expect(collect($content->sections)->keyBy('id')->only(['card_primary', 'card_secondary', 'details_history'])->pluck('header')->all())->toBe([
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBeNull();
+        expect(collect($content)->keyBy('id')->only(['card_primary', 'card_secondary', 'details_history'])->pluck('header')->all())->toBe([
             'NUESTRA ÚLTIMA PROMOCIÓN',
             'LO PRÓXIMO PARA TI',
             'TU ÚLTIMO CANJE',
         ]);
-        expect(collect($content->sections)->keyBy('id')->only(['card_primary', 'card_secondary', 'details_history'])->pluck('body')->all())->toBe([
+        expect(collect($content)->keyBy('id')->only(['card_primary', 'card_secondary', 'details_history'])->pluck('body')->all())->toBe([
             "Recompensa anterior\n".($cancelled ? 'Se canceló el Jan 1, 2030' : 'Terminó el Jan 1, 2030'),
             "Próxima recompensa\nEmpieza el Jan 3, 2030",
             "Recompensa anterior\nCanjeada el Jan 1, 2030",
@@ -517,11 +549,11 @@ describe('existing pass', function () {
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
 
-        expect($content->progress)->toBeNull();
-        expect($content->sections)->toHaveCount(2);
-        expect($content->sections[0]->id)->toBe('card_primary');
-        expect($content->sections[0]->header)->toBe('NUESTRA ÚLTIMA PROMOCIÓN');
-        expect($content->sections[0]->body)->toBe("¡Qué bueno tenerte por aquí!\nAún no hay promociones anteriores.");
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBeNull();
+        expect($content)->toHaveCount(3);
+        expect($content[0]['id'])->toBe('card_primary');
+        expect($content[0]['header'])->toBe('NUESTRA ÚLTIMA PROMOCIÓN');
+        expect($content[0]['body'])->toBe("¡Qué bueno tenerte por aquí!\nAún no hay promociones anteriores.");
         expect(app()->getLocale())->toBe('fr');
         expect(lifecycleFacts())->toBe($before);
     });
@@ -541,13 +573,13 @@ describe('existing pass', function () {
         $before = lifecycleFacts();
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = collect($content->sections)->keyBy('id');
+        $sections = collect($content)->keyBy('id');
         $dateLine = $active
-            ? $sections['details_primary_date']->body
-            : explode("\n", $sections['card_primary']->body)[1];
+            ? $sections['details_primary_date']['body']
+            : explode("\n", $sections['card_primary']['body'])[1];
 
         expect($dateLine)->toBe(($active ? 'Tienes hasta el ' : 'Terminó el ').$expectedDate.($active ? '.' : ''));
-        expect($sections['card_primary']->body)->toStartWith("Merchant-authored reward\n");
+        expect($sections['card_primary']['body'])->toStartWith("Merchant-authored reward\n");
         expect(app()->getLocale())->toBe($locale);
         expect(lifecycleFacts())->toBe($before);
     })->with([
@@ -576,9 +608,9 @@ describe('existing pass', function () {
         $before = lifecycleFacts();
 
         $content = app(WalletPresentationBuilder::class)->build($this->business, $this->pass);
-        $sections = collect($content->sections)->keyBy('id');
+        $sections = collect($content)->keyBy('id');
 
-        expect($content->progress)->toBeNull();
+        expect((collect($content)->firstWhere('id', 'barcode_top')['body'] ?? null))->toBeNull();
         expect($sections->keys()->all())->toBe([
             'card_primary', 'card_secondary',
             'details_primary',
@@ -586,26 +618,26 @@ describe('existing pass', function () {
             'details_primary_date',
             'details_secondary',
             ...($upcomingDescription === null || $upcomingDescription === '' ? [] : ['details_secondary_description']),
-            'details_secondary_date', 'details_history',
+            'details_secondary_date', 'details_history', 'details_code',
         ]);
-        expect($sections['details_primary']->body)->toBe('Capuchino de la casa');
-        expect($sections['details_secondary']->body)->toBe('Desayuno para dos');
-        expect($sections['details_primary_date']->header)->toBe('FINALIZACIÓN');
-        expect($sections['details_primary_date']->body)->toBe('Terminó el Jan 1, 2030');
-        expect($sections['details_secondary_date']->header)->toBe('FECHA DE INICIO');
-        expect($sections['details_secondary_date']->body)->toBe('Empieza el Jan 3, 2030');
-        expect($sections['details_history']->body)->toBe("Capuchino de la casa\nCanjeada el Jan 1, 2030");
+        expect($sections['details_primary']['body'])->toBe('Capuchino de la casa');
+        expect($sections['details_secondary']['body'])->toBe('Desayuno para dos');
+        expect($sections['details_primary_date']['header'])->toBe('FINALIZACIÓN');
+        expect($sections['details_primary_date']['body'])->toBe('Terminó el Jan 1, 2030');
+        expect($sections['details_secondary_date']['header'])->toBe('FECHA DE INICIO');
+        expect($sections['details_secondary_date']['body'])->toBe('Empieza el Jan 3, 2030');
+        expect($sections['details_history']['body'])->toBe("Capuchino de la casa\nCanjeada el Jan 1, 2030");
         foreach (['primary' => $previousDescription, 'secondary' => $upcomingDescription] as $position => $description) {
             $section = $sections->get('details_'.$position.'_description');
             if ($description === null || $description === '') {
                 expect($section)->toBeNull();
             } else {
-                expect($section->header)->toBe('INCLUDED ITEMS');
-                expect($section->body)->toBe($description);
+                expect($section['header'])->toBe('INCLUDED ITEMS');
+                expect($section['body'])->toBe($description);
             }
         }
         expect($sections->has('details_context'))->toBeFalse();
-        expect($sections->count() + 1)->toBeLessThanOrEqual(10);
+        expect($sections->count())->toBeLessThanOrEqual(10);
         expect(app()->getLocale())->toBe('en');
         expect(lifecycleFacts())->toBe($before);
     })->with([
@@ -622,13 +654,13 @@ describe('existing pass', function () {
     it('rejects an invalid pass before reading its presentation', function (bool $persisted) {
         $foreignPass = $persisted
             ? CustomerPass::factory()->create()
-            : CustomerPass::factory()->for($this->business)->make();
+            : CustomerPass::factory()->for(Business::factory()->create())->make();
         $before = lifecycleFacts();
 
         expect(fn () => app(WalletPresentationBuilder::class)->build($this->business, $foreignPass))
             ->toThrow(InvalidArgumentException::class)
             ->and(lifecycleFacts())->toBe($before);
-    })->with(['foreign persisted pass' => true, 'unsaved same-business pass' => false]);
+    })->with(['foreign persisted pass' => true, 'foreign unsaved pass' => false]);
 });
 
 /**

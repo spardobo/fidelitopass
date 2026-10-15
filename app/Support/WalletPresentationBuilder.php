@@ -2,8 +2,6 @@
 
 namespace App\Support;
 
-use App\Data\Wallet\WalletPresentation;
-use App\Data\Wallet\WalletTextModule;
 use App\Enums\PromotionStatus;
 use App\Models\Business;
 use App\Models\CustomerPass;
@@ -19,52 +17,67 @@ use InvalidArgumentException;
 use PDOException;
 
 /**
- * Selects pass content from domain facts, without credentials, provider calls or domain writes.
+ * Builds Google Wallet Object textModulesData from the current domain state.
  *
- * build() chooses active content or the Business overview and adds independent redemption history.
- * WalletPresentation carries progress and named sections, not a visual layout.
- * GoogleWalletPassCreator maps those values to an Object and places them through the Class template.
- * Generated copy follows Laravel's active/fallback locale; merchant-authored Reward text stays intact.
+ * PromotionContent groups two application-facing surfaces: card is the compact front summary;
+ * details contains separate reward, description, date and guidance fields for the expanded view.
+ * These group names are internal, not fields accepted by the Google Wallet API.
+ *
+ * Google TextModuleData uses id, header and body. The Object carries those reusable modules;
+ * the Class classTemplateInfo selects them through cardTemplateOverride, detailsTemplateOverride
+ * and cardBarcodeSectionDetails. Module order alone does not define their visual placement.
+ *
+ * The card_* and details_* IDs are application-owned roles, not Google-defined domain names.
+ * Progress stays separate because barcode_top is referenced above the barcode and in details.
+ * Detail selectors may fall back to card modules; surface groups do not imply exclusive placement.
+ * The QR value remains outside this builder; details_code contains only the manual lookup code.
+ *
+ * @phpstan-type Text array{header: string, body: string}
+ * @phpstan-type PromotionDetails array{
+ *     reward?: Text,
+ *     description?: Text,
+ *     date?: Text,
+ *     context?: Text
+ * }
+ * @phpstan-type PromotionContent array{
+ *     card: Text,
+ *     details?: PromotionDetails,
+ *     progress?: Text
+ * }
  */
 class WalletPresentationBuilder
 {
     /**
      * Receives the authoritative presentation clock.
      *
-     * @param  DatabaseClock  $clock  Captures one PostgreSQL instant for this reading.
+     * @param  DatabaseClock  $clock  Captures one PostgreSQL instant per build.
      */
     public function __construct(private DatabaseClock $clock) {}
 
     /**
-     * Builds active content or the Business overview, with independent personal redemption history.
+     * Builds the same complete module list for initial issuance and existing-pass updates.
      *
-     * A null pass means initial issuance: zero earned points and no personal redemption history.
-     * An existing pass supplies immutable awarded totals and persisted entitlement facts, never new writes.
-     * One database instant selects all Promotions; its raw string preserves precision and offset in SQL.
-     * Carbon conversion is reserved for local calendar and multiplier calculations.
+     * Unsaved passes supply a manual code but have no personal history or awarded points.
+     * This method reads domain facts; it neither changes them nor calls Google.
      *
-     * @param  Business  $business  Persisted owner selected by the trusted caller.
-     * @param  CustomerPass|null  $pass  Same-Business persisted identity, or null for initial issuance.
-     * @return WalletPresentation Named content modules; the provider Class owns their visual order.
+     * @param  Business  $business  Owner selected by the trusted caller.
+     * @param  CustomerPass  $pass  Prepared or persisted identity belonging to that Business.
+     * @return list<array{id: string, header: string, body: string}> Ordered text modules, including code and any progress.
      *
-     * @throws InvalidArgumentException If the pass is invalid or its progress translation is not a string.
-     * @throws IntlException If ICU cannot format a presentation date.
-     * @throws QueryException If authoritative presentation facts cannot be read.
+     * @throws InvalidArgumentException If ownership is invalid or progress translation is not a string.
+     * @throws IntlException If a presentation date cannot be formatted.
+     * @throws QueryException If domain facts cannot be read.
      * @throws PDOException If the database driver fails.
      */
-    public function build(Business $business, ?CustomerPass $pass = null): WalletPresentation
+    public function build(Business $business, CustomerPass $pass): array
     {
-        // validate ownership and capture one database instant
-        if (
-            $pass !== null
-            && (! $pass->exists || $pass->business_id !== $business->id)
-        ) {
-            throw new InvalidArgumentException('Wallet presentation requires a persisted same-Business pass.');
+        // validate ownership before reading facts or exposing the manual code
+        if ($pass->business_id !== $business->id) {
+            throw new InvalidArgumentException('Wallet presentation requires a same-Business pass.');
         }
 
+        // select the active promotion at one database instant
         $instant = $this->clock->capture($business->timezone)->instant;
-
-        // prefer the active promotion; otherwise show the business overview
         $promotion = $business->promotions()
             ->with('extraPoints')
             ->where('status', PromotionStatus::Published)
@@ -73,65 +86,95 @@ class WalletPresentationBuilder
             ->where('ends_at', '>', $instant)
             ->first();
 
-        if ($promotion === null) {
-            return $this->inactiveContent($business, $pass, $instant);
+        // build either the current promotion or the business's two announcements
+        if ($promotion !== null) {
+            $history = $this->latestRedemption($business, $pass);
+            $primary = $this->activePromotion($business, $pass, $promotion, $instant);
+            $secondary = null;
+        } else {
+            $overview = $this->promotionOverview($business, $instant);
+            $primary = $overview['previous'];
+            $secondary = $overview['upcoming'];
+            $history = $this->latestRedemption($business, $pass);
         }
 
-        // read personal history, entitlement and immutable awarded points in that order
-        $latest = $this->latestRedemption($business, $pass);
-        $entitlement = $pass === null ? null : RewardEntitlement::query()
-            ->where('business_id', $business->id)
-            ->where('customer_pass_id', $pass->id)
-            ->where('promotion_id', $promotion->id)
-            ->first();
-        $points = $pass === null ? 0 : (int) Visit::query()
-            ->where('business_id', $business->id)
-            ->where('customer_pass_id', $pass->id)
-            ->where('promotion_id', $promotion->id)
-            ->sum('awarded_points');
+        // define every text ID in one place, including progress and the manual code
+        $contentById = [
+            'card_primary' => $primary['card'],
+            'card_secondary' => $secondary['card'] ?? null,
+            'details_primary' => $primary['details']['reward'] ?? null,
+            'details_primary_description' => $primary['details']['description'] ?? null,
+            'details_primary_date' => $primary['details']['date'] ?? null,
+            'details_context' => $primary['details']['context'] ?? null,
+            'details_secondary' => $secondary['details']['reward'] ?? null,
+            'details_secondary_description' => $secondary['details']['description'] ?? null,
+            'details_secondary_date' => $secondary['details']['date'] ?? null,
+            'details_history' => $history,
+            'barcode_top' => $primary['progress'] ?? null,
+            'details_code' => [
+                'header' => __('wallet.labels.manual_code'),
+                'body' => $pass->manual_code,
+            ],
+        ];
 
-        return $this->activeContent(
-            $promotion,
-            CarbonImmutable::parse($instant),
-            $points,
-            $entitlement,
-            $latest,
-        );
+        // omit absent content, not valid empty headings or zero progress
+        $modules = [];
+
+        foreach ($contentById as $id => $text) {
+            if ($text === null) {
+                continue;
+            }
+
+            $modules[] = [
+                'id' => $id,
+                'header' => $text['header'],
+                'body' => $text['body'],
+            ];
+        }
+
+        return $modules;
     }
 
     /**
-     * Builds in-progress, Reward-available or redeemed content while the Promotion remains active.
+     * Builds the current Reward, date and guidance, with progress only while earning.
      *
-     * Persisted entitlement facts select the wording: redeemed first, then available, otherwise earning.
-     * Progress appears only while earning; hiding it never rewrites the immutable awarded total.
-     *
-     * card_primary holds the Reward/date/context summary.
-     * card_secondary is absent while a Promotion is active.
-     * details_primary and its description/date cells expand that summary.
-     * details_context repeats its guidance.
-     * details_history exists only for a real redemption and is selected only in swipe-up details.
-     *
-     * The return's argument order groups content only; buildClass() determines its displayed order.
-     *
+     * @param  Business  $business  Owner used to scope entitlement and Visit reads.
+     * @param  CustomerPass  $pass  Persisted identity, or an unsaved pass with no history.
      * @param  Promotion  $promotion  Active frozen terms with multiplier windows loaded.
-     * @param  CarbonImmutable  $instant  Single database observation instant.
-     * @param  int  $points  Sum of immutable awarded points, not a recalculation from current rules.
-     * @param  RewardEntitlement|null  $entitlement  Persisted unlock and redemption facts.
-     * @param  WalletTextModule|null  $latest  Independent latest redemption, absent when none exists.
-     * @return WalletPresentation Relevant content, with actual progress only while no Reward entitlement exists.
+     * @param  string  $instant  Original timestamp from this build's database clock.
+     * @return PromotionContent Complete active content before assigning Google module IDs.
      *
-     * @throws InvalidArgumentException If the progress translation is not a string.
-     * @throws IntlException If ICU cannot format a presentation date.
+     * @throws InvalidArgumentException If progress translation is not a string.
+     * @throws IntlException If a presentation date cannot be formatted.
+     * @throws QueryException If entitlement or Visit facts cannot be read.
+     * @throws PDOException If the database driver fails.
      */
-    private function activeContent(
+    private function activePromotion(
+        Business $business,
+        CustomerPass $pass,
         Promotion $promotion,
-        CarbonImmutable $instant,
-        int $points,
-        ?RewardEntitlement $entitlement,
-        ?WalletTextModule $latest,
-    ): WalletPresentation {
-        // evaluate the visit value using the promotion's frozen timezone and windows
-        $localTime = $instant->setTimezone($promotion->timezone_snapshot);
+        string $instant,
+    ): array {
+        // read immutable personal facts only for an existing pass
+        $entitlement = null;
+        $points = 0;
+
+        if ($pass->exists) {
+            $entitlement = RewardEntitlement::query()
+                ->where('business_id', $business->id)
+                ->where('customer_pass_id', $pass->id)
+                ->where('promotion_id', $promotion->id)
+                ->first();
+
+            $points = (int) Visit::query()
+                ->where('business_id', $business->id)
+                ->where('customer_pass_id', $pass->id)
+                ->where('promotion_id', $promotion->id)
+                ->sum('awarded_points');
+        }
+
+        // evaluate the frozen multiplier window in the promotion's own timezone
+        $localTime = CarbonImmutable::parse($instant)->setTimezone($promotion->timezone_snapshot);
         $timeOfDay = $localTime->format('H:i:s.u');
         $window = $promotion->extraPoints->first(
             fn ($window) => $window->weekday === $localTime->isoWeekday()
@@ -153,82 +196,77 @@ class WalletPresentationBuilder
             $promotion->timezone_snapshot,
         );
 
-        // select one complete message set instead of overwriting earlier states
-        [$heading, $dateLabel, $validity, $context] = match (true) {
-            $entitlement?->redeemed_at !== null => [
-                __('wallet.redeemed.title'),
-                __('wallet.labels.redemption_date'),
-                __('wallet.redeemed.date', [
-                    'date' => $this->formatDate(CarbonImmutable::parse($entitlement->redeemed_at), $promotion->timezone_snapshot),
-                ]),
-                __('wallet.redeemed.thanks'),
-            ],
-            $entitlement !== null => [
-                __('wallet.completed.title'),
-                __('wallet.labels.deadline'),
-                __('wallet.completed.deadline', ['date' => $deadline]),
-                __('wallet.completed.visit'),
-            ],
-            default => [
-                __('wallet.active.title'),
-                __('wallet.labels.deadline'),
-                __('wallet.active.deadline', ['date' => $deadline]),
-                $visitPoints > 1
-                    ? __('wallet.active.multiplier', ['points' => $visitPoints])
-                    : __('wallet.active.visit'),
-            ],
-        };
+        // choose the messages once: redeemed, available, or still earning
+        if ($entitlement?->redeemed_at !== null) {
+            $heading = __('wallet.redeemed.title');
+            $dateLabel = __('wallet.labels.redemption_date');
+            $date = __('wallet.redeemed.date', [
+                'date' => $this->formatDate(
+                    CarbonImmutable::parse($entitlement->redeemed_at),
+                    $promotion->timezone_snapshot,
+                ),
+            ]);
+            $context = __('wallet.redeemed.thanks');
+        } elseif ($entitlement !== null) {
+            $heading = __('wallet.completed.title');
+            $dateLabel = __('wallet.labels.deadline');
+            $date = __('wallet.completed.deadline', ['date' => $deadline]);
+            $context = __('wallet.completed.visit');
+        } else {
+            $heading = __('wallet.active.title');
+            $dateLabel = __('wallet.labels.deadline');
+            $date = __('wallet.active.deadline', ['date' => $deadline]);
+            $context = $visitPoints > 1
+                ? __('wallet.active.multiplier', ['points' => $visitPoints])
+                : __('wallet.active.visit');
+        }
 
-        return new WalletPresentation(
-            $entitlement === null ? Lang::string('wallet.active.progress', [
+        // build the promotion's summary and full details with their contextual message
+        $promotionContent = $this->basePromotionContent($promotion, $heading, $dateLabel, $date);
+        $promotionContent['card']['body'] .= "\n\n".$context;
+        $promotionContent['details']['context'] = $this->text('', $context);
+
+        if ($entitlement === null) {
+            $progress = Lang::string('wallet.active.progress', [
                 'progress' => $points,
                 'target' => $promotion->target_points,
-            ]) : null,
-            ...[
-                new WalletTextModule('card_primary', $heading, $promotion->reward_title."\n".$validity."\n\n".$context),
-                ...$this->promotionDetails($promotion, 'primary', $heading, $dateLabel, $validity),
-                new WalletTextModule('details_context', '', $context),
-                ...($latest === null ? [] : [$latest]),
-            ],
-        );
+            ]);
+            $promotionContent['progress'] = [
+                'header' => __('wallet.labels.progress'),
+                'body' => $progress,
+            ];
+        }
+
+        return $promotionContent;
     }
 
     /**
-     * Builds the last effective Promotion and next announced Promotion without requiring participation.
+     * Builds previous and upcoming announcements without requiring customer participation.
      *
-     * card_primary = previous Promotion.
-     * card_secondary = upcoming.
-     * Each absent announcement has friendly copy.
+     * @param  Business  $business  Owner of both public announcements.
+     * @param  string  $instant  Original timestamp from this build's database clock.
+     * @return array{previous: PromotionContent, upcoming: PromotionContent} Both announcement positions, including empty messages.
      *
-     * Each real Promotion supplies separate Reward/description/date details; progress is always null.
-     *
-     * A real personal redemption adds details_history independently, never an empty-history invitation.
-     * The Class falls back to a card message only when that announcement has no Promotion details.
-     * Previous selection uses the earlier of cancellation and natural end, with higher ID breaking ties.
-     * Cancellation at/before start is excluded; upcoming selection uses earliest start, then lowest ID.
-     *
-     * @param  Business  $business  Owner of both public Promotion selections.
-     * @param  CustomerPass|null  $pass  Same-Business identity used only for personal redemption history.
-     * @param  string  $instant  Original timestamp from this build's database clock reading.
-     * @return WalletPresentation Both announcement slots and their available details, with optional personal history.
-     *
-     * @throws IntlException If ICU cannot format a presentation date.
-     * @throws QueryException If authoritative Promotion or redemption facts cannot be read.
+     * @throws IntlException If a presentation date cannot be formatted.
+     * @throws QueryException If Promotion facts cannot be read.
      * @throws PDOException If the database driver fails.
      */
-    private function inactiveContent(Business $business, ?CustomerPass $pass, string $instant): WalletPresentation
+    private function promotionOverview(Business $business, string $instant): array
     {
-        // select the latest effective end, excluding cancellations at or before the scheduled start
+        // select the latest effective ending, excluding promotions cancelled before they ran
         $previous = $business->promotions()
             ->whereIn('status', [PromotionStatus::Published, PromotionStatus::Cancelled])
             ->where('starts_at', '<', $instant)
             ->where(fn ($query) => $query
-                ->where(fn ($query) => $query
+                ->where(fn ($ended) => $ended
                     ->whereNull('cancelled_at')
-                    ->where('ends_at', '<=', $instant))
-                ->orWhere(fn ($query) => $query
+                    ->where('ends_at', '<=', $instant)
+                )
+                ->orWhere(fn ($cancelled) => $cancelled
                     ->whereColumn('cancelled_at', '>', 'starts_at')
-                    ->where('cancelled_at', '<=', $instant)))
+                    ->where('cancelled_at', '<=', $instant)
+                )
+            )
             ->orderByRaw('LEAST(ends_at, cancelled_at) DESC')
             ->orderByDesc('id')
             ->first();
@@ -242,13 +280,17 @@ class WalletPresentationBuilder
             ->orderBy('id')
             ->first();
 
-        // keep both overview positions informative without inventing missing promotion terms
+        // retain both announcement positions even when their promotion is absent
         $previousHeading = __('wallet.previous.title');
         $upcomingHeading = __('wallet.upcoming.title');
-        $previousBody = __('wallet.previous.empty');
-        $upcomingBody = __('wallet.upcoming.empty');
-        $details = [];
+        $previousContent = [
+            'card' => $this->text($previousHeading, __('wallet.previous.empty')),
+        ];
+        $upcomingContent = [
+            'card' => $this->text($upcomingHeading, __('wallet.upcoming.empty')),
+        ];
 
+        // distinguish a real cancellation from the last included day of a natural ending
         if ($previous !== null) {
             $cancelled = $previous->cancelled_at !== null
                 && $previous->cancelled_at < $previous->ends_at;
@@ -260,83 +302,87 @@ class WalletPresentationBuilder
             $ending = __($cancelled ? 'wallet.previous.cancelled' : 'wallet.previous.ended', [
                 'date' => $this->formatDate($endedAt, $previous->timezone_snapshot),
             ]);
-            $previousBody = $previous->reward_title."\n".$ending;
-            $details = $this->promotionDetails(
-                $previous,
-                'primary',
-                $previousHeading,
-                __($cancelled ? 'wallet.labels.cancellation_date' : 'wallet.labels.end_date'),
-                $ending,
+            $dateLabel = __($cancelled ? 'wallet.labels.cancellation_date' : 'wallet.labels.end_date');
+            $previousContent = $this->basePromotionContent($previous, $previousHeading, $dateLabel, $ending);
+        }
+
+        // use the upcoming promotion's own frozen start date
+        if ($upcoming !== null) {
+            $starting = __('wallet.upcoming.starts', [
+                'date' => $this->formatDate(
+                    CarbonImmutable::parse($upcoming->starts_at),
+                    $upcoming->timezone_snapshot,
+                ),
+            ]);
+            $upcomingContent = $this->basePromotionContent(
+                $upcoming,
+                $upcomingHeading,
+                __('wallet.labels.start_date'),
+                $starting,
             );
         }
 
-        if ($upcoming !== null) {
-            $starting = __('wallet.upcoming.starts', [
-                'date' => $this->formatDate(CarbonImmutable::parse($upcoming->starts_at), $upcoming->timezone_snapshot),
-            ]);
-            $upcomingBody = $upcoming->reward_title."\n".$starting;
-            $details = [
-                ...$details,
-                ...$this->promotionDetails($upcoming, 'secondary', $upcomingHeading, __('wallet.labels.start_date'), $starting),
-            ];
-        }
-
-        $latest = $this->latestRedemption($business, $pass);
-
-        return new WalletPresentation(
-            null,
-            new WalletTextModule('card_primary', $previousHeading, $previousBody),
-            new WalletTextModule('card_secondary', $upcomingHeading, $upcomingBody),
-            ...$details,
-            ...($latest === null ? [] : [$latest]),
-        );
+        return [
+            'previous' => $previousContent,
+            'upcoming' => $upcomingContent,
+        ];
     }
 
     /**
-     * Separates one Promotion's Reward, optional description and date into ordered detail cells.
-     *
-     * Missing descriptions produce no cell; merchant text is neither translated nor recased.
-     * Both announcement groups plus their card summaries, history and manual code fit ten modules.
+     * Builds a promotion's base card and details before active guidance or progress are added.
      *
      * @param  Promotion  $promotion  Frozen Reward title and optional description.
-     * @param  'primary'|'secondary'  $position  Corresponding main-card role.
-     * @param  string  $heading  Localized Reward or announcement heading.
-     * @param  string  $dateLabel  Localized label for this state's date.
-     * @param  string  $date  Already formatted localized date sentence.
-     * @return list<WalletTextModule> Reward, optional description, then applicable date.
+     * @param  string  $heading  Translated state or announcement heading.
+     * @param  string  $dateLabel  Translated label for this state's date.
+     * @param  string  $date  Already formatted date sentence.
+     * @return PromotionContent Summary, Reward, optional description and date, without provider IDs.
      */
-    private function promotionDetails(Promotion $promotion, string $position, string $heading, string $dateLabel, string $date): array
-    {
-        $role = 'details_'.$position;
-        $sections = [new WalletTextModule($role, $heading, $promotion->reward_title)];
+    private function basePromotionContent(
+        Promotion $promotion,
+        string $heading,
+        string $dateLabel,
+        string $date,
+    ): array {
+        $promotionContent = [
+            'card' => $this->text($heading, $promotion->reward_title."\n".$date),
+            'details' => [
+                'reward' => $this->text($heading, $promotion->reward_title),
+                'date' => $this->text($dateLabel, $date),
+            ],
+        ];
 
-        if ($promotion->reward_description !== null && $promotion->reward_description !== '') {
-            $sections[] = new WalletTextModule($role.'_description', __('wallet.labels.description'), $promotion->reward_description);
+        if (
+            $promotion->reward_description !== null
+            && $promotion->reward_description !== ''
+        ) {
+            $promotionContent['details']['description'] = $this->text(
+                __('wallet.labels.description'),
+                $promotion->reward_description,
+            );
         }
 
-        $sections[] = new WalletTextModule($role.'_date', $dateLabel, $date);
-
-        return $sections;
+        return $promotionContent;
     }
 
     /**
-     * Builds details_history from the latest completed personal redemption, across Promotions.
+     * Builds history only for this pass's latest completed redemption, across Promotions.
      *
-     * Only this pass's redeemed entitlements qualify; unlocked but unredeemed Rewards are not history.
-     * No redemption yields no module; history is not an invitation to earn another Reward.
+     * @param  Business  $business  Owner used to scope the personal history.
+     * @param  CustomerPass  $pass  Unsaved passes have no redemption history.
+     * @return Text|null Reward and redemption date, or null when no completed redemption exists.
      *
-     * @param  Business  $business  Scope shared by the pass and its entitlements.
-     * @param  CustomerPass|null  $pass  Existing identity, absent during initial issuance.
-     * @return WalletTextModule|null Real redemption content, or null when no qualifying history exists.
-     *
-     * @throws IntlException If ICU cannot format a presentation date.
-     * @throws QueryException If the personal redemption history cannot be read.
+     * @throws IntlException If a redemption date cannot be formatted.
+     * @throws QueryException If redemption facts cannot be read.
      * @throws PDOException If the database driver fails.
      */
-    private function latestRedemption(Business $business, ?CustomerPass $pass): ?WalletTextModule
+    private function latestRedemption(Business $business, CustomerPass $pass): ?array
     {
-        // read only completed personal redemptions, preserving timestamp and ID order
-        $entitlement = $pass === null ? null : RewardEntitlement::query()
+        // read only completed personal redemptions, never another pass's history
+        if (! $pass->exists) {
+            return null;
+        }
+
+        $entitlement = RewardEntitlement::query()
             ->with('promotion')
             ->where('business_id', $business->id)
             ->where('customer_pass_id', $pass->id)
@@ -349,28 +395,41 @@ class WalletPresentationBuilder
             return null;
         }
 
-        // use the redeemed promotion's own reward and timezone, not the current promotion's
+        // retain the redeemed promotion's own reward and timezone
         $promotion = $entitlement->promotion;
 
-        return new WalletTextModule(
-            'details_history',
+        return $this->text(
             __('wallet.history.title'),
             $promotion->reward_title."\n".__('wallet.redeemed.date', [
-                'date' => $this->formatDate(CarbonImmutable::parse($entitlement->redeemed_at), $promotion->timezone_snapshot),
+                'date' => $this->formatDate(
+                    CarbonImmutable::parse($entitlement->redeemed_at),
+                    $promotion->timezone_snapshot,
+                ),
             ]),
         );
     }
 
     /**
-     * Formats a date for the active locale without changing the promotion's local day.
+     * Stores one heading and body without a DTO or provider-specific ID.
      *
-     * The frozen timezone chooses the calendar day; Laravel's active locale chooses its regional format.
-     * Callers convert exclusive Promotion ends to the last included local day before calling this method.
-     * ICU's date-only medium style preserves native ordering, casing and punctuation without a fixed pattern.
+     * @param  string  $header  Translated heading; an empty heading remains valid.
+     * @param  string  $body  Prepared content, including unmodified merchant text.
+     * @return Text Heading and body constrained to strings.
+     */
+    private function text(string $header, string $body): array
+    {
+        return [
+            'header' => $header,
+            'body' => $body,
+        ];
+    }
+
+    /**
+     * Formats a local date with its year using Laravel's active locale and ICU ordering.
      *
-     * @param  CarbonImmutable  $instant  Stored event instant or derived inclusive-end date.
-     * @param  string  $timezone  Frozen IANA timezone.
-     * @return string Regional date including its year, without a time component.
+     * @param  CarbonImmutable  $instant  Event instant or previously derived inclusive-end date.
+     * @param  string  $timezone  Frozen Promotion timezone.
+     * @return string Regional date without a time component.
      *
      * @throws IntlException If ICU cannot format the date.
      */

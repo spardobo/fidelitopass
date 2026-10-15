@@ -2,7 +2,6 @@
 
 namespace App\Integrations\GoogleWallet;
 
-use App\Data\Wallet\WalletTextModule;
 use App\Enums\FailureOutcome;
 use App\Enums\GoogleWalletStage;
 use App\Enums\PassCreationStage;
@@ -18,7 +17,6 @@ use Google\Service\Exception as GoogleServiceException;
 use Google\Service\Walletobjects;
 use Google\Service\Walletobjects\LoyaltyClass;
 use Google\Service\Walletobjects\LoyaltyObject;
-use GuzzleHttp\Client as HttpClient;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use PDOException;
@@ -37,16 +35,16 @@ use Throwable;
 class GoogleWalletPassCreator
 {
     /**
-     * Receives content, configuration and an optional native transport for isolated tests.
+     * Receives content, configuration and the shared Google SDK client.
      *
      * @param  WalletPresentationBuilder  $presentation  Builds initial content through the shared scenario selection.
      * @param  GoogleWalletConfiguration  $configuration  Loads fresh operation settings and credentials.
-     * @param  HttpClient|null  $http  Tests may replace its handler, not SDK behavior.
+     * @param  GoogleWalletClient  $client  Authenticates fresh SDK resources for this operation.
      */
     public function __construct(
         private WalletPresentationBuilder $presentation,
         private GoogleWalletConfiguration $configuration,
-        #[SensitiveParameter] private ?HttpClient $http = null,
+        #[SensitiveParameter] private GoogleWalletClient $client,
     ) {}
 
     /**
@@ -59,8 +57,10 @@ class GoogleWalletPassCreator
      * @throws CustomerPassCreationException If configuration, authentication or confirmation fails.
      * @throws Throwable If domain presentation cannot be read before provider work.
      */
-    public function create(Business $business, #[SensitiveParameter] CustomerPassCredentials $credentials): array
-    {
+    public function create(
+        Business $business,
+        #[SensitiveParameter] CustomerPassCredentials $credentials,
+    ): array {
         // validate the owner and load this operation's configuration
         $settings = $this->configuration->load();
 
@@ -83,7 +83,7 @@ class GoogleWalletPassCreator
         $object = $this->buildObject($business, $credentials, $classId, $objectId);
 
         // authenticate, reconcile the business class, and confirm exactly one object
-        $wallet = (new GoogleWalletClient($this->http))->authenticate($settings);
+        $wallet = $this->client->authenticate($settings);
         $this->createOrUpdateClass($wallet, $class);
         $confirmedByReadback = $this->createAndConfirmObject($wallet, $object);
 
@@ -104,22 +104,31 @@ class GoogleWalletPassCreator
      *
      * @throws CustomerPassCreationException If signing fails before provider work.
      */
-    private function signSaveUrl(#[SensitiveParameter] array $settings, string $classId, string $objectId): string
-    {
+    private function signSaveUrl(
+        #[SensitiveParameter] array $settings,
+        string $classId,
+        string $objectId,
+    ): string {
         try {
-            $jwt = JWT::encode([
-                'iss' => $settings['account']['client_email'],
-                'aud' => 'google',
-                'typ' => 'savetowallet',
-                'iat' => time(),
-                'origins' => [$settings['origin']],
-                'payload' => [
-                    'loyaltyObjects' => [[
-                        'id' => $objectId,
-                        'classId' => $classId,
-                    ]],
+            $jwt = JWT::encode(
+                [
+                    'iss' => $settings['account']['client_email'],
+                    'aud' => 'google',
+                    'typ' => 'savetowallet',
+                    'iat' => time(),
+                    'origins' => [$settings['origin']],
+                    'payload' => [
+                        'loyaltyObjects' => [
+                            [
+                                'id' => $objectId,
+                                'classId' => $classId,
+                            ],
+                        ],
+                    ],
                 ],
-            ], $settings['account']['private_key'], 'RS256');
+                $settings['account']['private_key'],
+                'RS256',
+            );
         } catch (Throwable) {
             throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'signing_failed');
         }
@@ -128,35 +137,19 @@ class GoogleWalletPassCreator
     }
 
     /**
-     * Defines shared Business appearance and where each Object's content appears.
+     * Maps Business appearance and ordered Object roles to the shared Class template.
      *
-     * The Object stores text modules; this Class selects them by ID, not by insertion order.
-     * Main-card rows: card_primary -> card_secondary; inactive announcements always occupy both rows.
-     * Above QR: barcode_top.body supplies progress only while earning; credentials remain in every state.
-     * Below QR: no extra template field; the manual code remains the barcode's alternateText.
-     *
-     * Swipe-up detail positions follow the card's reading order:
-     * 1. barcode_top: progress with its heading, only while earning.
-     * 2. details_code: manual code in every state.
-     * 3. details_primary, otherwise card_primary: current/previous Reward or its empty message.
-     * 4-5. details_primary_description/date: optional description, then the relevant date.
-     * 6. details_context: active Visit value, canje guidance or thanks, without a heading.
-     * 7. details_secondary, otherwise card_secondary: upcoming Reward or its empty message.
-     * 8-9. details_secondary_description/date: optional upcoming description, then start date.
-     * 10. details_history: latest real personal redemption, omitted when none exists.
-     *
-     * Each fields list contains alternatives for ONE position, not several displayed items.
-     * Google uses its first available value and omits empty items; it controls final geometry.
-     * oneItem centers the card item; the API exposes no alignment control for native detail cells.
+     * Each card role occupies one centered row. Each detail position selects its first available
+     * role; barcode progress reads only the body. Google owns final geometry and truncation.
      *
      * @param  Business  $business  Source of program name and background color.
-     * @param  string  $classId  Deterministic provider class ID.
+     * @param  string  $classId  Deterministic provider Class ID.
      * @param  string  $logoUrl  Validated black logo for the native white holder.
      * @return LoyaltyClass Owned appearance; provider operations set the review request.
      */
     private function buildClass(Business $business, string $classId, string $logoUrl): LoyaltyClass
     {
-        // oneItem makes each available role a separate full-width row
+        // build the two compact rows in their reading order
         $rows = [];
 
         foreach (['card_primary', 'card_secondary'] as $id) {
@@ -171,43 +164,28 @@ class GoogleWalletPassCreator
             ];
         }
 
-        // each outer entry adds a detail position; inner fields select its first available content
+        // list detail positions explicitly; alternatives share one position
+        $detailRoles = [
+            ['barcode_top'],
+            ['details_code'],
+            ['details_primary', 'card_primary'],
+            ['details_primary_description'],
+            ['details_primary_date'],
+            ['details_context'],
+            ['details_secondary', 'card_secondary'],
+            ['details_secondary_description'],
+            ['details_secondary_date'],
+            ['details_history'],
+        ];
         $details = [];
 
-        foreach ([
-            [
-                ['fieldPath' => "object.textModulesData['barcode_top']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_code']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_primary']"],
-                ['fieldPath' => "object.textModulesData['card_primary']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_primary_description']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_primary_date']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_context']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_secondary']"],
-                ['fieldPath' => "object.textModulesData['card_secondary']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_secondary_description']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_secondary_date']"],
-            ],
-            [
-                ['fieldPath' => "object.textModulesData['details_history']"],
-            ],
-        ] as $fields) {
+        foreach ($detailRoles as $roles) {
+            $fields = [];
+
+            foreach ($roles as $id) {
+                $fields[] = ['fieldPath' => "object.textModulesData['{$id}']"];
+            }
+
             $details[] = [
                 'item' => [
                     'firstValue' => ['fields' => $fields],
@@ -215,12 +193,14 @@ class GoogleWalletPassCreator
             ];
         }
 
-        // map only the appearance owned by this application
+        // apply owned appearance without moving credentials into the Class
         $class = new LoyaltyClass([
             'id' => $classId,
             'issuerName' => 'FidelitoPass',
             'programName' => $business->name,
-            'programLogo' => ['sourceUri' => ['uri' => $logoUrl]],
+            'programLogo' => [
+                'sourceUri' => ['uri' => $logoUrl],
+            ],
             'hexBackgroundColor' => strtoupper($business->pass_background_color),
             'classTemplateInfo' => [
                 'cardTemplateOverride' => ['cardRowTemplateInfos' => $rows],
@@ -237,21 +217,17 @@ class GoogleWalletPassCreator
             ],
         ]);
 
-        // PATCH omission would retain an old bottom detail; explicit null clears it without removing alternateText
+        // clear an old bottom field explicitly without removing the labelled manual code
         $class->getClassTemplateInfo()->getCardBarcodeSectionDetails()['firstBottomDetail'] = GoogleModel::NULL_VALUE;
 
         return $class;
     }
 
     /**
-     * Builds a new pass's Object values without updating an existing pass or choosing layout order.
+     * Builds initial content and private credentials without updating an existing Object.
      *
-     * Calling the builder without a pass gives zero active progress and no personal-history module.
-     * Its sections become textModulesData; buildClass() decides which sections appear on each surface.
-     * Non-null progress becomes labelled barcode_top; the card selects only its body, not its detail heading.
-     * Credentials stay outside the content builder: the private token is barcode.value, while the
-     * manual code supplies barcode.alternateText, accountId and the details_code text module.
-     * Object state ACTIVE enables the pass; it does not mean the Business has an active Promotion.
+     * The content builder receives an unsaved pass, so progress starts at zero and personal history is absent.
+     * The Class selects the display order. Object state ACTIVE does not imply an active Promotion.
      *
      * @param  Business  $business  Promotion owner.
      * @param  CustomerPassCredentials  $credentials  Private barcode and separate manual code.
@@ -273,22 +249,10 @@ class GoogleWalletPassCreator
         string $objectId,
     ): LoyaltyObject {
         // map initial content without creating visits or participation
-        $content = $this->presentation->build($business);
-        $sections = array_map(static fn (WalletTextModule $section): array => [
-            'id' => $section->id,
-            'header' => $section->header,
-            'body' => $section->body,
-        ], $content->sections);
+        $pass = $business->customerPasses()->make(['manual_code' => $credentials->manualCode]);
+        $modules = $this->presentation->build($business, $pass);
 
-        // omit the progress module entirely in the inactive overview; zero progress is still shown
-        if ($content->progress !== null) {
-            $sections[] = [
-                'id' => 'barcode_top',
-                'header' => __('wallet.labels.progress'),
-                'body' => $content->progress,
-            ];
-        }
-
+        // attach private credentials only at the provider boundary
         return new LoyaltyObject([
             'id' => $objectId,
             'classId' => $classId,
@@ -299,14 +263,7 @@ class GoogleWalletPassCreator
                 'alternateText' => __('wallet.labels.barcode_alternate', ['code' => $credentials->manualCode]),
             ],
             'accountId' => $credentials->manualCode,
-            'textModulesData' => [
-                ...$sections,
-                [
-                    'id' => 'details_code',
-                    'header' => __('wallet.labels.manual_code'),
-                    'body' => $credentials->manualCode,
-                ],
-            ],
+            'textModulesData' => $modules,
         ]);
     }
 
@@ -372,7 +329,12 @@ class GoogleWalletPassCreator
         } catch (CustomerPassCreationException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            throw CustomerPassCreationException::fromProvider($exception, GoogleWalletStage::ClassDefinition, $method, $context);
+            throw CustomerPassCreationException::fromProvider(
+                $exception,
+                GoogleWalletStage::ClassDefinition,
+                $method,
+                $context,
+            );
         }
     }
 
@@ -417,16 +379,22 @@ class GoogleWalletPassCreator
 
         // compare only fields managed by this integration
         $rows = data_get($appearance, 'classTemplateInfo.cardTemplateOverride.cardRowTemplateInfos', []);
-        $fieldPaths = array_map(static fn ($row) => array_map(
-            static fn ($field) => data_get($field, 'fieldPath'),
-            data_get($row, 'oneItem.item.firstValue.fields', []),
-        ), $rows);
+        $fieldPaths = array_map(
+            static fn ($row) => array_map(
+                static fn ($field) => data_get($field, 'fieldPath'),
+                data_get($row, 'oneItem.item.firstValue.fields', []),
+            ),
+            $rows,
+        );
 
         $details = data_get($appearance, 'classTemplateInfo.detailsTemplateOverride.detailsItemInfos', []);
-        $detailFieldPaths = array_map(static fn ($detail) => array_map(
-            static fn ($field) => data_get($field, 'fieldPath'),
-            data_get($detail, 'item.firstValue.fields', []),
-        ), $details);
+        $detailFieldPaths = array_map(
+            static fn ($detail) => array_map(
+                static fn ($field) => data_get($field, 'fieldPath'),
+                data_get($detail, 'item.firstValue.fields', []),
+            ),
+            $details,
+        );
 
         $barcodeFieldPaths = [];
 
@@ -457,15 +425,21 @@ class GoogleWalletPassCreator
      *
      * @throws CustomerPassCreationException If bindings conflict or creation remains unconfirmed.
      */
-    private function createAndConfirmObject(Walletobjects $wallet, #[SensitiveParameter] LoyaltyObject $expected): bool
-    {
+    private function createAndConfirmObject(
+        Walletobjects $wallet,
+        #[SensitiveParameter] LoyaltyObject $expected,
+    ): bool {
         // attempt exactly one insertion; never retry an unknown write with a new identity
         $writeAttempt = ['http_method' => 'POST'];
 
         try {
             $actual = $wallet->loyaltyobject->insert($expected);
         } catch (Throwable $exception) {
-            $failure = CustomerPassCreationException::fromProvider($exception, GoogleWalletStage::ObjectCreation, 'POST');
+            $failure = CustomerPassCreationException::fromProvider(
+                $exception,
+                GoogleWalletStage::ObjectCreation,
+                'POST',
+            );
 
             if ($failure->outcome === FailureOutcome::Definitive) {
                 throw $failure;
@@ -489,7 +463,12 @@ class GoogleWalletPassCreator
         try {
             $actual = $wallet->loyaltyobject->get($expected->getId());
         } catch (Throwable $exception) {
-            throw CustomerPassCreationException::fromProvider($exception, GoogleWalletStage::ObjectCreation, 'GET', $context);
+            throw CustomerPassCreationException::fromProvider(
+                $exception,
+                GoogleWalletStage::ObjectCreation,
+                'GET',
+                $context,
+            );
         }
 
         if (! $this->matchesObjectBindings($actual, $expected, 'GET', $context)) {
@@ -549,12 +528,16 @@ class GoogleWalletPassCreator
             }
 
             if (! is_string($value) || ! hash_equals($expectedValue, $value)) {
-                throw CustomerPassCreationException::providerRejected(GoogleWalletStage::ObjectCreation, 'binding_conflict', [
-                    'http_method' => $method,
-                    'binding_field' => $field,
-                    'binding_category' => is_string($value) ? 'different' : 'invalid',
-                    ...$context,
-                ]);
+                throw CustomerPassCreationException::providerRejected(
+                    GoogleWalletStage::ObjectCreation,
+                    'binding_conflict',
+                    [
+                        'http_method' => $method,
+                        'binding_field' => $field,
+                        'binding_category' => is_string($value) ? 'different' : 'invalid',
+                        ...$context,
+                    ],
+                );
             }
         }
 

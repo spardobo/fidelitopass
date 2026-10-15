@@ -9,64 +9,49 @@ use App\Models\Business;
 use App\Models\CustomerPass;
 use App\Support\WalletPresentationBuilder;
 use Google\Service\Walletobjects\LoyaltyObject;
-use GuzzleHttp\Client as HttpClient;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use SensitiveParameter;
 use Throwable;
 
-/** Confirms existing-pass content inside the domain caller's transaction without committing local facts. */
+/** Confirms existing-pass content inside the caller's transaction without committing local facts. */
 class GoogleWalletPassUpdater
 {
     private const BUDGET_SECONDS = 10;
 
     /**
-     * Receives the existing presentation and configuration with an optional native test transport.
+     * Receives presentation, configuration and the shared Google SDK client.
      *
      * @param  WalletPresentationBuilder  $presentation  Reads tentative facts on the caller's connection.
-     * @param  GoogleWalletConfiguration  $configuration  Validates current deployment credentials.
-     * @param  HttpClient|null  $http  Optional native test handler, never an alternate provider implementation.
+     * @param  GoogleWalletConfiguration  $configuration  Loads current deployment credentials.
+     * @param  GoogleWalletClient  $client  Authenticates fresh SDK resources within the operation deadline.
      */
     public function __construct(
         private WalletPresentationBuilder $presentation,
         private GoogleWalletConfiguration $configuration,
-        #[SensitiveParameter] private ?HttpClient $http = null,
+        #[SensitiveParameter] private GoogleWalletClient $client,
     ) {}
 
     /**
-     * Replaces presentation on the same Object and confirms it before the caller may commit.
+     * Replaces and confirms content on the same Object before the caller may commit.
      *
-     * The caller owns authorization, domain locks, one non-retrying transaction and its final commit.
-     * A provider confirmation is not a local commit or a guarantee that the device rendered the update.
+     * The caller owns authorization, locks and the non-retrying transaction. Provider confirmation
+     * does not confirm a local commit or device rendering; a local rollback cannot undo the PATCH.
+     * The caller records the operation outcome; this integration only propagates classified failures.
      *
      * @param  Business  $business  Persisted owner authorized by the domain caller.
-     * @param  CustomerPass  $pass  Existing same-Business pass; credentials are never rotated.
+     * @param  CustomerPass  $pass  Existing same-Business pass whose credentials must remain unchanged.
      *
-     * @throws GoogleWalletSynchronizationException When preparation, transport or confirmation fails.
-     * @throws Throwable When native logging fails; the caller must still roll back its transaction.
+     * @throws GoogleWalletSynchronizationException If preparation, transport or confirmation fails.
      */
     public function update(Business $business, CustomerPass $pass): void
     {
-        $startedAt = hrtime(true);
+        // establish the provider deadline and failure classification before preparation
         $deadline = null;
         $stage = GoogleWalletStage::Preparation;
 
         try {
-            if (
-                $business->getConnection() !== $pass->getConnection()
-                || $pass->getConnection()->transactionLevel() === 0
-            ) {
-                throw new GoogleWalletSynchronizationException($stage, FailureOutcome::Definitive, 'transaction_required');
-            }
-
-            if (
-                ! $business->exists
-                || ! $pass->exists
-                || $pass->business_id !== $business->id
-            ) {
-                throw new GoogleWalletSynchronizationException($stage, FailureOutcome::Definitive, 'pass_invalid');
-            }
-
-            $pass = $business->customerPasses()->findOrFail($pass->id);
+            // reload the scoped pass and prepare content before starting the provider budget
+            $pass = $this->loadPass($business, $pass);
             $settings = $this->configuration->load();
             $objectId = $settings['issuer_id'].'.pass_'.$pass->public_id;
             $classId = $settings['issuer_id'].'.business_'.$business->public_id;
@@ -75,37 +60,15 @@ class GoogleWalletPassUpdater
                 throw new GoogleWalletSynchronizationException($stage, FailureOutcome::Definitive, 'binding_conflict');
             }
 
-            $content = $this->presentation->build($business, $pass);
-            $modules = [];
+            $modules = $this->presentation->build($business, $pass);
 
-            foreach ($content->sections as $section) {
-                $modules[] = [
-                    'id' => $section->id,
-                    'header' => $section->header,
-                    'body' => $section->body,
-                ];
-            }
-
-            if ($content->progress !== null) {
-                $modules[] = [
-                    'id' => 'barcode_top',
-                    'header' => __('wallet.labels.progress'),
-                    'body' => $content->progress,
-                ];
-            }
-
-            $modules[] = [
-                'id' => 'details_code',
-                'header' => __('wallet.labels.manual_code'),
-                'body' => $pass->manual_code,
-            ];
-
-            // share one deadline across authentication, the update and any confirmation read
+            // share one deadline across OAuth, the PATCH and all confirmation reads
             $deadline = hrtime(true) + self::BUDGET_SECONDS * 1_000_000_000;
             $stage = GoogleWalletStage::OAuth;
-            $wallet = (new GoogleWalletClient($this->http))->authenticate($settings, $deadline);
+            $wallet = $this->client->authenticate($settings, $deadline);
             $this->checkDeadline($deadline, $stage);
 
+            // verify the existing identity before sending any presentation change
             $stage = GoogleWalletStage::ObjectRead;
             $remote = $wallet->loyaltyobject->get($objectId);
             $this->checkDeadline($deadline, $stage);
@@ -114,55 +77,90 @@ class GoogleWalletPassUpdater
                 throw new GoogleWalletSynchronizationException($stage, FailureOutcome::Definitive, 'binding_conflict');
             }
 
+            // replace text modules without rotating credentials or creating another Object
             $stage = GoogleWalletStage::ObjectUpdate;
-            $remote = $wallet->loyaltyobject->patch($objectId, new LoyaltyObject(['textModulesData' => $modules]));
+            $remote = $wallet->loyaltyobject->patch($objectId, new LoyaltyObject([
+                'textModulesData' => $modules,
+            ]));
             $this->checkDeadline($deadline, $stage);
 
+            // use one additional read only when the PATCH response does not confirm the content
             $stage = GoogleWalletStage::Confirmation;
 
-            if (! $this->matchesIdentity($remote, $pass, $classId) || ! $this->matchesContent($remote, $modules)) {
+            if (
+                ! $this->matchesIdentity($remote, $pass, $classId)
+                || ! $this->matchesContent($remote, $modules)
+            ) {
                 $remote = $wallet->loyaltyobject->get($objectId);
                 $this->checkDeadline($deadline, $stage);
             }
 
-            if (! $this->matchesIdentity($remote, $pass, $classId) || ! $this->matchesContent($remote, $modules)) {
-                throw new GoogleWalletSynchronizationException($stage, FailureOutcome::Unknown, 'confirmation_mismatch');
+            if (
+                ! $this->matchesIdentity($remote, $pass, $classId)
+                || ! $this->matchesContent($remote, $modules)
+            ) {
+                throw new GoogleWalletSynchronizationException(
+                    $stage,
+                    FailureOutcome::Unknown,
+                    'confirmation_mismatch',
+                );
             }
         } catch (Throwable $exception) {
-            $failure = GoogleWalletSynchronizationException::fromFailure(
+            throw GoogleWalletSynchronizationException::fromFailure(
                 $exception,
                 $stage,
                 $deadline !== null && hrtime(true) >= $deadline,
             );
-
-            Log::error('wallet.synchronization.failed', [
-                'business_id' => $business->id,
-                'customer_pass_id' => $pass->id,
-                'stage' => $failure->stage->value,
-                'outcome' => $failure->outcome->value,
-                'reason' => $failure->reason,
-                'provider_status' => $failure->providerStatus,
-                'duration_ms' => (int) ((hrtime(true) - $startedAt) / 1_000_000),
-            ]);
-
-            throw $failure;
         }
-
-        Log::info('wallet.synchronization.confirmed', [
-            'business_id' => $business->id,
-            'customer_pass_id' => $pass->id,
-            'outcome' => 'provider_confirmed',
-            'duration_ms' => (int) ((hrtime(true) - $startedAt) / 1_000_000),
-        ]);
     }
 
     /**
-     * Rejects late responses without claiming that an attempted remote write was rolled back.
+     * Reloads the pass through its owner on the caller's existing transaction.
+     *
+     * @param  Business  $business  Authorized owner using the same connection as the supplied pass.
+     * @param  CustomerPass  $pass  Persisted identity to reload without acquiring additional locks.
+     * @return CustomerPass Current same-Business record from the owning relation.
+     *
+     * @throws GoogleWalletSynchronizationException If the transaction or ownership preconditions fail.
+     * @throws ModelNotFoundException If the scoped record no longer exists.
+     */
+    private function loadPass(Business $business, #[SensitiveParameter] CustomerPass $pass): CustomerPass
+    {
+        // require the same connection and an already-open transaction
+        if (
+            $business->getConnection() !== $pass->getConnection()
+            || $pass->getConnection()->transactionLevel() === 0
+        ) {
+            throw new GoogleWalletSynchronizationException(
+                GoogleWalletStage::Preparation,
+                FailureOutcome::Definitive,
+                'transaction_required',
+            );
+        }
+
+        // validate the supplied identity before reloading it through its owner
+        if (
+            ! $business->exists
+            || ! $pass->exists
+            || $pass->business_id !== $business->id
+        ) {
+            throw new GoogleWalletSynchronizationException(
+                GoogleWalletStage::Preparation,
+                FailureOutcome::Definitive,
+                'pass_invalid',
+            );
+        }
+
+        return $business->customerPasses()->findOrFail($pass->id);
+    }
+
+    /**
+     * Rejects late responses without claiming rollback of a remote write.
      *
      * @param  int  $deadline  Monotonic operation deadline in nanoseconds.
      * @param  GoogleWalletStage  $stage  Last provider boundary entered.
      *
-     * @throws GoogleWalletSynchronizationException When the total provider budget is exhausted.
+     * @throws GoogleWalletSynchronizationException If the total provider budget is exhausted.
      */
     private function checkDeadline(int $deadline, GoogleWalletStage $stage): void
     {
@@ -176,15 +174,18 @@ class GoogleWalletPassUpdater
     }
 
     /**
-     * Confirms immutable identity and credentials without storing or logging the remote barcode.
+     * Matches immutable bindings without retaining or logging the remote barcode.
      *
      * @param  LoyaltyObject  $remote  Provider response, potentially incomplete.
-     * @param  CustomerPass  $pass  Persisted identity with a one-way token hash.
-     * @param  string  $classId  Expected deterministic Business Class identifier.
+     * @param  CustomerPass  $pass  Persisted identity with a one-way validation-token hash.
+     * @param  string  $classId  Expected Business Class identifier.
      * @return bool Whether the response belongs to this exact issued pass.
      */
-    private function matchesIdentity(#[SensitiveParameter] LoyaltyObject $remote, CustomerPass $pass, string $classId): bool
-    {
+    private function matchesIdentity(
+        #[SensitiveParameter] LoyaltyObject $remote,
+        CustomerPass $pass,
+        string $classId,
+    ): bool {
         $data = $remote->toSimpleObject();
         $token = data_get($data, 'barcode.value');
 
@@ -197,14 +198,15 @@ class GoogleWalletPassUpdater
     }
 
     /**
-     * Compares the complete owned module set while ignoring unrelated provider metadata and order.
+     * Compares the complete module set without provider metadata or ordering differences.
      *
      * @param  LoyaltyObject  $remote  Provider response to confirm.
-     * @param  list<array{id: string, header: string, body: string}>  $expected  Absolute module replacement.
+     * @param  list<array{id: string, header: string, body: string}>  $expected  Complete requested module set.
      * @return bool Whether every requested module is present and no stale module remains.
      */
     private function matchesContent(#[SensitiveParameter] LoyaltyObject $remote, array $expected): bool
     {
+        // reject incomplete module data before comparing owned fields
         $actual = [];
         $data = $remote->toSimpleObject();
 
@@ -228,6 +230,7 @@ class GoogleWalletPassUpdater
             ];
         }
 
+        // ignore ordering without hiding duplicates or stale entries
         usort($actual, static fn (array $left, array $right): int => strcmp($left['id'], $right['id']));
         usort($expected, static fn (array $left, array $right): int => strcmp($left['id'], $right['id']));
 
