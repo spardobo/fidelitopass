@@ -126,7 +126,7 @@ One Customer pass persists across Promotions. The diagram describes its presenta
 ```mermaid
 stateDiagram-v2
     [*] --> Issued
-    Issued --> Waiting: no active Promotion and no prior result
+    Issued --> Waiting: no active Promotion
     Issued --> Playing: Promotion active
     Waiting --> Playing: Promotion becomes active
     Playing --> RewardAvailable: Promotion completed
@@ -141,10 +141,11 @@ stateDiagram-v2
     Redeemed --> Playing: next Promotion becomes active
 ```
 
-An active Promotion supplies the current state. Without one, the applicable terminal result from the last relevant
-Customer pass–Promotion relationship remains visible with a waiting message; without such a result, only waiting is
-shown. A scheduled Promotion alone does not replace the prior result. The next active Promotion replaces its displayed
-content, not its history or pass identity. Redemption can convey success; expiry and cancellation remain neutral.
+An active Promotion supplies the current state. Without one, the pass shows the Business's previous effective Promotion
+and next announced Promotion independently of customer participation. Both announcement blocks remain visible; a missing announcement uses a friendly empty message without invented terms.
+The latest real personal canje remains available in details; absent history produces no placeholder or invitation. The next active Promotion
+replaces the public announcements, not personal history or pass identity. Redemption can convey success; expiry and
+cancellation remain neutral.
 The Customer pass is not recreated for each Promotion. Reuse applies to a known anonymous pass identity; without customer identity, separate acquisition on another device cannot be guaranteed to recognize the same person. Such duplicate anonymous passes are an accepted MVP limitation.
 
 ## Visit model
@@ -220,7 +221,7 @@ MVP has one Reward per Promotion.
 7. Inside one transaction, FidelitoPass acquires the relevant Customer pass and Promotion locks, then captures one post-lock PostgreSQL operation instant; it reuses that instant to check validity, resolve the Business-local point value, and record the Visit instant and awarded points.
 8. FidelitoPass sums awarded points for the active Promotion and derives the new progress.
 9. FidelitoPass creates the Reward entitlement if the target points have been reached.
-10. Wallet synchronization is requested after local state commits.
+10. FidelitoPass confirms the resulting Wallet content before committing local state. Provider failure rolls back the tentative operation; a lost response or failed local commit can leave Wallet ahead of PostgreSQL.
 
 ### Redeem a reward
 
@@ -230,7 +231,7 @@ MVP has one Reward per Promotion.
 4. The primary action becomes **Redeem reward**.
 5. The Business confirms.
 6. After acquiring the relevant entitlement and Promotion locks, FidelitoPass captures one post-lock PostgreSQL operation instant, uses it for the redemption deadline check, and records it as the final redemption timestamp with the operator.
-7. Wallet is synchronized after commit.
+7. FidelitoPass confirms the resulting Wallet content before committing the redemption. Failure rolls back the tentative local operation, without a cross-system rollback guarantee.
 
 ### Finish a Promotion
 
@@ -241,8 +242,10 @@ When the Promotion reaches its exclusive end:
 - Unredeemed entitlements become unusable.
 - Redemption is disabled.
 - Customer passes stay installed.
-- Without another active Promotion, Wallet retains the applicable terminal result from the last relevant Customer pass–Promotion relationship together with a waiting message; with no applicable result, it shows waiting alone.
-- A scheduled Promotion alone does not replace that result. The next active Promotion supplies the current state in the same pass without deleting history.
+- Without another active Promotion, Wallet shows the Business's last Promotion that had a positive active period and its next announced Promotion together, whether or not the customer participated. Both announcement blocks remain visible; each missing announcement uses a friendly empty message without invented terms.
+- Cancellation during activity can be shown as the previous Promotion, identified as cancelled rather than normally completed. Cancellation at or before the start does not qualify.
+- The latest genuinely redeemed Reward remains personal to the Customer pass and available in details across Promotions; absent history produces no invitation. It never implies that an unredeemed Reward was collected.
+- The next active Promotion replaces the past/future announcements in the same pass, without deleting history or the latest personal canje.
 
 ## Invariants
 

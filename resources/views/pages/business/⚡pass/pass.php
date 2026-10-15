@@ -6,6 +6,7 @@ use App\Models\Business;
 use App\Models\Promotion;
 use App\Support\DatabaseClock;
 use App\Support\PromotionDetail;
+use App\Support\RegionalDate;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -280,7 +281,7 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
      * Reloads owned frozen terms and derives the current phase from a fresh PostgreSQL instant.
      *
      * @return array{
-     *     promotion: Promotion, phase: string, start_date: string, end_date: string,
+     *     promotion: Promotion, phase: string, start_date: string, end_date: string, start_date_label: string, end_date_label: string,
      *     extra_points: list<array{weekday: int, start_time: string|null, end_time: string|null, multiplier: int}>
      * }|null Persisted detail for this request, or no selection.
      *
@@ -368,15 +369,45 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
+     * Prepares regional labels and semantic dates for the current draft page without changing stored terms.
+     *
+     * @return array<string, array{start: string, end: string, start_label: string, end_label: string}> Periods keyed by public Promotion ID, excluding incomplete dates.
+     *
+     * @throws IntlException When ICU cannot format a date.
+     */
+    #[Computed]
+    public function draftPeriods(): array
+    {
+        $periods = [];
+
+        foreach ($this->draftPromotions as $promotion) {
+            $start = $promotion->local_start_date;
+            $end = $promotion->local_end_date;
+
+            if ($start !== null && $end !== null) {
+                $periods[$promotion->public_id] = [
+                    'start' => $start->format('Y-m-d'),
+                    'end' => $end->format('Y-m-d'),
+                    'start_label' => RegionalDate::format($start),
+                    'end_label' => RegionalDate::format($end),
+                ];
+            }
+        }
+
+        return $periods;
+    }
+
+    /**
      * Returns owned active and scheduled Promotions with a separate Promotion-existence fact.
      * Captures one database instant for current publication boundaries.
      *
      * @return array{
-     *     active: array{promotion: Promotion, period: array{start: string, end: string}}|null,
-     *     scheduled: LengthAwarePaginator<int, array{promotion: Promotion, period: array{start: string, end: string}}>,
+     *     active: array{promotion: Promotion, period: array{start: string, end: string, start_label: string, end_label: string}}|null,
+     *     scheduled: LengthAwarePaginator<int, array{promotion: Promotion, period: array{start: string, end: string, start_label: string, end_label: string}}>,
      *     hasPromotions: bool
      * } Current publications with frozen inclusive dates and whether any Promotion exists.
      *
+     * @throws IntlException When ICU cannot format a date.
      * @throws AuthorizationException When the actor cannot update the Business.
      * @throws ModelNotFoundException When the actor has no Business.
      */
@@ -398,10 +429,14 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
 
         $calendarPeriod = static function (Promotion $promotion): array {
             $timezone = $promotion->timezone_snapshot;
+            $start = $promotion->starts_at->setTimezone($timezone);
+            $end = $promotion->ends_at->setTimezone($timezone)->subDay();
 
             return [
-                'start' => $promotion->starts_at->setTimezone($timezone)->format('Y-m-d'),
-                'end' => $promotion->ends_at->setTimezone($timezone)->subDay()->format('Y-m-d'),
+                'start' => $start->format('Y-m-d'),
+                'end' => $end->format('Y-m-d'),
+                'start_label' => RegionalDate::format($start),
+                'end_label' => RegionalDate::format($end),
             ];
         };
 

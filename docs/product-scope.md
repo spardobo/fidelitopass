@@ -61,7 +61,7 @@ Implementation status (separate from this product design): registration, login, 
 - Unlock at most one Reward entitlement per Customer pass and Promotion.
 - Redeem exactly once before Promotion expiry or cancellation.
 - Keep PostgreSQL authoritative.
-- Synchronize Google Wallet after committed domain changes.
+- Confirm Google Wallet updates synchronously before committing new Visits and Redemptions, within a ten-second provider budget and without automatic retries.
 - Produce structured application/security logs without secrets.
 
 ## Points and Promotion model

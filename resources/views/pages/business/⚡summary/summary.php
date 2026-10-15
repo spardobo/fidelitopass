@@ -6,6 +6,7 @@ use App\Models\Promotion;
 use App\Models\User;
 use App\Support\BusinessSummary;
 use App\Support\PromotionDetail;
+use App\Support\RegionalDate;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -36,6 +37,8 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
      * Reads fresh owner-authorized facts for this render without serialized tenant state.
      *
      * @param  View  $view  Native component view receiving the current read snapshot.
+     *
+     * @throws IntlException When ICU cannot format a date.
      */
     public function rendering(View $view): void
     {
@@ -58,6 +61,9 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
             'primaryPhase' => $phase,
             'primaryPeriod' => $primary === null ? null : $this->period($primary),
             'nextPeriod' => $upcoming === null ? null : $this->period($upcoming),
+            'scheduledWaitingLabel' => $primary === null || $phase !== 'scheduled' ? null : __('summary.scheduled_waiting', [
+                'date' => RegionalDate::format($primary->starts_at->setTimezone($primary->timezone_snapshot)),
+            ]),
             'preparation' => $preparation,
             'preparationCompleted' => count(array_filter($preparation)),
             'historyPromotions' => $this->historyPromotions($summary['business'], $summary['asOf']),
@@ -98,7 +104,7 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
     /**
      * Reloads owned terms on each request instead of hydrating saved Promotion data.
      *
-     * @return array{promotion: Promotion, phase: string, start_date: string, end_date: string, extra_points: list<array{weekday: int, start_time: string|null, end_time: string|null, multiplier: int}>}|null Current saved detail or no selection.
+     * @return array{promotion: Promotion, phase: string, start_date: string, end_date: string, start_date_label: string, end_date_label: string, extra_points: list<array{weekday: int, start_time: string|null, end_time: string|null, multiplier: int}>}|null Current saved detail or no selection.
      *
      * @throws AuthorizationException When the actor cannot update the Business.
      * @throws ModelNotFoundException When the actor has no Business.
@@ -122,7 +128,7 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
      *
      * @param  Business  $business  Business freshly resolved and authorized by the Summary reader.
      * @param  CarbonImmutable  $instant  Authoritative PostgreSQL instant captured for this render.
-     * @return LengthAwarePaginator<int, array{promotion: Promotion, period: array{start: string, end: string}, phase: string}> Three historical rows per independent history page, latest original start first.
+     * @return LengthAwarePaginator<int, array{promotion: Promotion, period: array{start: string, end: string, start_label: string, end_label: string}, phase: string}> Three historical rows per independent history page, latest original start first.
      */
     private function historyPromotions(Business $business, CarbonImmutable $instant): LengthAwarePaginator
     {
@@ -147,15 +153,21 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
      * Returns frozen published inclusive ISO dates in their snapshot timezone.
      *
      * @param  Promotion  $promotion  Server-resolved published or cancelled terms.
-     * @return array{start: string, end: string} ISO calendar endpoints, preserving exclusive-end semantics.
+     * @return array{start: string, end: string, start_label: string, end_label: string} ISO calendar endpoints and regional labels, preserving exclusive-end semantics.
+     *
+     * @throws IntlException When ICU cannot format a date.
      */
     private function period(Promotion $promotion): array
     {
         $timezone = $promotion->timezone_snapshot;
+        $start = $promotion->starts_at->setTimezone($timezone);
+        $end = $promotion->ends_at->setTimezone($timezone)->subDay();
 
         return [
-            'start' => $promotion->starts_at->setTimezone($timezone)->format('Y-m-d'),
-            'end' => $promotion->ends_at->setTimezone($timezone)->subDay()->format('Y-m-d'),
+            'start' => $start->format('Y-m-d'),
+            'end' => $end->format('Y-m-d'),
+            'start_label' => RegionalDate::format($start),
+            'end_label' => RegionalDate::format($end),
         ];
     }
 };

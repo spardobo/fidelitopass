@@ -7,6 +7,7 @@ use App\Models\Business;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Support\DatabaseClock;
+use App\Support\RegionalDate;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Exceptions;
@@ -17,7 +18,7 @@ uses(RefreshDatabase::class);
 
 it('renders supplied summary terms without a Livewire editor', function () {
     $this->blade(
-        '<x-promotion-summary :reward-title="$title" :reward-description="$description" target-points="12" start-date="2026-12-02" end-date="2026-12-09" :extra-points="$rules" />',
+        '<x-promotion-summary :reward-title="$title" :reward-description="$description" target-points="12" start-date="2026-12-02" end-date="2026-12-09" start-date-label="2/12/2026" end-date-label="9/12/2026" :extra-points="$rules" />',
         [
             'title' => '<script>Reward</script>',
             'description' => '<strong>Original terms</strong>',
@@ -33,8 +34,8 @@ it('renders supplied summary terms without a Livewire editor', function () {
         ->assertDontSee('<script>Reward</script>', false)
         ->assertDontSee('<strong>Original terms</strong>', false)
         ->assertSee('12 puntos')
-        ->assertSee('12/02/2026')
-        ->assertSee('12/09/2026')
+        ->assertSee('2/12/2026')
+        ->assertSee('9/12/2026')
         ->assertSee('3 configuraciones')
         ->assertSee('Lunes · Todo el día')
         ->assertSee('Miércoles · 10:00–13:00')
@@ -46,12 +47,15 @@ it('renders supplied summary terms without a Livewire editor', function () {
         ->assertDontSee('Después de publicar');
 });
 
-it('renders fixed padded calendar dates before JavaScript without truncating the year', function () {
-    $this->blade('<x-regional-date date="0099-01-02" end-date="2026-12-09" />')
+it('renders regional calendar dates before JavaScript while preserving ISO values', function () {
+    $this->blade('<x-promotion-summary reward-title="Test" target-points="1" start-date="0099-01-02" end-date="2026-12-09" :start-date-label="$startLabel" :end-date-label="$endLabel" />', [
+        'startLabel' => RegionalDate::format(new DateTimeImmutable('0099-01-02', new DateTimeZone('UTC'))),
+        'endLabel' => RegionalDate::format(new DateTimeImmutable('2026-12-09', new DateTimeZone('UTC'))),
+    ])
         ->assertSee('datetime="0099-01-02"', false)
         ->assertSee('datetime="2026-12-09"', false)
-        ->assertSee('01/02/0099')
-        ->assertSee('12/09/2026');
+        ->assertSee('2/1/99')
+        ->assertSee('9/12/2026');
 });
 
 it('keeps malformed editor dates available for server validation without parsing preview input', function () {
@@ -103,12 +107,12 @@ it('opens a compact publication modal over the unchanged editor without saving',
         ->assertSee('Café americano mediano')
         ->assertSee('8 puntos')
         ->assertSee('datetime="2026-11-01"', false)
-        ->assertSee('11/01/2026')
-        ->assertSee('11/07/2026')
+        ->assertSee('1/11/2026')
+        ->assertSee('7/11/2026')
         ->assertDontSee('Zona horaria del negocio')
         ->assertDontSee('America/La_Paz')
         ->assertDontSee('1 punto por visita')
-        ->assertDontSee('La promoción comenzará el 11/01/2026.')
+        ->assertDontSee('La promoción comenzará el 1/11/2026.')
         ->assertSee('1 punto')
         ->assertSee('Martes')
         ->assertSee('3 puntos')
@@ -328,8 +332,8 @@ it('refreshes the review timezone and requires a second explicit confirmation', 
         ->assertDispatched('modal-show', name: 'promotion-publication-review')
         ->assertSet('reviewedTimezone', 'America/Los_Angeles')
         ->assertHasNoErrors()
-        ->assertSee('11/01/2026')
-        ->assertSee('11/07/2026');
+        ->assertSee('1/11/2026')
+        ->assertSee('7/11/2026');
 
     expect($component->get('publicationReview')['starts_at'])->toBe('2026-11-01 07:00:00 UTC')
         ->and($component->get('publicationReview')['ends_at'])->toBe('2026-11-08 08:00:00 UTC')
@@ -510,8 +514,8 @@ it('shows the PostgreSQL-compatible exclusive UTC boundary across a skipped loca
         ->set('localEndDate', '2018-11-04')
         ->call('reviewPublication')
         ->assertHasNoErrors()
-        ->assertSee('11/03/2018')
-        ->assertSee('11/04/2018')
+        ->assertSee('3/11/2018')
+        ->assertSee('4/11/2018')
         ->assertDontSee('2018-11-03 03:00:00 UTC')
         ->assertDontSee('2018-11-05 02:00:00 UTC');
 

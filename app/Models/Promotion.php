@@ -3,13 +3,17 @@
 namespace App\Models;
 
 use App\Enums\PromotionStatus;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
-/** @property PromotionStatus $status */
+/**
+ * @property PromotionStatus $status
+ * @property CarbonImmutable|null $cancelled_at
+ **/
 #[Fillable(['local_start_date', 'local_end_date', 'target_points', 'reward_title', 'reward_description'])]
 class Promotion extends Model
 {
