@@ -30,6 +30,16 @@ Customer passes are not `User` accounts. Every protected pass operation is scope
 
 Server-side validation is authoritative; client validation is UX only. Promotion configuration and lookup input must satisfy the [security input contract](../architecture/security.md#input-validation), including allowed multipliers, disjoint windows, whole-day/timed exclusivity, valid timezones and Business-scoped manual codes.
 
+## Read-only pass lookup
+
+Private pass lookup resolves the verified authenticated owner's Business before returning identity or eligibility. It accepts only the private scan token or the normalized manual-code fallback. It does not create a public endpoint or accept acquisition identifiers as private credentials.
+
+The result selects nonsecret identity, current active Promotion terms, immutable awarded-point totals and existing Reward state. Inactive Promotions produce no affirmative Visit or redemption hint. A completed goal does not create an entitlement during lookup. The captured PostgreSQL instant is a read-only hint; confirmation must revalidate in the later command's locked transaction.
+
+Authoritative reads use their own scoped facts, not Summary statistics or degraded metric defaults. Read failures and ambiguous active Promotions fail closed. Lookup never writes pass, participation, Visit or Reward facts and never calls Google Wallet.
+
+Invalid credentials share one authenticated-owner attempt window across manual and scan input, so changing the submitted credential does not reset the restriction. Successful reads do not erase invalid-attempt history. Configuration values `PASS_LOOKUP_MAX_INVALID_ATTEMPTS` and `PASS_LOOKUP_DECAY_SECONDS` default to ten invalid attempts and sixty seconds. Blocked requests do not add attempts. Diagnostic events select only nonsecret context; no input is flashed or retained in session state.
+
 ## Google Wallet integration
 
 The provider boundary owns Class/Object payload mapping, object creation/update, Save-to-Wallet issuance payloads and provider error classification.
