@@ -110,7 +110,7 @@ if ($operation === 'guard') {
         }
         for ($index = 1; $index <= 4; $index++) {
             $business->promotions()->create(['reward_title' => 'Borrador '.$index, 'target_points' => 8,
-                'local_start_date' => $today->addDays(20 + $index), 'local_end_date' => $today->addDays(22 + $index)]);
+                'local_start_date' => $index === 1 ? $today->subDays(2) : $today->addDays(20 + $index), 'local_end_date' => $today->addDays(22 + $index)]);
         }
         // a different current Business timezone must not reinterpret the published dates.
         $business->update(['timezone' => 'Pacific/Auckland']);

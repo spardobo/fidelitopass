@@ -4,6 +4,8 @@
     'targetPoints',
     'startDate',
     'endDate',
+    'startDateLabel',
+    'endDateLabel',
     'extraPoints' => [],
 ])
 
@@ -39,7 +41,7 @@
                 {{ __('business.promotion.review_validity') }}
             </dt>
             <dd class="app-role-body! col-start-2 min-w-0 break-words font-semibold! text-app-ink sm:col-start-3 sm:row-start-1">
-                <x-regional-date :date="$startDate" :end-date="$endDate" />
+                <time datetime="{{ $startDate }}">{{ $startDateLabel }}</time> – <time datetime="{{ $endDate }}">{{ $endDateLabel }}</time>
             </dd>
             <dd class="app-role-support! col-start-2 min-w-0 break-words font-normal! text-app-ink-help sm:col-start-3 sm:mt-1">
                 {{ __('business.promotion.inclusive_end_date') }}

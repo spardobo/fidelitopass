@@ -5,7 +5,7 @@
     name="promotion-detail"
     scroll="body"
     x-on:close="
-        const originId = @js($focusOriginPrefix) + $wire.selectedPromotionId;
+        const originId = $el.querySelector('[data-focus-origin]').dataset.focusOrigin;
         $wire.dismissPromotionDetail().then(() => {
             const root = $el.closest('main');
             const origin = root.querySelector('#' + originId);
@@ -17,7 +17,7 @@
     class="app-theme w-[calc(100vw-2rem)] sm:w-[calc(100vw-3rem)] max-w-xl! min-w-0! max-h-[calc(100dvh-2rem)]! sm:max-h-[calc(100dvh-3rem)]! flex flex-col overflow-hidden!"
 >
     @if ($detail)
-        <div data-promotion-detail-phase="{{ $detail['phase'] }}" class="flex min-h-0 flex-1 flex-col">
+        <div data-promotion-detail-phase="{{ $detail['phase'] }}" data-focus-origin="{{ $focusOriginPrefix }}{{ $detail['promotion']->public_id }}" class="flex min-h-0 flex-1 flex-col">
             <header class="flex shrink-0 min-w-0 items-center gap-4 pb-2 pe-10">
                 <span class="flex size-16 shrink-0 items-center justify-center rounded-full bg-app-emphasis text-app-accent" aria-hidden="true">
                     <flux:icon.document-text variant="outline" class="size-9" />
@@ -42,6 +42,8 @@
                     :target-points="$detail['promotion']->target_points"
                     :start-date="$detail['start_date']"
                     :end-date="$detail['end_date']"
+                    :start-date-label="$detail['start_date_label']"
+                    :end-date-label="$detail['end_date_label']"
                     :extra-points="$detail['extra_points']"
                 />
 

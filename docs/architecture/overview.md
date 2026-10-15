@@ -165,7 +165,7 @@ make it stale.
 
 One focused Visit-validation command owns the complete authoritative operation.
 
-For a new mutation, authorization, eligibility, the domain fact and its related state changes commit atomically. Provider synchronization follows commit.
+For a new mutation, authorization, eligibility, the domain fact and its related state changes share one transaction. Confirm the resulting Wallet content synchronously before commit; propagate provider failure to roll back tentative writes.
 
 The public acquisition QR identifies a join page, never a validation credential. The Wallet barcode contains a private
 high-entropy validation token; a short Business-scoped manual code is a lookup fallback, not equivalent authority. Both
@@ -182,7 +182,7 @@ points or entitlement; database uniqueness remains the barrier against new dupli
 
 One focused redemption command owns the complete authoritative operation.
 
-A new redemption records its final instant and confirming owner atomically after current eligibility checks. Provider synchronization follows commit.
+A new redemption records its final instant and confirming owner atomically after current eligibility checks. Confirm the resulting Wallet content synchronously before commit; propagate provider failure to roll back tentative writes.
 
 An authorized repeat for the same entitlement returns its final redeemed state without a second redemption. Expiry or
 cancellation prevents a new redemption, not replay of the committed result. Ownership and credential checks still apply
@@ -203,21 +203,19 @@ The application does not use Wallet state as a source of truth.
 
 Initial issuance follows [REQ-WAL-003](../requirements.md#req-wal-003--google-first-initial-customer-pass-issuance): explicit Save requests Google Object creation outside a database transaction, then confirmed provider success permits the local Customer pass transaction. Only confirmed local commit permits the private existing-Object save JWT and manual-code response. This is not an atomic transaction across Google and PostgreSQL and does not confirm the user's Wallet save.
 
-[ADR-006](decisions/006-google-first-initial-wallet-issuance.md) records the accepted orphan/anonymous-reacquisition tradeoffs and the absence of durable attempt or browser identity. PostgreSQL remains domain truth. Visit/Redemption synchronization still follows local commit; the initial issuance gate does not change those boundaries.
+[ADR-006](decisions/006-google-first-initial-wallet-issuance.md) records the accepted orphan/anonymous-reacquisition tradeoffs and the absence of durable attempt or browser identity. PostgreSQL remains domain truth. Existing-pass Visit/Redemption synchronization follows the separate synchronous boundary below.
+
+### Existing-pass synchronization boundary
+
+[ADR-007](decisions/007-synchronous-wallet-updates.md) establishes the MVP boundary: the domain caller owns authorization, locks and one non-retrying transaction. It writes tentative facts, updates the same Object with absolute content, then commits only after Google confirms. Authentication, reads, the write and any confirmation share ten seconds total, without automatic retries.
+
+The integration reads the caller's tentative state and preserves Object identity, Class binding and credentials. It does not accept Visits, redeem Rewards or commit database changes. Failure escapes to the transaction owner. That caller records the operation outcome after resolving commit or rollback; the integration does not emit operation logs. Provider confirmation alone is not a local commit.
+
+A lost response or failed local commit can leave a remotely advanced Object. PostgreSQL remains authoritative; no distributed rollback or immediate device rendering is guaranteed. Initial issuance remains independent.
 
 ## Background work
 
-Wallet synchronization is the main asynchronous/retryable responsibility.
-
-Use a Laravel job dispatched after commit when synchronization is not required to complete the counter interaction.
-
-Jobs:
-
-- Reload current authoritative state.
-- Tolerate duplicate execution.
-- Avoid changing domain eligibility.
-- Log provider failures with request/domain correlation.
-- Retry according to queue configuration.
+The MVP adds no Wallet job, worker, outbox or durable synchronization registry. Publication, cancellation and time-driven refresh remain separate integration work; the synchronous capability does not establish those triggers.
 
 ## Public web surfaces
 
@@ -231,8 +229,7 @@ No customer profile portal is required.
 
 The production unit is the Laravel web application plus PostgreSQL.
 
-If Wallet synchronization uses queued jobs in production, the deployment also runs a queue worker using the same
-code/image.
+Synchronous Wallet updates do not require a queue worker.
 
 TLS, secret injection, database hosting, backups, and process supervision belong to the deployment environment.
 

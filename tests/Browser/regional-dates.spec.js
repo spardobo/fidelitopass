@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-/** Checks rendered calendar dates against fixed MM/DD/YYYY presentation across browser locales.
+/** Checks rendered calendar dates against the application locale presentation across browser locales.
  * @param {import('@playwright/test').Locator} dates Semantic date-only time elements within the current surface.
- * @returns {Promise<void>} Resolves when all dates retain their ISO meaning and fixed date text; rejects on mismatch.
+ * @returns {Promise<void>} Resolves when all dates retain their ISO meaning and regional date text; rejects on mismatch.
  */
 async function expectRegionalDates(dates) {
     await expect(dates.first()).toBeVisible();
@@ -11,7 +11,9 @@ async function expectRegionalDates(dates) {
             dates.evaluateAll((elements) =>
                 elements.every((element) => {
                     const iso = element.getAttribute("datetime");
-                    const expected = iso.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3/$1");
+                    const expected = new Intl.DateTimeFormat(document.documentElement.lang, {
+                        timeZone: "UTC",
+                    }).format(new Date(`${iso}T12:00:00Z`));
                     return element.textContent.trim() === expected;
                 }),
             ),
@@ -20,7 +22,7 @@ async function expectRegionalDates(dates) {
 }
 
 for (const locale of ["en-US", "en-GB"]) {
-    test.describe(`fixed calendar dates in ${locale}`, () => {
+    test.describe(`application-locale calendar dates in ${locale}`, () => {
         test.use({ locale, timezoneId: "Pacific/Kiritimati" });
 
         test("keeps date meaning through navigation, Livewire refresh, detail and reactive preview", async ({
@@ -60,21 +62,31 @@ for (const locale of ["en-US", "en-GB"]) {
             const start = page.locator("#local-start-date");
             const end = page.locator("#local-end-date");
             const iso = await start.getAttribute("min");
-            await start.fill(iso);
-            await end.fill(iso);
-            const expected = iso.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3/$1");
+            for (const field of [start, end]) {
+                await field.evaluate(
+                    (input, date) =>
+                        input
+                            .closest("[data-date-time-picker]")
+                            .querySelector('input[type="hidden"]')
+                            ._flatpickr.setDate(date, true),
+                    iso,
+                );
+            }
+            const expected = new Intl.DateTimeFormat("es", { timeZone: "UTC" }).format(
+                new Date(`${iso}T12:00:00Z`),
+            );
             const preview = page.locator('[data-test="summary-validity"]');
             await expect(preview).toHaveText(`${expected} – ${expected}`);
-            await expect(start).toHaveValue(iso);
-            await expect(end).toHaveValue(iso);
+            await expect(start).toHaveValue(expected);
+            await expect(end).toHaveValue(expected);
 
             await page.evaluate(async () => {
                 const root = document.querySelector("main").closest("[wire\\:id]");
                 await window.Livewire.find(root.getAttribute("wire:id")).$refresh();
             });
             await expect(preview).toHaveText(`${expected} – ${expected}`);
-            await expect(start).toHaveValue(iso);
-            await expect(end).toHaveValue(iso);
+            await expect(start).toHaveValue(expected);
+            await expect(end).toHaveValue(expected);
             expect(errors).toEqual([]);
         });
     });

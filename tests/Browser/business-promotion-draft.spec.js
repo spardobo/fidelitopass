@@ -20,17 +20,37 @@ function shiftCalendarDate(date, days) {
     return shifted.toISOString().slice(0, 10);
 }
 
-/** Formats validity endpoints with the fixed MM/DD/YYYY presentation.
- * @param {string} start Promotion start date in YYYY-MM-DD form, or an empty value.
- * @param {string} end Promotion end date in YYYY-MM-DD form, or an empty value.
- * @returns {string} Fixed-format validity summary or its unconfigured placeholder.
+/** Selects a value through the widget's public API for server-workflow scenarios.
+ * @param {import('@playwright/test').Page} page Current editor page.
+ * @param {string} label Accessible field label.
+ * @param {string} value Canonical ISO date or HH:mm value, empty to clear.
+ * @returns {Promise<void>} Resolves after the picker emits its normal change events.
+ */
+async function selectPicker(page, label, value) {
+    await page.getByLabel(label).evaluate((input, selected) => {
+        const picker = input
+            .closest("[data-date-time-picker]")
+            .querySelector('input[type="hidden"]')._flatpickr;
+        picker.setDate(selected, true);
+        picker.close();
+    }, value);
+}
+
+/** Formats the Spanish application's date fixtures with regional conventions.
+ * @param {string} date ISO calendar date.
+ * @returns {string} Regional numeric fixture label.
+ */
+function expectedDate(date) {
+    return new Intl.DateTimeFormat("es", { timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+}
+
+/** Formats inclusive fixtures or their unconfigured placeholder.
+ * @param {string} start ISO start date, or an empty value.
+ * @param {string} end ISO end date, or an empty value.
+ * @returns {string} Regional validity summary.
  */
 function expectedValidityRange(start, end) {
-    if (!start || !end) return "Fechas por definir";
-
-    return [start, end]
-        .map((date) => date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3/$1"))
-        .join(" – ");
+    return start && end ? [start, end].map(expectedDate).join(" – ") : "Fechas por definir";
 }
 
 /** Derives stable date cases from the editor's server-provided minimum date.
@@ -119,8 +139,8 @@ async function readPromotionLabelStyles(page) {
         const selectors = {
             reward: 'ui-label[for="reward-title"]',
             target: 'ui-label[for="target-points"]',
-            startDate: 'ui-label[for="local-start-date"]',
-            endDate: 'ui-label[for="local-end-date"]',
+            startDate: 'label[for="local-start-date"]',
+            endDate: 'label[for="local-end-date"]',
             weekday: 'ui-label[for="extra-weekday"]',
             multiplier: 'ui-label[for="extra-multiplier"]',
             schedule: "fieldset legend",
@@ -234,8 +254,8 @@ for (const hasTouch of [false, true]) {
                 .getByLabel("Detalle de la recompensa")
                 .fill("Una recompensa para compartir.");
             await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
-            await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
-            await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+            await selectPicker(page, "Fecha de inicio", dates.futureStart);
+            await selectPicker(page, "Fecha de fin", dates.futureEnd);
             for (const weekday of ["1", "3", "5"]) {
                 await page.getByLabel("Día", { exact: true }).selectOption(weekday);
                 await page.getByRole("button", { name: "Añadir puntos extra" }).click();
@@ -763,10 +783,10 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
             "La fecha de fin incluye ese día completo. La recompensa también vence al terminar la promoción.",
         ),
     ).toBeVisible();
-    await expect(page.locator("#reward-title")).toHaveAttribute("required", "required");
-    await expect(page.locator("#target-points")).toHaveAttribute("required", "required");
-    await expect(page.locator("#local-start-date")).toHaveAttribute("required", "required");
-    await expect(page.locator("#local-end-date")).toHaveAttribute("required", "required");
+    await expect(page.locator("#reward-title")).toHaveJSProperty("required", true);
+    await expect(page.locator("#target-points")).toHaveJSProperty("required", true);
+    await expect(page.locator("#local-start-date")).toHaveJSProperty("required", true);
+    await expect(page.locator("#local-end-date")).toHaveJSProperty("required", true);
     await expect(page.locator('[data-test="promotion-editor"] form')).toHaveAttribute(
         "novalidate",
         "",
@@ -781,7 +801,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     ).toBeVisible();
     const requiredLabelGaps = await page.evaluate(() =>
         ["reward-title", "target-points", "local-start-date", "local-end-date"].map((id) => {
-            const label = document.querySelector(`ui-label[for="${id}"]`);
+            const label = document.querySelector(`ui-label[for="${id}"], label[for="${id}"]`);
             const marker = label.querySelector('[aria-hidden="true"]');
             const labelText = Array.from(label.childNodes).find(
                 (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim(),
@@ -977,30 +997,30 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(summary.locator('[data-test="summary-validity"]')).toHaveText(
         "Fechas por definir",
     );
-    await page.getByLabel("Fecha de inicio").fill(dateCases.sameYearStart);
+    await selectPicker(page, "Fecha de inicio", dateCases.sameYearStart);
     await expect(summary.locator('[data-test="summary-validity"]')).toHaveText(
         "Fechas por definir",
     );
-    await page.getByLabel("Fecha de fin").fill(dateCases.sameYearEnd);
+    await selectPicker(page, "Fecha de fin", dateCases.sameYearEnd);
     await expect(summary.locator('[data-test="summary-validity"]')).toHaveText(
         expectedValidityRange(dateCases.sameYearStart, dateCases.sameYearEnd),
     );
-    await page.getByLabel("Fecha de inicio").fill(dateCases.yearEnd);
-    await page.getByLabel("Fecha de fin").fill(dateCases.nextYear);
+    await selectPicker(page, "Fecha de inicio", dateCases.yearEnd);
+    await selectPicker(page, "Fecha de fin", dateCases.nextYear);
     await expect(summary.locator('[data-test="summary-validity"]')).toHaveText(
         expectedValidityRange(dateCases.yearEnd, dateCases.nextYear),
     );
-    await page.getByLabel("Fecha de inicio").fill("");
+    await selectPicker(page, "Fecha de inicio", "");
     await expect(summary.locator('[data-test="summary-validity"]')).toHaveText(
         "Fechas por definir",
     );
-    await page.getByLabel("Fecha de fin").fill("");
-    await page.getByLabel("Fecha de fin").fill(dateCases.sameYearEnd);
+    await selectPicker(page, "Fecha de fin", "");
+    await selectPicker(page, "Fecha de fin", dateCases.sameYearEnd);
     await expect(summary.locator('[data-test="summary-validity"]')).toHaveText(
         "Fechas por definir",
     );
-    await page.getByLabel("Fecha de inicio").fill(dateCases.futureStart);
-    await page.getByLabel("Fecha de fin").fill(dateCases.futureEnd);
+    await selectPicker(page, "Fecha de inicio", dateCases.futureStart);
+    await selectPicker(page, "Fecha de fin", dateCases.futureEnd);
     await page.unroute(LIVEWIRE_UPDATE_PATH);
     await expect(page.getByText("Café de cortesía", { exact: true })).toBeVisible();
     await page.getByLabel("Día", { exact: true }).selectOption("3");
@@ -1024,8 +1044,8 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
                 section.getBoundingClientRect().top;
 
             return {
-                startLabel: top('ui-label[for="extra-start-time"]'),
-                endLabel: top('ui-label[for="extra-end-time"]'),
+                startLabel: top('label[for="extra-start-time"]'),
+                endLabel: top('label[for="extra-end-time"]'),
                 startInput: top("#extra-start-time"),
                 endInput: top("#extra-end-time"),
                 addButton:
@@ -1049,7 +1069,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
         1,
     );
     expect(timeTopsAfterError.addButton).toBeGreaterThan(timeTopsBeforeError.addButton);
-    await page.getByLabel("Hora de inicio").fill("09:00");
+    await selectPicker(page, "Hora de inicio", "09:00");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await expect(
         page.getByText("El campo hora de fin es obligatorio.", { exact: true }),
@@ -1057,8 +1077,8 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(
         page.getByText("El campo hora de inicio es obligatorio.", { exact: true }),
     ).toHaveCount(0);
-    await page.getByLabel("Hora de inicio").fill("");
-    await page.getByLabel("Hora de fin").fill("12:00");
+    await selectPicker(page, "Hora de inicio", "");
+    await selectPicker(page, "Hora de fin", "12:00");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await expect(
         page.getByText("El campo hora de inicio es obligatorio.", { exact: true }),
@@ -1066,7 +1086,7 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(
         page.getByText("El campo hora de fin es obligatorio.", { exact: true }),
     ).toHaveCount(0);
-    await page.getByLabel("Hora de inicio").fill("09:00");
+    await selectPicker(page, "Hora de inicio", "09:00");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await expect(page.getByText("Entrada sin añadir", { exact: true })).toHaveCount(0);
     await expect(page.getByText("La regla se repetirá cada semana.", { exact: true })).toHaveCount(
@@ -1157,35 +1177,35 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(allDayRule.getByText("2 puntos · ×2", { exact: true })).toBeVisible();
     await page.getByLabel("Por horario", { exact: true }).check();
     await page.getByLabel("Día", { exact: true }).selectOption("3");
-    await page.getByLabel("Hora de inicio").fill("09:00");
-    await page.getByLabel("Hora de fin").fill("12:00");
+    await selectPicker(page, "Hora de inicio", "09:00");
+    await selectPicker(page, "Hora de fin", "12:00");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await expect(
         page.getByText(
             "No se puede combinar una regla de día completo con otros horarios en el mismo día.",
         ),
     ).toBeVisible();
-    await expect(page.getByLabel("Hora de inicio")).toHaveValue("09:00");
+    await expect(page.getByLabel("Hora de inicio")).toHaveValue("9:00");
     await expect(page.getByLabel("Hora de fin")).toHaveValue("12:00");
     await expect(page.getByText("Entrada sin añadir", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Quitar la regla de Miércoles" }).first().click();
 
     await page.getByLabel("Por horario", { exact: true }).check();
     await page.getByLabel("Día", { exact: true }).selectOption("3");
-    await page.getByLabel("Hora de inicio").fill("09:00");
-    await page.getByLabel("Hora de fin").fill("10:00");
+    await selectPicker(page, "Hora de inicio", "09:00");
+    await selectPicker(page, "Hora de fin", "10:00");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await expect(page.getByText("09:00–10:00", { exact: true })).toBeVisible();
     await page.getByLabel("Por horario", { exact: true }).check();
     await page.getByLabel("Día", { exact: true }).selectOption("3");
-    await page.getByLabel("Hora de inicio").fill("10:00");
-    await page.getByLabel("Hora de fin").fill("11:00");
+    await selectPicker(page, "Hora de inicio", "10:00");
+    await selectPicker(page, "Hora de fin", "11:00");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await expect(page.getByText("10:00–11:00", { exact: true })).toBeVisible();
     await page.getByLabel("Por horario", { exact: true }).check();
     await page.getByLabel("Día", { exact: true }).selectOption("3");
-    await page.getByLabel("Hora de inicio").fill("10:30");
-    await page.getByLabel("Hora de fin").fill("11:30");
+    await selectPicker(page, "Hora de inicio", "10:30");
+    await selectPicker(page, "Hora de fin", "11:30");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await expect(
         page.getByText("Los horarios de puntos extra no pueden superponerse."),
@@ -1204,8 +1224,8 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(
         page.getByText("Revisa los campos marcados y corrige los datos antes de continuar.").last(),
     ).toBeVisible();
-    await page.getByLabel("Hora de inicio").fill("");
-    await page.getByLabel("Hora de fin").fill("");
+    await selectPicker(page, "Hora de inicio", "");
+    await selectPicker(page, "Hora de fin", "");
     await page.getByLabel("Día", { exact: true }).selectOption("");
     await page.getByLabel("Todo el día", { exact: true }).check();
 
@@ -1232,8 +1252,8 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await expect(draftWeekday).toHaveValue("1");
     await page.getByLabel("Por horario", { exact: true }).check();
     await expect(page.getByLabel("Por horario", { exact: true })).toBeChecked();
-    await page.getByLabel("Hora de inicio").fill("16:00");
-    await page.getByLabel("Hora de fin").fill("17:00");
+    await selectPicker(page, "Hora de inicio", "16:00");
+    await selectPicker(page, "Hora de fin", "17:00");
     await expect(page.getByLabel("Hora de inicio")).toHaveValue("16:00");
     await expect(page.getByLabel("Hora de fin")).toHaveValue("17:00");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
@@ -1243,9 +1263,9 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await draftWeekday.selectOption("1");
     await expect(draftWeekday).toHaveValue("1");
     await page.getByLabel("Por horario", { exact: true }).check();
-    await page.getByLabel("Hora de inicio").fill("09:00");
-    await page.getByLabel("Hora de fin").fill("10:00");
-    await expect(page.getByLabel("Hora de inicio")).toHaveValue("09:00");
+    await selectPicker(page, "Hora de inicio", "09:00");
+    await selectPicker(page, "Hora de fin", "10:00");
+    await expect(page.getByLabel("Hora de inicio")).toHaveValue("9:00");
     await expect(page.getByLabel("Hora de fin")).toHaveValue("10:00");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     const sortedRows = page
@@ -1314,8 +1334,8 @@ test("owner reviews and responsively renders a Promotion draft editor", async ({
     await page.goto("/promotions/create");
     await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill("Segunda promoción");
     await page.getByLabel("¿Cuántos puntos necesita?").fill("9");
-    await page.getByLabel("Fecha de inicio").fill(dateCases.futureStart);
-    await page.getByLabel("Fecha de fin").fill(dateCases.futureEnd);
+    await selectPicker(page, "Fecha de inicio", dateCases.futureStart);
+    await selectPicker(page, "Fecha de fin", dateCases.futureEnd);
     await page.getByRole("button", { name: "Guardar borrador" }).click();
     await expect(page).toHaveURL(/\/pass$/);
     await page.locator("ui-toast-group ui-close button").evaluateAll((buttons) => {
@@ -1460,8 +1480,8 @@ test("disables competing Promotion actions while a save request is pending", asy
     const dates = await promotionDateCases(page);
     await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill("Borrador de bloqueo");
     await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
-    await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
-    await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+    await selectPicker(page, "Fecha de inicio", dates.futureStart);
+    await selectPicker(page, "Fecha de fin", dates.futureEnd);
     await page.getByLabel("Día", { exact: true }).selectOption("3");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await page.getByRole("button", { name: "Guardar borrador" }).click();
@@ -1662,18 +1682,23 @@ test("rejects past draft dates through Livewire without native form interception
 
     const dates = await promotionDateCases(page);
     const startDate = page.getByLabel("Fecha de inicio");
-    const endDate = page.getByLabel("Fecha de fin");
     await expect(page.locator('[data-test="promotion-editor"] form')).toHaveAttribute(
         "novalidate",
         "",
     );
     await expect(startDate).toHaveAttribute("min", dates.minimum);
-    await startDate.fill(dates.past);
-    await endDate.fill(dates.minimum);
+    await page.locator('[data-test="promotion-editor"]').evaluate((root, past) => {
+        window.Livewire.find(root.closest("[wire\\:id]").getAttribute("wire:id")).$set(
+            "localStartDate",
+            past,
+            false,
+        );
+    }, dates.past);
+    await selectPicker(page, "Fecha de fin", dates.minimum);
     await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill("No debe guardarse");
     await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
 
-    expect(await startDate.evaluate((input) => input.validity.rangeUnderflow)).toBe(true);
+    await expect(startDate).toHaveJSProperty("readOnly", true);
     await page.getByRole("button", { name: "Guardar borrador" }).click();
 
     await expect(page).toHaveURL(/\/promotions\/create$/);
@@ -1686,7 +1711,7 @@ test("rejects past draft dates through Livewire without native form interception
     await expect(
         page.getByText("Revisa los campos marcados y corrige los datos antes de continuar."),
     ).toBeVisible();
-    await expect(startDate).toHaveValue(dates.past);
+    await expect(startDate).toHaveValue(expectedDate(dates.past));
     await expect(page.getByLabel("¿Qué recompensa recibirá tu cliente?")).toHaveValue(
         "No debe guardarse",
     );
@@ -1818,8 +1843,8 @@ test("contains keyboard focus and restores the Promotion review opener after dis
 
     await rewardTitle.fill("Café de cortesía");
     await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
-    await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
-    await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+    await selectPicker(page, "Fecha de inicio", dates.futureStart);
+    await selectPicker(page, "Fecha de fin", dates.futureEnd);
     await page.getByLabel("Día", { exact: true }).selectOption("1");
     await page.getByRole("button", { name: "Añadir puntos extra" }).click();
     await page.evaluate(() => window.scrollTo({ top: 250 }));
@@ -1926,8 +1951,8 @@ test("keeps an overlapping publication in the editor with its review closed", as
         await page.goto("/promotions/create");
         await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill(title);
         await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
-        await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
-        await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+        await selectPicker(page, "Fecha de inicio", dates.futureStart);
+        await selectPicker(page, "Fecha de fin", dates.futureEnd);
         await page.getByRole("button", { name: "Publicar promoción" }).click();
         await expect(dialog).toBeVisible();
         await page.getByRole("button", { name: "Confirmar publicación" }).click();
@@ -1943,8 +1968,8 @@ test("keeps an overlapping publication in the editor with its review closed", as
 
     await rewardTitle.fill("Promoción que se superpone");
     await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
-    await page.getByLabel("Fecha de inicio").fill(dates.futureStart);
-    await page.getByLabel("Fecha de fin").fill(dates.futureEnd);
+    await selectPicker(page, "Fecha de inicio", dates.futureStart);
+    await selectPicker(page, "Fecha de fin", dates.futureEnd);
     await page.evaluate(() => window.scrollTo({ top: 250 }));
     await reviewButton.click();
     await expect(dialog).toBeVisible();
@@ -1962,7 +1987,7 @@ test("keeps an overlapping publication in the editor with its review closed", as
     ).toBeVisible();
     await expect(reviewButton).toBeFocused();
     await expect(rewardTitle).toHaveValue("Promoción que se superpone");
-    await expect(page.getByLabel("Fecha de inicio")).toHaveValue(dates.futureStart);
-    await expect(page.getByLabel("Fecha de fin")).toHaveValue(dates.futureEnd);
+    await expect(page.getByLabel("Fecha de inicio")).toHaveValue(expectedDate(dates.futureStart));
+    await expect(page.getByLabel("Fecha de fin")).toHaveValue(expectedDate(dates.futureEnd));
     expect(await page.evaluate(() => window.scrollY)).toBe(scrollTop);
 });

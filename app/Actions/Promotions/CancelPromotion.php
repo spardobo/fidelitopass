@@ -70,8 +70,8 @@ class CancelPromotion
             }
 
             $ownedPromotion->status = PromotionStatus::Cancelled;
-            $ownedPromotion->cancelled_at = $operation['instant'];
-            $ownedPromotion->setUpdatedAt($operation['instant']);
+            $ownedPromotion->setAttribute('cancelled_at', $operation['instant']);
+            $ownedPromotion->updated_at = $operation['instant'];
             $ownedPromotion->save();
 
             return $ownedPromotion->load('extraPoints');

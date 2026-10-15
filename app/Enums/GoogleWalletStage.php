@@ -7,6 +7,8 @@ namespace App\Enums;
  */
 enum GoogleWalletStage: string
 {
+    case Preparation = 'preparation';
+
     case Configuration = 'configuration';
 
     case OAuth = 'oauth';
@@ -14,4 +16,10 @@ enum GoogleWalletStage: string
     case ClassDefinition = 'class';
 
     case ObjectCreation = 'object';
+
+    case ObjectRead = 'read';
+
+    case ObjectUpdate = 'update';
+
+    case Confirmation = 'confirmation';
 }

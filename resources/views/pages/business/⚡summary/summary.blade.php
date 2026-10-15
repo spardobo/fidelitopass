@@ -65,12 +65,8 @@
                 <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
                     <flux:icon.information-circle variant="outline" class="size-4" />
                 </span>
-                <p
-                    x-data x-text="@js(__('summary.scheduled_waiting')).replace(':date', $regionalDates.date(@js($primaryPeriod['start'])))"
-                    class="app-role-support"
-                >
-                    @php($waitingText = explode(':date', __('summary.scheduled_waiting'), 2))
-                    {{ $waitingText[0] }}<x-regional-date :date="$primaryPeriod['start']" />{{ $waitingText[1] }}
+                <p class="app-role-support">
+                    {{ $scheduledWaitingLabel }}
                 </p>
             </div>
         @endif
@@ -269,7 +265,7 @@
                                 </flux:badge>
                             </div>
                             <flux:text class="app-role-support! text-app-ink-secondary!">
-                                <x-regional-date :date="$historicalPromotion['period']['start']" :end-date="$historicalPromotion['period']['end']" />
+                                <time datetime="{{ $historicalPromotion['period']['start'] }}">{{ $historicalPromotion['period']['start_label'] }}</time> – <time datetime="{{ $historicalPromotion['period']['end'] }}">{{ $historicalPromotion['period']['end_label'] }}</time>
                             </flux:text>
                         </div>
                         <button
