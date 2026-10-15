@@ -209,7 +209,7 @@ Initial issuance follows [REQ-WAL-003](../requirements.md#req-wal-003--google-fi
 
 [ADR-007](decisions/007-synchronous-wallet-updates.md) establishes the MVP boundary: the domain caller owns authorization, locks and one non-retrying transaction. It writes tentative facts, updates the same Object with absolute content, then commits only after Google confirms. Authentication, reads, the write and any confirmation share ten seconds total, without automatic retries.
 
-The integration reads the caller's tentative state and preserves Object identity, Class binding and credentials. It does not accept Visits, redeem Rewards or commit database changes. Failure escapes to the transaction owner. Provider-confirmed logs are not local-commit records.
+The integration reads the caller's tentative state and preserves Object identity, Class binding and credentials. It does not accept Visits, redeem Rewards or commit database changes. Failure escapes to the transaction owner. That caller records the operation outcome after resolving commit or rollback; the integration does not emit operation logs. Provider confirmation alone is not a local commit.
 
 A lost response or failed local commit can leave a remotely advanced Object. PostgreSQL remains authoritative; no distributed rollback or immediate device rendering is guaranteed. Initial issuance remains independent.
 

@@ -3,10 +3,10 @@
 use App\Enums\FailureOutcome;
 use App\Enums\GoogleWalletStage;
 use App\Exceptions\GoogleWalletSynchronizationException;
+use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Integrations\GoogleWallet\GoogleWalletPassUpdater;
 use App\Models\Business;
 use App\Support\CustomerPassCredentials;
-use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -20,7 +20,7 @@ beforeEach(function () {
     app()->setLocale('es');
 
     $this->http = new GoogleWalletHttpFake;
-    app()->instance(Client::class, $this->http->client);
+    app()->instance(GoogleWalletClient::class, new GoogleWalletClient($this->http->client));
 
     // generate isolated credentials without reading deployment secrets
     $key = openssl_pkey_new([
@@ -146,12 +146,8 @@ it('replaces absolute content on the same object without changing credentials or
             ->toBeTrue();
     }
 
-    Log::shouldHaveReceived('info')
-        ->once()
-        ->with('wallet.synchronization.confirmed', Mockery::on(function (array $context): bool {
-            return $context['customer_pass_id'] === $this->pass->id
-                && $context['outcome'] === 'provider_confirmed';
-        }));
+    Log::shouldNotHaveReceived('info');
+    Log::shouldNotHaveReceived('error');
 });
 
 it('confirms an incomplete patch response with one same-object read', function () {
@@ -240,15 +236,8 @@ it('lets the owning transaction roll back tentative writes when Google fails wit
     expect($writes)
         ->toHaveCount(1);
 
-    Log::shouldHaveReceived('error')
-        ->once()
-        ->with('wallet.synchronization.failed', Mockery::on(function (array $context): bool {
-            $log = json_encode($context);
-
-            return ! str_contains($log, 'secret-provider-body')
-                && ! str_contains($log, $this->credentials->validationToken)
-                && ! str_contains($log, $this->credentials->manualCode);
-        }));
+    Log::shouldNotHaveReceived('info');
+    Log::shouldNotHaveReceived('error');
 })->with([400, 429, 503]);
 
 it('permits the caller transaction to retain its write after provider confirmation', function () {

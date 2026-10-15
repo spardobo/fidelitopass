@@ -1,12 +1,12 @@
 <?php
 
 use App\Exceptions\CustomerPassCreationException;
+use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
 use App\Models\Business;
 use App\Models\CustomerPass;
 use App\Support\CustomerPassCredentials;
 use Google\Service\Exception as GoogleServiceException;
-use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Handler\MockHandler;
@@ -23,7 +23,7 @@ beforeEach(function () {
     app()->setLocale('es');
 
     $this->http = new GoogleWalletHttpFake;
-    app()->instance(Client::class, $this->http->client);
+    app()->instance(GoogleWalletClient::class, new GoogleWalletClient($this->http->client));
 
     $this->key = openssl_pkey_new([
         'private_key_bits' => 2048,
