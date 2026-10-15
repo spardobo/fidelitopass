@@ -362,7 +362,7 @@
                         </div>
                         <flux:text class="app-role-support! text-app-ink-secondary!">
                             {{ __('business.promotion.review_validity') }}:
-                            <x-regional-date :date="$activePromotion['period']['start']" :end-date="$activePromotion['period']['end']" />
+                            <time datetime="{{ $activePromotion['period']['start'] }}">{{ $activePromotion['period']['start_label'] }}</time> – <time datetime="{{ $activePromotion['period']['end'] }}">{{ $activePromotion['period']['end_label'] }}</time>
                             ·
                             {{ __('business.pass.promotion_published_target', ['points' => $activePromotion['promotion']->target_points]) }}
                         </flux:text>
@@ -413,7 +413,7 @@
                                     @endif
                                     <flux:text class="app-role-support! text-app-ink-secondary!">
                                         {{ __('business.promotion.review_validity') }}:
-                                        <x-regional-date :date="$scheduledPromotion['period']['start']" :end-date="$scheduledPromotion['period']['end']" />
+                                        <time datetime="{{ $scheduledPromotion['period']['start'] }}">{{ $scheduledPromotion['period']['start_label'] }}</time> – <time datetime="{{ $scheduledPromotion['period']['end'] }}">{{ $scheduledPromotion['period']['end_label'] }}</time>
                                         ·
                                         {{ __('business.pass.promotion_published_target', ['points' => $scheduledPromotion['promotion']->target_points]) }}
                                     </flux:text>
@@ -466,7 +466,8 @@
                                         </div>
                                         <flux:text class="app-role-support! text-app-ink-secondary!">
                                             {{ __('business.promotion.review_validity') }}:
-                                            <x-regional-date :date="$promotion->local_start_date->format('Y-m-d')" :end-date="$promotion->local_end_date->format('Y-m-d')" />
+                                            @php($draftPeriod = $this->draftPeriods[$promotion->public_id])
+                                            <time datetime="{{ $draftPeriod['start'] }}">{{ $draftPeriod['start_label'] }}</time> – <time datetime="{{ $draftPeriod['end'] }}">{{ $draftPeriod['end_label'] }}</time>
                                             ·
                                             {{ __('business.pass.promotion_draft_target', ['points' => $promotion->target_points]) }}
                                         </flux:text>

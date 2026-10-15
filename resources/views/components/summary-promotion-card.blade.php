@@ -71,7 +71,7 @@
             </dt>
             <dd class="app-role-body! break-words font-semibold! text-app-ink">
                 @if ($period)
-                    <x-regional-date :date="$period['start']" :end-date="$period['end']" />
+                    <time datetime="{{ $period['start'] }}">{{ $period['start_label'] }}</time> – <time datetime="{{ $period['end'] }}">{{ $period['end_label'] }}</time>
                 @else
                     —
                 @endif
