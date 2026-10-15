@@ -39,7 +39,7 @@ This document defines observable MVP behaviour, not implementation status. The s
 | 23 | REQ-REW-002 | Must | Reward | Functional | Redeem one available Reward exactly once. |
 | 24 | REQ-REW-003 | Must | Reward | Functional | Reject Reward use after Promotion expiry or cancellation. |
 | 25 | REQ-WAL-001 | Must | Wallet | Functional | Present deterministic Wallet content for every customer state. |
-| 26 | REQ-WAL-002 | Must | Wallet | Quality/technical | Synchronize Wallet after commit and recover safely from provider failure. |
+| 26 | REQ-WAL-002 | Must | Wallet | Quality/technical | Confirm Wallet synchronously before committing Visits and Redemptions. |
 | 27 | REQ-WAL-003 | Must | Wallet | Functional | Confirm initial Google Object creation before local Customer pass issuance. |
 | 28 | REQ-WAL-004 | Must | Wallet | Functional | Show Business activity while inactive and retain personal redemption history. |
 | 29 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
@@ -625,25 +625,31 @@ As a customer, I want the card to explain itself every time I open it so that I 
 
 **Verification:** Presentation-mapping tests and real-device review.
 
-#### REQ-WAL-002 — Synchronize after commit and recover from provider failure
+#### REQ-WAL-002 — Confirm Wallet before committing Visits and Redemptions
 
 **Priority:** Must
 **Type:** Quality/technical
 **Module:** Wallet
 
-As a Business owner, I want accepted Visits and Redemptions to remain valid even if Google Wallet is temporarily unavailable.
+As a Business owner, I want Google Wallet confirmation before a new Visit or Redemption commits, so that the counter reports success only after both steps complete.
 
 **Acceptance Criteria**
 
-**Scenario: Provider fails after Visit commit**
+**Scenario: Confirm the resulting state**
 
-- **Given** a committed Visit.
-- **When** Wallet synchronization fails.
-- **Then** the Visit remains committed, the failure is logged with correlation context, and synchronization can be retried.
+- **Given** an authorized new Visit or Redemption inside its owning database transaction.
+- **When** the resulting absolute presentation is sent to the same Wallet Object.
+- **Then** confirm Google success before committing the local operation. Authentication and all provider calls share ten seconds total, without automatic retries. Preserve Object identity and credentials.
 
-REQ-WAL-003 replaces the initial-issuance retry obligation. This requirement still governs post-commit synchronization for existing Customer passes, including accepted Visits and Redemptions.
+**Scenario: Provider confirmation fails**
 
-**Verification:** Integration/job failure tests.
+- **Given** tentative domain writes that have not committed.
+- **When** Google rejects the update, the total deadline expires or confirmation is unavailable.
+- **Then** propagate failure so the owning transaction rolls back, retain prior committed facts, log safe classified diagnostics and show an understandable nontechnical message. Do not report success or assume that the remote update was rolled back.
+
+A lost response or failed local commit can leave Wallet ahead of PostgreSQL. PostgreSQL remains authoritative; Google confirmation does not prove local commit or immediate device display. The MVP does not add background retries or a durable synchronization registry. REQ-WAL-003 retains the separate initial-issuance boundary.
+
+**Verification:** Transactional integration tests, provider failure and total-budget tests.
 
 #### REQ-WAL-003 — Google-first initial Customer pass issuance
 
@@ -653,7 +659,7 @@ REQ-WAL-003 replaces the initial-issuance retry obligation. This requirement sti
 
 As a customer, I want an explicit saving result so that a failed Google creation does not leave a newly issued local Customer pass.
 
-This replaces only the initial-issuance timing in REQ-PAS-002 and the initial-issuance retry obligation in REQ-WAL-002. Anonymous access, persistent updates across Promotions and post-commit Visit/Redemption safety remain unchanged.
+This replaces only the initial-issuance timing in REQ-PAS-002 and the initial-issuance retry obligation in REQ-WAL-002. Anonymous access and persistent updates across Promotions remain unchanged. Existing-pass Visit/Redemption timing belongs to REQ-WAL-002.
 
 **Acceptance Criteria**
 

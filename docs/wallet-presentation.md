@@ -226,7 +226,7 @@ When a multiplier window is active (for example x2):
 ⚡ Ahora tu visita vale 2 puntos.
 ```
 
-The pass indicates the point value at that moment: one point outside multiplier windows, or x2, x3 or x5 in one window, without stacking. The server awards points using its operation instant and the published Promotion timezone snapshot. Updates after commit may lag; never imply instant provider synchronization or invite duplicate visits.
+The pass indicates the point value at that moment: one point outside multiplier windows, or x2, x3 or x5 in one window, without stacking. The server awards points using its operation instant and the published Promotion timezone snapshot. Device display may lag after provider confirmation; never imply instant device rendering or invite duplicate visits.
 
 ## State 3 — Reward available
 
