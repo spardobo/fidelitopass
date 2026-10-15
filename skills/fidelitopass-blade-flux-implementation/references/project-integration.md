@@ -9,8 +9,9 @@ The single editable source for canvas, neutral surface, emphasis and accent is t
 - `public/logo.png`: source artwork; `public/logo-header.webp`: optimized header/footer wordmark.
 - `public/logo_icon.svg`: standalone isotipo, including the decorative mark in the landing pass visual.
 - `resources/views/partials/head.blade.php`: favicon links to `public/favicon.ico`, `public/favicon.svg`, PNG favicon sizes, and Apple touch icon; `public/site.webmanifest` lists Android icons. Keep the shared head partial as the single integration point.
+
 ## Existing landing fit
 
 Match the header-to-hero opening gap with the last-CTA-to-footer closing gap; do not substitute a bottom-equals-sides rule. Reuse the hero's calculated base plus residual, capped at the existing `80px` rhythm, for end-of-main padding without reducing hero viewport availability. Without JavaScript or after teardown, closing padding falls back to the natural base; dynamic capped fitting requires JavaScript. Preserve widths, hero margins and independent section spacing. The UI owner retains the visual values and fallback outcomes.
 
-The approved marketing catalog was located at `lang/es/landing.php`. Preserve its complete phrases and reuse the hero registration label in the final CTA.
+The approved marketing catalog was located at `../../../lang/es`. Preserve its complete phrases and reuse the hero registration label in the final CTA.
