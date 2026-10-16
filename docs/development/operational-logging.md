@@ -24,7 +24,7 @@ Provider failures retain the locally selected HTTP method, native exception clas
 
 Object binding conflicts retain an application-authored field and mismatch category, never the expected or actual value. Provider-library logs and exceptions are not an alternate raw diagnostic channel. Application boundaries discard sensitive causes before emission; unsafe SDK HTTP debug logging prevents issuance.
 
-Handled settings failures use the global reporter once before safe UI feedback. Missing two-factor setup data remains ordinary absence, not a manufactured exception. Two-factor credential persistence remains retired. Private pass identification keeps its existing SQL-free failure boundary; its generic exception does not retain the database root cause.
+Handled application failures retain one reporting owner before safe feedback is presented. Ordinary missing optional data remains absence, not a manufactured exception. Diagnostic handling must not retain secret-bearing causes or create a second outcome record. Credential-retirement guarantees remain with their security and persistence owners.
 
 ## Collection and failures
 

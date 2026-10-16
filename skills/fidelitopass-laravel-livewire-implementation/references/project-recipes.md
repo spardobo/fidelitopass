@@ -1,282 +1,99 @@
-# Project implementation recipes
-
-Read the relevant section only when implementing data, authoritative operations, Wallet mapping or credential retirement. These recipes preserve useful implementation material moved from normative documents. They are illustrative and source-sensitive: inspect current migrations, installed APIs and callers before applying them. Documents own the guarantees; current code owns exact names and schema. Do not copy the whole reference or create all listed classes/tables as a scaffold.
-
-Apply [PHP formatting and behavior preservation](implementation-details.md#conditions-queries-and-payloads) while translating a recipe into code. Use the relevant [readability example](readability-examples.md) before the first edit. Recipes guide owner-approved implementation, not silent functional changes during refactoring. Follow [shared readability and documentation](../../shared/coding-standards.md#comments-and-documentation) and [PHPDoc syntax](implementation-details.md#phpdoc-syntax) rather than adding recipe-specific grouping rules.
-
-## Contents
-
-- [Command and transaction recipes](#consequential-command-names)
-- [Calendar conversion](#business-local-conversion)
-- [Physical shape examples](#physical-schema-examples)
-- [Model date handling](#laravel-model-date-handling)
-- [Credential retirement](#retired-credential-migration)
-- [Logging](#operational-logging-implementation)
-- [Wallet payload mapping](#google-wallet-payload-mapping)
-- [Recipe-to-code review](#recipe-to-code-review)
+# Project recipes
+Source-sensitive examples. Inspect current migrations and callers before applying. Recipes illustrate; current schema and installed APIs own truth.
 
 ## Consequential command names
-
-Possible Action names; use existing naming contracts when already established:
-
-Do not rename an existing Action or add an `Action` suffix solely to match this list. Do not split a complete command into separate Actions for each step of its recipe.
-
 ```text
-PublishPromotionAction
-CancelPromotionAction
-ValidateVisitAction
-RedeemRewardAction
+PublishPromotion
+CancelPromotion
+ValidateVisit
+RedeemReward
+InspectCustomerPass
 ```
 
-## Visit validation transaction recipe
+No Action suffix. No per-step Actions.
 
+## Visit validation transaction
 ```text
 begin transaction
-  resolve authenticated Business
-  lock relevant Customer pass and Promotion rows
-  validate pass and Promotion belong to authenticated Business
-  validate credential or authorized Business-scoped manual lookup
-  verify validation operation identity is scoped to this pass and Promotion
-  if this operation already committed, return its prior accepted result without mutation
-  capture clock_timestamp() exactly once as operation_at for a new mutation
-  check published Promotion is active and not cancelled using operation_at
-  resolve one frozen Promotion-owned multiplier using operation_at in its timezone
-  insert Visit with visited_at = operation_at and points_awarded
+  lock Business
+  lock Customer pass and Promotion rows
+  validate pass and Promotion belong to Business
+  validate credential or Business-scoped manual lookup
+  verify operation identity is scoped to pass and Promotion
+  if operation already committed, return prior result without mutation
+  capture clock_timestamp() once as operation_at
+  check Promotion active and not cancelled at operation_at
+  resolve one frozen multiplier at operation_at in Business timezone
+  insert Visit with confirmed_at = operation_at and awarded_points
   sum awarded points for the active Promotion
-  create Reward entitlement if target points are reached
-commit
-dispatch Wallet synchronization after commit
+  create Reward entitlement if target reached
+  confirm the same Wallet Object synchronously inside this non-retrying transaction
+  propagate provider failure so tentative local facts roll back
+commit only after provider confirmation
 ```
 
-## Redemption transaction recipe
-
+## Redemption transaction
 ```text
 begin transaction
-  resolve authenticated Business
-  lock relevant entitlement and Promotion rows
-  validate entitlement, pass and Promotion belong to authenticated Business
-  validate credential or authorized Business-scoped manual lookup
-  verify requested redemption identifies this entitlement
-  if already redeemed, return its final redeemed state without mutation
-  capture clock_timestamp() exactly once as operation_at for a new mutation
-  validate Promotion active and not cancelled using operation_at
-  set redeemed_at = operation_at
-  set redeemed_by_user_id
-commit
-dispatch Wallet synchronization after commit
+  lock Business
+  lock entitlement and Promotion rows
+  validate ownership
+  if already redeemed, return final state without mutation
+  capture clock_timestamp() once as operation_at
+  validate Promotion active and not cancelled
+  set redeemed_at = operation_at, redeemed_by_user_id
+  confirm the same Wallet Object synchronously inside this non-retrying transaction
+  propagate provider failure so tentative local facts roll back
+commit only after provider confirmation
 ```
 
-## Business-local conversion
+Existing-pass authentication and all provider requests share ten seconds with no automatic retries. Initial issuance remains the separate Google-first flow; provider confirmation does not prove local commit or device rendering.
 
-```sql
-operation_at
-AT TIME ZONE promotion_timezone
-```
-
-## Current database time
-
-```sql
-clock_timestamp()
-```
-
-## Web route example
-
-```text
-/
-  Product landing
-
-/join/{business}
-  Business join / Add to Google Wallet
-
-Authenticated Business
-  Dashboard
-  Promotion draft/edit/preview/publish/cancel
-  Acquisition QR
-  Validate visit (one scanner/manual fallback dialog)
-  Business settings
-```
-
-## Current local date for a read
-
-```sql
-(clock_timestamp() AT TIME ZONE promotions.timezone)::date
-```
-
-## Local date from the mutation instant
-
-```sql
-(operation_at AT TIME ZONE promotions.timezone)::date
-```
-
-## Local Visit date
-
-```sql
-(visited_at AT TIME ZONE promotions.timezone)::date
-```
-
-## Final included local date
-
-```sql
-(ends_at AT TIME ZONE promotions.timezone)::date - 1
-```
-
-## Local start date
-
-```sql
-(starts_at AT TIME ZONE promotions.timezone)::date
-```
-
-## Internal key migration syntax
+## Clock capture
+The only authorized source of domain time. Capture it after required locks for a mutation; a read-only hint does not authorize a later write:
 
 ```php
-$table->id();
+$operation = $this->databaseClock->captureForBusinessTimezone($business->timezone);
+// $operation['instant']       — UTC string for timestamps
+// $operation['business_date'] — local date for comparisons
 ```
 
-## Physical schema examples
+Never now(), Carbon::now(), today(). Never the PHP default timezone.
 
-The following examples were moved from the data standard. They illustrate its guarantees and are not a second schema authority. Check current migrations before use; adapt names and structure to the existing application. Preserve owner-approved integrity, including same-Business relationships, even where a suggested shape does not show the complete constraint mechanism.
-
-### reward_entitlements shape example
-
-Suggested shape:
-
-```text
-id
-customer_pass_id
-promotion_id
-unlocked_at
-redeemed_at nullable
-redeemed_by_user_id nullable
-created_at
-updated_at
+## Local date from an instant
+```sql
+(operation_at AT TIME ZONE promotion_timezone)::date
 ```
 
-### visits shape example
-
-Suggested shape:
-
-```text
-id
-customer_pass_id
-promotion_id
-validated_by_user_id
-idempotency_key
-points_awarded
-visited_at
-created_at
-updated_at
+## Window conversion (publication)
+```sql
+SELECT (?::date::timestamp AT TIME ZONE ?) AS starts_at,
+       ((?::date + 1)::timestamp AT TIME ZONE ?) AS ends_at
 ```
 
-### customer_passes shape example
+## Physical shape (reference)
+customer_passes: id, public_id, business_id, wallet_object_id nullable, validation_token_hash nullable, manual_code nullable, timestamps.
 
-Suggested shape:
+promotions: id, public_id, business_id, local_start_date nullable, local_end_date nullable, target_points, reward_title, reward_description nullable, timezone_snapshot nullable, starts_at nullable, ends_at nullable, status, cancelled_at nullable, timestamps.
 
-```text
-id
-public_id
-business_id
-wallet_object_id nullable
-validation_token_hash
-manual_code
-issued_at
-created_at
-updated_at
-```
+visits: id, business_id, customer_pass_id, promotion_id, confirmed_by_user_id, operation_id, awarded_points, confirmed_at, timestamps.
 
-### promotions shape example
+reward_entitlements: id, business_id, customer_pass_id, promotion_id, unlocked_at, redeemed_at nullable, redeemed_by_user_id nullable, timestamps.
 
-Suggested shape:
+## Logging event names
+visit.accepted, visit.replayed, visit.rejected, reward.unlocked, reward.redeemed, promotion.cancelled, wallet.sync_failed, auth.throttled, customer_pass.lookup_rejected, customer_pass.lookup_throttled, customer_pass.lookup_unavailable.
 
-```text
-id
-public_id
-business_id
-target_points
-reward_title
-reward_description nullable
-timezone
-starts_at
-ends_at
-status
-published_at nullable
-cancelled_at nullable
-created_at
-updated_at
-```
+Stable context keys: request_id, actor_type, actor_id, business_id, promotion_id, customer_pass_id, outcome, reason.
 
-### Promotion-owned multiplier windows shape example
+Never pass raw Throwable as context. Never include SQL, bindings, credentials, tokens.
 
-Suggested shape:
+## Google Wallet mapping
+One Business loyalty class per Business.
 
-```text
-id
-promotion_id
-weekday
-multiplier
-start_time nullable
-end_time nullable
-created_at
-updated_at
-```
+One loyalty object per Customer pass.
 
-### businesses shape example
+Text modules carry the current project-owned progress, description, Visit value, Reward and validity presentation. Follow the Wallet presentation owner instead of assuming provider fields define domain rules.
 
-Suggested shape:
+Barcode carries the validation token; alternate manual code as text.
 
-```text
-id
-public_id
-user_id
-name
-timezone
-logo_path nullable
-created_at
-updated_at
-```
-
-## Laravel model date handling
-
-Use `immutable_datetime` casts for project-owned rule-relevant timestamps when mutation would be surprising.
-
-Keep Laravel application timezone at UTC.
-
-Carbon/CarbonImmutable may be used to:
-
-- Parse Business-local date input.
-- Render local dates to the UI.
-- Build deterministic publication boundaries.
-
-Once the Promotion window is persisted, live Promotion/Reward validity uses PostgreSQL time.
-
-Generic Eloquent `created_at` / `updated_at` remain framework timestamps and are not used as domain validity clocks.
-
-## Retired credential migration
-
-The retirement migration drops only existing columns among `users.two_factor_secret`, `users.two_factor_recovery_codes` and `users.two_factor_confirmed_at`. It also succeeds when all three columns are absent. Rollback is a no-op; use a new forward migration and new enrollment for re-enablement. Preserve original starter views/schema migration and independently configured passkeys.
-
-## Operational logging implementation
-
-Use Laravel's Monolog integration and configured JSON output with explicit safe inputs. Apply the [operational logging contract](../../../docs/development/operational-logging.md) for the native envelope, supported sinks, open context and native emergency limits. Pass the authored event code as the log message. Keep stable context keys such as `request_id`, `actor_type`, `actor_id`, `business_id`, `promotion_id`, `customer_pass_id`, `outcome` and `reason` where relevant. Example event names: `visit.accepted`, `visit.replayed`, `visit.rejected`, `reward.unlocked`, `reward.redeemed`, `promotion.cancelled`, `wallet.sync_failed`, `auth.throttled`. These are source-owned conventions, not claims about already installed logging. Keep emission timestamp distinct from authoritative domain time when delayed work needs both.
-
-Register `App\Logging\JsonLoggingTap::class` on emitting leaf channels, not stack, null or emergency. Its only responsibility is to configure native `Monolog\Formatter\JsonFormatter` with `BATCH_MODE_NEWLINES`, the default record newline and native `includeStacktraces()`. This formatter option applies to exception records; it does not authorize raw exceptions at application callsites. Do not duplicate formatter configuration or add diagnostic methods, processors or enrichment to the tap. The short bootstrap reporter records the actual exception class/source location and maps the complete native trace through `Arr::only($frame, ['file', 'line', 'class', 'function'])` before calling `Log`. Keep native paths and symbols; do not add a frame cap or custom normalizer. Inherit request correlation only from active middleware context and return `false` to suppress duplicate reporting. Never pass raw Throwables: Laravel's `MessageLogged` listeners receive original context, which Monolog processors cannot sanitize. Middleware owns common request context and cleanup; individual log calls retain event-specific safe values without automatic traces.
-
-## Google Wallet payload mapping
-
-Use the Google Wallet loyalty Class/Object model:
-
-- One shared Business loyalty class for Business-level identity/presentation.
-- One loyalty object per Customer pass.
-- Field `loyaltyPoints` or equivalent structured field for numeric Promotion progress where useful.
-- Text modules for Promotion description, current Visit point value, Reward, and validity.
-- Barcode for the validation token.
-- Alternate barcode text/manual code for quick fallback where suitable.
-
-Avoid custom dynamic progress images in MVP. Numeric progress keeps the presentation stable and easy to synchronize.
-
-## Recipe-to-code review
-
-- Keep authorization, replay, authoritative time and domain writes in the same owned order required by the relevant documents. Make the sequence visible with paragraphs and cohesive method names, not decorative boxes inside the transaction callback.
-- Keep provider-specific HTTP and payload work inside its Integration. Label configuration, signing, Class confirmation, Object binding reconciliation and transport only when at least two actual method groups benefit from that distinction. Do not use an isolated banner or invent responsibilities to add another.
-- Represent nested provider payloads one field per line; preserve native keys, insertion order, string literals, immutable bindings and localized content. Keep a small leaf array inline when it is clearer.
-- Distinguish a confirmed provider Object, local transaction commit and customer Wallet save. Preserve uncertain outcome classification and existing retry policy; an illustrative transaction recipe does not authorize another provider POST.
-- Keep tests at the operation's natural boundary, using readable setup, datasets and assertion chains. Verify behavior rather than private helper names. Recheck the final implementation against the SKILL delivery gate before returning it.
+No dynamic progress images in MVP.

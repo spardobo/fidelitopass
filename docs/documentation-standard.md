@@ -74,7 +74,9 @@ A loaded document does not imply that its referenced documents must also be load
 
 ## Living documents
 
-Living documents describe current agreed knowledge.
+Living documents describe current agreed knowledge in the context of their knowledge owner. They guide the project; they are not inventories of current classes, methods, return arrays, exception catalogs or query details.
+
+When a decision changes, reassess the affected owner and revise the principle or contract there. Keep implementation-specific recipes and calibration examples in implementation skills and their references. Do not add a feature-specific section merely to narrate newly written code.
 
 Do not include:
 

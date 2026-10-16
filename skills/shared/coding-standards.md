@@ -1,91 +1,299 @@
 # Shared coding standards
+Applies to every language in this repository. Language-specific syntax lives in each skill. These rules are non-negotiable; language skills may tighten but never relax them. NEVER use a coding example to override accepted product, security or transaction contracts.
 
-Apply this reusable contract to affected source, scripts, tests and configuration, only where each rule is meaningful. Keep language-specific syntax and lifecycle details in their language references. Domain, security, data and presentation outcomes remain with their document owners.
+<a id="design-authority"></a>
 
-## Application by surface
+<a id="application-by-surface"></a>
 
-- Apply PHP conventions to PHP source, tests and executable configuration; apply Blade conventions to markup and the PHP/JavaScript conventions to embedded code. A mixed file does not make its regions one language.
-- Treat `.mjs` as JavaScript modules, not another language. Establish the module system and actual browser, Node or test-runner context before choosing APIs, types or resource handling. Do not impose browser lifecycle rules on Node scripts.
-- Apply presentation conventions to CSS/Tailwind. Preserve selector scope, cascade, public tokens and computed effects; apply structure and naming without imposing callable documentation on styles or markup.
-- For shell scripts, use their actual interpreter and native quoting/comment syntax; keep arguments, exit status, output and effects explicit. For JSON, YAML, XML, environment/configuration files and assets, preserve the consuming format, keys, precedence and public paths. Do not add unsupported comments, classes or DTOs merely to match application code.
+## 1. Failure taxonomy — pick exactly one per situation
+Every failure MUST be classified before writing the throw/return:
 
-Select affected language owners through [project intent routing](../../AGENTS.md#intent-routing). Preserve existing extensions, execution boundaries and configured tools; do not add a language, formatter or runtime for stylistic uniformity.
+| Category | What it is | Mechanism | Log? |
+| --- | --- | --- | --- |
+| Contract / bug | null where forbidden, wrong type, broken invariant. Programmer error. | Native exception (InvalidArgumentException, LogicException, TypeError). | NEVER add a duplicate local event; retain the configured unexpected-error reporter |
+| Expected business rejection | Invalid credential, no match, throttle hit, state not eligible. Normal flow. | Typed domain exception carrying a closed-set reason. | YES, once, at the boundary |
+| Infrastructure | DB down, driver failure, timeout, disk. | Typed domain exception after translation. | YES, once, at the boundary, with trace |
+NEVER invent an exception for an expected predicate result. NEVER let an infrastructure exception escape untranslated past a domain boundary.
 
-## Readability and cohesion
+## 2. Failure codes live in one enum
+If a PHP application flow owns more than one classified failure reason, that flow MUST have a string-backed enum. In other languages, use the equivalent native closed catalog; NEVER introduce PHP or TypeScript syntax into JavaScript. The enum owns ALL metadata:
 
-- Make responsibilities discoverable through descriptive names, cohesive regions and whitespace. Keep technical identifiers and documentation in English; use translated professional, neutral Spanish for visible UI copy, including accessibility text.
-- Choose concise, natural names in their actual scope. Do not repeat information already supplied by the class, method or type; retain qualifiers that distinguish identities, credentials, units or roles. Prefer concrete operation verbs and domain terms over vague abstractions or stacked qualifiers. Name the value actually returned: a result array is not a persisted model. A plain `result` is sufficient when its local meaning is clear; do not invent an abstraction merely to name it.
-- Name predicates for what they establish: format, existence, permission and authenticity are different questions. Make expensive work or external effects apparent rather than disguising them as stored-value access.
-- Expose inputs, decisions, data flow and side effects as a top-to-bottom narrative. Make actual resource setup, ownership and cleanup order visible.
-- Use one blank line between logical paragraphs, keeping steps of one idea together. Keep methods and handlers cohesive; split by responsibility, not line counts. Prefer early returns when they clarify branches. Avoid dense expressions, callback tangles, generic wrappers and arbitrary helper fragmentation.
-- Assess the human reading path independently of tests and formatting. Require every abstraction, heading and extraction to reduce reading effort; passing behavior tests does not certify readability.
-- Make responsibilities, inputs, decisions, outputs, side effects and failure paths understandable through names, structure and declaration contracts.
+```php
+enum InspectionFailure: string
+{
+    case Forbidden               = 'forbidden';
+    case InvalidCredential       = 'invalid_credential';
+    case InvalidAttemptLimit     = 'invalid_attempt_limit';
+    case AuthoritativeReadFailed = 'authoritative_read_failed';
 
-## Types and value organization
+    public function httpStatus(): int { /* match */ }
+    public function logLevel(): string { /* match */ }
+    public function eventName(): ?string { /* match */ }
+    public function outcome(): string { /* match */ }
+}
+```
 
-Use the smallest useful native types and shaped contracts at real boundaries:
+The domain exception carries the enum, never a string:
 
-- Keep scalar results, shaped arrays, local transformations, configuration and external payloads simple. Crossing a class boundary alone does not require a DTO. Use enums for meaningful closed sets, not every string supplied by a provider.
-- Introduce a concrete DTO when named fields, repeated consumers or a useful invariant make the transfer clearer than a shaped array. Expose directly stored immutable values through public readonly properties, regardless of sensitivity. Do not add trivial accessors for stored values. Retain encapsulation for mutable state, actual access constraints and behavior. Property visibility does not define JSON, logging or HTTP disclosure. A domain value object also models a concept's validity and equality; an immutable container alone is not a value object.
-- Give success, optional absence, expected rejection and operational failure truthful contracts. Do not make callers infer incompatible result shapes from unrelated flags, or introduce a generic Result/Either framework to avoid a small concrete contract.
-- Map data to HTTP, provider or other transport formats at the owning adapter. Select intended fields explicitly; do not serialize an entire private operation object merely because the serializer accepts it.
+```php
+final class CustomerPassInspectionException extends RuntimeException
+{
+    public function __construct(
+        public readonly InspectionFailure $failure,
+        public readonly ?int $retryAfterSeconds = null,
+    ) {
+        parent::__construct($failure->value);
+    }
+}
+```
 
-Organize values by their actual context. Language owners define syntax, annotations and local folder conventions; do not introduce DTOs, repositories or layers universally.
+Consumers (controller, tests, dashboards) read from the enum. Adding a failure = adding its case and relevant metadata mappings. NEVER duplicate production code strings in parallel catalogs. Independent test expectations may assert literal public values.
 
-Keep validation and authorization at their owning trust boundary. Type declarations and readonly data do not establish validated input, deep immutability or permission. Preserve meaningful distinctions between identities, credentials, units and uncertain outcomes.
+<a id="failures-and-logging"></a>
 
-## Design authority
+## 3. Logging: once, at the boundary that knows the outcome
+Log exactly once per failure, in the method that owns the semantic outcome.
 
-Apply [architecture's design principles](../../docs/architecture/overview.md#pragmatic-design-principles): implement the simplest complete solution for the current requirement, not hypothetical generalization. This is a summary for routing, not an independent architecture policy; architecture remains authoritative.
+NEVER log-and-throw from a collaborator when another boundary owns that same outcome. The owning boundary MAY log once and then translate or propagate. If that boundary logs, the caller MUST NOT re-log.
 
-## Framework-first gate
+The boundary logger receives the typed failure and reads level/event/outcome from the enum.
 
-Prefer suitable native runtime, standard-library and installed framework capabilities before bespoke infrastructure. In Laravel and browser presentation, evaluate Laravel/Eloquent, Livewire, Flux, semantic HTML, Tailwind and Alpine for the responsibility they actually own; this is not an API checklist for Node or shell scripts.
+Known infrastructure failures handled at the boundary log with Arr::only($frame, ['file', 'line', 'class', 'function']) on the trace. NEVER the SQL, bindings, or credential.
 
-Verify installed APIs and suitability for required semantics rather than assuming equivalence. Add custom behavior only for a concrete gap; preserve accessibility, server authority and existing lifecycle ownership where applicable. Do not duplicate native pipelines or framework rules in project guidance.
+One blank line before and after each Log:: call.
 
-## Efficiency gate
+Anti-pattern:
 
-- Identify relevant input sizes and cardinality `n`, traversal counts and query/provider/I/O counts. Distinguish CPU, memory, database rows examined, remote latency and lock duration; an algorithmic bound does not establish database query cost or end-to-end speed.
-- Avoid N+1 queries, repeated scans, redundant lookups/provider calls and invariant recalculations. Choose native loops, collections, database aggregates or keyed indexes for the actual workload and memory cost, not as a style preference. Use existing primitives before manual caching or custom machinery.
-- Preserve ordering, validation, authorization, concurrency, timing and other observable semantics when removing work.
-- Optimize real bottlenecks using relevant measurements or tests. Do not select the lowest hypothetical Big O at the expense of clarity or claim performance gains from cleaner-looking source alone. Report unmeasured runtime assumptions as limits.
+```php
+// WRONG — logs twice (here and in caller), keeps raw context
+catch (Throwable $e) {
+    Log::error('failed', ['exception' => $e]);
+    throw $e;
+}
+```
 
-## Comments and documentation
+Pattern:
 
-Use names, types and structure first. Apply these rules to new code and refactors; do not add comments merely to satisfy a template.
+```php
+// RIGHT — translate and let the boundary log once
+catch (QueryException $e) {
+    $this->logReadFailure($actor->id, $businessId, $e);
+    $this->reject(InspectionFailure::AuthoritativeReadFailed);
+}
+```
 
-- In PHP and JavaScript, use a brief lowercase English `//` comment without a final period where it clarifies a meaningful phase, required order or non-obvious rationale. Use the target language's native comment syntax elsewhere. Preserve actual acronym and identifier capitalization. Describe purpose rather than narrating each call.
-- Keep each internal explanatory comment to one physical line; do not spread one explanation across consecutive inline comments. Put longer context in the owning declaration's documentation, using PHPDoc/JSDoc where applicable.
-- Separate logical blocks with one blank line. Do not use decorative separator boxes, per-method headings, artificial groups or constructor/lifecycle/test-setup banners. In Blade, use the language's comment syntax only where a useful semantic region needs a label.
+<a id="types-and-value-organization"></a>
 
-## Callable documentation
+## 4. Return shape is fixed
+A method returning a structured application result MUST always return the same keys. This does not replace native model, scalar, collection or void contracts. Optional fields are null, never absent. NEVER return a different shape for a failure branch.
 
-Apply proportional contracts under the same names-first guidance:
+```php
+return [
+    'status'            => 'found',
+    'customer_pass_id'  => (int) $row->customer_pass_id,
+    'checked_at'        => $capturedAt,
+    'promotion'         => $promotion,          // null or full shape
+    'can_accept_visit'  => $promotion !== null && ...,
+    'can_redeem_reward' => $promotion !== null && ...,
+];
+```
 
-- Attach documentation directly to its declaration, with declaration attributes permitted. State the responsibility directly and proportionately; keep wording concise rather than restating the declaration. Language owners define required declaration coverage and tags.
-- Preserve useful shaped/generic types, units, preconditions, effects, ownership, trust boundaries, uncertainty and cleanup obligations. Document a guarantee where it is established; do not imply that a local calculation validates input or authorizes delivery. Explain applicable failures without mechanically enumerating incidental exceptions. Language references own PHPDoc/JSDoc syntax, coverage and tooling details.
-- Preserve meaningful asynchronous completion, rejection and resource-cleanup contracts, rather than reducing them to a native return type.
-- Review each name, block and contract in context. Do not replace repetitive long names with ambiguous abbreviations or remove useful guarantees in pursuit of brevity. Tests for exact comment wording or placement are not behavioral evidence.
+NEVER mix ['ok' => true, 'data' => ...] with ['ok' => false, 'error' => ...]. If you must express failure as a value, the failure variant still carries the full key set with nulls.
 
-## Failures and logging
+<a id="readability-and-cohesion"></a>
 
-Keep ordinary false predicates, optional absence and empty success distinct from operational failure; do not invent exceptions for expected results. Catch an exception where the code owns meaningful recovery, translation, classification or cleanup, not to rethrow it unchanged at every call. Do not conceal unexpected failures with blanket catches, fallback defaults or empty guards.
+## 5. Naming
+Choose names that describe what the code actually does:
 
-Keep uncertainty explicit; a lost response, cancellation or exception does not prove rollback or authorize another external effect. Preserve established failure classifications, retry permissions, security and transaction contracts when translating failures; do not chain secret-bearing causes merely to retain debugging detail.
+| Wrong | Right | Why |
+| --- | --- | --- |
+| prepareCredential | normalizeCredential | It validates and canonicalizes, not "prepares" |
+| inspectionResult | buildResult | Verb describing action, not type |
+| readPassSnapshot | readSnapshot | "pass" is already implicit in the class |
+| $instant | $capturedAt | Meaning, not type |
+| $rows | $matches | Semantic: at most one result |
+| Helper, Manager, Util | Concrete responsibility | Vague abstraction |
+| handle() on random methods | Reserved for real Action entry points | Not decoration |
+Rules:
 
-Use native logging and exception-reporting facilities with application-authored codes and explicit nonsecret context. Record a terminal failure once at the boundary that knows its outcome, not in every catch. A formatter represents data; it does not own domain-field catalogues or detect every secret. Do not introduce speculative safe-log wrappers, fallback emitters, custom emergency managers or queues to hide an unobserved failure. Operational and security owners define severity, correlation, actual failure visibility and privacy guarantees.
+NEVER repeat information the class or type already provides.
 
-Separate each logging call from adjacent code with one blank line before and after. Do not add empty lines at enclosing block boundaries.
+Predicates name what they establish: hasOverlap, isPublished, canRedeem — not checkOverlap, validateStatus.
 
-## Scoped review
+Expensive work MUST be visible in the name. NEVER disguise a query as getFoo().
 
-Keep changed behavior distinguishable from a readability refactor. Preserve existing public contracts, exceptions, permission checks, ordering and lifecycle effects. Limit a change to its authorized behavior and directly necessary corrections; report unrelated cleanup separately. Review the complete changed reading path after formatting: names identify intent, related steps stay together, important effects are visible, and any extraction reduces the context needed to understand the caller.
+Keep technical identifiers English. Visible UI copy stays professional Spanish via Laravel translations.
 
-Treat length, nesting and repeated syntax as review signals, not automatic limits. Do not add helpers, comments, defensive guards, layers or tests merely to satisfy a visual template. Useful type annotations supported by the target language and its configured tooling, and real framework contracts, take precedence over editorial preferences.
+<a id="efficiency-gate"></a>
 
-For behavior changes with a meaningful runnable deterministic regression, observe failure before implementation, then passing behavior and refactor while it remains green. Explain an unavailable runner or a purely structural/documentation exception; do not manufacture RED evidence.
+## 6. Function extraction — KISS / YAGNI / DRY, in that order
+Extract a function when AT LEAST ONE holds:
 
-Static analysis, formatting and documentation checks prove only their configured paths and rules; they do not establish runtime equivalence. Inspect actual scripts and configuration before claiming coverage of an extension, language or test directory. Do not assume a JavaScript formatter covers Blade, CSS or shell, or that PHP analysis includes tests.
+It has a non-trivial body (loops, branching, SQL, regex, mapping).
 
-Use the relevant runtime boundary for proof: deterministic unit tests for pure rules, database integration for locking/persistence, browser execution for rendered interaction and real filesystem fixtures for path rules. Isolated doubles do not certify framework bootstrap, database behavior or a provider deployment. Report failed, skipped and unavailable checks and remaining uncertainty without substituting source-shape assertions for behavior.
+It has more than one caller.
+
+It has a semantic name that reduces the caller's reading effort.
+
+It isolates a side effect (log, external call, transaction).
+
+Do NOT extract:
+
+A one-liner used once (inline it).
+
+A max(1, (int) config(...)) guard used once (inline with the default).
+
+A "for readability" wrapper around count() or firstOrFail().
+
+A helper that only forwards arguments.
+
+Anti-pattern:
+
+```php
+// WRONG — one caller, one line, adds a name that repeats the body
+private function maxAttempts(): int
+{
+    return max(1, (int) config('pass_lookup.max_invalid_attempts', 10));
+}
+```
+
+Pattern:
+
+```php
+// RIGHT — inline at the single call site
+$maxAttempts = max(1, (int) config('pass_lookup.max_invalid_attempts', 10));
+```
+
+<a id="framework-first-gate"></a>
+
+## 7. Separation of concerns
+Validation lives before business logic. All guards (auth, throttle, format) run before the business method is entered. The business method receives already-validated inputs.
+
+Business methods do not log, do not catch, do not translate. They throw typed exceptions and return fixed shapes.
+
+The boundary method (the public entry) owns: translation of infra exceptions, logging, and the try/catch that keeps the flow linear.
+
+```php
+public function inspect(...): array
+{
+    // validations first
+    if (...) { $this->reject(Forbidden); }
+    // ... all guards ...
+
+    try {
+        return $this->runInspection($business, $method, $normalized, $rateLimitKey);
+    } catch (QueryException|PDOException $e) {
+        $this->logReadFailure(...);
+        $this->reject(AuthoritativeReadFailed);
+    } catch (CustomerPassInspectionException $e) {
+        $this->logOperationalFailure(...);
+        throw $e;
+    }
+}
+
+private function runInspection(...): array
+{
+    // operation flow, no log, no catch
+}
+```
+
+## 8. No defensive guards against impossible states
+If an upstream invariant (a checked publication flow under its transactional lock, a unique constraint or a published state machine) makes a state impossible, DO NOT guard against it. A lock alone does not establish uniqueness.
+
+Anti-pattern:
+
+```php
+// WRONG — PublishPromotion guarantees no overlapping published windows
+$rows = DB::select("... LIMIT 2", [...]);
+if (count($rows) > 1) {
+    throw new CustomerPassInspectionException(AmbiguousActivePromotion);
+}
+```
+
+Pattern:
+
+```php
+// RIGHT — trust the invariant, one row max
+$row = DB::selectOne($query, $bindings);
+```
+
+Adding a guard against the impossible costs: more failure codes, more tests, more branches, more reading. It is overengineering.
+
+<a id="comments-and-documentation"></a>
+
+## 9. Comments
+Internal comments are ONE line, lowercase English (except proper nouns / identifiers), no trailing period.
+
+They mark a phase, an order, or a non-obvious rationale. NEVER narrate each call.
+
+```php
+// reject malformed credentials before reading the clock
+$normalized = $this->normalizeCredential($method, $credential);
+```
+
+One blank line around the commented block. No decorative boxes inside methods.
+
+Boxes are ONLY allowed to group sibling methods, in the same lowercase English form:
+
+```php
+// ------------------------------------------------------------------------
+// validations
+// ------------------------------------------------------------------------
+
+private function reject(...) { ... }
+```
+
+<a id="callable-documentation"></a>
+
+## 10. Docblocks
+Every named callable MUST have a docblock: classes, methods, functions, constructors.
+
+Include @param for each parameter and @return for every non-void return.
+
+Include @throws ONLY when the callable actually throws.
+
+Describe responsibility, units, trust, preconditions. Do not restate the signature.
+
+```php
+/**
+ * Aborts the inspection with the given typed failure.
+ *
+ * @param InspectionFailure $failure Typed reason propagated to the caller.
+ * @param int|null $retryAfterSeconds Optional Retry-After hint for throttled callers.
+ *
+ * @return never
+ *
+ * @throws CustomerPassInspectionException Always.
+ */
+private function reject(InspectionFailure $failure, ?int $retryAfterSeconds = null): never
+```
+
+Document at the declaration, above attributes.
+
+Anonymous closures need docblocks only for non-obvious contracts.
+
+## 11. Reading flow
+Every method MUST be readable top-to-bottom as: inputs → guards → decisions → effects → result.
+
+Early returns over nested conditionals.
+
+One idea per paragraph, one blank line between paragraphs.
+
+Keep related steps adjacent. Do not interleave validation with I/O.
+
+Signatures and calls split by meaningful argument, one per line if multiline.
+
+<a id="scoped-review"></a>
+
+## 12. Delivery gate — verify before returning
+For every changed file:
+
+□ Every failure classified (contract / business / infra).
+□ Failure codes live in one enum, no duplicated strings.
+□ Logging occurs once, at the boundary, with enum metadata.
+□ Return shape is identical across all branches.
+□ No helper exists for a single one-line call.
+□ No defensive guard exists against an upstream invariant.
+□ Internal comments are one line, lowercase, purpose-only.
+□ Every named callable has @param + @return; @throws only when real.
+□ The method reads top-to-bottom without jumping.
