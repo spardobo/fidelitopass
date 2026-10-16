@@ -110,7 +110,7 @@ It is **not** the sole authorization factor because:
 
 New passes receive five ASCII digits stored and handled as a string, including leading zeros (`00000` through `99999`). Generate codes with cryptographic randomness. The namespace contains 100,000 values per Business, not globally. Creation checks at most ten candidates; the Business-scoped database unique constraint remains the final collision guard. Allocation exhaustion fails before provider work. A collision after Google confirmation leaves an unresolved issuance and must not trigger automatic reissuance.
 
-Existing twelve-character uppercase alphanumeric codes remain valid for identification. Do not rotate existing codes. Manual entry continues to remove spaces and hyphens and uppercase letters before validating either format. These lookup formats do not change the private scan token's entropy or authority.
+Existing twelve-character uppercase alphanumeric codes remain valid for identification. Do not rotate existing codes. Manual entry trims outer keyboard whitespace only, then validates the canonical stored format. Do not remove internal spaces or hyphens, change letter case or repair malformed input. The automatic scan token follows its exact issued format without trimming or case conversion. These lookup formats do not change the private scan token's entropy or authority.
 
 ## Input validation
 
