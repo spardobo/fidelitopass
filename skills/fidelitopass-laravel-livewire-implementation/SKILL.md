@@ -1,57 +1,138 @@
 ---
 name: fidelitopass-laravel-livewire-implementation
-description: "Trigger: FidelitoPass PHP, Laravel, Livewire, Eloquent, Actions, Jobs, Support, integrations or Pest implementation, refactoring and review. Apply readable PHP, third-person PHPDoc and semantic groups; route domain decisions to owners."
+description: "Trigger: FidelitoPass PHP, Laravel, Livewire, Eloquent, Actions, Enums, Support, Jobs, Integrations, Pest. Apply shared standards plus Laravel-specific structure, Action shape, enum-driven failures, transaction ownership and PHPDoc format."
 license: Apache-2.0
 metadata:
   author: FidelitoPass
-  version: "3.0"
+  version: "4.0"
 ---
 
 ## Activation Contract
-
-Use for PHP generation, modification, refactoring and review, including mixed components. Exclude presentation-only, JavaScript-only and delivery planning work. Framework skills and installed source own APIs.
-
-Apply these PHP refinements over generic style suggestions. Honor explicit user instructions; do not change shared standards or global formatter configuration for local style.
-
-For snippets, do not invent files, dependencies or policy. Missing owners block only dependent decisions.
+Use for PHP generation, modification, refactoring, review, and mixed components in this repository. Read ../shared/coding-standards.md first — this skill refines it, never relaxes it.
 
 ## Hard Rules
+Apply shared standards: failure taxonomy, single-enum codes, log-once-at-boundary, fixed return shapes, naming, extraction gate, separation of concerns, comment and docblock rules.
 
-- Apply [PHP implementation](references/implementation-details.md) and available [shared coding standards](../shared/coding-standards.md) before writing. Generate readable code immediately; tests/formatters do not certify readability.
-- Prefer conventional Laravel/Eloquent, concrete injection and cohesive native Livewire; preserve starter formats and server authority. Keep domain, data, security, time and presentation policy with document owners.
-- Follow [shared readability and documentation](../shared/coding-standards.md#comments-and-documentation) for concise scoped names, meaningful blocks and responsibility-first contracts. Apply the reference's [PHPDoc syntax](references/implementation-details.md#phpdoc-syntax); document every named PHP callable with each parameter, non-void result and known failures; retain useful types and security/transaction guarantees.
-- Expand conditions, queries, payloads and assertions by meaning; separate ideas with blank lines. Extract complete responsibilities, not helpers per step or layers merely to shorten methods.
-- Preserve observable semantics during refactoring, including replay, credentials and failure classification. Never silently fix behavior, add retries or expose secret-bearing failures through exception chaining; apply both references' preservation rules.
+Prefer Laravel roots (Actions, Enums, Models, Policies, Support, Data) and native Eloquent/scopes/casts/transactions/locks. NEVER wrap Eloquent access in repositories or generic CRUD services.
+
+Use a <Verb><Subject> Action with a handle() entry point ONLY for consequential commands (transaction, authorization, multiple writes, external effect). Routine edits stay direct.
+
+One Action owns exactly one transaction boundary. Callers do not open a competing DB::transaction.
+
+Locks acquired in a stable order. Business before dependent rows. lockForUpdate() on the selected row.
+
+The authoritative clock is captured once per operation from DatabaseClock; mutations capture it after acquiring their required locks. NEVER use now(), time(), or the PHP system timezone for domain validity.
+
+Livewire 4 components: PHP, Blade and Pest colocated. Keep server authority; NEVER duplicate domain rules in hydrated state.
+
+NEVER add TypeScript-style annotations, PHP 8.4 property hooks on non-final classes, or attributes that change caller coercion. Preserve existing parameter types and defaults.
+
+### Failure pattern (canonical)
+Three files, one flow:
+
+app/Enums/<Flow>Failure.php — string-backed enum with httpStatus(), logLevel(), eventName(), outcome().
+
+app/Exceptions/<Flow>Exception.php — final class extending RuntimeException, carrying the enum and optional retryAfterSeconds.
+
+app/Support/<Flow>Inspector.php (or <Verb><Subject> Action) — public entry validates, delegates to a private operation method, owns the only try/catch that logs.
+
+See references/implementation-details.md for the complete shape.
+
+### Transaction pattern (canonical)
+```php
+private function publish(...): Promotion
+{
+    return DB::transaction(function () use (...): Promotion {
+        $business = $actor->business()->lockForUpdate()->firstOrFail();
+        // authorization, status checks, timezone reconfirmation
+        $operation = $this->databaseClock->captureForBusinessTimezone($business->timezone);
+        // window conversion, overlap check, writes
+        return $published->load('extraPoints');
+    });
+}
+```
+
+Rules: one owner, no competing transactions. NEVER put external effects inside an automatically retryable callback. Existing-pass Wallet updates follow accepted ADR-007: synchronous confirmation inside the caller-owned, non-retrying transaction, one shared ten-second budget and no automatic retries. Initial issuance remains Google-first before local persistence.
+
+### PHPDoc format (strict)
+```php
+/**
+ * Short responsibility sentence in third person.
+ *
+ * Optional paragraph for order, invariants, or trust boundaries.
+ *
+ * @param Type $name Description ending with a period.
+ * @param Type|null $name Description.
+ *
+ * @return Type Description.
+ *
+ * @throws DomainException When specific condition.
+ */
+```
+
+Periods at the end of every tag description.
+
+Blank line between the summary and the first @param.
+
+Blank line before @return and before @throws.
+
+@return never for non-returning callables; no @return on constructors.
+
+Preserve #[SensitiveParameter] on every secret parameter; add it to new helpers that receive secrets.
+
+### Formatting (Pint)
+4 spaces, no tabs.
+
+Class and single-line-signature braces on the next line; multiline-signature braces beside the return type.
+
+One array entry per line for multi-entry arrays; tiny leaves may inline.
+
+Fluent query: one call per line. Preserve filter order, eager loads, selected columns, locks.
+
+Expand conditions with multiple &&/||: opening if ( on its own line, clauses aligned, subgroups parenthesized.
+
+120 columns guide, not a wall.
+
+### Livewire 4
+Multi-file components for new project-owned full pages when PHP/Blade/Pest share responsibility.
+
+Route::livewire with the starter layout (layouts::public or layouts::app).
+
+Order: properties, lifecycle hooks, actions, private helpers, listeners last.
+
+Validation and authorization server-side. Never in hydrated state or Alpine.
+
+Resolve non-public collaborators per request via native injection; mount() assignments do not survive hydration.
+
+### Verification
+Pest for new tests; keep untouched PHPUnit starter tests as-is.
+
+Database integration for locks/persistence. Real fixtures for filesystem.
+
+Run through Sail. Report unavailable runners; never substitute host tools.
 
 ## Decision Gates
 
-| Situation | Action |
+| Situation | Required action |
 | --- | --- |
-| Consequential command | Use one focused Action for its complete boundary; keep routine edits direct. |
-| Abstraction | Apply architecture's pragmatic design principles and shared efficiency gate. |
-| Mixed component | Load the [Blade/Flux skill](../fidelitopass-blade-flux-implementation/SKILL.md) and/or [JavaScript skill](../fidelitopass-javascript-alpine-implementation/SKILL.md) for affected responsibilities. |
-| Refactor | Establish observable behavior first; report suspected defects separately. |
-| Missing source or unresolved intent | Report the exact gap; pause dependent work only. |
+| A supplied pattern conflicts with an accepted owner | Preserve the owner's contract; correct only the conflicting rule. |
+| A required runtime or API is unknown | Stop before dependent edits. NEVER invent the missing contract. |
+| Work includes markup or client behavior | Load the [Blade skill](../fidelitopass-blade-flux-implementation/SKILL.md) and/or [JavaScript skill](../fidelitopass-javascript-alpine-implementation/SKILL.md) for the affected responsibilities. |
+| A consequential operation owns a transaction or external effect | Follow [Laravel boundaries](references/implementation-details.md#laravel-boundaries) and preserve operation and transaction ownership. |
 
 ## Execution Steps
 
-1. Identify inputs, outputs, effects, trust boundaries and order. Inspect instructions, callers/tests, installed APIs and tooling; select necessary owners through [Documentation routing](../../AGENTS.md#documentation-routing).
-2. Read relevant [readability examples](references/readability-examples.md) before the task's first code change; reuse calibration later. Read only needed [recipes](references/project-recipes.md).
-3. Write cohesive code with authoritative order visible; preserve behavior unless functional change is requested.
-4. Apply the delivery gate below to every changed class/test; revise violations before returning.
-5. Run configured formatting and applicable checks/tests. Read the final diff for lost grouping, changed contracts and readability.
-
-## Delivery Gate
-
-Apply [Final calibration](references/readability-examples.md#final-calibration) and shared readability and the implementation reference's PHPDoc, formatting, behavior preservation and Pest readability sections. Tests/formatters do not waive this gate.
+1. Read shared standards and the applicable references before the first edit.
+2. Establish the real boundary and preserve the approved behavior.
+3. Apply the canonical shape and report only evidence actually observed.
 
 ## Output Contract
 
-Deliver requested code/files, meaningful changes and observed checks. State verification limits and material owner/API evidence. Never claim equivalence from formatting or performance from cleaner code.
+Report changed paths, applied owners, observed checks, unavailable evidence and unresolved limits. NEVER claim unrun verification.
 
 ## References
 
-- [Shared coding standards](../shared/coding-standards.md) — reusable cross-language gates.
-- [PHP implementation](references/implementation-details.md) — mandatory PHP/Livewire rules and targeted owners.
-- [Project recipes](references/project-recipes.md) — source-sensitive examples, not scaffolding or domain authority.
-- [Readability examples](references/readability-examples.md) — mandatory relevant calibration, not compulsory templates.
+- [Shared coding standards](../shared/coding-standards.md) — cross-language gates.
+- [Implementation details](references/implementation-details.md) — Laravel/PHP specifics and patterns.
+- [Readability examples](references/readability-examples.md) — PHP calibration with real shapes.
+- [Project recipes](references/project-recipes.md) — schema and SQL recipes for this project.

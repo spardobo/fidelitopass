@@ -50,6 +50,10 @@ Configured application channels use one native Monolog JSON object per record at
 
 Logging uses native failure behavior without protective wrappers. A logging failure may change the HTTP result or interrupt reporting, but cannot undo an already committed domain fact or authorize an automatic provider retry. Last-resort native emergency output and pre-bootstrap diagnostics are outside the configured JSON guarantee. Logging is not a durable audit guarantee.
 
+### Outcome ownership
+
+Each application operation has one owner for its operational outcome. Record that outcome once, after its authoritative result is known. Supporting components supply failure information without creating duplicate outcome records. Presenting an already handled result does not create a second reporting obligation. Changes in responsibility must preserve traceability and secret hygiene without assuming a future consumer already exists.
+
 ### Correlation
 
 Request middleware alone generates and shares one UUID correlation identifier while its context is active. Individual log calls do not supply request identifiers. Standalone logs and reports after middleware cleanup may have no request correlation. Apply the [security logging contract](../architecture/security.md#structured-security-logging). Request correlation is internal logging metadata, not a response header.

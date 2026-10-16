@@ -1,123 +1,180 @@
-# JavaScript and Alpine implementation
+# JavaScript / Alpine implementation
+Apply shared standards first. This file refines them for browser and Node code.
 
-Apply [shared coding standards](../../shared/coding-standards.md) before these client-specific conventions. Consult the [PHP owner](../../fidelitopass-laravel-livewire-implementation/SKILL.md) for server boundaries and the [Blade/Flux owner](../../fidelitopass-blade-flux-implementation/SKILL.md) and its [presentation reference](../../fidelitopass-blade-flux-implementation/references/implementation-details.md) for markup, widgets, styling and text composition in mixed components. Do not duplicate those contracts here. Apply source readability to JavaScript tests and build/quality scripts too; apply DOM, animation and component-lifetime rules only where those resources exist.
+## Contents
 
-## Native behavior and authority
+- [Source boundary](#source-boundary)
+- [Capability order](#capability-order)
+- [Component-local scripts](#component-local-scripts)
+- [DOM ownership and lifecycle](#dom-ownership-and-lifecycle)
+- [Async intent](#async-intent)
+- [JSDoc](#jsdoc)
+- [Playwright](#playwright)
+- [Node filesystem scripts](#node-filesystem-scripts)
+- [Anti-patterns](#anti-patterns)
 
-- For browser behavior, prefer native HTML/browser semantics, then suitable Flux, Livewire, local Alpine and custom JavaScript only for a concrete gap. This is a capability order, not a checklist for Node code. Extend native validation/focus/disclosure only for a present requirement the platform cannot meet; do not replace it or move server-owned validation, authorization and Livewire state client-side.
-- Keep consequential rules, validation, authorization and mutations at their owning server boundary. Do not duplicate authoritative rules in hydrated state, browser calculations, local storage or Alpine. Client hints and disabled controls are presentation, not security boundaries.
-- Verify version-sensitive behavior against installed versions/configuration, targeted framework guidance and installed source when necessary. Do not guess hook names, initialization arguments, cleanup guarantees or widget APIs. Framework guidance owns syntax; this reference does not freeze a version-specific adapter.
-- Keep the existing native Livewire/Flux/Alpine and Vite asset pipeline. Colocate necessary component-local behavior in native component scripts for the actual format (`@script` for class-based views; the documented script structure for Livewire 4 single/multi-file components); reserve the configured shared entry for genuinely shared behavior, not merely a long script. Add no separate bundle, global inline behavior, second Alpine runtime, generic SPA machinery or package installation.
-- Isolate camera/scanner code within the validation component; submit only the identifier/token to the same server-owned lookup boundary, not a client-authorized mutation. Read the UI owner's [Required order](../../../docs/ui-ux-guidelines.md#required-order), [Camera error](../../../docs/ui-ux-guidelines.md#camera-error) and [Customer-pass result](../../../docs/ui-ux-guidelines.md#customer-pass-result) for identification/confirmation/result stages, visible manual fallback, stale-read handling, focus and device/listener release. Read the architecture's [Visit validation transaction](../../../docs/architecture/overview.md#visit-validation-transaction) and security's [Credential classes](../../../docs/architecture/security.md#credential-classes) for read-only identification, explicit confirmation and authoritative mutation. Do not invent a second scanner policy here.
+## Source boundary
+Before editing: establish extension (.js/.mjs), module system (ESM by package.json#type or .mjs), runtime (browser/Node/Playwright), and formatter ownership. Inspect the nearest package.
 
-## Source boundary and language
+Preserve:
 
-- Before writing or changing behavior, establish the exact file path and extension, language, module system, runtime, execution context, nearest package configuration and formatter/linter ownership. Inspect nested package boundaries rather than assuming the repository root governs every file. In this package `.js` is ESM because `package.json` declares `type: module`; `.mjs` is ESM by definition. These facts do not authorize conversion elsewhere.
-- Preserve the target extension (`.js` versus `.mjs`), ESM/CommonJS syntax and import/export versus `require`/`module.exports` choice, import specifiers/extensions, browser/Node/Playwright runtime, and whether a module is executable or import-only. Do not move an operation between runtimes or change the module's public shape incidentally.
-- Verify entrypoints, exports, imports, names and signatures against the nearest implementation and installed version/configuration when version-sensitive. Prove each referenced symbol is declared, imported or provided by a verified runtime API; do not assume globals or invent framework, Vite or Playwright APIs from memory. If an API or owner cannot be established, stop before building dependent infrastructure.
-- Do not put TypeScript-only syntax in `.js` or `.mjs`: type annotations, `type`/`interface`/`enum`/`implements` declarations, `as const`, `satisfies`, TypeScript generics or type-only imports. Do not start a JS-to-TS migration as part of a JavaScript task. Use JSDoc for useful documentation; it is not a license to insert TypeScript syntax.
-- For CLI modules, preserve the shebang, public exports, `import.meta.url` direct-execution guard, `process.exitCode`, stdout/stderr, arguments and diagnostic ordering when present. Keep import-only use from triggering executable behavior.
-- Treat Playwright browser callbacks as a serialization boundary (`page.evaluate`, `locator.evaluate`, `page.addInitScript` and equivalents). They use browser globals and explicitly serializable arguments, not runner imports, external browser-runner helpers or arbitrary closures; arguments do not transport executable helper functions. Node does not provide browser DOM globals by default, and Page/Locator APIs or Node modules such as `fs` stay in their own contexts.
-- Follow the configured formatter and linter first. If tooling is silent, preserve the file's existing style; use a fallback only when neither tooling nor the file decides. Do not manually rewrite quotes, wrapping or semicolons as incidental cleanup during a logic refactor. Use `const` by default and `let` only for reassignment when consistent with configured style.
+Extension and module system.
 
-## New JavaScript implementation
+Import/export shapes and specifier extensions.
 
-- Before writing, resolve the observable behavior and its owner, runtime/context, actual lifetime and termination, inputs/outputs and I/O, necessary state, resources, error owner, and cheapest meaningful verification from current source and owner documents. This is a decision gate, not a per-item report. Stop before the affected implementation if a material fact is unknown.
-- Implement the smallest complete current requirement. Do not add hypothetical controllers, factories, registries, event buses, request/cache layers, DOM frameworks, state machines, configuration schemas, adapters or strategies. Create shared machinery for actual repeated consumers that share a reason to change, or for a demonstrated present boundary/constraint; similar-looking lines alone do not justify it. A single-consumer external or isolation boundary is valid when the current requirement needs it.
-- Add state, flags, counters, IDs, Maps, Sets, WeakMaps or caches only for a named invariant or current behavior. Do not duplicate identity or lifecycle truth already owned by DOM/framework facilities, an AbortSignal or another current source of truth.
-- Catch errors only where this code owns recovery, translation, useful context, required cleanup or an expected result. Do not catch merely to return `null`/a default, no-op, log and rethrow unchanged, or conceal an unexpected failure.
+Executable vs import-only (import.meta.url guard).
 
-## Root contract and dynamic DOM
+Shebangs on CLI scripts.
 
-- Establish the component root, initialization entry and actual lifetime before installing behavior. Use the native owning root, such as `$wire.$el` in its supported component script context. Keep a local closure when useful; introduce no global controller merely to organize local work.
-- Resolve stable DOM references together within that root. Scope queries to the owner; distinguish component instances and imperative targets with stable, meaningful identity. Keep IDs, fragments, data hooks and linked tests in English. Do not let repeated components select or dispose each other's elements.
-- Verify that the initializer receives a valid root and runs when required nodes exist. Validate only actually uncertain inputs, optional nodes or browser capabilities. Preserve required contracts rather than hiding broken markup or integration with blanket null checks, catches or defensive no-ops.
-- Account for morphing, conditional rendering and navigation only where they affect the behavior. Re-resolve replaced nodes rather than retain stale references; preserve imperative identity where the integration needs it through supported framework facilities. Reconcile custom DOM ownership with framework rendering instead of imitating hydration or attaching a universal document observer.
-- Use duplicate-initialization protection only when the real entry paths can overlap. Scope it to the instance and release it without affecting a replacement instance. Do not prescribe a WeakMap registry, controller base class or universal toggle recipe.
+## Capability order
+Native HTML/browser semantics (form validation, <details>, <dialog>, focus).
 
-## Readable execution and contracts
+Flux components.
 
-- Keep the current requirement's main path as a top-to-bottom story from inputs through decisions and effects to the result. Use early returns and cohesive handlers; avoid nested callback tangles and tiny prepare/configure/bind/start wrappers that obscure the flow. Neither one oversized function nor arbitrary helper counts establishes readability.
-- Extract a helper for a reused responsibility, non-obvious operation, actual ownership boundary or significant reduction in caller context. A single use is not disqualifying, but line-count reduction, one-time setup or a shorter main alone is not a reason. Preserve geometry-read timing, DOM-write ordering and pending-work ownership; add no speculative helper collection or generic factory.
-- Name the domain action, value or resource when a more concrete name is available; avoid introducing generic `helper`, `utils`, `manager`, `process` or `execute` names for meaningful responsibilities. Extract constants when the name captures a rule, shared meaning, configuration or important threshold; keep scenario-specific literals/selectors near their use when that is clearer, and do not create generic `CONFIG`, `COLORS` or `SELECTORS` bags just to centralize literals.
-- Follow [shared comments and documentation](../../shared/coding-standards.md#comments-and-documentation) for meaningful phase comments and logical blocks; keep JavaScript-specific contract syntax below.
-- Follow the [shared callable contract](../../../skills/shared/coding-standards.md#callable-documentation) for descriptions, parameters, results and applicable failures.
-- Use JSDoc where names and native syntax leave a useful contract unclear, including imported Playwright types and useful object or array shapes. Document non-obvious parameters, results, rejection and cleanup obligations without importing PHP's every-named-callable/tag requirement. JSDoc annotations belong in comments; never insert TypeScript-only syntax into executable `.js` or `.mjs` source.
-- Do not add boilerplate to anonymous closures or inline test callbacks unless they represent a named/reused contract or carry otherwise unclear data, rejection or resource obligations.
+Livewire bindings (wire:model, wire:click).
 
-## Resource ownership and disposal
+Local Alpine state.
 
-- Before adding replaceable asynchronous work, establish whether calls can overlap, which intent wins and who owns loading/error state. Add an intent ID, counter or controller only when a real race requires it. When stale work can finish after a successor starts, invalidate the old intent immediately, before debounce or replacement work begins.
-- Gate result publication and loading/error transitions after each `await`, including in `finally`, on the current intent and live owning instance. An obsolete `finally` must not clear its successor's loading state.
-- Do not treat abort/cancellation alone as proof of current intent. Prefer native behavior; where a gap remains, use the smallest local intent check, not a generic request framework.
-- Make the owner apparent where listeners, timers, intervals, frames, observers, subscriptions, controllers or browser handles are created. If a resource can outlive its owner, tie cleanup to the real termination; document-lifetime resources need no ceremonial teardown. Prefer verified native lifecycle facilities. Use `AbortController` when it simplifies actual resource teardown or required request cancellation; otherwise retain the removal/unsubscribe handle.
-- Tie component cleanup to its actual lifetime, including root removal and Livewire navigation when relevant, not merely a page-level event. Use a root-removal observer only for a demonstrated gap; own and disconnect it too.
-- Keep related cleanup in one discoverable routine. Make initialization and teardown idempotent when duplicate entry, overlapping navigation/removal or re-entrancy is a real risk. Invalidate the instance before cancelling work when re-entrant callbacks could restart it. Use the minimum disposal state needed; do not duplicate state already guaranteed by the framework.
-- On actual teardown, abort/remove listeners, disconnect observers, unsubscribe and cancel pending timers/frames, then clear owned tracking. Remove completed timers/frames from tracking. Reset owned transient transforms/reveal styles when still-connected content must remain visible, and release only that instance's initialization guard.
-- Guard delayed/observer callbacks and asynchronous continuations against disposal and detached/replaced owners before reading/writing DOM or scheduling more work when they can outlive the instance. Prevent a stale completion from mutating a replacement instance. Do not impose redundant guards on synchronous calculations with no lifetime risk.
+Custom JS for a concrete gap.
 
-## Browser work and efficiency
+Never replace native validation with JS. Never duplicate server rules client-side.
 
-- Identify relevant element cardinality, repeated traversals, high-frequency input/scroll/frame loops and actual DOM work. Avoid repeated root scans, duplicate listeners, invariant recalculation and unnecessary observer/timer resources.
-- Separate geometry reads from writes where interleaving forces layout. Reuse measurements only while valid; invalidate geometry when actual layout changes, node replacement, resizing or asynchronous content/font changes affect the feature. Do not add a universal geometry cache or invalidation subsystem.
-- Coalesce high-frequency work with supported scheduling when warranted, own any queued frame and preserve observable timing and interaction semantics. Optimize measured bottlenecks, not arbitrary source counts or hypothetical Big O. Report unmeasured performance assumptions as limits.
-- Preserve applicable owner outcomes for keyboard/anchor access, focus, touch, natural layout growth, no-JavaScript content and optional-API fallbacks. For non-essential animation, account for reduced motion, including preference changes while work is pending where relevant. Cleanup must not strand hidden content. These are browser-feature concerns, not requirements for every non-DOM module.
+## Component-local scripts
+For Livewire 4 class-based components:
 
-## Data, copy and outcome owners
+```blade
+@script
+<script>
+    const root = $wire.$el;
+    // ...
+</script>
+@endscript
+```
 
-- Serialize server data into JavaScript with supported secure framework facilities and preserve escaping for the actual output context. Do not concatenate guessed JavaScript strings, bypass escaping or treat serialized client input as trusted server state.
-- Supply professional Spanish visible copy and accessibility text through the proper Laravel/framework translation source, not repeated raw literals or browser-side phrase matching. Keep technical identifiers and internal comments English; leave markup text/attribute composition to the Blade owner.
-- Before an affected UI change, select the relevant UI owner sections: [Form behaviour](../../../docs/ui-ux-guidelines.md#form-behaviour), [Loading feedback](../../../docs/ui-ux-guidelines.md#loading-and-perceived-responsiveness), [Accessibility baseline](../../../docs/ui-ux-guidelines.md#accessibility-baseline), [Motion](../../../docs/ui-ux-guidelines.md#motion) and the actual screen interaction. Do not copy domain or presentation outcomes into this skill.
-- Use [Documentation routing](../../../AGENTS.md#documentation-routing) for security, domain and other necessary owners. Stop before the affected edit for an unreadable source or genuine policy conflict. Global conventions govern authorized new work; they do not authorize unrelated rollout or certify historical source compliance.
+For multi-file components, use the documented script structure. Reserve the shared Vite entry for genuinely shared code, not a long local script.
 
-## Refactor contracts and execution contexts
+## DOM ownership and lifecycle
+Resolve the root once at init.
 
-### Helpers and execution contexts
+Query within the root. Scope selectors to distinguish instances.
 
-- Before deleting or replacing a helper, locate every call site and identify the proposed replacement by name. Prove it is declared or imported in the correct module and accessible in the same lexical scope and runtime/context; preserve each caller's arguments, return values and failure semantics. Verify the route at runtime if static inspection cannot establish it.
-- Do not add optional chaining, blanket null guards, defaults, `try`/`catch`, no-ops, silent fallbacks or swallowed errors as generic readability/safety cleanup when they change failure semantics. A behavior change needs separate authorization and justification. Follow the existing [DOM null and required-contract rule](#root-contract-and-dynamic-dom), not a second nullability policy.
-- Preserve observation time for repeated reads of DOM/meta state, local storage, configuration, filesystem, browser state, computed style and native validation. Do not cache a per-call or per-event value incidentally. Reuse measurements only while their invariants are proven and valid; retain the geometry read/write and invalidation rules in [Browser work and efficiency](#browser-work-and-efficiency).
+Stable IDs and data-* hooks in English.
 
-### Applicable behavior and test invariants
+Re-resolve nodes replaced by Livewire morph; do not retain stale references.
 
-- Before a non-functional refactor, preserve only applicable contracts: exports and public names; return/object shapes, exceptions and failure conditions; diagnostic/output ordering; requests, HTTP methods, URLs, responses and redirects; event names, capture/bubble phase and listener options; DOM query timing; storage/configuration reads and writes; async publication, retry and polling timing; filesystem/CLI behavior; focus, keyboard, native validation, selectors and routes; and test identity, fixtures, actions, assertions, screenshots, attachments and expected logs. This is a selection guide, not boilerplate required in every change.
-- Preserve meaningful sequencing even when the final state appears equal: focus and Tab/Shift+Tab, Space/Enter, hover, mouse down/up, event dispatch, click, navigation/reload, DOM reads/writes, setup/cleanup, listener and observer connect/disconnect, mutations, and `async`/`await` ordering. Preserve response-wait registration and its relationship to the triggering action as the existing scenario intends; do not assume every wait must precede every action.
-- In a non-functional refactor, preserve test names and identity, data, actions, assertions, poll behavior, runtime, routes, selectors, screenshots, attachments and meaningful order.
+Cleanup tied to the verified owner lifetime, not an assumed page event. Returning a disposer alone does NOT register cleanup. AbortController when it simplifies.
 
-## Verification boundary
+Duplicate-init protection only when real entry paths overlap. Scope to the instance.
 
-- Choose proof for the behavior, not the file extension: use focused Node tests for deterministic non-DOM rules, real temporary filesystem fixtures for path/filesystem contracts, and browser execution for UI, focus, native validation, URL/navigation, morphing and geometry that mocks cannot prove. Follow the [Quality strategy](../../../docs/quality-strategy.md#test-design) and [Browser coverage](../../../docs/quality-strategy.md#browser-coverage).
-- When a browser contract changes, establish whether the page serves source through Vite or a built asset. A passing Node test that imports source does not prove the served bundle matches it. Use the existing authorized build/browser delivery check for the changed contract; report stale or unverified artifacts without adding a parallel verification framework or silently rebuilding outside scope.
-- Test observable requirements such as public outputs, URLs, requests, persisted state, focus, geometry, cleanup or browser validation when applicable; do not test private helper counts, implementation flags, comments or formatting as behavior. Keep new Playwright/Node scenarios readable as setup, action, observable assertion. Share only repeated setup that reduces noise; keep scenario-specific selectors, values and assertions near the test, and do not hide the sequence in generic `prepare`/`perform`/`verify` wrappers.
-- For affected replaceable asynchronous work, verify completion during the replacement's debounce interval and out-of-order resolutions/rejections. Include an old `finally` while its successor is loading; stale work must not publish results/errors or clear that loading state.
-- Test affected alternate/negative behavior, including optional-API/no-JavaScript fallbacks, keyboard/touch/reduced-motion handling, dynamic DOM, duplicate initialization, resource cleanup and stale callbacks where those risks exist. Assert observable outcomes, not initializer names, helper counts, source ordering, comment boxes, fixed heading labels or formatting.
-- Follow [Browser coverage](../../../docs/quality-strategy.md#browser-coverage) and nearby existing tooling. Preserve the native browser runner's Docker ownership; inspect its execution boundary and do not nest it in Sail. Run application-development PHP/Composer/Artisan/npm commands through Sail under the [project execution contract](../../../AGENTS.md#stack-and-execution); report unavailable runners instead of substituting host tools.
-- Add no runner upgrades or dependencies for consistency. Check syntax for parsing, lint only for configured rules and paths, formatting for configured style, documentation checks for structure/links, and unit tests for their exercised boundary. Browser tests provide evidence only for the browser behavior they execute. Do not infer coverage of files or paths omitted by current scripts; inspect their configured globs. Apply the generic evidence and limitation rule in [shared scoped review](../../shared/coding-standards.md#scoped-review).
-- Make one final source-quality pass separate from test/formatter results: check that the requirement and happy path remain visible, abstractions/state/resources have present owners, imports and runtime are correct, failures are not masked, stale async work cannot publish, and unrelated changes stayed out of scope. This is an internal readback, not a per-helper report.
+## Async intent
+```js
+let intent = 0;
 
-## Node filesystem boundaries
+async function search(query) {
+    const current = ++intent;
 
-Apply these checks to Node quality scripts that accept repository-relative paths; the filesystem rules do not apply to browser code.
+    try {
+        const result = await fetch(`/search?q=${encodeURIComponent(query)}`);
 
-- Preserve lexical restrictions first: reject disallowed absolute paths, traversal segments, separators and anchors. Allow an anchor only for a field whose contract permits it; resolve its file portion without claiming the heading exists.
-- Resolve both the repository root and target with `realpathSync`. Check `path.relative` by segments: reject an absolute result, `..` or a result beginning with `..` plus the platform separator. A textual root prefix accepts similarly named sibling directories and is insufficient. Accept internal links and roots accessed through a link.
-- Validate the canonical location and required file/directory role before reading content. Treat missing, dangling or looping targets as rejection; propagate unexpected filesystem failures rather than turning them into a pass.
-- For an optional file, do not infer safe absence from `existsSync` alone: it follows links and hides dangling entries. Inspect the entry and nearest existing ancestor with `lstatSync`; reject broken or escaped ancestry and non-directory parents before accepting an absent file.
-- Use controlled temporary fixtures for ordinary paths, traversal, permitted anchors, internal/external direct and intermediate links, broken links, similar-prefix siblings and linked roots. Include valid external content so a location rejection cannot be mistaken for a content error; observe RED before the fix when a runnable regression exists.
-- Canonical checks are validation, not a sandbox or protection against concurrent filesystem replacement. Do not claim race-proof containment between checking and reading.
+        if (current !== intent) {
+            return;
+        }
 
-## Language and asynchronous contracts
+        publish(result);
+    } finally {
+        if (current === intent) {
+            setLoading(false);
+        }
+    }
+}
+```
 
-Follow the source-boundary and tooling rules above. Use camelCase names, concrete verbs, meaningful predicates, plural collections and units when important. Avoid nested ternaries and short-circuit mutations that hide decisions or effects.
+Rules:
 
-Within a function, method, factory or callback, apply [shared logical-block guidance](../../shared/coding-standards.md#comments-and-documentation). Named functions improve actual responsibilities, not every expression. A component-local script can stay local regardless of length when ownership and testing remain clear.
+Increment before starting work.
 
-Apply the callable documentation scope in [Readable execution and contracts](#readable-execution-and-contracts). Preserve useful JSDoc types, including reusable typedefs when the actual tooling benefits; do not create a class or repeat a giant object shape solely to avoid a valid annotation. A fire-and-forget void expression does not handle a rejection.
+Check after every await, including in finally.
 
-For custom fetch code, validate response status and external payload at its boundary. Keep empty success distinct from failure. Abort does not undo a server write or prove a response is current. Never use forEach(async ...) when completion must be awaited; select sequential or parallel work by actual dependency and limit concurrency when volume warrants it.
+Stale finally must not clear a successor's loading state.
 
-Choose collections and indexes for actual cardinality, lookup frequency, lifetime, traversal and maintenance cost. Avoid repeated linear lookup inside a growing collection when a simple keyed index expresses the association; do not add a theoretical Map/cache for a hypothetical workload. Define input sizes, average-case assumptions and memory trade-offs; do not require a benchmark to remove obvious wasted work or claim measured latency without evidence. Prefer native framework behavior before adding custom I/O, watchers, observers or caches.
+Abort alone does not prove current intent.
 
-Use Alpine inline state for small transient behavior and an Alpine data provider when several methods or lifecycle resources genuinely need one owner. Keep technical handles outside reactive UI state when appropriate. Do not use entanglement, a second Alpine startup or multiple request channels merely to synchronize copies of server-owned state. Verify script timing and cleanup against the installed component format.
+## JSDoc
+```js
+/**
+ * Reads the current value of a scoped input without mutating it.
+ *
+ * @param {HTMLElement} root Component root containing the input.
+ * @param {string} name Input name attribute.
+ * @returns {string} Current trimmed value, or an empty string when absent.
+ */
+function readField(root, name) {
+    return root.querySelector(`[name="${name}"]`)?.value.trim() ?? "";
+}
+```
 
-Read [examples](readability-examples.md) only when calibration helps. Use the smallest applicable pattern; no example mandates a factory, Map, AbortController or lifecycle machinery for a simple synchronous interaction.
+Rules:
+
+One paragraph per idea, blank line between.
+
+@param {Type} name Description.
+
+@returns {Type} Description. (returns, not return).
+
+No TS syntax in executable source.
+
+## Playwright
+Named objects over positional arrays:
+
+```js
+const roles = [
+    { role: "neutral benefit", selector: "#benefits article:last-child", expectedBackground: "rgb(46, 46, 46)" },
+];
+
+const matrix = await page.evaluate((roles) => {
+    const surfaces = [];
+
+    for (const { role, selector, expectedBackground } of roles) {
+        // ...
+    }
+
+    return surfaces;
+}, roles);
+```
+
+Rules:
+
+page.evaluate / locator.evaluate callbacks run in the browser context. No Node imports, no closures over runner variables.
+
+Serialize only. Named objects.
+
+No forEach(async ...) when awaiting. Use for...of (sequential) or Promise.all (parallel by dependency).
+
+Assert observable outcomes, not implementation names.
+
+## Node filesystem scripts
+For quality scripts that accept paths:
+
+Reject absolute paths, .. segments and forbidden separators. Reject anchors unless the selected command explicitly accepts and validates them.
+
+Resolve root and target with realpathSync.
+
+Check path.relative by segments: reject .. or an absolute result.
+
+Accept internal links and linked roots.
+
+Validate file/directory role before reading.
+
+Use lstatSync for optional files; existsSync follows links and hides dangling entries. For missing targets, resolve the nearest existing ancestor and reject dangling link components. NEVER change an existing command's accepted path contract as a style edit.
+
+Use temporary fixtures for traversal and link cases.
+
+## Anti-patterns
+| Anti-pattern | Why it's wrong |
+| --- | --- |
+| document.addEventListener('click', ...) in a component script | Breaks instance isolation and cleanup. |
+| forEach(async () => await ...) | Completion is not awaited. |
+| try { ... } catch { return null; } for readability | Masks failure; changes semantics. |
+| const CONFIG = { COLORS: ..., SELECTORS: ... } | Centralizes literals without meaning. |
+| page.evaluate(() => helper()) referencing a Node function | Crosses the serialization boundary. |
+| Storing server state in Alpine without $wire | Diverges from server authority. |
