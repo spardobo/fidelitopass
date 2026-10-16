@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Enums\CustomerPassCreationFailure;
 use App\Enums\FailureOutcome;
 use App\Enums\GoogleWalletStage;
 use App\Enums\PassCreationStage;
@@ -11,224 +12,173 @@ use GuzzleHttp\Exception\RequestException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use PDOException;
 use Random\RandomException;
 use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
-/** Describes an issuance failure without retaining provider bodies, SQL bindings or its cause. */
+/** Carries immutable issuance facts and emits them only when its outcome owner requests logging. */
 class CustomerPassCreationException extends RuntimeException
 {
     /**
-     * Stores the safe facts used by the HTTP response and application log.
+     * Stores the complete classification without retaining secret-bearing native causes.
      *
-     * @param  PassCreationStage  $stage  Application boundary that failed.
-     * @param  FailureOutcome  $outcome  Whether the issuance result remains unknown.
-     * @param  string  $reason  Application-owned reason, never an external error message.
-     * @param  GoogleWalletStage|null  $providerStage  Google step, when applicable.
-     * @param  int|null  $providerStatus  Received HTTP status, when available.
-     * @param  array<string, mixed>  $diagnostics  Selected safe metadata, without secrets or exceptions.
+     * @param  CustomerPassCreationFailure  $failure  Application-owned cause.
+     * @param  Throwable|null  $previous  Optional cause known to be safe to retain.
+     * @param  array<string, mixed>  $context  Selected nonsecret evidence, never raw errors or operation objects.
+     * @param  PassCreationStage  $stage  Last application boundary entered.
+     * @param  FailureOutcome  $outcome  Certainty of issuance, independent of retry permission.
+     * @param  GoogleWalletStage|null  $providerStage  Provider boundary when applicable.
+     * @param  int|null  $providerStatus  Received HTTP status, not an assumed provider result.
      */
     public function __construct(
-        public readonly PassCreationStage $stage,
-        public readonly FailureOutcome $outcome,
-        public readonly string $reason,
+        public readonly CustomerPassCreationFailure $failure,
+        ?Throwable $previous = null,
+        public readonly array $context = [],
+        public readonly PassCreationStage $stage = PassCreationStage::Preparation,
+        public readonly FailureOutcome $outcome = FailureOutcome::Definitive,
         public readonly ?GoogleWalletStage $providerStage = null,
         public readonly ?int $providerStatus = null,
-        private readonly array $diagnostics = [],
     ) {
-        parent::__construct('Customer pass creation failed.');
+        parent::__construct($failure->value, 0, $previous);
     }
 
     /**
-     * Describes a failure before provider work starts.
+     * Classifies a native failure using explicit attempt facts and discards its private payloads.
      *
-     * @param  string  $reason  Local diagnostic code.
-     * @param  array<string, mixed>  $diagnostics  Safe source metadata.
-     * @return self Definitive preparation failure.
+     * @param  Throwable  $exception  Native or already classified failure.
+     * @param  PassCreationStage  $stage  Last entered application boundary.
+     * @param  GoogleWalletStage|null  $providerStage  Provider boundary, or null for local failures.
+     * @param  string  $method  Actual provider HTTP operation, when applicable.
+     * @param  array<string, mixed>  $context  Safe preceding write or confirmation evidence.
+     * @return self Complete immutable classification; existing classifications are preserved unchanged.
      */
-    public static function preparationFailed(string $reason, array $diagnostics = []): self
-    {
-        return new self(
-            PassCreationStage::Preparation,
-            FailureOutcome::Definitive,
-            $reason,
-            diagnostics: $diagnostics,
-        );
-    }
-
-    /**
-     * Describes a local failure after Google has accepted the object.
-     *
-     * @param  string  $reason  Local diagnostic code.
-     * @return self Unresolved issuance; a local rollback cannot undo Google creation.
-     */
-    public static function persistenceFailed(string $reason): self
-    {
-        return new self(PassCreationStage::Local, FailureOutcome::Unknown, $reason);
-    }
-
-    /**
-     * Describes an explicit rejection at a Google boundary.
-     *
-     * @param  GoogleWalletStage  $stage  Configuration, OAuth, class or object check.
-     * @param  string  $reason  Locally selected diagnostic code.
-     * @param  array<string, mixed>  $diagnostics  Safe method or binding names, never binding values.
-     * @return self Definitive provider-boundary rejection.
-     */
-    public static function providerRejected(GoogleWalletStage $stage, string $reason, array $diagnostics = []): self
-    {
-        return new self(
-            PassCreationStage::Provider,
-            FailureOutcome::Definitive,
-            $reason,
-            $stage,
-            diagnostics: $diagnostics,
-        );
-    }
-
-    /**
-     * Classifies a failed SDK request without retaining its body or exception chain.
-     *
-     * @param  Throwable  $exception  SDK or transport failure that may contain secrets.
-     * @param  GoogleWalletStage  $stage  Provider boundary being executed.
-     * @param  string  $method  Locally selected HTTP method.
-     * @param  array<string, mixed>  $context  Safe evidence from an earlier object insertion.
-     * @return self Classified failure; an uncertain write never permits automatic reissuance.
-     */
-    public static function fromProvider(
+    public static function fromException(
         #[SensitiveParameter] Throwable $exception,
-        GoogleWalletStage $stage,
-        string $method,
+        PassCreationStage $stage,
+        ?GoogleWalletStage $providerStage = null,
+        string $method = '',
         array $context = [],
     ): self {
-        // classify the received response, not an assumed rollback
-        $status = match (true) {
-            $exception instanceof GoogleServiceException => $exception->getCode(),
-            $exception instanceof RequestException => $exception->getResponse()?->getStatusCode(),
-            default => null,
-        };
-        $status = is_int($status) && $status >= 100 && $status <= 599 ? $status : null;
-        $unknown = $stage === GoogleWalletStage::ObjectCreation
-            && (
-                $method === 'GET'
-                || $status === null
-                || $status < 400
-                || in_array($status, [408, 409, 429], true)
-                || $status >= 500
-            );
-
-        // keep diagnostic codes while dropping provider messages and payloads
-        $reason = match (true) {
-            $stage === GoogleWalletStage::ObjectCreation && $method === 'GET' => 'confirmation_unavailable',
-            $status !== null => 'provider_rejected',
-            $exception instanceof GuzzleException => 'transport_failed',
-            default => 'request_failed',
-        };
-
-        return new self(
-            PassCreationStage::Provider,
-            $unknown ? FailureOutcome::Unknown : FailureOutcome::Definitive,
-            $reason,
-            $stage,
-            $status,
-            [
-                'http_method' => $method,
-                'exception_class' => $exception::class,
-                ...$context,
-            ],
-        );
-    }
-
-    /**
-     * Sanitizes local or unexpected failures at the action's single catch boundary.
-     *
-     * @param  Throwable  $exception  Failure whose message, arguments and cause must not be retained.
-     * @param  PassCreationStage  $stage  Last application step entered.
-     * @return self Existing classified failure or a safe description of an unexpected failure.
-     */
-    public static function fromFailure(#[SensitiveParameter] Throwable $exception, PassCreationStage $stage): self
-    {
-        // retain a boundary decision that has already been made
         if ($exception instanceof self) {
             return $exception;
         }
 
-        // classify local errors without copying SQL bindings or exception arguments
-        $reason = match (true) {
-            $exception instanceof UniqueConstraintViolationException => 'identity_conflict',
-            $exception instanceof ModelNotFoundException => 'business_not_found',
-            $exception instanceof QueryException, $exception instanceof PDOException => 'database_failed',
-            $exception instanceof RandomException => 'randomness_unavailable',
-            default => 'unexpected_failure',
-        };
-        $diagnostics = ['exception_class' => $exception::class];
+        $source = ['previous_class' => $exception::class, 'exception_class' => $exception::class];
+        if ($providerStage !== null) {
+            $status = match (true) {
+                $exception instanceof GoogleServiceException => $exception->getCode(),
+                $exception instanceof RequestException => $exception->getResponse()?->getStatusCode(),
+                default => null,
+            };
+            $status = is_int($status) && $status >= 100 && $status <= 599 ? $status : null;
+            $unknown = $providerStage === GoogleWalletStage::ObjectCreation && (
+                $method === 'GET' || $status === null || $status < 400
+                || in_array($status, [408, 409, 429], true) || $status >= 500
+            );
+            $failure = match (true) {
+                $providerStage === GoogleWalletStage::ObjectCreation && $method === 'GET' => CustomerPassCreationFailure::ConfirmationUnavailable,
+                $status !== null => CustomerPassCreationFailure::ProviderRejected,
+                $exception instanceof GuzzleException => CustomerPassCreationFailure::TransportFailed,
+                default => CustomerPassCreationFailure::RequestFailed,
+            };
 
-        if ($exception instanceof QueryException || $exception instanceof PDOException) {
-            $diagnostics['sqlstate'] = $exception->errorInfo[0] ?? null;
-        } elseif ($reason === 'unexpected_failure') {
-            $diagnostics['source_file'] = $exception->getFile();
-            $diagnostics['source_line'] = $exception->getLine();
-            $diagnostics['exception_frames'] = array_map(
-                static fn (array $frame): array => array_intersect_key(
-                    $frame,
-                    array_flip(['file', 'line', 'class', 'function']),
-                ),
-                $exception->getTrace(),
+            return new self(
+                $failure,
+                context: ['http_method' => $method, ...$source, ...$context],
+                stage: $stage,
+                outcome: $unknown ? FailureOutcome::Unknown : FailureOutcome::Definitive,
+                providerStage: $providerStage,
+                providerStatus: $status,
             );
         }
 
+        $failure = match (true) {
+            $exception instanceof UniqueConstraintViolationException => CustomerPassCreationFailure::IdentityConflict,
+            $exception instanceof ModelNotFoundException => CustomerPassCreationFailure::BusinessNotFound,
+            $exception instanceof QueryException, $exception instanceof PDOException => CustomerPassCreationFailure::DatabaseFailed,
+            $exception instanceof RandomException => CustomerPassCreationFailure::RandomnessUnavailable,
+            default => CustomerPassCreationFailure::UnexpectedFailure,
+        };
+        if ($exception instanceof QueryException || $exception instanceof PDOException) {
+            $source['sqlstate'] = $exception->errorInfo[0] ?? null;
+        } elseif ($failure === CustomerPassCreationFailure::UnexpectedFailure) {
+            $source += [
+                'source_file' => $exception->getFile(),
+                'source_line' => $exception->getLine(),
+                'exception_frames' => array_map(
+                    static fn (array $frame): array => Arr::only($frame, ['file', 'line', 'class', 'function']),
+                    $exception->getTrace(),
+                ),
+            ];
+        }
+
         return new self(
-            $stage,
-            $stage === PassCreationStage::Preparation ? FailureOutcome::Definitive : FailureOutcome::Unknown,
-            $reason,
-            diagnostics: $diagnostics,
+            $failure,
+            context: [...$source, ...$context],
+            stage: $stage,
+            outcome: $stage === PassCreationStage::Preparation ? FailureOutcome::Definitive : FailureOutcome::Unknown,
         );
     }
 
     /**
-     * Reports whether another issuance attempt is permitted.
+     * Permits reacquisition only after a definitive failure outside a caller-owned transaction.
      *
-     * @return bool False for an unresolved issuance or a caller-owned transaction.
+     * @return bool Whether another issuance attempt is safe.
      */
-    public function canRetry(): bool
+    public function isRetryable(): bool
     {
-        return $this->outcome === FailureOutcome::Definitive && $this->reason !== 'transaction_active';
+        return $this->outcome === FailureOutcome::Definitive && $this->failure !== CustomerPassCreationFailure::TransactionActive;
     }
 
     /**
-     * Distinguishes known rejections from infrastructure failures.
+     * Emits stored evidence and explicit caller context without leaking native messages or arguments.
      *
-     * @return bool Whether warning-level logging is appropriate.
+     * @param  array<string, mixed>  $context  Safe outcome context; explicit values override stored context.
+     *
+     * @throws Throwable If native logging fails.
      */
-    public function isExpectedRejection(): bool
+    public function log(array $context = []): void
     {
-        return $this->outcome === FailureOutcome::Definitive
-            && (
-                in_array($this->reason, ['transaction_active', 'binding_conflict'], true)
-                || ($this->reason === 'provider_rejected'
-                    && $this->providerStatus >= 400
-                    && $this->providerStatus < 500)
-            );
-    }
+        $eventName = $this->failure->eventName();
+        if ($eventName === null) {
+            return;
+        }
 
-    /**
-     * Returns diagnostic metadata without credentials or exception arguments.
-     *
-     * @return array<string, mixed> Safe facts for the operation log.
-     */
-    public function context(): array
-    {
-        return [
+        $payload = [
+            'exception_class' => self::class,
+            ...$this->context,
+            ...$context,
+            'reason' => $this->failure->value,
             'stage' => $this->stage->value,
             'outcome' => $this->outcome->value,
-            'reason' => $this->reason,
-            'retry_allowed' => $this->canRetry(),
+            'retry_allowed' => $this->isRetryable(),
             'provider_stage' => $this->providerStage?->value,
             'provider_status' => $this->providerStatus,
-            'exception_class' => self::class,
-            ...$this->diagnostics,
         ];
+        $previous = $this->getPrevious();
+        if ($previous !== null) {
+            $payload['previous_class'] = $previous::class;
+            $payload['previous_file'] = $previous->getFile();
+            $payload['previous_line'] = $previous->getLine();
+            $payload['previous_frames'] = array_map(
+                static fn (array $frame): array => Arr::only($frame, ['file', 'line', 'class', 'function']),
+                $previous->getTrace(),
+            );
+        }
+        $level = $this->outcome === FailureOutcome::Unknown ? 'error' : $this->failure->logLevel();
+        if (
+            $this->failure === CustomerPassCreationFailure::ProviderRejected
+            && $this->outcome === FailureOutcome::Definitive
+            && $this->providerStatus >= 400
+            && $this->providerStatus < 500
+        ) {
+            $level = 'warning';
+        }
+
+        Log::log($level, $eventName, $payload);
     }
 }

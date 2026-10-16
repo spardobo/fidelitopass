@@ -4,54 +4,57 @@ namespace App\Exceptions;
 
 use App\Enums\FailureOutcome;
 use App\Enums\GoogleWalletStage;
+use App\Enums\GoogleWalletSynchronizationFailure;
 use Google\Service\Exception as GoogleServiceException;
+use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
-use Illuminate\Support\Facades\Lang;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
-/** Describes an existing-pass synchronization failure without retaining a secret-bearing cause. */
+/** Carries immutable synchronization evidence without deciding or logging the caller's transaction. */
 class GoogleWalletSynchronizationException extends RuntimeException
 {
     /**
-     * Stores safe diagnostic facts separately from the translated cashier message.
+     * Stores the classified cause and actual remote-operation facts.
      *
-     * @param  GoogleWalletStage  $stage  Locally selected synchronization boundary.
-     * @param  FailureOutcome  $outcome  Certainty of the remote write, not of the caller's transaction.
-     * @param  string  $reason  Application-owned failure code.
+     * @param  GoogleWalletSynchronizationFailure  $failure  Application-owned cause.
+     * @param  Throwable|null  $previous  Optional safe native cause.
+     * @param  array<string, mixed>  $context  Selected nonsecret evidence, never raw provider errors.
+     * @param  GoogleWalletStage  $stage  Last integration boundary entered.
+     * @param  FailureOutcome  $outcome  Certainty of the remote write, not local commit.
      * @param  int|null  $providerStatus  Received HTTP status when available.
      */
     public function __construct(
-        public readonly GoogleWalletStage $stage,
-        public readonly FailureOutcome $outcome,
-        public readonly string $reason,
+        public readonly GoogleWalletSynchronizationFailure $failure,
+        ?Throwable $previous = null,
+        public readonly array $context = [],
+        public readonly GoogleWalletStage $stage = GoogleWalletStage::Preparation,
+        public readonly FailureOutcome $outcome = FailureOutcome::Definitive,
         public readonly ?int $providerStatus = null,
     ) {
-        parent::__construct('Google Wallet synchronization failed.');
+        parent::__construct($failure->value, 0, $previous);
     }
 
     /**
-     * Classifies one failure without copying provider text, credentials or exception arguments.
+     * Classifies native request evidence without retaining bodies, credentials or native causes.
      *
-     * @param  Throwable  $exception  Native or already classified failure.
-     * @param  GoogleWalletStage  $stage  Last boundary entered by the updater.
-     * @param  bool  $deadlineExceeded  Whether the operation's monotonic budget expired.
-     * @return self Safe failure that must escape the caller-owned transaction.
+     * @param  Throwable  $exception  Native or already classified synchronization failure.
+     * @param  GoogleWalletStage  $stage  Last operation boundary entered.
+     * @param  bool  $deadlineExceeded  Whether the shared monotonic budget has expired.
+     * @param  array<string, mixed>  $context  Explicit safe request evidence.
+     * @return self Complete failure; an existing classification is returned unchanged.
      */
-    public static function fromFailure(#[SensitiveParameter] Throwable $exception, GoogleWalletStage $stage, bool $deadlineExceeded): self
-    {
+    public static function fromException(
+        #[SensitiveParameter] Throwable $exception,
+        GoogleWalletStage $stage,
+        bool $deadlineExceeded,
+        array $context = [],
+    ): self {
         if ($exception instanceof self) {
             return $exception;
-        }
-
-        if ($exception instanceof CustomerPassCreationException) {
-            return new self(
-                $exception->providerStage ?? $stage,
-                FailureOutcome::Definitive,
-                $deadlineExceeded ? 'deadline_exceeded' : $exception->reason,
-                $exception->providerStatus,
-            );
         }
 
         $status = match (true) {
@@ -64,21 +67,48 @@ class GoogleWalletSynchronizationException extends RuntimeException
             $status === null || $status < 400 || in_array($status, [408, 409, 429], true) || $status >= 500
         ));
 
+        $failure = match (true) {
+            $deadlineExceeded => GoogleWalletSynchronizationFailure::DeadlineExceeded,
+            $stage === GoogleWalletStage::OAuth && $status === null && $exception instanceof GuzzleException => GoogleWalletSynchronizationFailure::TransportFailed,
+            $status === null => GoogleWalletSynchronizationFailure::RequestFailed,
+            default => GoogleWalletSynchronizationFailure::ProviderRejected,
+        };
+
         return new self(
-            $stage,
-            $unknown ? FailureOutcome::Unknown : FailureOutcome::Definitive,
-            $deadlineExceeded ? 'deadline_exceeded' : ($status === null ? 'request_failed' : 'provider_rejected'),
-            $status,
+            $failure,
+            context: ['previous_class' => $exception::class, ...$context],
+            stage: $stage,
+            outcome: $unknown ? FailureOutcome::Unknown : FailureOutcome::Definitive,
+            providerStatus: $status,
         );
     }
 
     /**
-     * Returns domain-friendly copy without claiming a rollback or exposing provider diagnostics.
+     * Emits only an owned event with stored context and safe retained-cause source frames.
      *
-     * @return string Application-locale message for the future cashier operation boundary.
+     * @param  array<string, mixed>  $context  Explicit safe outcome context overriding stored context.
+     *
+     * @throws Throwable If native logging fails.
      */
-    public function userMessage(): string
+    public function log(array $context = []): void
     {
-        return Lang::string('wallet-synchronization.failed');
+        $eventName = $this->failure->eventName();
+        if ($eventName === null) {
+            return;
+        }
+
+        $payload = [...$this->context, ...$context, 'reason' => $this->failure->value];
+        $previous = $this->getPrevious();
+        if ($previous !== null) {
+            $payload['previous_class'] = $previous::class;
+            $payload['previous_file'] = $previous->getFile();
+            $payload['previous_line'] = $previous->getLine();
+            $payload['previous_frames'] = array_map(
+                static fn (array $frame): array => Arr::only($frame, ['file', 'line', 'class', 'function']),
+                $previous->getTrace(),
+            );
+        }
+
+        Log::log($this->failure->logLevel(), $eventName, $payload);
     }
 }

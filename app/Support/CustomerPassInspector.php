@@ -7,7 +7,6 @@ use App\Exceptions\CustomerPassInspectionException;
 use App\Models\Business;
 use App\Models\User;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use PDOException;
@@ -73,7 +72,7 @@ final class CustomerPassInspector
     {
         // reject unauthenticated or unverified actors before any other work
         if ($actor === null || ! $actor->hasVerifiedEmail()) {
-            $this->reject(InspectionFailure::Forbidden);
+            throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
         }
 
         $businessId = null;
@@ -82,7 +81,7 @@ final class CustomerPassInspector
             // resolve the actor's business; lookups are always scoped to it
             $business = $actor->business()->first();
             if ($business === null) {
-                $this->reject(InspectionFailure::Forbidden);
+                throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
             }
 
             $businessId = $business->id;
@@ -95,7 +94,7 @@ final class CustomerPassInspector
             $normalized = $this->normalizeCredential($method, $credential);
             if ($normalized === null) {
                 $this->recordInvalidAttempt($rateLimitKey);
-                $this->reject(InspectionFailure::InvalidCredential);
+                throw new CustomerPassInspectionException(InspectionFailure::InvalidCredential);
             }
 
             // capture one authoritative instant for the whole snapshot
@@ -104,31 +103,23 @@ final class CustomerPassInspector
 
             // reject ambiguous occupancy instead of choosing a pass arbitrarily
             if (count($rows) > 1) {
-                $this->reject(InspectionFailure::AmbiguousActivePromotion);
+                throw new CustomerPassInspectionException(InspectionFailure::AmbiguousActivePromotion);
             }
 
             // a well-formed credential resolving to no pass is a business rejection
             if ($rows === []) {
                 $this->recordInvalidAttempt($rateLimitKey);
-                $this->reject(InspectionFailure::InvalidCredential);
+                throw new CustomerPassInspectionException(InspectionFailure::InvalidCredential);
             }
 
             return $this->buildResult($rows[0], $capturedAt);
         } catch (QueryException|PDOException $exception) {
             // discard the secret-bearing cause while preserving the existing safe diagnostics
-            $failure = new CustomerPassInspectionException(InspectionFailure::AuthoritativeReadFailed);
+            $failure = CustomerPassInspectionException::fromException($exception);
             $failure->log([
                 'actor_id' => $actor->id,
                 'business_id' => $businessId,
                 'outcome' => 'unavailable',
-                'previous_class' => $exception::class,
-                'exception_class' => $exception::class,
-                'source_file' => $exception->getFile(),
-                'source_line' => $exception->getLine(),
-                'exception_frames' => array_map(
-                    static fn (array $frame): array => Arr::only($frame, ['file', 'line', 'class', 'function']),
-                    $exception->getTrace(),
-                ),
             ]);
 
             throw $failure;
@@ -154,22 +145,6 @@ final class CustomerPassInspector
     // ------------------------------------------------------------------------
 
     /**
-     * Aborts the inspection with the given typed failure.
-     *
-     * @param  InspectionFailure  $failure  Typed reason propagated to the caller.
-     * @param  int|null  $retryAfterSeconds  Optional Retry-After hint for throttled callers.
-     *
-     * @throws CustomerPassInspectionException Always.
-     */
-    private function reject(InspectionFailure $failure, ?int $retryAfterSeconds = null): never
-    {
-        $exception = new CustomerPassInspectionException($failure);
-        $exception->retryAfterSeconds = $retryAfterSeconds;
-
-        throw $exception;
-    }
-
-    /**
      * Rejects the inspection when the actor's invalid-attempt window is exhausted.
      *
      * @param  string  $rateLimitKey  Shared actor window key.
@@ -181,9 +156,9 @@ final class CustomerPassInspector
         $maxAttempts = max(1, (int) config('pass_lookup.max_invalid_attempts', 10));
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, $maxAttempts)) {
-            $this->reject(
+            throw new CustomerPassInspectionException(
                 InspectionFailure::InvalidAttemptLimit,
-                RateLimiter::availableIn($rateLimitKey),
+                retryAfterSeconds: RateLimiter::availableIn($rateLimitKey),
             );
         }
     }

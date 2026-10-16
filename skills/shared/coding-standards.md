@@ -31,7 +31,7 @@ enum InspectionFailure: string
 }
 ```
 
-The domain exception carries the enum, never a string:
+The domain exception carries one cause enum, never a reason string. It is a non-final data container with complete immutable facts:
 
 ```php
 class CustomerPassInspectionException extends RuntimeException
@@ -39,15 +39,17 @@ class CustomerPassInspectionException extends RuntimeException
     public function __construct(
         public readonly InspectionFailure $failure,
         ?Throwable $previous = null,
+        public readonly array $context = [],
+        public readonly ?int $retryAfterSeconds = null,
     ) {
         parent::__construct($failure->value, 0, $previous);
     }
 }
 ```
 
-Custom exceptions are not final. Each carries exactly one failure enum and an optional native cause through the constructor above. Each owns its own `log(array $context = []): void` emitter; constructors and enums never log or construct other exceptions. Do not add static factories, exception predicates, a shared logging abstraction or domain-to-domain exception translation. Native failures are classified at the boundary: inline for one mapping, or in a private `classify(Throwable): <Flow>Failure` method for multiple mappings.
+Pass selected safe context and actually consumed typed operational facts at construction. Do not assign diagnostics or retry metadata afterward. A stage or certainty enum is a category, not a second cause catalog. Keep invocation-dependent stage, certainty and received status on the exception; do not multiply causes by every combination or derive certainty from retryability. Enum metadata must be intrinsic to the cause. HTTP and retry mappings belong where all their inputs exist, and only when a real consumer needs them.
 
-Consumers read identity and applicable metadata from the enum. Add `httpStatus()`, `stage()`, `isRetryable()`, `message()` or `field()` only when a real consumer needs them. A stage enum is an optional category, not another failure catalog. Add `outcome()` only for externally consumed certainty that the case cannot express; prefer distinct definitive and unknown cases. Log-label mappings belong to the outcome owner, not `outcome()`.
+Ordinary `throw new` is sufficient; clients need no mandatory `reject()` helper. An optional `fromException()` may classify native failures and select safe evidence using explicit operation facts. It returns an existing same-domain exception unchanged and never logs, queries, retries or decides business outcomes. Use it to remove duplicated classification/status/source extraction, not to build a factory zoo. Do not introduce domain-to-domain translations, callback factory plumbing, mutable invocation modes, traits, interfaces or shared base classes merely for this pattern. Each exception owns its own `log(array $context = []): void`; constructors, factories and enums never log.
 
 Adding a failure extends its case and relevant mappings. NEVER duplicate production code strings in parallel catalogs. Independent test expectations may assert literal public values.
 
@@ -58,9 +60,9 @@ Log exactly once per failure, in the method that owns the semantic outcome.
 
 NEVER log-and-throw from a collaborator when another boundary owns that same outcome. The owning boundary MAY log once and then translate or propagate. If that boundary logs, the caller MUST NOT re-log.
 
-The outcome owner calls the exception's own `log()` emitter with explicit safe context. The emitter reads level/event from the enum, returns early for a null event, and emits the reason plus supplied context. It does not decide the outcome or deduplicate calls.
+The outcome owner calls the exception's own `log()` emitter. It combines stored safe context with explicit caller context, with caller values taking precedence and the typed reason remaining authoritative. It reads intrinsic event/level metadata from the enum, applies runtime severity evidence where required, and returns early for a null event. It does not decide the outcome or deduplicate calls.
 
-For a retained safe native cause, the emitter selects only `previous_class`, `previous_file`, `previous_line` and `previous_frames`, using Arr::only($frame, ['file', 'line', 'class', 'function']) per frame. NEVER include messages, arguments, frame objects, SQL, bindings or credentials. For secret-bearing SQL, HTTP or SDK failures, pass null as the cause and supply only selected safe diagnostics, including `previous_class`, in the log context. Never retain the native throwable in metadata or mark `$previous` with SensitiveParameter.
+For a retained safe native cause, the emitter selects only `previous_class`, `previous_file`, `previous_line` and `previous_frames`, using Arr::only($frame, ['file', 'line', 'class', 'function']) per frame. NEVER include messages, arguments, frame objects, SQL, bindings or credentials. For secret-bearing SQL, HTTP, SDK or signing failures, pass null as the cause and supply only selected safe diagnostics, including `previous_class`, as construction-time context. Never retain the native throwable in metadata or mark `$previous` with SensitiveParameter.
 
 One blank line before and after each Log:: call.
 
@@ -79,8 +81,8 @@ Pattern:
 ```php
 // classify the native failure at the outcome owner and discard its secret-bearing cause
 catch (QueryException $exception) {
-    $failure = new CustomerPassInspectionException(InspectionFailure::AuthoritativeReadFailed);
-    $failure->log(['previous_class' => $exception::class]);
+    $failure = CustomerPassInspectionException::fromException($exception);
+    $failure->log(['actor_id' => $actor->id]);
 
     throw $failure;
 }
@@ -181,14 +183,14 @@ The boundary method (the public entry) owns: translation of infra exceptions, lo
 public function inspect(...): array
 {
     // validations first
-    if (...) { $this->reject(Forbidden); }
+    if (...) { throw new CustomerPassInspectionException(InspectionFailure::Forbidden); }
     // ... all guards ...
 
     try {
         return $this->runInspection($business, $method, $normalized, $rateLimitKey);
     } catch (QueryException|PDOException $exception) {
-        $failure = new CustomerPassInspectionException(InspectionFailure::AuthoritativeReadFailed);
-        $failure->log(/* explicit safe context, including previous_class */);
+        $failure = CustomerPassInspectionException::fromException($exception);
+        $failure->log(/* explicit safe operation context */);
         throw $failure;
     } catch (CustomerPassInspectionException $exception) {
         $exception->log(/* explicit safe outcome context */);
@@ -245,7 +247,7 @@ Boxes are ONLY allowed to group sibling methods, in the same lowercase English f
 // validations
 // ------------------------------------------------------------------------
 
-private function reject(...) { ... }
+private function normalizeCredential(...) { ... }
 ```
 
 <a id="callable-documentation"></a>
@@ -261,16 +263,13 @@ Describe responsibility, units, trust, preconditions. Do not restate the signatu
 
 ```php
 /**
- * Aborts the inspection with the given typed failure.
+ * Classifies an authoritative-read failure without retaining its private native payload.
  *
- * @param InspectionFailure $failure Typed reason propagated to the caller.
- * @param int|null $retryAfterSeconds Optional Retry-After hint for throttled callers.
+ * @param Throwable $exception Native or already classified inspection failure.
  *
- * @return never
- *
- * @throws CustomerPassInspectionException Always.
+ * @return self Complete immutable failure evidence.
  */
-private function reject(InspectionFailure $failure, ?int $retryAfterSeconds = null): never
+public static function fromException(#[SensitiveParameter] Throwable $exception): self
 ```
 
 Document at the declaration, above attributes.

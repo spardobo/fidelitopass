@@ -7,6 +7,7 @@ use Illuminate\Contracts\Debug\ShouldntReport;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use SensitiveParameter;
 use Throwable;
 
 /**
@@ -18,21 +19,44 @@ use Throwable;
 class CustomerPassInspectionException extends RuntimeException implements ShouldntReport
 {
     /**
-     * Seconds the caller should wait before retrying, or null when not throttled.
-     */
-    public ?int $retryAfterSeconds = null;
-
-    /**
      * Builds the failure with an optional cause known to be safe to retain.
      *
      * @param  InspectionFailure  $failure  Typed reason propagated to the caller.
      * @param  Throwable|null  $previous  Optional non-secret-bearing native cause.
+     * @param  array<string, mixed>  $context  Selected safe source or operation evidence.
+     * @param  int|null  $retryAfterSeconds  Seconds to wait when throttled, otherwise null.
      */
     public function __construct(
         public readonly InspectionFailure $failure,
         ?Throwable $previous = null,
+        public readonly array $context = [],
+        public readonly ?int $retryAfterSeconds = null,
     ) {
         parent::__construct($failure->value, 0, $previous);
+    }
+
+    /**
+     * Classifies an authoritative-read failure without retaining SQL, bindings or native causes.
+     *
+     * @param  Throwable  $exception  Native read failure or already classified inspection failure.
+     * @return self Immutable safe evidence; existing classifications are preserved.
+     */
+    public static function fromException(#[SensitiveParameter] Throwable $exception): self
+    {
+        if ($exception instanceof self) {
+            return $exception;
+        }
+
+        return new self(InspectionFailure::AuthoritativeReadFailed, context: [
+            'previous_class' => $exception::class,
+            'exception_class' => $exception::class,
+            'source_file' => $exception->getFile(),
+            'source_line' => $exception->getLine(),
+            'exception_frames' => array_map(
+                static fn (array $frame): array => Arr::only($frame, ['file', 'line', 'class', 'function']),
+                $exception->getTrace(),
+            ),
+        ]);
     }
 
     /**
@@ -50,8 +74,9 @@ class CustomerPassInspectionException extends RuntimeException implements Should
         }
 
         $payload = [
-            'reason' => $this->failure->value,
+            ...$this->context,
             ...$context,
+            'reason' => $this->failure->value,
         ];
 
         $previous = $this->getPrevious();

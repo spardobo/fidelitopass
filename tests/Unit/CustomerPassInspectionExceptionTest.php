@@ -2,6 +2,7 @@
 
 use App\Enums\InspectionFailure;
 use App\Exceptions\CustomerPassInspectionException;
+use App\Support\CustomerPassInspector;
 use Illuminate\Contracts\Debug\ShouldntReport;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
@@ -75,6 +76,19 @@ it('emits only source metadata from a previous cause without messages arguments 
         }
     }
     expect(json_encode($payload, JSON_THROW_ON_ERROR))->not->toContain('synthetic-private');
+});
+
+it('constructs readonly retry and context facts and preserves them through native classification', function () {
+    Log::spy();
+    $exception = new CustomerPassInspectionException(InspectionFailure::InvalidAttemptLimit,
+        context: ['actor_id' => 7], retryAfterSeconds: 42);
+
+    expect($exception->retryAfterSeconds)->toBe(42);
+    expect(fn () => $exception->retryAfterSeconds = 1)->toThrow(Error::class);
+    expect(fn () => $exception->context['actor_id'] = 8)->toThrow(Error::class);
+    expect(CustomerPassInspectionException::fromException($exception))->toBe($exception);
+    expect((new ReflectionClass(CustomerPassInspector::class))->hasMethod('reject'))->toBeFalse();
+    Log::shouldNotHaveReceived('log');
 });
 
 it('propagates a native logging failure without substituting the classified rejection', function () {

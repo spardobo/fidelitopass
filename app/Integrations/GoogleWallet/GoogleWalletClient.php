@@ -2,8 +2,12 @@
 
 namespace App\Integrations\GoogleWallet;
 
+use App\Enums\CustomerPassCreationFailure;
 use App\Enums\GoogleWalletStage;
+use App\Enums\GoogleWalletSynchronizationFailure;
+use App\Enums\PassCreationStage;
 use App\Exceptions\CustomerPassCreationException;
+use App\Exceptions\GoogleWalletSynchronizationException;
 use Google\Client as GoogleClient;
 use Google\Service\Exception as GoogleServiceException;
 use Google\Service\Walletobjects;
@@ -35,11 +39,13 @@ class GoogleWalletClient
      *
      * @param  WalletConfiguration  $settings  Validated service account and per-request limits.
      * @param  int|null  $deadlineNs  Shared monotonic deadline in nanoseconds, or null for issuance limits.
+     * @param  bool  $synchronizing  Whether the invocation belongs to the existing-pass flow.
      * @return Walletobjects Native SDK resources with an operation-local access token.
      *
-     * @throws CustomerPassCreationException If OAuth fails or returns no usable access token.
+     * @throws CustomerPassCreationException If issuance OAuth fails or returns no usable access token.
+     * @throws GoogleWalletSynchronizationException If synchronization OAuth fails or exceeds its deadline.
      */
-    public function authenticate(#[SensitiveParameter] array $settings, ?int $deadlineNs = null): Walletobjects
+    public function authenticate(#[SensitiveParameter] array $settings, ?int $deadlineNs = null, bool $synchronizing = false): Walletobjects
     {
         // configure transport and SDK policy before authentication
         $http = $this->createHttpClient($settings, $deadlineNs);
@@ -57,18 +63,35 @@ class GoogleWalletClient
         try {
             $tokenResponse = $client->fetchAccessTokenWithAssertion($http);
         } catch (Throwable $exception) {
-            throw CustomerPassCreationException::fromProvider($exception, GoogleWalletStage::OAuth, 'POST');
+            throw $synchronizing
+                ? GoogleWalletSynchronizationException::fromException(
+                    $exception, GoogleWalletStage::OAuth,
+                    $deadlineNs !== null && hrtime(true) >= $deadlineNs,
+                    ['http_method' => 'POST'],
+                )
+                : CustomerPassCreationException::fromException(
+                    $exception, PassCreationStage::Provider, GoogleWalletStage::OAuth, 'POST',
+                );
         }
 
         if (
             ! is_string($tokenResponse['access_token'] ?? null)
             || $tokenResponse['access_token'] === ''
         ) {
-            throw CustomerPassCreationException::providerRejected(
-                GoogleWalletStage::OAuth,
-                'malformed_response',
-                ['http_method' => 'POST'],
-            );
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    $deadlineNs !== null && hrtime(true) >= $deadlineNs
+                        ? GoogleWalletSynchronizationFailure::DeadlineExceeded
+                        : GoogleWalletSynchronizationFailure::MalformedResponse,
+                    context: ['http_method' => 'POST'],
+                    stage: GoogleWalletStage::OAuth,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::MalformedResponse,
+                    context: ['http_method' => 'POST'],
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::OAuth,
+                );
         }
 
         // keep this operation on the explicitly authenticated service account

@@ -2,8 +2,12 @@
 
 namespace App\Integrations\GoogleWallet;
 
+use App\Enums\CustomerPassCreationFailure;
 use App\Enums\GoogleWalletStage;
+use App\Enums\GoogleWalletSynchronizationFailure;
+use App\Enums\PassCreationStage;
 use App\Exceptions\CustomerPassCreationException;
+use App\Exceptions\GoogleWalletSynchronizationException;
 
 /**
  * Loads deployment configuration and signing credentials for one Google Wallet operation.
@@ -20,17 +24,28 @@ use App\Exceptions\CustomerPassCreationException;
 class GoogleWalletConfiguration
 {
     /**
-     * Loads and validates settings for one Google Wallet operation.
+     * Loads and validates settings without caching credentials or changing invocation ownership.
      *
-     * @return WalletConfiguration Validated operation settings; the account contains private signing material.
+     * @param  bool  $synchronizing  Whether this invocation belongs to existing-pass synchronization.
+     * @return WalletConfiguration Validated settings containing private signing material.
      *
-     * @throws CustomerPassCreationException If configuration or signing credentials are unusable.
+     * @throws CustomerPassCreationException If issuance settings or credentials are unusable.
+     * @throws GoogleWalletSynchronizationException If synchronization settings or credentials are unusable.
      */
-    public function load(): array
+    public function load(bool $synchronizing = false): array
     {
         // the auth SDK has an independent stdout logger that can expose private HTTP payloads
         if (strtolower((string) getenv('GOOGLE_SDK_PHP_LOGGING')) === 'true') {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'unsafe_sdk_logging');
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    GoogleWalletSynchronizationFailure::UnsafeSdkLogging,
+                    stage: GoogleWalletStage::Configuration,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::UnsafeSdkLogging,
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::Configuration,
+                );
         }
 
         $issuerId = config('services.google_wallet.issuer_id');
@@ -49,12 +64,21 @@ class GoogleWalletConfiguration
             || $timeout < $connectTimeout
             || $timeout > 60
         ) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'configuration_invalid');
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    GoogleWalletSynchronizationFailure::ConfigurationInvalid,
+                    stage: GoogleWalletStage::Configuration,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::ConfigurationInvalid,
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::Configuration,
+                );
         }
 
-        $origin = $this->normalizeOrigin($origin);
-        $logoUrls = $this->loadLogoUrls($origin);
-        $account = $this->loadServiceAccount();
+        $origin = $this->normalizeOrigin($origin, $synchronizing);
+        $logoUrls = $this->loadLogoUrls($origin, $synchronizing);
+        $account = $this->loadServiceAccount($synchronizing);
 
         return [
             'issuer_id' => $issuerId,
@@ -70,60 +94,80 @@ class GoogleWalletConfiguration
      * Loads the selected black logo URL, preserving the original single-logo fallback.
      *
      * @param  string  $origin  Validated application origin used for the default logo path.
-     * @return array{black: string} Private configuration map, not an application result.
+     * @param  bool  $synchronizing  Invocation-local exception ownership.
+     * @return array{black: string} Private configuration map.
      *
-     * @throws CustomerPassCreationException If the selected logo URL is invalid.
+     * @throws CustomerPassCreationException If the selected issuance logo URL is invalid.
+     * @throws GoogleWalletSynchronizationException If the selected synchronization logo URL is invalid.
      */
-    private function loadLogoUrls(string $origin): array
+    private function loadLogoUrls(string $origin, bool $synchronizing): array
     {
         $blackUrl = config('services.google_wallet.logo_black_url');
-
         if ($blackUrl === null) {
             $fallbackUrl = config('services.google_wallet.logo_url');
             $fallbackUrl = $fallbackUrl === null || $fallbackUrl === '' ? $origin.'/logo.png' : $fallbackUrl;
             $blackUrl = $fallbackUrl;
         }
 
-        if (
-            ! is_string($blackUrl)
-            || ! $this->hasPublicHttpsFormat($blackUrl)
-        ) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'logo_url_invalid');
+        if (! is_string($blackUrl) || ! $this->hasPublicHttpsFormat($blackUrl)) {
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    GoogleWalletSynchronizationFailure::LogoUrlInvalid,
+                    stage: GoogleWalletStage::Configuration,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::LogoUrlInvalid,
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::Configuration,
+                );
         }
 
-        return [
-            'black' => $blackUrl,
-        ];
+        return ['black' => $blackUrl];
     }
 
     /**
-     * Reads the service-account file and validates its RSA signing key.
+     * Reads fresh service-account credentials and validates their RSA signing key.
      *
-     * Relative paths are resolved against the application root. The raw file is not cached.
-     *
+     * @param  bool  $synchronizing  Invocation-local exception ownership.
      * @return array{type: string, client_id: string, client_email: string, private_key: string} Selected SDK credentials.
      *
-     * @throws CustomerPassCreationException If the file, service account or RSA key is unusable.
+     * @throws CustomerPassCreationException If the issuance credentials are unusable.
+     * @throws GoogleWalletSynchronizationException If the synchronization credentials are unusable.
      */
-    private function loadServiceAccount(): array
+    private function loadServiceAccount(bool $synchronizing): array
     {
         // resolve a readable deployment-owned credential file
         $path = config('services.google_wallet.credentials_path');
-
         if (! is_string($path) || $path === '' || str_contains($path, "\0")) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'credentials_invalid');
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    GoogleWalletSynchronizationFailure::CredentialsInvalid,
+                    stage: GoogleWalletStage::Configuration,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::CredentialsInvalid,
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::Configuration,
+                );
         }
 
         $path = str_starts_with($path, '/') ? $path : base_path($path);
-
         if (! is_file($path) || ! is_readable($path)) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'credentials_invalid');
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    GoogleWalletSynchronizationFailure::CredentialsInvalid,
+                    stage: GoogleWalletStage::Configuration,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::CredentialsInvalid,
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::Configuration,
+                );
         }
 
         // read and validate the external account fields before loading the key
         $json = @file_get_contents($path);
         $account = is_string($json) ? json_decode($json, true) : null;
-
         if (
             ! is_array($account)
             || ($account['type'] ?? null) !== 'service_account'
@@ -133,20 +177,37 @@ class GoogleWalletConfiguration
             || ! is_string($account['private_key'] ?? null)
             || $account['private_key'] === ''
         ) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'credentials_invalid');
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    GoogleWalletSynchronizationFailure::CredentialsInvalid,
+                    stage: GoogleWalletStage::Configuration,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::CredentialsInvalid,
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::Configuration,
+                );
         }
 
         // require an RSA key of at least 2048 bits
         $privateKey = @openssl_pkey_get_private($account['private_key']);
         $keyDetails = $privateKey === false ? false : openssl_pkey_get_details($privateKey);
-
         if (
             $privateKey === false
             || $keyDetails === false
             || $keyDetails['type'] !== OPENSSL_KEYTYPE_RSA
             || $keyDetails['bits'] < 2048
         ) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'signing_key_invalid');
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    GoogleWalletSynchronizationFailure::SigningKeyInvalid,
+                    stage: GoogleWalletStage::Configuration,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::SigningKeyInvalid,
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::Configuration,
+                );
         }
 
         return [
@@ -160,12 +221,14 @@ class GoogleWalletConfiguration
     /**
      * Validates the application origin and removes its default port.
      *
-     * @param  string  $url  Configured application URL, without credentials, query or fragment.
-     * @return string Canonical HTTPS origin, or an allowed loopback origin in local development.
+     * @param  string  $url  Configured application URL without credentials, query or fragment.
+     * @param  bool  $synchronizing  Invocation-local exception ownership.
+     * @return string Canonical HTTPS origin, or allowed loopback origin in local development.
      *
-     * @throws CustomerPassCreationException If the configured origin is not allowed.
+     * @throws CustomerPassCreationException If the configured issuance origin is not allowed.
+     * @throws GoogleWalletSynchronizationException If the configured synchronization origin is not allowed.
      */
-    private function normalizeOrigin(string $url): string
+    private function normalizeOrigin(string $url, bool $synchronizing): string
     {
         $parts = parse_url($url);
         $isLocalLoopback = app()->environment('local')
@@ -185,7 +248,16 @@ class GoogleWalletConfiguration
             || (isset($parts['port']) && $parts['port'] < 1)
             || (isset($parts['path']) && ! in_array($parts['path'], ['', '/'], true))
         ) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'origin_invalid');
+            throw $synchronizing
+                ? new GoogleWalletSynchronizationException(
+                    GoogleWalletSynchronizationFailure::OriginInvalid,
+                    stage: GoogleWalletStage::Configuration,
+                )
+                : new CustomerPassCreationException(
+                    CustomerPassCreationFailure::OriginInvalid,
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::Configuration,
+                );
         }
 
         $defaultPort = $parts['scheme'] === 'https' ? 443 : 80;
@@ -198,7 +270,7 @@ class GoogleWalletConfiguration
      * Checks the allowed HTTPS URL format without making a network request.
      *
      * @param  string  $url  Deployment-controlled URL to validate.
-     * @return bool True for an accepted URL shape; DNS resolution and reachability are not verified.
+     * @return bool Accepted URL shape; DNS resolution and reachability are not verified.
      */
     private function hasPublicHttpsFormat(string $url): bool
     {
