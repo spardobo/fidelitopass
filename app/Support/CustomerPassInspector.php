@@ -9,7 +9,6 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use PDOException;
 use SensitiveParameter;
@@ -116,10 +115,36 @@ final class CustomerPassInspector
 
             return $this->buildResult($rows[0], $capturedAt);
         } catch (QueryException|PDOException $exception) {
-            $this->logReadFailure($actor->id, $businessId, $exception);
-            $this->reject(InspectionFailure::AuthoritativeReadFailed);
+            // discard the secret-bearing cause while preserving the existing safe diagnostics
+            $failure = new CustomerPassInspectionException(InspectionFailure::AuthoritativeReadFailed);
+            $failure->log([
+                'actor_id' => $actor->id,
+                'business_id' => $businessId,
+                'outcome' => 'unavailable',
+                'previous_class' => $exception::class,
+                'exception_class' => $exception::class,
+                'source_file' => $exception->getFile(),
+                'source_line' => $exception->getLine(),
+                'exception_frames' => array_map(
+                    static fn (array $frame): array => Arr::only($frame, ['file', 'line', 'class', 'function']),
+                    $exception->getTrace(),
+                ),
+            ]);
+
+            throw $failure;
         } catch (CustomerPassInspectionException $exception) {
-            $this->logOperationalFailure($actor->id, $businessId, $exception);
+            $exception->log([
+                'actor_id' => $actor->id,
+                'business_id' => $businessId,
+                'outcome' => match ($exception->failure) {
+                    InspectionFailure::Forbidden => 'forbidden',
+                    InspectionFailure::InvalidCredential,
+                    InspectionFailure::InvalidAttemptLimit => 'rejected',
+                    InspectionFailure::AuthoritativeReadFailed,
+                    InspectionFailure::AmbiguousActivePromotion => 'unavailable',
+                },
+            ]);
+
             throw $exception;
         }
     }
@@ -138,7 +163,10 @@ final class CustomerPassInspector
      */
     private function reject(InspectionFailure $failure, ?int $retryAfterSeconds = null): never
     {
-        throw new CustomerPassInspectionException($failure, $retryAfterSeconds);
+        $exception = new CustomerPassInspectionException($failure);
+        $exception->retryAfterSeconds = $retryAfterSeconds;
+
+        throw $exception;
     }
 
     /**
@@ -296,57 +324,5 @@ final class CustomerPassInspector
             'can_redeem_reward' => $promotion !== null
                 && $promotion['reward_status'] === 'available',
         ];
-    }
-
-    // ------------------------------------------------------------------------
-    // logging
-    // ------------------------------------------------------------------------
-
-    /**
-     * Emits the operational event for a domain failure, if it has one.
-     *
-     * @param  int  $actorId  Authenticated actor id.
-     * @param  int|null  $businessId  Resolved business id, or null before resolution.
-     * @param  CustomerPassInspectionException  $exception  Domain failure carrying the typed reason.
-     */
-    private function logOperationalFailure(int $actorId, ?int $businessId, CustomerPassInspectionException $exception): void
-    {
-        $eventName = $exception->failure->eventName();
-        if ($eventName === null) {
-            return;
-        }
-
-        Log::log($exception->failure->logLevel(), $eventName, [
-            'actor_id' => $actorId,
-            'business_id' => $businessId,
-            'outcome' => $exception->failure->outcome(),
-            'reason' => $exception->failure->value,
-        ]);
-    }
-
-    /**
-     * Emits the terminal read failure without retaining sql or bindings.
-     *
-     * @param  int  $actorId  Authenticated actor id.
-     * @param  int|null  $businessId  Resolved business id, or null before resolution.
-     * @param  QueryException|PDOException  $exception  Native read failure.
-     */
-    private function logReadFailure(int $actorId, ?int $businessId, QueryException|PDOException $exception): void
-    {
-        $failure = InspectionFailure::AuthoritativeReadFailed;
-
-        Log::log($failure->logLevel(), $failure->eventName(), [
-            'actor_id' => $actorId,
-            'business_id' => $businessId,
-            'outcome' => $failure->outcome(),
-            'reason' => $failure->value,
-            'exception_class' => $exception::class,
-            'source_file' => $exception->getFile(),
-            'source_line' => $exception->getLine(),
-            'exception_frames' => array_map(
-                static fn (array $frame): array => Arr::only($frame, ['file', 'line', 'class', 'function']),
-                $exception->getTrace(),
-            ),
-        ]);
     }
 }

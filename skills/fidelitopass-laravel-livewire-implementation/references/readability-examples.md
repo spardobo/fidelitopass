@@ -21,40 +21,60 @@ enum InspectionFailure: string
     case InvalidAttemptLimit     = 'invalid_attempt_limit';
     case AuthoritativeReadFailed = 'authoritative_read_failed';
 
-    public function httpStatus(): int
+    /**
+     * Returns the severity used for an operational failure event.
+     *
+     * @return string PSR-3 level name.
+     */
+    public function logLevel(): string
     {
         return match ($this) {
-            self::Forbidden               => 403,
-            self::InvalidCredential       => 404,
-            self::InvalidAttemptLimit     => 429,
-            self::AuthoritativeReadFailed => 503,
+            self::Forbidden               => 'warning',
+            self::InvalidCredential,
+            self::InvalidAttemptLimit     => 'notice',
+            self::AuthoritativeReadFailed => 'error',
+        };
+    }
+
+    /**
+     * Returns the event name, or null when the failure must remain silent.
+     *
+     * @return string|null Operational event name, when applicable.
+     */
+    public function eventName(): ?string
+    {
+        return match ($this) {
+            self::Forbidden               => null,
+            self::InvalidCredential       => 'customer_pass.lookup_rejected',
+            self::InvalidAttemptLimit     => 'customer_pass.lookup_throttled',
+            self::AuthoritativeReadFailed => 'customer_pass.lookup_unavailable',
         };
     }
 }
 ```
 
-Note: aligned =>, one case per line, match without a default because the enum is exhaustive.
+Note: illustrative cases, aligned =>, one case per line, exhaustive matches without a default. Only logLevel() and eventName() are required. Add metadata only for actual consumers, not for symmetry.
 
 ## Canonical: typed exception
 ```php
-final class CustomerPassInspectionException extends RuntimeException
+class CustomerPassInspectionException extends RuntimeException implements ShouldntReport
 {
     /**
-     * Builds the exception from its typed failure and optional retry hint.
+     * Builds the exception from its typed failure and an optional safe native cause.
      *
      * @param InspectionFailure $failure Typed reason for the failure.
-     * @param int|null $retryAfterSeconds Seconds the caller should wait before retrying, when applicable.
+     * @param Throwable|null $previous Non-secret-bearing native cause, when safe to retain.
      */
     public function __construct(
         public readonly InspectionFailure $failure,
-        public readonly ?int $retryAfterSeconds = null,
+        ?Throwable $previous = null,
     ) {
-        parent::__construct('Customer pass inspection failed.');
+        parent::__construct($failure->value, 0, $previous);
     }
 }
 ```
 
-Note: public readonly properties, no accessors, no secret-bearing cause. Use the application owner's safe message and duplicate-reporting contract; the boundary already owns the event.
+Note: constructor excerpt only. The non-final exception carries one readonly failure enum and owns its log(array $context = []): void emitter. It returns for a null event and emits reason plus explicit safe context otherwise. A retained safe cause contributes only previous_class, previous_file, previous_line and previous_frames, with each frame filtered through Arr::only to file/line/class/function. Never emit cause messages or arguments. Secret-bearing causes must be null; the boundary supplies selected safe metadata instead. Keep ShouldntReport and existing safe retry hints without adding constructor arguments, factories or translations.
 
 ## Canonical: inspector boundary vs operation flow
 Boundary (validation + translation + logging + return):
@@ -90,14 +110,41 @@ public function inspect(?User $actor, string $method, #[SensitiveParameter] stri
 
         return $this->runInspection($business, $method, $normalized, $rateLimitKey);
     } catch (QueryException|PDOException $exception) {
-        $this->logReadFailure($actor->id, $businessId, $exception);
-        $this->reject(InspectionFailure::AuthoritativeReadFailed);
+        // discard the secret-bearing cause and pass only selected safe diagnostics
+        $failure = new CustomerPassInspectionException(InspectionFailure::AuthoritativeReadFailed);
+        $failure->log([
+            'actor_id' => $actor->id,
+            'business_id' => $businessId,
+            'outcome' => 'unavailable',
+            'previous_class' => $exception::class,
+            'exception_class' => $exception::class,
+            'source_file' => $exception->getFile(),
+            'source_line' => $exception->getLine(),
+            'exception_frames' => array_map(
+                static fn (array $frame): array => Arr::only($frame, ['file', 'line', 'class', 'function']),
+                $exception->getTrace(),
+            ),
+        ]);
+
+        throw $failure;
     } catch (CustomerPassInspectionException $exception) {
-        $this->logOperationalFailure($actor->id, $businessId, $exception);
+        $exception->log([
+            'actor_id' => $actor->id,
+            'business_id' => $businessId,
+            'outcome' => match ($exception->failure) {
+                InspectionFailure::Forbidden => 'forbidden',
+                InspectionFailure::InvalidCredential,
+                InspectionFailure::InvalidAttemptLimit => 'rejected',
+                InspectionFailure::AuthoritativeReadFailed => 'unavailable',
+            },
+        ]);
+
         throw $exception;
     }
 }
 ```
+
+The boundary owns the outcome and calls the exception's emitter once before propagating. Collaborators do not log. Outcome labels stay here, not in the enum. Native logging failures propagate without a protective wrapper.
 
 Operation flow (no log, no catch, no translation; database/cache I/O is not pure):
 

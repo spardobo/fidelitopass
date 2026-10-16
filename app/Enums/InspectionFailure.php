@@ -5,7 +5,7 @@ namespace App\Enums;
 /**
  * Single catalog of failures raised by the pass inspection flow.
  *
- * Keeps identity, adapter status and operational metadata together.
+ * Keeps identity and operational metadata together.
  * Extend the relevant mappings when adding a failure; callers consume
  * this catalog rather than maintaining parallel reason mappings.
  */
@@ -16,22 +16,6 @@ enum InspectionFailure: string
     case InvalidAttemptLimit = 'invalid_attempt_limit';
     case AuthoritativeReadFailed = 'authoritative_read_failed';
     case AmbiguousActivePromotion = 'ambiguous_active_promotion';
-
-    /**
-     * Returns the response status available to an adapter for this failure.
-     *
-     * @return int Status code, never 200 for a failure.
-     */
-    public function httpStatus(): int
-    {
-        return match ($this) {
-            self::Forbidden => 403,
-            self::InvalidCredential => 404,
-            self::InvalidAttemptLimit => 429,
-            self::AuthoritativeReadFailed => 503,
-            self::AmbiguousActivePromotion => 503,
-        };
-    }
 
     /**
      * Returns the log level used when this failure emits an event.
@@ -62,22 +46,6 @@ enum InspectionFailure: string
             self::InvalidAttemptLimit => 'customer_pass.lookup_throttled',
             self::AuthoritativeReadFailed => 'customer_pass.lookup_unavailable',
             self::AmbiguousActivePromotion => 'customer_pass.lookup_unavailable',
-        };
-    }
-
-    /**
-     * Returns the outcome label attached to this failure's operational event.
-     *
-     * @return string Stable outcome label used in operational context.
-     */
-    public function outcome(): string
-    {
-        return match ($this) {
-            self::Forbidden => 'forbidden',
-            self::InvalidCredential,
-            self::InvalidAttemptLimit => 'rejected',
-            self::AuthoritativeReadFailed => 'unavailable',
-            self::AmbiguousActivePromotion => 'unavailable',
         };
     }
 }

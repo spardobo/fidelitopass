@@ -30,11 +30,13 @@ NEVER add TypeScript-style annotations, PHP 8.4 property hooks on non-final clas
 ### Failure pattern (canonical)
 Three files, one flow:
 
-app/Enums/<Flow>Failure.php — string-backed enum with httpStatus(), logLevel(), eventName(), outcome().
+app/Enums/<Flow>Failure.php — string-backed enum with only logLevel() and eventName() required. No Illuminate imports; only Psr\Log\LogLevel is allowed from Psr\Log. Never constructs exceptions. Add HTTP, stage, retry, form or certainty metadata only for actual consumers; a log-label mapping is not outcome().
 
-app/Exceptions/<Flow>Exception.php — final class extending RuntimeException, carrying the enum and optional retryAfterSeconds.
+app/Exceptions/<Flow>Exception.php — non-final RuntimeException carrying public readonly <Flow>Failure $failure. Exact constructor: __construct(<Flow>Failure $failure, ?Throwable $previous = null), calling parent with the enum value, code zero and previous. Its own log(array $context = []): void emits reason and safe context, or returns for a null event. No factories, predicates, translations or shared logging abstraction.
 
-app/Support/<Flow>Inspector.php (or <Verb><Subject> Action) — public entry validates, delegates to a private operation method, owns the only try/catch that logs.
+app/Support/<Flow>Inspector.php (or <Verb><Subject> Action) — public entry validates and owns the outcome. It classifies native failures inline for one mapping, or via private classify(Throwable): <Flow>Failure for multiple mappings. Collaborators only propagate; the outcome owner calls log() once and may then propagate. Preserve existing operational context and safe retry hints without extending the constructor.
+
+Never retain secret-bearing SQL, HTTP or SDK causes. Pass previous=null and supply only selected safe source metadata, including previous_class, to log(). Safe retained causes expose only class/file/line and Arr::only-filtered frames, never messages or arguments. Do not mark $previous with SensitiveParameter. Keep the flow's existing ShouldntReport policy.
 
 See references/implementation-details.md for the complete shape.
 

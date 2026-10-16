@@ -74,9 +74,11 @@ it('rejects unauthorized actors without consuming credential attempts or exposin
         $this->actingAs(User::factory()->create());
     }
     $before = lookupDomainSnapshot();
+    Log::spy();
 
     $failure = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(auth()->user(), 'token', str_repeat('a', 64)));
 
+    Log::shouldNotHaveReceived('log');
     expect($failure->failure)->toBe(InspectionFailure::Forbidden);
     expect($failure->retryAfterSeconds)->toBeNull();
     expect($failure->getPrevious())->toBeNull();
@@ -127,7 +129,7 @@ it('rejects invalid or public identifiers uniformly without leaking them', funct
     expect($failure->failure)->toBe(InspectionFailure::InvalidCredential);
     expect($failure->retryAfterSeconds)->toBeNull();
     expect($failure->getPrevious())->toBeNull();
-    expect($failure->getMessage())->toBe('Customer pass inspection failed.');
+    expect($failure->getMessage())->toBe('invalid_credential');
     app(ExceptionHandler::class)->report($failure);
 
     Log::shouldNotHaveReceived('error');
@@ -271,7 +273,7 @@ it('rejects multiple active Promotion matches without changing facts or invalid-
 
     expect($failure->failure)->toBe(InspectionFailure::AmbiguousActivePromotion);
     expect($failure->retryAfterSeconds)->toBeNull();
-    expect($failure->getMessage())->toBe('Customer pass inspection failed.');
+    expect($failure->getMessage())->toBe('ambiguous_active_promotion');
     expect($failure->getPrevious())->toBeNull();
     expect(RateLimiter::attempts('pass-lookup:'.$actor->id))->toBe(1);
     expect(lookupDomainSnapshot())->toBe($before);
@@ -347,28 +349,60 @@ it('reports immutable awarded points and existing Reward facts without granting 
     'redeemed reward' => [8, 'redeemed', false, false],
 ]);
 
-it('fails closed with sanitized diagnostics when the authoritative clock read fails', function () {
+it('fails closed with sanitized diagnostics when the authoritative clock read fails', function (string $source) {
     $pass = lookupFixturePass();
     $this->actingAs($pass->business->user);
     $before = lookupDomainSnapshot();
-    $this->mock(DatabaseClock::class)->shouldReceive('capture')->once()->andThrow(
-        new QueryException('pgsql', 'select secret', ['00007'], new PDOException('private provider error')),
-    );
+    $native = $source === 'query'
+        ? new QueryException('pgsql', 'select secret', ['00007'], new PDOException('private provider error'))
+        : new PDOException('private provider error');
+    $this->mock(DatabaseClock::class)->shouldReceive('capture')->once()->andThrow($native);
     Log::spy();
+    $payload = null;
+    Log::shouldReceive('log')
+        ->once()
+        ->with('error', 'customer_pass.lookup_unavailable', Mockery::capture($payload));
 
     $failure = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(auth()->user(), 'manual', '00007'));
 
     expect($failure->failure)->toBe(InspectionFailure::AuthoritativeReadFailed);
     expect($failure->retryAfterSeconds)->toBeNull();
     expect($failure->getPrevious())->toBeNull();
-    expect($failure->getMessage())->toBe('Customer pass inspection failed.');
+    expect($failure->getMessage())->toBe('authoritative_read_failed');
     expect(lookupDomainSnapshot())->toBe($before);
     expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(0);
-    Log::shouldHaveReceived('log')->once()->with('error', 'customer_pass.lookup_unavailable', Mockery::on(
-        fn (array $context): bool => ! str_contains(json_encode($context), '00007')
-            && ! str_contains(json_encode($context), 'private provider error')
-            && $context['reason'] === 'authoritative_read_failed',
-    ));
+    expect($payload['reason'])->toBe('authoritative_read_failed');
+    expect($payload['actor_id'])->toBe($pass->business->user_id);
+    expect($payload['business_id'])->toBe($pass->business_id);
+    expect($payload['outcome'])->toBe('unavailable');
+    expect($payload['previous_class'])->toBe($native::class);
+    expect($payload['exception_class'])->toBe($native::class);
+    expect($payload['source_file'])->toBe($native->getFile());
+    expect($payload['source_line'])->toBe($native->getLine());
+    expect($payload['exception_frames'])->toHaveCount(count($native->getTrace()));
+    foreach ($payload['exception_frames'] as $index => $frame) {
+        expect(array_diff(array_keys($frame), ['file', 'line', 'class', 'function']))->toBeEmpty();
+        foreach ($frame as $key => $value) {
+            expect($value)->toBe($native->getTrace()[$index][$key]);
+        }
+    }
+    expect(json_encode($payload, JSON_THROW_ON_ERROR))
+        ->not->toContain('00007', 'private provider error', 'select secret');
+    app(ExceptionHandler::class)->report($failure);
+    Log::shouldNotHaveReceived('error');
+})->with(['query', 'driver']);
+
+it('propagates logging failures without repeating the rejected inspection or its limiter effect', function () {
+    $pass = lookupFixturePass();
+    $before = lookupDomainSnapshot();
+    $loggingFailure = new RuntimeException('synthetic logging failure');
+    Log::shouldReceive('log')->once()->andThrow($loggingFailure);
+
+    expect(fn () => app(CustomerPassInspector::class)->inspect($pass->business->user, 'manual', 'invalid'))
+        ->toThrow($loggingFailure);
+
+    expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(1);
+    expect(lookupDomainSnapshot())->toBe($before);
 });
 
 /**
