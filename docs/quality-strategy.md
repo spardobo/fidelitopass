@@ -76,6 +76,8 @@ Core-flow baseline requires responsive layouts, keyboard-visible focus, semantic
 
 ## Test design
 
+Tests that assert actual outer commits must run outside test-wide rollback transactions. Keep cleanup transactions separate from application operations and finish cleanup before the next test body runs. PostgreSQL constraint-mode changes require a cleanup transaction. Failed cleanup must roll back partial changes and restore connection event handling. Preserve foreign keys and diagnostic output rather than hiding cleanup warnings.
+
 - Structure focused tests with Arrange, Act, Assert.
 - Test observable behaviour and domain outcomes, not private methods.
 - Use real PostgreSQL when behaviour depends on transactions, constraints, `timestamptz`, `AT TIME ZONE`, or row locks; assert that mutations capture one post-lock PostgreSQL operation instant for deadline checks, local award evaluation, and domain timestamps.

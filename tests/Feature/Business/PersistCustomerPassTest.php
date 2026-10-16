@@ -10,15 +10,15 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\Events\TransactionCommitted;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Random\Engine;
 use Random\Randomizer;
+use Tests\Support\PostgresDatabaseTruncation;
 
-uses(DatabaseTruncation::class);
+uses(PostgresDatabaseTruncation::class);
 
 afterEach(function () {
     $this->truncateTablesForAllConnections();

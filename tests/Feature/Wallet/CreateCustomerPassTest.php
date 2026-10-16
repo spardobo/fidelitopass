@@ -11,7 +11,6 @@ use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Request as PsrRequest;
 use Illuminate\Database\Events\TransactionCommitted;
 use Illuminate\Database\QueryException;
-use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Http\Client\Request;
 use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
@@ -19,8 +18,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\Support\GoogleWalletHttpFake;
+use Tests\Support\PostgresDatabaseTruncation;
 
-uses(DatabaseTruncation::class);
+uses(PostgresDatabaseTruncation::class);
 
 beforeEach(function () {
     $this->http = new GoogleWalletHttpFake;
