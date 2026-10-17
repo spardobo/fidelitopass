@@ -27,7 +27,30 @@ use Illuminate\Support\Str;
 use Tests\Support\GoogleWalletHttpFake;
 use Tests\Support\PostgresDatabaseTruncation;
 
-uses(PostgresDatabaseTruncation::class);
+/** Guards cleanup before the framework can reset any PostgreSQL data. */
+trait GuardsVisitAcceptanceDatabase
+{
+    use PostgresDatabaseTruncation;
+
+    /**
+     * Refuses configured or actual databases outside the isolated testing runtime.
+     *
+     * @throws LogicException If the runtime or database is not the testing target.
+     */
+    protected function beforeTruncatingDatabase(): void
+    {
+        if (
+            ! app()->environment('testing')
+            || DB::connection()->getDriverName() !== 'pgsql'
+            || DB::connection()->getDatabaseName() !== 'testing'
+            || DB::selectOne('SELECT current_database() AS name')->name !== 'testing'
+        ) {
+            throw new LogicException('Refusing to reset a non-testing database.');
+        }
+    }
+}
+
+uses(GuardsVisitAcceptanceDatabase::class);
 
 beforeEach(function () {
     app()->setLocale('es');
@@ -203,6 +226,55 @@ it('allows intentional same-day Visits and replays the original facts after late
     expect($this->http->history)->toHaveCount(6);
     $this->assertDatabaseCount('reward_entitlements', 0);
     Log::shouldHaveReceived('info')->with('visit.replayed', Mockery::type('array'))->once();
+})->with(['cancelled', 'expired']);
+
+it('accepts only the compared current offer while keeping the default caller unchanged', function (bool $matches) {
+    [$business, $pass, $promotion] = visitFixture();
+    visitClock('2030-01-02 12:00:00+00');
+    $before = $pass->fresh()->getAttributes();
+    $operationId = (string) Str::uuid();
+
+    if ($matches) {
+        $result = app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, $operationId, $promotion->id);
+        expect($result['promotion_id'])->toBe($promotion->id);
+        expect(array_keys($result))->toBe(['visit_id', 'operation_id', 'customer_pass_id', 'promotion_id', 'points_awarded', 'confirmed_at']);
+    } else {
+        expect(fn () => app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, $operationId, $promotion->id + 1))
+            ->toThrow(VisitAcceptanceException::class, 'promotion_changed');
+    }
+
+    expect($pass->fresh()->getAttributes())->toBe($before);
+    expect($this->http->history)->toHaveCount($matches ? 3 : 0);
+    $this->assertDatabaseCount('visits', $matches ? 1 : 0);
+    $this->assertDatabaseCount('reward_entitlements', 0);
+    expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(0);
+})->with([true, false]);
+
+it('returns authorized original facts before comparing an expected replacement offer', function (string $state) {
+    [$business, $pass, $promotion] = visitFixture();
+    visitClock('2030-01-02 12:00:00+00');
+    $operationId = (string) Str::uuid();
+    $action = app(AcceptVisit::class);
+    $original = $action->handle($business->user, 'manual', $pass->manual_code, $operationId, $promotion->id);
+    $promotion->forceFill($state === 'expired'
+        ? ['ends_at' => '2030-01-02 12:00:00+00']
+        : ['status' => 'cancelled', 'cancelled_at' => '2030-01-02 12:00:00+00'])->save();
+    $replacement = $business->promotions()->make();
+    $replacement->forceFill([
+        'status' => 'published', 'target_points' => 20, 'reward_title' => 'Otra oferta',
+        'timezone_snapshot' => 'America/Bogota', 'starts_at' => '2030-01-02 12:00:00+00', 'ends_at' => '2030-03-01 05:00:00+00',
+    ])->save();
+    $before = Visit::query()->sole()->getAttributes();
+
+    $replayed = $action->handle($business->user, 'token', str_repeat('a', 64), $operationId, $promotion->id);
+    $differentExpected = $action->handle($business->user, 'manual', $pass->manual_code, $operationId, $replacement->id);
+
+    expect($replayed)->toBe($original);
+    expect($differentExpected)->toBe($original);
+    expect(Visit::query()->sole()->getAttributes())->toBe($before);
+    $this->assertDatabaseCount('reward_entitlements', 0);
+    expect($this->http->history)->toHaveCount(3);
+    expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(0);
 })->with(['cancelled', 'expired']);
 
 it('accepts the existing twelve-character fallback without changing its bytes', function () {

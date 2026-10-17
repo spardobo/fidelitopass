@@ -59,7 +59,8 @@ final class CustomerPassInspector
      *         target_points: int,
      *         earned_points: int,
      *         reward_title: string,
-     *         reward_status: 'none'|'available'|'redeemed'
+     *         reward_status: 'none'|'available'|'redeemed',
+     *         visit_points: int
      *     }|null,
      *     can_accept_visit: bool,
      *     can_redeem_reward: bool
@@ -234,6 +235,16 @@ final class CustomerPassInspector
         return DB::select(<<<SQL
             SELECT pass.id AS customer_pass_id, promotion.id AS promotion_id,
                    promotion.target_points, promotion.reward_title,
+                   COALESCE((SELECT extra.multiplier
+                             FROM promotion_multiplier_windows AS extra
+                             WHERE extra.promotion_id = promotion.id
+                               AND extra.weekday =
+                                   EXTRACT(ISODOW FROM (CAST(? AS timestamptz) AT TIME ZONE promotion.timezone_snapshot))
+                               AND (extra.start_time IS NULL
+                                    OR (extra.start_time <=
+                                        (CAST(? AS timestamptz) AT TIME ZONE promotion.timezone_snapshot)::time
+                                        AND extra.end_time >
+                                        (CAST(? AS timestamptz) AT TIME ZONE promotion.timezone_snapshot)::time))), 1) AS visit_points,
                    COALESCE((SELECT SUM(visit.awarded_points)
                              FROM visits AS visit
                              WHERE visit.business_id = pass.business_id
@@ -252,7 +263,7 @@ final class CustomerPassInspector
                 AND reward.customer_pass_id = pass.id
                 AND reward.promotion_id = promotion.id
             WHERE pass.business_id = ? AND pass.{$column} = ?
-            SQL, [$capturedAt, $capturedAt, $business->id, $value]);
+            SQL, [$capturedAt, $capturedAt, $capturedAt, $capturedAt, $capturedAt, $business->id, $value]);
     }
 
     /**
@@ -269,7 +280,8 @@ final class CustomerPassInspector
      *         target_points: int,
      *         earned_points: int,
      *         reward_title: string,
-     *         reward_status: 'none'|'available'|'redeemed'
+     *         reward_status: 'none'|'available'|'redeemed',
+     *         visit_points: int
      *     }|null,
      *     can_accept_visit: bool,
      *     can_redeem_reward: bool
@@ -286,6 +298,7 @@ final class CustomerPassInspector
             'reward_status' => $row->reward_id === null
                 ? 'none'
                 : ($row->redeemed_at === null ? 'available' : 'redeemed'),
+            'visit_points' => (int) $row->visit_points,
         ];
 
         return [

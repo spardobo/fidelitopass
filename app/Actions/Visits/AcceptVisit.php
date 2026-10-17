@@ -49,14 +49,20 @@ class AcceptVisit
      * @param  string  $method  Allowlisted token or manual credential method.
      * @param  string  $credential  Private issued token or Business-scoped manual code.
      * @param  string  $operationId  Global UUID identifying one intentional validation operation.
+     * @param  int|null  $expectedPromotionId  Optional comparison with the selected offer, never mutation authority.
      * @return array{visit_id: int, operation_id: string, customer_pass_id: int, promotion_id: int, points_awarded: int, confirmed_at: string} Immutable committed Visit facts.
      *
      * @throws VisitAcceptanceException If authorization, input, eligibility or local persistence fails.
      * @throws GoogleWalletSynchronizationException If provider confirmation fails; propagated unchanged after logging.
      * @throws Throwable If native logging fails, including after a known commit.
      */
-    public function handle(?User $actor, string $method, #[SensitiveParameter] string $credential, string $operationId): array
-    {
+    public function handle(
+        ?User $actor,
+        string $method,
+        #[SensitiveParameter] string $credential,
+        string $operationId,
+        ?int $expectedPromotionId = null,
+    ): array {
         $businessId = null;
         $normalized = null;
         $providerConfirmed = false;
@@ -102,8 +108,24 @@ class AcceptVisit
             }
 
             // preserve operation evidence outside the single non-retrying transaction
-            $accepted = DB::transaction(function () use ($actor, $method, $normalized, $safeOperationId, &$businessId, &$providerConfirmed): array {
-                return $this->processVisit($actor, $method, $normalized, $safeOperationId, $businessId, $providerConfirmed);
+            $accepted = DB::transaction(function () use (
+                $actor,
+                $method,
+                $normalized,
+                $safeOperationId,
+                $expectedPromotionId,
+                &$businessId,
+                &$providerConfirmed,
+            ): array {
+                return $this->processVisit(
+                    $actor,
+                    $method,
+                    $normalized,
+                    $safeOperationId,
+                    $expectedPromotionId,
+                    $businessId,
+                    $providerConfirmed,
+                );
             }, 1);
         } catch (GoogleWalletSynchronizationException $exception) {
             $exception->log([
@@ -153,6 +175,7 @@ class AcceptVisit
      * @param  string  $method  Allowlisted credential method.
      * @param  string  $normalized  Private canonical manual code or token hash used only for scoped lookup.
      * @param  string  $operationId  Validated operation UUID.
+     * @param  int|null  $expectedPromotionId  Selected offer compared only for a new operation after authorized replay.
      * @param  int|null  $businessId  Owning Business identity returned by reference for outcome correlation.
      * @param  bool  $providerConfirmed  Provider confirmation returned by reference independently of local commit.
      *
@@ -168,6 +191,7 @@ class AcceptVisit
         string $method,
         #[SensitiveParameter] string $normalized,
         string $operationId,
+        ?int $expectedPromotionId,
         ?int &$businessId,
         bool &$providerConfirmed,
     ): array {
@@ -214,6 +238,13 @@ class AcceptVisit
 
         if ($promotion === null) {
             throw new VisitAcceptanceException(VisitAcceptanceFailure::PromotionUnavailable);
+        }
+
+        if (
+            $expectedPromotionId !== null
+            && $promotion->id !== $expectedPromotionId
+        ) {
+            throw new VisitAcceptanceException(VisitAcceptanceFailure::PromotionChanged);
         }
 
         // calculate current progress and assert the promotion is still open

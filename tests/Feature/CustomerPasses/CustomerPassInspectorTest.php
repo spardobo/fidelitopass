@@ -22,7 +22,30 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 
-uses(RefreshDatabase::class);
+/** Guards cleanup before the framework can reset any PostgreSQL data. */
+trait GuardsCustomerPassInspectorDatabase
+{
+    use RefreshDatabase;
+
+    /**
+     * Refuses configured or actual databases outside the isolated testing runtime.
+     *
+     * @throws LogicException If the runtime or database is not the testing target.
+     */
+    protected function beforeRefreshingDatabase(): void
+    {
+        if (
+            ! app()->environment('testing')
+            || DB::connection()->getDriverName() !== 'pgsql'
+            || DB::connection()->getDatabaseName() !== 'testing'
+            || DB::selectOne('SELECT current_database() AS name')->name !== 'testing'
+        ) {
+            throw new LogicException('Refusing to reset a non-testing database.');
+        }
+    }
+}
+
+uses(GuardsCustomerPassInspectorDatabase::class);
 
 beforeEach(function () {
     config(['pass_lookup.max_invalid_attempts' => 3, 'pass_lookup.decay_seconds' => 60]);
@@ -337,7 +360,7 @@ it('reports immutable awarded points and existing Reward facts without granting 
 
     expect($result['promotion'])->toBe([
         'id' => $promotion->id, 'target_points' => 8, 'earned_points' => $points,
-        'reward_title' => 'Un premio', 'reward_status' => $reward,
+        'reward_title' => 'Un premio', 'reward_status' => $reward, 'visit_points' => 1,
     ]);
     expect($result['can_accept_visit'])->toBe($visit);
     expect($result['can_redeem_reward'])->toBe($redeem);
@@ -347,6 +370,42 @@ it('reports immutable awarded points and existing Reward facts without granting 
     'completion does not grant missing entitlement' => [8, 'none', false, false],
     'available reward' => [8, 'available', false, true],
     'redeemed reward' => [8, 'redeemed', false, false],
+]);
+
+it('previews frozen Promotion points at the single captured instant without writes or provider work', function (string $instant, ?string $start, ?string $end, int $multiplier, int $expected) {
+    $pass = lookupFixturePass();
+    $promotion = lookupFixturePromotion($pass->business, 'published', '2030-01-01 00:00:00+00', '2030-01-04 00:00:00+00');
+    $promotion->forceFill(['timezone_snapshot' => 'America/Bogota'])->save();
+    $pass->business->update(['timezone' => 'Pacific/Auckland']);
+    $promotion->extraPoints()->create(['weekday' => 3, 'start_time' => $start, 'end_time' => $end, 'multiplier' => $multiplier]);
+    $this->mock(DatabaseClock::class)->shouldReceive('capture')->once()->with('Pacific/Auckland')
+        ->andReturn(new DatabaseTime($instant, '2030-01-03'));
+    $this->mock(GoogleWalletPassCreator::class)->shouldNotReceive('create');
+    $this->mock(GoogleWalletPassUpdater::class)->shouldNotReceive('update');
+    $before = lookupDomainSnapshot();
+    $actor = $pass->business->user;
+    $queries = [];
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+    $this->travelTo('2040-01-01');
+
+    $result = app(CustomerPassInspector::class)->inspect($actor, 'manual', '00007');
+
+    expect($result['promotion']['visit_points'])->toBe($expected);
+    expect($result['checked_at'])->toBe($instant);
+    expect($queries)->toHaveCount(2);
+    expect(implode(' ', $queries))->not->toMatch('/clock_timestamp|current_timestamp|now\(|^\s*(insert|update|delete)/i');
+    expect(lookupDomainSnapshot())->toBe($before);
+    expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(0);
+    $this->travelBack();
+})->with([
+    'base outside window' => ['2030-01-02 11:59:59.999999+00', '07:00:00', '08:00:00', 3, 1],
+    'x2 whole day' => ['2030-01-02 12:00:00+00', null, null, 2, 2],
+    'x3 inclusive start' => ['2030-01-02 12:00:00+00', '07:00:00', '08:00:00', 3, 3],
+    'x5 last microsecond' => ['2030-01-02 12:59:59.999999+00', '07:00:00', '08:00:00', 5, 5],
+    'exclusive end' => ['2030-01-02 13:00:00+00', '07:00:00', '08:00:00', 3, 1],
+    'frozen local weekday' => ['2030-01-03 02:00:00+00', null, null, 5, 5],
 ]);
 
 it('fails closed with sanitized diagnostics when the authoritative clock read fails', function (string $source) {
