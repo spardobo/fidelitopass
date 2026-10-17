@@ -394,7 +394,7 @@ Manual fallback:
 
 ```text
 Código de la Tarjeta
-[ 482731              ]
+[ 48273               ]
 [ Buscar tarjeta ]
 ```
 
@@ -402,11 +402,9 @@ During identification only, keep manual entry visible directly beneath the scann
 
 ### Camera error
 
-Keep the scanner region in place and show:
+Keep the scanner region in place. Distinguish unavailable camera or secure connection, denied permission, busy device and QR reader initialization failure when observable. Use safe Spanish feedback with a practical next step; do not expose native error messages. Show startup feedback while permission or reader initialization is pending.
 
-> No se pudo acceder a la cámara. Revisa los permisos o ingresa el código de la Tarjeta.
-
-The manual field remains immediately below.
+The manual field remains immediately below and available during startup and after any camera error.
 
 ### Customer-pass result
 
