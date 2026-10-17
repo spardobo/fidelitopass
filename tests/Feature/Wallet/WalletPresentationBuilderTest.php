@@ -663,6 +663,71 @@ describe('existing pass', function () {
     })->with(['foreign persisted pass' => true, 'foreign unsaved pass' => false]);
 });
 
+describe('shared operation instant', function () {
+    it('uses the supplied instant for promotion selection and frozen-zone content without capturing another clock', function (string $operationAt, string $heading, string $context) {
+        app()->setLocale('es');
+        $business = Business::factory()->create(['timezone' => 'America/La_Paz']);
+        $pass = CustomerPass::factory()->for($business)->create();
+        $promotion = lifecyclePromotion($business, [
+            'starts_at' => '2030-01-02 12:00:00+00',
+            'ends_at' => '2030-01-03 05:00:00+00',
+            'timezone_snapshot' => 'America/Bogota',
+        ]);
+        $promotion->extraPoints()->create([
+            'weekday' => 3,
+            'start_time' => '07:00:00',
+            'end_time' => '08:00:00',
+            'multiplier' => 3,
+        ]);
+        lifecycleActivity($pass, $promotion, 3);
+        $before = lifecycleFacts();
+        $this->mock(DatabaseClock::class)
+            ->shouldReceive('capture')
+            ->never()
+            ->andReturn(new DatabaseTime('2030-01-03 05:00:00+00', '2030-01-03'));
+
+        $content = app(WalletPresentationBuilder::class)->build($business, $pass, $operationAt);
+        $sections = collect($content)->keyBy('id');
+
+        expect($sections['card_primary']['header'])->toBe($heading);
+        expect($sections['details_context']['body'] ?? null)->toBe($context === '' ? null : $context);
+        expect($sections['barcode_top']['body'] ?? null)->toBe($context === '' ? null : '3 / 8 puntos');
+        expect(lifecycleFacts())->toBe($before);
+    })->with([
+        'before publication start' => ['2030-01-02 11:59:59.999999+00', 'NUESTRA ÚLTIMA PROMOCIÓN', ''],
+        'publication and multiplier start inclusive' => ['2030-01-02 12:00:00+00', 'TU PRÓXIMA RECOMPENSA', '⚡ Ahora tu visita vale 3 puntos.'],
+        'last multiplier microsecond' => ['2030-01-02 12:59:59.999999+00', 'TU PRÓXIMA RECOMPENSA', '⚡ Ahora tu visita vale 3 puntos.'],
+        'multiplier end exclusive' => ['2030-01-02 13:00:00+00', 'TU PRÓXIMA RECOMPENSA', 'Tu visita ahora vale 1 punto.'],
+        'publication end exclusive' => ['2030-01-03 05:00:00+00', 'NUESTRA ÚLTIMA PROMOCIÓN', ''],
+    ]);
+
+    it('captures the current clock once when the operation instant is omitted or explicitly null', function (bool $explicitNull) {
+        app()->setLocale('es');
+        $business = Business::factory()->create(['timezone' => 'America/La_Paz']);
+        $pass = $business->customerPasses()->make(['manual_code' => '00123']);
+        lifecyclePromotion($business, ['starts_at' => '2030-01-02 12:00:00+00']);
+        $this->mock(DatabaseClock::class)
+            ->shouldReceive('capture')
+            ->once()
+            ->with('America/La_Paz')
+            ->andReturn(new DatabaseTime('2030-01-02 11:59:59.999999+00', '2030-01-02'));
+        $before = lifecycleFacts();
+        $builder = app(WalletPresentationBuilder::class);
+
+        $content = $explicitNull
+            ? $builder->build($business, $pass, null)
+            : $builder->build($business, $pass);
+        $sections = collect($content)->keyBy('id');
+
+        expect($sections['card_primary']['header'])->toBe('NUESTRA ÚLTIMA PROMOCIÓN');
+        expect($sections['card_secondary']['body'])->toBe("Un pan artesanal\nEmpieza el 2 ene 2030");
+        expect($sections->has('barcode_top'))->toBeFalse();
+        expect($sections['details_code']['body'])->toBe('00123');
+        expect($pass->exists)->toBeFalse();
+        expect(lifecycleFacts())->toBe($before);
+    })->with(['two arguments' => false, 'explicit null' => true]);
+});
+
 /**
  * Persists frozen same-Business Promotion fixtures without publication side effects.
  *

@@ -41,10 +41,11 @@ class GoogleWalletPassUpdater
      *
      * @param  Business  $business  Persisted owner authorized by the domain caller.
      * @param  CustomerPass  $pass  Existing same-Business pass whose credentials must remain unchanged.
+     * @param  string|null  $operationAt  Trusted caller's PostgreSQL instant; null lets presentation capture its own.
      *
      * @throws GoogleWalletSynchronizationException If preparation, transport or confirmation fails.
      */
-    public function update(Business $business, CustomerPass $pass): void
+    public function update(Business $business, CustomerPass $pass, ?string $operationAt = null): void
     {
         // establish the provider deadline and failure classification before preparation
         $deadline = null;
@@ -61,7 +62,7 @@ class GoogleWalletPassUpdater
                 throw new GoogleWalletSynchronizationException(GoogleWalletSynchronizationFailure::BindingConflict, stage: $stage);
             }
 
-            $modules = $this->presentation->build($business, $pass);
+            $modules = $this->presentation->build($business, $pass, $operationAt);
 
             // share one deadline across OAuth, the PATCH and all confirmation reads
             $deadline = hrtime(true) + self::BUDGET_SECONDS * 1_000_000_000;

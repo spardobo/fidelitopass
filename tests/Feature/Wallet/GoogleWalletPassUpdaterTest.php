@@ -1,5 +1,6 @@
 <?php
 
+use App\Data\Time\DatabaseTime;
 use App\Enums\CustomerPassCreationFailure;
 use App\Enums\FailureOutcome;
 use App\Enums\GoogleWalletStage;
@@ -11,6 +12,7 @@ use App\Integrations\GoogleWallet\GoogleWalletConfiguration;
 use App\Integrations\GoogleWallet\GoogleWalletPassUpdater;
 use App\Models\Business;
 use App\Support\CustomerPassCredentials;
+use App\Support\DatabaseClock;
 use Google\Service\Exception;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ConnectException;
@@ -21,6 +23,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Tests\Support\GoogleWalletHttpFake;
 
 uses(RefreshDatabase::class);
@@ -158,6 +161,104 @@ it('replaces absolute content on the same object without changing credentials or
     Log::shouldNotHaveReceived('info');
     Log::shouldNotHaveReceived('error');
 });
+
+it('sends tentative progress and reward content at the supplied operation instant without another clock capture', function (bool $unlocked) {
+    $operationAt = '2030-01-02 12:59:59.999999+00';
+    $promotion = $this->business->promotions()->make();
+    $promotion->forceFill([
+        'status' => 'published',
+        'target_points' => 8,
+        'reward_title' => 'Un pan artesanal',
+        'timezone_snapshot' => 'America/Bogota',
+        'starts_at' => '2030-01-02 12:00:00+00',
+        'ends_at' => '2030-01-03 05:00:00+00',
+    ])->save();
+    $promotion->extraPoints()->create([
+        'weekday' => 3,
+        'start_time' => '07:00:00',
+        'end_time' => '08:00:00',
+        'multiplier' => 3,
+    ]);
+    $this->mock(DatabaseClock::class)
+        ->shouldReceive('capture')
+        ->never()
+        ->andReturn(new DatabaseTime('2030-01-03 05:00:00+00', '2030-01-03'));
+    $before = $this->pass->fresh()->getAttributes();
+
+    DB::transaction(function () use ($promotion, $operationAt, $unlocked) {
+        $ownership = [
+            'business_id' => $this->business->id,
+            'customer_pass_id' => $this->pass->id,
+            'promotion_id' => $promotion->id,
+        ];
+        DB::table('promotion_participations')->insert($ownership);
+        DB::table('visits')->insert($ownership + [
+            'operation_id' => (string) Str::uuid(),
+            'confirmed_by_user_id' => $this->business->user_id,
+            'confirmed_at' => $operationAt,
+            'awarded_points' => $unlocked ? 8 : 3,
+        ]);
+
+        if ($unlocked) {
+            DB::table('reward_entitlements')->insert($ownership + ['unlocked_at' => $operationAt]);
+        }
+
+        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass, $operationAt);
+    });
+
+    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
+    expect($writes)->toHaveCount(1);
+    $payload = $writes->sole()[0]->data();
+    $sections = collect($payload['textModulesData'])->keyBy('id');
+
+    expect(array_keys($payload))->toBe(['textModulesData']);
+    expect($sections['details_primary']['body'])->toBe('Un pan artesanal');
+    expect($sections['card_primary']['header'])->toBe($unlocked ? '🎉 ¡LO LOGRASTE!' : 'TU PRÓXIMA RECOMPENSA');
+    expect($sections['details_context']['body'])->toBe($unlocked
+        ? 'Muéstranos tu tarjeta y pide tu recompensa.'
+        : '⚡ Ahora tu visita vale 3 puntos.');
+    expect($sections['barcode_top']['body'] ?? null)->toBe($unlocked ? null : '3 / 8 puntos');
+    expect($sections->has('card_secondary'))->toBeFalse();
+    expect($this->pass->fresh()->getAttributes())->toBe($before);
+    expect(array_map(fn (array $entry) => $entry['request']->getMethod(), $this->http->history))
+        ->toBe(['POST', 'GET', 'PATCH']);
+    expect($this->remote['textModulesData'])->toBe($payload['textModulesData']);
+    Log::shouldNotHaveReceived('log');
+})->with(['tentative Visit' => false, 'tentative Reward entitlement' => true]);
+
+it('retains current-clock presentation when the operation instant is omitted or explicitly null', function (bool $explicitNull) {
+    $promotion = $this->business->promotions()->make();
+    $promotion->forceFill([
+        'status' => 'published',
+        'target_points' => 8,
+        'reward_title' => 'Un pan artesanal',
+        'timezone_snapshot' => 'America/Bogota',
+        'starts_at' => '2030-01-02 12:00:00+00',
+        'ends_at' => '2030-01-03 05:00:00+00',
+    ])->save();
+    $this->mock(DatabaseClock::class)
+        ->shouldReceive('capture')
+        ->once()
+        ->with($this->business->timezone)
+        ->andReturn(new DatabaseTime('2030-01-02 11:59:59.999999+00', '2030-01-02'));
+    $updater = app(GoogleWalletPassUpdater::class);
+
+    if ($explicitNull) {
+        $updater->update($this->business, $this->pass, null);
+    } else {
+        $updater->update($this->business, $this->pass);
+    }
+
+    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
+    expect($writes)->toHaveCount(1);
+    $sections = collect($writes->sole()[0]->data()['textModulesData'])->keyBy('id');
+
+    expect($sections['card_primary']['header'])->toBe('NUESTRA ÚLTIMA PROMOCIÓN');
+    expect($sections['card_secondary']['body'])->toBe("Un pan artesanal\nEmpieza el 2 ene 2030");
+    expect($sections->has('barcode_top'))->toBeFalse();
+    expect($this->http->history)->toHaveCount(3);
+    Log::shouldNotHaveReceived('log');
+})->with(['two arguments' => false, 'explicit null' => true]);
 
 it('confirms an incomplete patch response with one same-object read', function () {
     $this->http->respondWith([
