@@ -1,30 +1,21 @@
 <?php
 
 use App\Enums\InspectionFailure;
-use App\Exceptions\CustomerPassInspectionException;
 
-it('provides one typed inspection failure catalog for caller and operational metadata', function (
+it('provides the closed inspection reason catalog and its operational metadata', function (
     string $code,
-    int $status,
     string $level,
     ?string $event,
-    string $outcome,
 ) {
     $failure = InspectionFailure::from($code);
-    $exception = new CustomerPassInspectionException($failure);
 
-    expect($failure->httpStatus())->toBe($status);
+    expect($failure->value)->toBe($code);
     expect($failure->logLevel())->toBe($level);
     expect($failure->eventName())->toBe($event);
-    expect($failure->outcome())->toBe($outcome);
-    expect($exception->failure)->toBe($failure);
-    expect($exception->retryAfterSeconds)->toBeNull();
-    expect($exception->getMessage())->toBe('Customer pass inspection failed.');
-    expect($exception->getPrevious())->toBeNull();
 })->with([
-    'forbidden' => ['forbidden', 403, 'warning', null, 'forbidden'],
-    'invalid credential' => ['invalid_credential', 404, 'notice', 'customer_pass.lookup_rejected', 'rejected'],
-    'attempt limit' => ['invalid_attempt_limit', 429, 'notice', 'customer_pass.lookup_throttled', 'rejected'],
-    'read failure' => ['authoritative_read_failed', 503, 'error', 'customer_pass.lookup_unavailable', 'unavailable'],
-    'ambiguous active Promotion' => ['ambiguous_active_promotion', 503, 'error', 'customer_pass.lookup_unavailable', 'unavailable'],
+    'forbidden' => ['forbidden', 'warning', null],
+    'invalid credential' => ['invalid_credential', 'notice', 'customer_pass.lookup_rejected'],
+    'attempt limit' => ['invalid_attempt_limit', 'notice', 'customer_pass.lookup_throttled'],
+    'read failure' => ['authoritative_read_failed', 'error', 'customer_pass.lookup_unavailable'],
+    'ambiguous active Promotion' => ['ambiguous_active_promotion', 'error', 'customer_pass.lookup_unavailable'],
 ]);

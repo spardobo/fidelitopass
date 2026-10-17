@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\CustomerPasses\CreateCustomerPass;
+use App\Enums\CustomerPassCreationFailure;
+use App\Enums\FailureOutcome;
 use App\Exceptions\CustomerPassCreationException;
 use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
 use App\Models\Business;
@@ -108,9 +110,10 @@ it('fails preparation safely after exactly ten occupied candidates', function ()
         CustomerPassCredentials::prepare($business, manualCodeRandomizer(...array_fill(0, 10, 0)));
         $this->fail('Ten collisions must exhaust the bounded allocation.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->reason)->toBe('manual_code_exhausted');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ManualCodeExhausted);
         expect($exception->stage->value)->toBe('preparation');
-        expect($exception->outcome->value)->toBe('definitive');
+        expect($exception->outcome)->toBe(FailureOutcome::Definitive);
+        expect($exception->isRetryable())->toBeTrue();
         expect($exception->getPrevious())->toBeNull();
     }
 
@@ -139,7 +142,7 @@ it('sanitizes preparation query failures without retaining private codes or SQL'
         CustomerPassCredentials::prepare($business, manualCodeRandomizer(7));
         $this->fail('Preparation database failures must remain exceptions.');
     } catch (RuntimeException $exception) {
-        expect($exception->getMessage())->toBe('Customer pass creation failed.');
+        expect($exception->getMessage())->toBe('credential_query_failed');
         expect($exception->getMessage())->not->toContain($manualCode, 'SQL:', 'select ', 'bindings');
         expect($exception->getPrevious())->toBeNull();
         expect(print_r($exception->getTrace(), true))->not->toContain($manualCode, 'select ', 'bindings');
@@ -237,11 +240,11 @@ it('rejects conflicting confirmed identity facts without mutation or private exc
         app(CreateCustomerPass::class)->handle($business);
         $this->fail('Conflicting confirmed identities must be rejected.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->reason)->toBe('identity_conflict');
-        expect($exception->outcome->value)->toBe('unknown');
-        expect($exception->canRetry())->toBeFalse();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::IdentityConflict);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect($exception->isRetryable())->toBeFalse();
         expect($exception->getPrevious())->toBeNull();
-        expect(json_encode($exception->context()))->not->toContain(
+        expect(json_encode($exception->context))->not->toContain(
             $prepared->validationToken,
             $prepared->manualCode,
         );
@@ -317,8 +320,9 @@ it('refuses nested issuance before contacting Google or allocating credentials',
         app(CreateCustomerPass::class)->handle($business);
         $this->fail('A caller-owned transaction cannot establish the issuance commit boundary.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->reason)->toBe('transaction_active');
-        expect($exception->canRetry())->toBeFalse();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::TransactionActive);
+        expect($exception->outcome)->toBe(FailureOutcome::Definitive);
+        expect($exception->isRetryable())->toBeFalse();
     } finally {
         DB::rollBack();
     }
@@ -337,9 +341,9 @@ it('rolls back an unexpected local failure without claiming provider rollback', 
         app(CreateCustomerPass::class)->handle($business);
         $this->fail('A failed write must not release the handoff.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->reason)->toBe('unexpected_failure');
-        expect($exception->outcome->value)->toBe('unknown');
-        expect($exception->canRetry())->toBeFalse();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::UnexpectedFailure);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect($exception->isRetryable())->toBeFalse();
         expect($exception->getPrevious())->toBeNull();
         expect($exception->getMessage())->not->toContain('Synthetic private');
     } finally {
@@ -361,9 +365,9 @@ it('preserves the provider orphan when the Business disappears before local pers
         app(CreateCustomerPass::class)->handle($business);
         $this->fail('The owner must still exist at the local commit boundary.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->reason)->toBe('business_not_found');
-        expect($exception->outcome->value)->toBe('unknown');
-        expect($exception->canRetry())->toBeFalse();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::BusinessNotFound);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect($exception->isRetryable())->toBeFalse();
     }
 
     $this->assertDatabaseCount('customer_passes', 0);
@@ -381,14 +385,16 @@ it('sanitizes the final database uniqueness barrier without retaining SQL or pri
         app(CreateCustomerPass::class)->handle($business);
         $this->fail('PostgreSQL must reject the conflicting provider binding.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->reason)->toBe('identity_conflict');
-        expect($exception->outcome->value)->toBe('unknown');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::IdentityConflict);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect($exception->isRetryable())->toBeFalse();
         expect($exception->getPrevious())->toBeNull();
-        expect($exception->context())->toMatchArray([
+        expect($exception->context)->toMatchArray([
+            'previous_class' => UniqueConstraintViolationException::class,
             'exception_class' => UniqueConstraintViolationException::class,
             'sqlstate' => '23505',
         ]);
-        expect(json_encode($exception->context()))->not->toContain('insert into', 'bindings');
+        expect(json_encode($exception->context))->not->toContain('insert into', 'bindings');
     } finally {
         CustomerPass::flushEventListeners();
         CustomerPass::clearBootedModels();
@@ -408,10 +414,11 @@ it('sanitizes unexpected database failure without claiming a known commit outcom
         app(CreateCustomerPass::class)->handle($business);
         $this->fail('PostgreSQL must reject the oversized provider identity.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->reason)->toBe('database_failed');
-        expect($exception->outcome->value)->toBe('unknown');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::DatabaseFailed);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect($exception->isRetryable())->toBeFalse();
         expect($exception->getPrevious())->toBeNull();
-        expect($exception->context())->toMatchArray([
+        expect($exception->context)->toMatchArray([
             'exception_class' => QueryException::class,
             'sqlstate' => '22001',
         ]);
@@ -438,8 +445,9 @@ it('does not equate a lost commit response with rollback or allocate another pas
         app(CreateCustomerPass::class)->handle($business);
         $this->fail('A lost acknowledgement cannot establish a confirmed commit.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->outcome->value)->toBe('unknown');
-        expect($exception->canRetry())->toBeFalse();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::DatabaseFailed);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect($exception->isRetryable())->toBeFalse();
         expect($exception->getPrevious())->toBeNull();
     } finally {
         $connection->setEventDispatcher($dispatcher);

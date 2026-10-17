@@ -16,7 +16,7 @@ Every failure MUST be classified before writing the throw/return:
 NEVER invent an exception for an expected predicate result. NEVER let an infrastructure exception escape untranslated past a domain boundary.
 
 ## 2. Failure codes live in one enum
-If a PHP application flow owns more than one classified failure reason, that flow MUST have a string-backed enum. In other languages, use the equivalent native closed catalog; NEVER introduce PHP or TypeScript syntax into JavaScript. The enum owns ALL metadata:
+If a PHP application flow owns more than one classified failure reason, that flow MUST have a string-backed enum. In other languages, use the equivalent native closed catalog; NEVER introduce PHP or TypeScript syntax into JavaScript. The enum owns failure identity and the two required operational mappings. Add other metadata only for an actual consumer:
 
 ```php
 enum InspectionFailure: string
@@ -26,28 +26,32 @@ enum InspectionFailure: string
     case InvalidAttemptLimit     = 'invalid_attempt_limit';
     case AuthoritativeReadFailed = 'authoritative_read_failed';
 
-    public function httpStatus(): int { /* match */ }
     public function logLevel(): string { /* match */ }
     public function eventName(): ?string { /* match */ }
-    public function outcome(): string { /* match */ }
 }
 ```
 
-The domain exception carries the enum, never a string:
+The domain exception carries one cause enum, never a reason string. It is a non-final data container with complete immutable facts:
 
 ```php
-final class CustomerPassInspectionException extends RuntimeException
+class CustomerPassInspectionException extends RuntimeException
 {
     public function __construct(
         public readonly InspectionFailure $failure,
+        ?Throwable $previous = null,
+        public readonly array $context = [],
         public readonly ?int $retryAfterSeconds = null,
     ) {
-        parent::__construct($failure->value);
+        parent::__construct($failure->value, 0, $previous);
     }
 }
 ```
 
-Consumers (controller, tests, dashboards) read from the enum. Adding a failure = adding its case and relevant metadata mappings. NEVER duplicate production code strings in parallel catalogs. Independent test expectations may assert literal public values.
+Pass selected safe context and actually consumed typed operational facts at construction. Do not assign diagnostics or retry metadata afterward. A stage or certainty enum is a category, not a second cause catalog. Keep invocation-dependent stage, certainty and received status on the exception; do not multiply causes by every combination or derive certainty from retryability. Enum metadata must be intrinsic to the cause. HTTP and retry mappings belong where all their inputs exist, and only when a real consumer needs them.
+
+Ordinary `throw new` is sufficient; clients need no mandatory `reject()` helper. An optional `fromException()` may classify native failures and select safe evidence using explicit operation facts. It returns an existing same-domain exception unchanged and never logs, queries, retries or decides business outcomes. Use it to remove duplicated classification/status/source extraction, not to build a factory zoo. Do not introduce domain-to-domain translations, callback factory plumbing, mutable invocation modes, traits, interfaces or shared base classes merely for this pattern. Each exception owns its own `log(array $context = []): void`; constructors, factories and enums never log.
+
+Adding a failure extends its case and relevant mappings. NEVER duplicate production code strings in parallel catalogs. Independent test expectations may assert literal public values.
 
 <a id="failures-and-logging"></a>
 
@@ -56,9 +60,9 @@ Log exactly once per failure, in the method that owns the semantic outcome.
 
 NEVER log-and-throw from a collaborator when another boundary owns that same outcome. The owning boundary MAY log once and then translate or propagate. If that boundary logs, the caller MUST NOT re-log.
 
-The boundary logger receives the typed failure and reads level/event/outcome from the enum.
+The outcome owner calls the exception's own `log()` emitter. It combines stored safe context with explicit caller context, with caller values taking precedence and the typed reason remaining authoritative. It reads intrinsic event/level metadata from the enum, applies runtime severity evidence where required, and returns early for a null event. It does not decide the outcome or deduplicate calls.
 
-Known infrastructure failures handled at the boundary log with Arr::only($frame, ['file', 'line', 'class', 'function']) on the trace. NEVER the SQL, bindings, or credential.
+For a retained safe native cause, the emitter selects only `previous_class`, `previous_file`, `previous_line` and `previous_frames`, using Arr::only($frame, ['file', 'line', 'class', 'function']) per frame. NEVER include messages, arguments, frame objects, SQL, bindings or credentials. For secret-bearing SQL, HTTP, SDK or signing failures, pass null as the cause and supply only selected safe diagnostics, including `previous_class`, as construction-time context. Never retain the native throwable in metadata or mark `$previous` with SensitiveParameter.
 
 One blank line before and after each Log:: call.
 
@@ -75,10 +79,12 @@ catch (Throwable $e) {
 Pattern:
 
 ```php
-// RIGHT — translate and let the boundary log once
-catch (QueryException $e) {
-    $this->logReadFailure($actor->id, $businessId, $e);
-    $this->reject(InspectionFailure::AuthoritativeReadFailed);
+// classify the native failure at the outcome owner and discard its secret-bearing cause
+catch (QueryException $exception) {
+    $failure = CustomerPassInspectionException::fromException($exception);
+    $failure->log(['actor_id' => $actor->id]);
+
+    throw $failure;
 }
 ```
 
@@ -177,17 +183,18 @@ The boundary method (the public entry) owns: translation of infra exceptions, lo
 public function inspect(...): array
 {
     // validations first
-    if (...) { $this->reject(Forbidden); }
+    if (...) { throw new CustomerPassInspectionException(InspectionFailure::Forbidden); }
     // ... all guards ...
 
     try {
         return $this->runInspection($business, $method, $normalized, $rateLimitKey);
-    } catch (QueryException|PDOException $e) {
-        $this->logReadFailure(...);
-        $this->reject(AuthoritativeReadFailed);
-    } catch (CustomerPassInspectionException $e) {
-        $this->logOperationalFailure(...);
-        throw $e;
+    } catch (QueryException|PDOException $exception) {
+        $failure = CustomerPassInspectionException::fromException($exception);
+        $failure->log(/* explicit safe operation context */);
+        throw $failure;
+    } catch (CustomerPassInspectionException $exception) {
+        $exception->log(/* explicit safe outcome context */);
+        throw $exception;
     }
 }
 
@@ -240,7 +247,7 @@ Boxes are ONLY allowed to group sibling methods, in the same lowercase English f
 // validations
 // ------------------------------------------------------------------------
 
-private function reject(...) { ... }
+private function normalizeCredential(...) { ... }
 ```
 
 <a id="callable-documentation"></a>
@@ -256,16 +263,13 @@ Describe responsibility, units, trust, preconditions. Do not restate the signatu
 
 ```php
 /**
- * Aborts the inspection with the given typed failure.
+ * Classifies an authoritative-read failure without retaining its private native payload.
  *
- * @param InspectionFailure $failure Typed reason propagated to the caller.
- * @param int|null $retryAfterSeconds Optional Retry-After hint for throttled callers.
+ * @param Throwable $exception Native or already classified inspection failure.
  *
- * @return never
- *
- * @throws CustomerPassInspectionException Always.
+ * @return self Complete immutable failure evidence.
  */
-private function reject(InspectionFailure $failure, ?int $retryAfterSeconds = null): never
+public static function fromException(#[SensitiveParameter] Throwable $exception): self
 ```
 
 Document at the declaration, above attributes.
@@ -290,7 +294,7 @@ For every changed file:
 
 □ Every failure classified (contract / business / infra).
 □ Failure codes live in one enum, no duplicated strings.
-□ Logging occurs once, at the boundary, with enum metadata.
+□ Logging occurs once, at the outcome-owning boundary, through the exception's emitter and enum event/level.
 □ Return shape is identical across all branches.
 □ No helper exists for a single one-line call.
 □ No defensive guard exists against an upstream invariant.

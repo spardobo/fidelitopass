@@ -1,6 +1,9 @@
 <?php
 
 use App\Actions\CustomerPasses\CreateCustomerPass;
+use App\Enums\CustomerPassCreationFailure;
+use App\Enums\FailureOutcome;
+use App\Enums\PassCreationStage;
 use App\Exceptions\CustomerPassCreationException;
 use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
@@ -283,7 +286,7 @@ it('refuses an ambient transaction before credentials or Google are contacted', 
             app(CreateCustomerPass::class)->handle($business);
             test()->fail('Ambient transaction must be rejected.');
         } catch (CustomerPassCreationException $result) {
-            expect($result->reason)->toBe('transaction_active');
+            expect($result->failure)->toBe(CustomerPassCreationFailure::TransactionActive);
         }
     } finally {
         DB::rollBack();
@@ -292,7 +295,7 @@ it('refuses an ambient transaction before credentials or Google are contacted', 
     expect([
         'outcome' => $result->outcome->value,
         'stage' => $result->stage->value,
-        'retry_allowed' => $result->canRetry(),
+        'retry_allowed' => $result->isRetryable(),
     ])->toBe([
         'outcome' => 'definitive',
         'stage' => 'preparation',
@@ -339,8 +342,8 @@ it('returns preparation 503 without exposing a failed public Business lookup', f
     $business = Business::factory()->create();
     $records = [];
     if ($inspectExplicitContext) {
-        Log::partialMock()->shouldReceive('error')->once()->andReturnUsing(
-            function (string $event, array $context) use (&$records): void {
+        Log::partialMock()->shouldReceive('log')->once()->with('error', 'customer_pass.business_lookup.failed', Mockery::any())->andReturnUsing(
+            function (string $level, string $event, array $context) use (&$records): void {
                 $records[] = ['event' => $event, ...$context];
             },
         );
@@ -868,3 +871,27 @@ it('withholds the handoff when a model event vetoes the local save after Google 
             && str_ends_with($request->url(), '/loyaltyObject'),
     ))->toHaveCount(1);
 })->with(['saving', 'creating']);
+
+it('preserves the acquisition JavaScript failure contract independently of cause identity', function (
+    string $cause, PassCreationStage $stage, FailureOutcome $outcome, int $status, bool $retry,
+) {
+    $business = Business::factory()->create(['pass_background_color' => '#123456']);
+    $this->mock(GoogleWalletPassCreator::class)->shouldReceive('create')->once()->andThrow(
+        new CustomerPassCreationException(CustomerPassCreationFailure::from($cause), stage: $stage, outcome: $outcome),
+    );
+
+    $this->postJson(route('public.join.save', $business->public_id))
+        ->assertStatus($status)
+        ->assertExactJson(['outcome' => $outcome->value, 'stage' => $stage->value, 'retry_allowed' => $retry])
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertHeaderMissing('X-Request-ID');
+
+    $this->assertDatabaseCount('customer_passes', 0);
+    expect($this->http->requests())->toBeEmpty();
+})->with([
+    'safe preparation' => ['database_failed', PassCreationStage::Preparation, FailureOutcome::Definitive, 503, true],
+    'safe provider' => ['provider_rejected', PassCreationStage::Provider, FailureOutcome::Definitive, 502, true],
+    'unknown provider' => ['provider_rejected', PassCreationStage::Provider, FailureOutcome::Unknown, 503, false],
+    'unknown local' => ['database_failed', PassCreationStage::Local, FailureOutcome::Unknown, 503, false],
+    'definitive nonretryable' => ['transaction_active', PassCreationStage::Preparation, FailureOutcome::Definitive, 503, false],
+]);

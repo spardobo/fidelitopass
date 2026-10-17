@@ -1,70 +1,86 @@
 # PHP readability calibration
-Read before the first code change in a task. Examples come from this repository's real patterns; reuse the calibration, don't copy the file wholesale.
+Read before the first code change in a task. Examples calibrate naming, paragraphs and boundaries; do not copy them as scaffolding.
 
-## Canonical: enum with metadata
+## Canonical: compact cause enum
 ```php
 <?php
 
 namespace App\Enums;
 
-/**
- * Single catalog of failures raised by the pass inspection flow.
- *
- * Adding a failure extends this case catalog and its relevant metadata.
- * Every consumer reads that metadata from the enum instead of
- * maintaining a parallel failure mapping.
- */
+/** Identifies inspection causes independently of operation facts. */
 enum InspectionFailure: string
 {
-    case Forbidden               = 'forbidden';
-    case InvalidCredential       = 'invalid_credential';
-    case InvalidAttemptLimit     = 'invalid_attempt_limit';
+    case Forbidden = 'forbidden';
+    case InvalidCredential = 'invalid_credential';
+    case InvalidAttemptLimit = 'invalid_attempt_limit';
     case AuthoritativeReadFailed = 'authoritative_read_failed';
 
-    public function httpStatus(): int
+    /**
+     * Returns the intrinsic severity for this cause.
+     *
+     * @return string PSR-3 level name.
+     */
+    public function logLevel(): string
     {
         return match ($this) {
-            self::Forbidden               => 403,
-            self::InvalidCredential       => 404,
-            self::InvalidAttemptLimit     => 429,
-            self::AuthoritativeReadFailed => 503,
+            self::Forbidden => 'warning',
+            self::InvalidCredential, self::InvalidAttemptLimit => 'notice',
+            self::AuthoritativeReadFailed => 'error',
+        };
+    }
+
+    /**
+     * Returns the event name, or null when the failure must remain silent.
+     *
+     * @return string|null Operational event name.
+     */
+    public function eventName(): ?string
+    {
+        return match ($this) {
+            self::Forbidden => null,
+            self::InvalidCredential => 'customer_pass.lookup_rejected',
+            self::InvalidAttemptLimit => 'customer_pass.lookup_throttled',
+            self::AuthoritativeReadFailed => 'customer_pass.lookup_unavailable',
         };
     }
 }
 ```
 
-Note: aligned =>, one case per line, match without a default because the enum is exhaustive.
+Only intrinsic metadata belongs here. If one native database failure can happen before or after a provider write, keep one cause and store the actual stage and certainty on the exception. Do not create a case for every combination.
 
-## Canonical: typed exception
+## Canonical: complete immutable container
 ```php
-final class CustomerPassInspectionException extends RuntimeException
+class CustomerPassInspectionException extends RuntimeException implements ShouldntReport
 {
     /**
-     * Builds the exception from its typed failure and optional retry hint.
+     * Stores a typed cause and complete safe evidence without logging.
      *
-     * @param InspectionFailure $failure Typed reason for the failure.
-     * @param int|null $retryAfterSeconds Seconds the caller should wait before retrying, when applicable.
+     * @param InspectionFailure $failure Application-owned cause.
+     * @param Throwable|null $previous Optional safe native cause.
+     * @param array<string, mixed> $context Selected nonsecret evidence.
+     * @param int|null $retryAfterSeconds Seconds to wait when throttled.
      */
     public function __construct(
         public readonly InspectionFailure $failure,
+        ?Throwable $previous = null,
+        public readonly array $context = [],
         public readonly ?int $retryAfterSeconds = null,
     ) {
-        parent::__construct('Customer pass inspection failed.');
+        parent::__construct($failure->value, 0, $previous);
     }
 }
 ```
 
-Note: public readonly properties, no accessors, no secret-bearing cause. Use the application owner's safe message and duplicate-reporting contract; the boundary already owns the event.
+Constructor excerpt only. Each non-final exception owns its `log(array $context = []): void` emitter. It merges stored context then caller context and keeps the typed reason authoritative. Null events return early. Safe retained causes contribute class/file/line and frames filtered through `Arr::only` to file/line/class/function. Never emit messages, arguments, frame objects or raw causes.
 
-## Canonical: inspector boundary vs operation flow
-Boundary (validation + translation + logging + return):
+Select safe diagnostics for secret-bearing SQL, HTTP, SDK and signing failures at construction and pass previous=null. An optional `fromException()` can centralize classification and evidence extraction, using explicit operation facts. It returns an existing same-domain failure unchanged and never logs, queries, retries or decides a business operation. No factory zoo, shared base or mandatory client helper is needed.
 
+## Canonical: ordinary throw and outcome-owner catch
 ```php
 public function inspect(?User $actor, string $method, #[SensitiveParameter] string $credential): array
 {
-    // reject unauthenticated or unverified actors before any other work
     if ($actor === null || ! $actor->hasVerifiedEmail()) {
-        $this->reject(InspectionFailure::Forbidden);
+        throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
     }
 
     $businessId = null;
@@ -72,59 +88,46 @@ public function inspect(?User $actor, string $method, #[SensitiveParameter] stri
     try {
         $business = $actor->business()->first();
         if ($business === null) {
-            $this->reject(InspectionFailure::Forbidden);
+            throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
         }
 
         $businessId = $business->id;
-
-        // enforce the shared invalid-attempt window before touching the credential
         $rateLimitKey = self::RATE_LIMIT_PREFIX.$actor->id;
         $this->assertNotThrottled($rateLimitKey);
-
-        // reject malformed credentials before reading the clock or the snapshot
         $normalized = $this->normalizeCredential($method, $credential);
         if ($normalized === null) {
             $this->recordInvalidAttempt($rateLimitKey);
-            $this->reject(InspectionFailure::InvalidCredential);
+            throw new CustomerPassInspectionException(InspectionFailure::InvalidCredential);
         }
 
-        return $this->runInspection($business, $method, $normalized, $rateLimitKey);
+        return $this->runInspection($business, $method, $normalized);
     } catch (QueryException|PDOException $exception) {
-        $this->logReadFailure($actor->id, $businessId, $exception);
-        $this->reject(InspectionFailure::AuthoritativeReadFailed);
+        $failure = CustomerPassInspectionException::fromException($exception);
+        $failure->log(['actor_id' => $actor->id, 'business_id' => $businessId, 'outcome' => 'unavailable']);
+
+        throw $failure;
     } catch (CustomerPassInspectionException $exception) {
-        $this->logOperationalFailure($actor->id, $businessId, $exception);
+        $exception->log([
+            'actor_id' => $actor->id,
+            'business_id' => $businessId,
+            'outcome' => match ($exception->failure) {
+                InspectionFailure::Forbidden => 'forbidden',
+                InspectionFailure::InvalidCredential, InspectionFailure::InvalidAttemptLimit => 'rejected',
+                InspectionFailure::AuthoritativeReadFailed => 'unavailable',
+            },
+        ]);
+
         throw $exception;
     }
 }
 ```
 
-Operation flow (no log, no catch, no translation; database/cache I/O is not pure):
-
-```php
-private function runInspection(Business $business, string $method, #[SensitiveParameter] string $normalized, string $rateLimitKey): array
-{
-    // capture one authoritative instant for the whole snapshot
-    $capturedAt = $this->clock->capture($business->timezone)->instant;
-    $row = $this->readSnapshot($business, $method, $normalized, $capturedAt);
-
-    // a well-formed credential resolving to no pass is a business rejection
-    if ($row === null) {
-        $this->recordInvalidAttempt($rateLimitKey);
-        $this->reject(InspectionFailure::InvalidCredential);
-    }
-
-    return $this->buildResult($row, $capturedAt);
-}
-```
-
-Note: runInspection receives only validated inputs. It decides on business outcomes (no match), never on contract or format.
+This boundary owns the outcome and logs once before propagation. Collaborators never log the same outcome. Native logging failures propagate; do not wrap them or imply they undo a commit. A retry delay is supplied with `new CustomerPassInspectionException(InspectionFailure::InvalidAttemptLimit, retryAfterSeconds: $seconds)`, not assigned later. HTTP adapters use actual stage/certainty; retry permission is a separate decision.
 
 ## Canonical: fixed return shape
 ```php
 private function buildResult(stdClass $row, string $capturedAt): array
 {
-    // build the promotion projection once; eligibility flags derive from it
     $promotion = $row->promotion_id === null ? null : [
         'id' => (int) $row->promotion_id,
         'target_points' => (int) $row->target_points,
@@ -149,25 +152,18 @@ private function buildResult(stdClass $row, string $capturedAt): array
 }
 ```
 
-Note: promotion is null or a full shape. No optional keys. Eligibility flags derive from the projection.
+Promotion is null or a full shape. Optional fields remain present. These excerpts omit unrelated declarations; named callables still need complete responsibility-first PHPDoc in production.
 
 ## Anti-patterns to avoid
-| Anti-pattern | Why it's wrong |
+| Anti-pattern | Why it is wrong |
 | --- | --- |
-| collaborator catch (Throwable $e) { Log::error(...); throw $e; } | Logs twice (here + boundary). |
-| if (count($rows) > 1) throw Ambiguous after the checked upstream flow guarantees uniqueness | Guards an impossible state. |
-| private function maxAttempts(): int { return max(1, (int) config(...)); } for one caller | One-line helper used once. |
-| $promotion['id'] ?? null inside a fixed shape | Optional keys violate the fixed-shape rule. |
-| @return array<string, mixed> on a bounded shape | Loses static analysis value. Use the shape. |
-| prepareCredential that validates | Name lies about responsibility. |
-| ->whereKey(...)->lockForUpdate()->firstOrFail() before locking the Business | Unstable lock order. |
+| Collaborator logs then throws to an outcome-owning caller. | Duplicates the outcome event. |
+| Mutable diagnostics or retry metadata assigned after construction. | Leaves a partially initialized failure. |
+| Stage/certainty variants of every native cause. | Multiplies independent dimensions into a confusing catalog. |
+| `reject()` required in every client. | Adds a convention without reducing the real operation. |
+| A helper only forwards arguments or wraps one trivial expression. | Hides the reading flow. |
+| Optional keys disappear from a structured result. | Breaks the fixed public shape. |
+| Persistence is wrapped in generic CRUD or repository infrastructure. | Hides Laravel's existing ownership and transaction boundary. |
+
 ## Final calibration
-Every file: read top-to-bottom as a narrative.
-
-Every application-owned failure: classified, enum-coded, with at most one applicable boundary event. Native unexpected-error reporting remains intact.
-
-Every method: contract documented with @param / @return / @throws (only when real).
-
-Every extraction: justified by a rule in shared §6.
-
-Every guard: against a real, reachable state.
+Read every method top-to-bottom: inputs, guards, decisions, effects, result. Preserve queries, locks, authoritative clock, provider timing and public response contracts. Keep failure identity, operation facts, native evidence and outcome ownership distinct. Follow Pint output rather than restoring manual spacing.

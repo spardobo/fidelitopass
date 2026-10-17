@@ -2,6 +2,7 @@
 
 namespace App\Integrations\GoogleWallet;
 
+use App\Enums\CustomerPassCreationFailure;
 use App\Enums\FailureOutcome;
 use App\Enums\GoogleWalletStage;
 use App\Enums\PassCreationStage;
@@ -72,7 +73,11 @@ class GoogleWalletPassCreator
             || ! is_string($business->pass_background_color)
             || ! preg_match('/^#[0-9a-fA-F]{6}$/D', $business->pass_background_color)
         ) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'business_invalid');
+            throw new CustomerPassCreationException(
+                CustomerPassCreationFailure::BusinessInvalid,
+                stage: PassCreationStage::Provider,
+                providerStage: GoogleWalletStage::Configuration,
+            );
         }
 
         // prepare payloads and signing before any external write
@@ -129,8 +134,13 @@ class GoogleWalletPassCreator
                 $settings['account']['private_key'],
                 'RS256',
             );
-        } catch (Throwable) {
-            throw CustomerPassCreationException::providerRejected(GoogleWalletStage::Configuration, 'signing_failed');
+        } catch (Throwable $exception) {
+            throw new CustomerPassCreationException(
+                CustomerPassCreationFailure::SigningFailed,
+                context: ['previous_class' => $exception::class],
+                stage: PassCreationStage::Provider,
+                providerStage: GoogleWalletStage::Configuration,
+            );
         }
 
         return 'https://pay.google.com/gp/v/save/'.$jwt;
@@ -329,11 +339,8 @@ class GoogleWalletPassCreator
         } catch (CustomerPassCreationException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            throw CustomerPassCreationException::fromProvider(
-                $exception,
-                GoogleWalletStage::ClassDefinition,
-                $method,
-                $context,
+            throw CustomerPassCreationException::fromException(
+                $exception, PassCreationStage::Provider, GoogleWalletStage::ClassDefinition, $method, $context,
             );
         }
     }
@@ -353,10 +360,11 @@ class GoogleWalletPassCreator
             $class->getId() !== $classId
             || ! in_array($class->getReviewStatus(), ['APPROVED', 'approved'], true)
         ) {
-            throw CustomerPassCreationException::providerRejected(
-                GoogleWalletStage::ClassDefinition,
-                'class_not_usable',
-                ['http_method' => $method],
+            throw new CustomerPassCreationException(
+                CustomerPassCreationFailure::ClassNotUsable,
+                context: ['http_method' => $method],
+                stage: PassCreationStage::Provider,
+                providerStage: GoogleWalletStage::ClassDefinition,
             );
         }
     }
@@ -435,10 +443,8 @@ class GoogleWalletPassCreator
         try {
             $actual = $wallet->loyaltyobject->insert($expected);
         } catch (Throwable $exception) {
-            $failure = CustomerPassCreationException::fromProvider(
-                $exception,
-                GoogleWalletStage::ObjectCreation,
-                'POST',
+            $failure = CustomerPassCreationException::fromException(
+                $exception, PassCreationStage::Provider, GoogleWalletStage::ObjectCreation, 'POST',
             );
 
             if ($failure->outcome === FailureOutcome::Definitive) {
@@ -463,24 +469,18 @@ class GoogleWalletPassCreator
         try {
             $actual = $wallet->loyaltyobject->get($expected->getId());
         } catch (Throwable $exception) {
-            throw CustomerPassCreationException::fromProvider(
-                $exception,
-                GoogleWalletStage::ObjectCreation,
-                'GET',
-                $context,
+            throw CustomerPassCreationException::fromException(
+                $exception, PassCreationStage::Provider, GoogleWalletStage::ObjectCreation, 'GET', $context,
             );
         }
 
         if (! $this->matchesObjectBindings($actual, $expected, 'GET', $context)) {
             throw new CustomerPassCreationException(
-                PassCreationStage::Provider,
-                FailureOutcome::Unknown,
-                'confirmation_unavailable',
-                GoogleWalletStage::ObjectCreation,
-                diagnostics: [
-                    'http_method' => 'GET',
-                    ...$context,
-                ],
+                CustomerPassCreationFailure::ConfirmationUnavailable,
+                context: ['http_method' => 'GET', ...$context],
+                stage: PassCreationStage::Provider,
+                outcome: FailureOutcome::Unknown,
+                providerStage: GoogleWalletStage::ObjectCreation,
             );
         }
 
@@ -528,15 +528,16 @@ class GoogleWalletPassCreator
             }
 
             if (! is_string($value) || ! hash_equals($expectedValue, $value)) {
-                throw CustomerPassCreationException::providerRejected(
-                    GoogleWalletStage::ObjectCreation,
-                    'binding_conflict',
-                    [
+                throw new CustomerPassCreationException(
+                    CustomerPassCreationFailure::BindingConflict,
+                    context: [
                         'http_method' => $method,
                         'binding_field' => $field,
                         'binding_category' => is_string($value) ? 'different' : 'invalid',
                         ...$context,
                     ],
+                    stage: PassCreationStage::Provider,
+                    providerStage: GoogleWalletStage::ObjectCreation,
                 );
             }
         }

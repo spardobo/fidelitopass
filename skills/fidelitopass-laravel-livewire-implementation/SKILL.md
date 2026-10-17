@@ -30,11 +30,15 @@ NEVER add TypeScript-style annotations, PHP 8.4 property hooks on non-final clas
 ### Failure pattern (canonical)
 Three files, one flow:
 
-app/Enums/<Flow>Failure.php — string-backed enum with httpStatus(), logLevel(), eventName(), outcome().
+app/Enums/<Flow>Failure.php — compact string-backed cause catalog with logLevel() and eventName(): ?string. No Illuminate imports; only Psr\Log\LogLevel is allowed from Psr\Log. Never constructs exceptions. Keep only intrinsic metadata here; do not multiply causes by runtime stage or certainty.
 
-app/Exceptions/<Flow>Exception.php — final class extending RuntimeException, carrying the enum and optional retryAfterSeconds.
+app/Exceptions/<Flow>Exception.php — non-final RuntimeException carrying public readonly <Flow>Failure $failure. Constructor passes enum value, code zero and optional safe previous to the parent. It also accepts readonly safe context and actually consumed typed operational facts, such as stage, certainty, provider status or retry delay. No mutable diagnostics or later metadata assignments. Its own log(array $context = []): void merges stored then caller context, preserves the authoritative reason and safe cause frames, or returns for a null event.
 
-app/Support/<Flow>Inspector.php (or <Verb><Subject> Action) — public entry validates, delegates to a private operation method, owns the only try/catch that logs.
+An optional fromException() may classify native causes and select safe evidence using explicit operation facts. It preserves existing same-domain exceptions and never logs, queries, retries or decides business outcomes. Prefer it over duplicated client classification/status/source helpers; do not add a factory zoo or domain-to-domain translations. HTTP/retry mappings use the facts they actually need, never certainty inferred from retryability.
+
+app/Support/<Flow>Inspector.php (or <Verb><Subject> Action) — public entry validates and owns the outcome. Use ordinary throw new; no mandatory reject/helper/trait/base class. Collaborators only propagate; the outcome owner calls log() once and may then propagate.
+
+Never retain secret-bearing SQL, HTTP, SDK or signing causes. Pass previous=null and select safe source metadata, including previous_class, at construction. Safe retained causes expose only class/file/line and Arr::only-filtered frames, never messages or arguments. Do not mark $previous with SensitiveParameter. Keep the flow's existing ShouldntReport policy. Preserve nullable eventName signatures without fake branches/events; when necessary, only an exact-declaration return.unusedType annotation explaining this uniform contract is appropriate.
 
 See references/implementation-details.md for the complete shape.
 

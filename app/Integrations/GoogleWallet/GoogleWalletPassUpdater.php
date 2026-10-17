@@ -4,6 +4,7 @@ namespace App\Integrations\GoogleWallet;
 
 use App\Enums\FailureOutcome;
 use App\Enums\GoogleWalletStage;
+use App\Enums\GoogleWalletSynchronizationFailure;
 use App\Exceptions\GoogleWalletSynchronizationException;
 use App\Models\Business;
 use App\Models\CustomerPass;
@@ -52,12 +53,12 @@ class GoogleWalletPassUpdater
         try {
             // reload the scoped pass and prepare content before starting the provider budget
             $pass = $this->loadPass($business, $pass);
-            $settings = $this->configuration->load();
+            $settings = $this->configuration->load(synchronizing: true);
             $objectId = $settings['issuer_id'].'.pass_'.$pass->public_id;
             $classId = $settings['issuer_id'].'.business_'.$business->public_id;
 
             if ($pass->wallet_object_id !== $objectId) {
-                throw new GoogleWalletSynchronizationException($stage, FailureOutcome::Definitive, 'binding_conflict');
+                throw new GoogleWalletSynchronizationException(GoogleWalletSynchronizationFailure::BindingConflict, stage: $stage);
             }
 
             $modules = $this->presentation->build($business, $pass);
@@ -65,7 +66,7 @@ class GoogleWalletPassUpdater
             // share one deadline across OAuth, the PATCH and all confirmation reads
             $deadline = hrtime(true) + self::BUDGET_SECONDS * 1_000_000_000;
             $stage = GoogleWalletStage::OAuth;
-            $wallet = $this->client->authenticate($settings, $deadline);
+            $wallet = $this->client->authenticate($settings, $deadline, synchronizing: true);
             $this->checkDeadline($deadline, $stage);
 
             // verify the existing identity before sending any presentation change
@@ -74,7 +75,7 @@ class GoogleWalletPassUpdater
             $this->checkDeadline($deadline, $stage);
 
             if (! $this->matchesIdentity($remote, $pass, $classId)) {
-                throw new GoogleWalletSynchronizationException($stage, FailureOutcome::Definitive, 'binding_conflict');
+                throw new GoogleWalletSynchronizationException(GoogleWalletSynchronizationFailure::BindingConflict, stage: $stage);
             }
 
             // replace text modules without rotating credentials or creating another Object
@@ -100,16 +101,14 @@ class GoogleWalletPassUpdater
                 || ! $this->matchesContent($remote, $modules)
             ) {
                 throw new GoogleWalletSynchronizationException(
-                    $stage,
-                    FailureOutcome::Unknown,
-                    'confirmation_mismatch',
+                    GoogleWalletSynchronizationFailure::ConfirmationMismatch,
+                    stage: $stage,
+                    outcome: FailureOutcome::Unknown,
                 );
             }
         } catch (Throwable $exception) {
-            throw GoogleWalletSynchronizationException::fromFailure(
-                $exception,
-                $stage,
-                $deadline !== null && hrtime(true) >= $deadline,
+            throw GoogleWalletSynchronizationException::fromException(
+                $exception, $stage, $deadline !== null && hrtime(true) >= $deadline,
             );
         }
     }
@@ -131,11 +130,7 @@ class GoogleWalletPassUpdater
             $business->getConnection() !== $pass->getConnection()
             || $pass->getConnection()->transactionLevel() === 0
         ) {
-            throw new GoogleWalletSynchronizationException(
-                GoogleWalletStage::Preparation,
-                FailureOutcome::Definitive,
-                'transaction_required',
-            );
+            throw new GoogleWalletSynchronizationException(GoogleWalletSynchronizationFailure::TransactionRequired);
         }
 
         // validate the supplied identity before reloading it through its owner
@@ -144,11 +139,7 @@ class GoogleWalletPassUpdater
             || ! $pass->exists
             || $pass->business_id !== $business->id
         ) {
-            throw new GoogleWalletSynchronizationException(
-                GoogleWalletStage::Preparation,
-                FailureOutcome::Definitive,
-                'pass_invalid',
-            );
+            throw new GoogleWalletSynchronizationException(GoogleWalletSynchronizationFailure::PassInvalid);
         }
 
         return $business->customerPasses()->findOrFail($pass->id);
@@ -165,11 +156,12 @@ class GoogleWalletPassUpdater
     private function checkDeadline(int $deadline, GoogleWalletStage $stage): void
     {
         if (hrtime(true) >= $deadline) {
-            $outcome = in_array($stage, [GoogleWalletStage::ObjectUpdate, GoogleWalletStage::Confirmation], true)
-                ? FailureOutcome::Unknown
-                : FailureOutcome::Definitive;
-
-            throw new GoogleWalletSynchronizationException($stage, $outcome, 'deadline_exceeded');
+            throw new GoogleWalletSynchronizationException(
+                GoogleWalletSynchronizationFailure::DeadlineExceeded,
+                stage: $stage,
+                outcome: in_array($stage, [GoogleWalletStage::ObjectUpdate, GoogleWalletStage::Confirmation], true)
+                    ? FailureOutcome::Unknown : FailureOutcome::Definitive,
+            );
         }
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\CustomerPassCreationFailure;
 use App\Exceptions\CustomerPassCreationException;
 use App\Models\Business;
 use App\Models\CustomerPass;
@@ -59,7 +60,7 @@ final readonly class CustomerPassCredentials implements JsonSerializable
     {
         // require a persisted owner before allocating credentials
         if (! $business->exists) {
-            throw CustomerPassCreationException::preparationFailed('business_not_persisted');
+            throw new CustomerPassCreationException(CustomerPassCreationFailure::BusinessNotPersisted);
         }
 
         // check for a free manual code before allocating the pass identity and scan token
@@ -85,15 +86,19 @@ final readonly class CustomerPassCredentials implements JsonSerializable
             }
         } catch (QueryException|PDOException $exception) {
             // omit the original exception because query bindings contain the private code
-            throw CustomerPassCreationException::preparationFailed('credential_query_failed', [
+            throw new CustomerPassCreationException(CustomerPassCreationFailure::CredentialQueryFailed, context: [
+                'previous_class' => $exception::class,
                 'exception_class' => $exception::class,
                 'sqlstate' => $exception->errorInfo[0] ?? null,
             ]);
         } catch (RandomException $exception) {
-            throw CustomerPassCreationException::preparationFailed('randomness_unavailable', ['exception_class' => $exception::class]);
+            throw new CustomerPassCreationException(CustomerPassCreationFailure::RandomnessUnavailable, context: [
+                'previous_class' => $exception::class,
+                'exception_class' => $exception::class,
+            ]);
         }
 
-        throw CustomerPassCreationException::preparationFailed('manual_code_exhausted');
+        throw new CustomerPassCreationException(CustomerPassCreationFailure::ManualCodeExhausted);
     }
 
     /**

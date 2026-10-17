@@ -2,6 +2,8 @@
 
 namespace App\Actions\CustomerPasses;
 
+use App\Enums\CustomerPassCreationFailure;
+use App\Enums\FailureOutcome;
 use App\Enums\PassCreationStage;
 use App\Exceptions\CustomerPassCreationException;
 use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
@@ -45,7 +47,7 @@ final class CreateCustomerPass
 
         try {
             if (DB::transactionLevel() !== 0) {
-                throw CustomerPassCreationException::preparationFailed('transaction_active');
+                throw new CustomerPassCreationException(CustomerPassCreationFailure::TransactionActive);
             }
 
             $credentials = CustomerPassCredentials::prepare($business);
@@ -63,18 +65,12 @@ final class CreateCustomerPass
                 $walletResult['object_id'],
             ));
         } catch (Throwable $exception) {
-            $failure = CustomerPassCreationException::fromFailure($exception, $stage);
-
-            Log::log(
-                $failure->isExpectedRejection() ? LogLevel::WARNING : LogLevel::ERROR,
-                'customer_pass.creation.failed',
-                [
-                    'operation_id' => $operationId,
-                    'business_id' => $business->id,
-                    ...$failure->context(),
-                    'duration_ms' => (int) ((hrtime(true) - $startedAtNs) / 1_000_000),
-                ],
-            );
+            $failure = CustomerPassCreationException::fromException($exception, $stage);
+            $failure->log([
+                'operation_id' => $operationId,
+                'business_id' => $business->id,
+                'duration_ms' => (int) ((hrtime(true) - $startedAtNs) / 1_000_000),
+            ]);
 
             throw $failure;
         }
@@ -136,7 +132,11 @@ final class CreateCustomerPass
                 || $existing->manual_code !== $credentials->manualCode
                 || ! hash_equals((string) $existing->validation_token_hash, $tokenHash)
             ) {
-                throw CustomerPassCreationException::persistenceFailed('identity_conflict');
+                throw new CustomerPassCreationException(
+                    CustomerPassCreationFailure::IdentityConflict,
+                    stage: PassCreationStage::Local,
+                    outcome: FailureOutcome::Unknown,
+                );
             }
 
             return $existing;
@@ -152,7 +152,11 @@ final class CreateCustomerPass
             ->exists();
 
         if ($hasConflict) {
-            throw CustomerPassCreationException::persistenceFailed('identity_conflict');
+            throw new CustomerPassCreationException(
+                CustomerPassCreationFailure::IdentityConflict,
+                stage: PassCreationStage::Local,
+                outcome: FailureOutcome::Unknown,
+            );
         }
 
         // preserve Eloquent events and fail when an event cancels the write
@@ -164,7 +168,11 @@ final class CreateCustomerPass
         $pass->manual_code = $credentials->manualCode;
 
         if (! $pass->save()) {
-            throw CustomerPassCreationException::persistenceFailed('save_rejected');
+            throw new CustomerPassCreationException(
+                CustomerPassCreationFailure::SaveRejected,
+                stage: PassCreationStage::Local,
+                outcome: FailureOutcome::Unknown,
+            );
         }
 
         return $pass;

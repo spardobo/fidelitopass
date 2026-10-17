@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\CustomerPassCreationFailure;
+use App\Enums\FailureOutcome;
 use App\Exceptions\CustomerPassCreationException;
 use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
@@ -200,8 +202,8 @@ it('preserves a leading-zero manual code through SDK payload and exact confirmat
             app(GoogleWalletPassCreator::class)->create($this->business, $credentials);
             $this->fail('Provider credentials must match exactly, not normalize like manual lookup.');
         } catch (CustomerPassCreationException $exception) {
-            expect($exception->reason)->toBe('binding_conflict');
-            expect($exception->context()['binding_field'])->toBe('accountId');
+            expect($exception->failure)->toBe(CustomerPassCreationFailure::BindingConflict);
+            expect($exception->context['binding_field'])->toBe('accountId');
         }
     } else {
         $result = app(GoogleWalletPassCreator::class)->create($this->business, $credentials);
@@ -415,8 +417,8 @@ it('rejects an unsafe selected black logo before credential loading or HTTP', fu
         test()->fail('An unsafe selected black logo must stop issuance.');
     } catch (CustomerPassCreationException $exception) {
         expect($exception->providerStage->value)->toBe('configuration');
-        expect($exception->outcome->value)->toBe('definitive');
-        expect($exception->reason)->toBe('logo_url_invalid');
+        expect($exception->isRetryable())->toBeTrue();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::LogoUrlInvalid);
         expect($exception->getPrevious())->toBeNull();
         expect((string) $exception)->not->toContain('unsafe-logo-marker');
     }
@@ -869,7 +871,8 @@ it('keeps absence or failed reconciliation unknown after a possibly accepted obj
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Unknown issuance must not return a handoff.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->outcome->value)->toBe('unknown');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ConfirmationUnavailable);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
         expect($exception->providerStage->value)->toBe('object');
     }
 
@@ -895,8 +898,8 @@ it('rejects a mismatched reconciled private binding', function (string $field) {
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Conflicting binding must fail.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->outcome->value)->toBe('definitive');
-        expect($exception->reason)->toBe('binding_conflict');
+        expect($exception->isRetryable())->toBeTrue();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::BindingConflict);
     }
 })->with(['id', 'classId', 'accountId', 'barcode']);
 
@@ -916,7 +919,8 @@ it('sanitizes definitive provider rejection without retaining unsafe exception c
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Provider rejection must fail.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->outcome->value)->toBe('definitive');
+        expect($exception->outcome)->toBe(FailureOutcome::Definitive);
+        expect($exception->isRetryable())->toBeTrue();
         expect($exception->providerStage->value)->toBe($stage);
         expect($exception->getPrevious())->toBeNull();
         expect((string) $exception)->not->toContain(
@@ -945,7 +949,8 @@ it('does not treat malformed object success as confirmed and safely reconciles i
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Incomplete confirmation must stay unknown.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->outcome->value)->toBe('unknown');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ConfirmationUnavailable);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
     }
 });
 
@@ -1076,7 +1081,7 @@ it('sanitizes unusable service-account JSON before HTTP', function (string $case
         test()->fail('Invalid credentials must stop issuance.');
     } catch (CustomerPassCreationException $exception) {
         expect($exception->providerStage->value)->toBe('configuration');
-        expect($exception->outcome->value)->toBe('definitive');
+        expect($exception->isRetryable())->toBeTrue();
         expect($exception->getPrevious())->toBeNull();
         expect((string) $exception)->not->toContain(
             'unsafe-secret-marker',
@@ -1174,7 +1179,7 @@ it('requires a public HTTPS logo independently of the permitted local origin', f
         test()->fail('A local app must not send a local or missing program logo.');
     } catch (CustomerPassCreationException $exception) {
         expect($exception->providerStage->value)->toBe('configuration');
-        expect($exception->reason)->toBe('logo_url_invalid');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::LogoUrlInvalid);
         expect($exception->getPrevious())->toBeNull();
     }
 
@@ -1211,9 +1216,9 @@ it('rejects malformed OAuth responses before any Wallet request', function (arra
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Malformed authentication must stop issuance.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->outcome->value)->toBe('definitive');
+        expect($exception->isRetryable())->toBeTrue();
         expect($exception->providerStage->value)->toBe('oauth');
-        expect($exception->reason)->toBe('malformed_response');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::MalformedResponse);
     }
 
     expect($this->http->requests())->toHaveCount(1);
@@ -1238,11 +1243,13 @@ it('keeps pre-object transport failure definitive and strips unsafe transport de
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Transport failure must stop issuance.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->context())->toMatchArray([
+        expect($exception->context)->toMatchArray([
             'http_method' => $stage === 'class' ? 'GET' : 'POST',
             'exception_class' => ConnectException::class,
         ]);
-        expect($exception->outcome->value)->toBe('definitive');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::TransportFailed);
+        expect($exception->outcome)->toBe(FailureOutcome::Definitive);
+        expect($exception->isRetryable())->toBeTrue();
         expect($exception->providerStage->value)->toBe($stage);
         expect($exception->getPrevious())->toBeNull();
         expect((string) $exception)->not->toContain(
@@ -1409,12 +1416,12 @@ it('retains native failure status and class method without retaining provider pa
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Rejected classes must stop issuance.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->context())->toMatchArray([
+        expect($exception->providerStatus)->toBe(400);
+        expect($exception->context)->toMatchArray([
             'http_method' => $method,
-            'provider_status' => 400,
             'exception_class' => GoogleServiceException::class,
         ]);
-        expect(json_encode($exception->context()))->not->toContain($secret, 'description', 'metadata', 'private_key');
+        expect(json_encode($exception->context))->not->toContain($secret, 'description', 'metadata', 'private_key');
         expect($exception->getPrevious())->toBeNull();
     }
 
@@ -1469,12 +1476,10 @@ it('rejects private echoes in every candidate provider diagnostic field', functi
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Rejected class must fail.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->context())->toMatchArray([
-            'http_method' => 'GET',
-            'provider_status' => 400,
-        ]);
-        expect(json_encode($exception->context()))->not->toContain($privateValue);
-        expect($exception->context())->not->toHaveKeys([
+        expect($exception->providerStatus)->toBe(400);
+        expect($exception->context)->toMatchArray(['http_method' => 'GET']);
+        expect(json_encode($exception->context))->not->toContain($privateValue);
+        expect($exception->context)->not->toHaveKeys([
             'provider_error_status',
             'provider_error_reasons',
             'provider_error_fields',
@@ -1507,9 +1512,9 @@ it('retains a write attempt when object confirmation fails without repeating the
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Missing confirmation must remain unknown.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->context())->toMatchArray([
+        expect($exception->providerStatus)->toBe(404);
+        expect($exception->context)->toMatchArray([
             'http_method' => 'GET',
-            'provider_status' => 404,
             'confirmation_read' => true,
             'provider_attempt' => $transport
                 ? [
@@ -1523,8 +1528,9 @@ it('retains a write attempt when object confirmation fails without repeating the
                     'exception_class' => GoogleServiceException::class,
                 ],
         ]);
-        expect($exception->outcome->value)->toBe('unknown');
-        expect(json_encode($exception->context()))->not->toContain('private transport credentials');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ConfirmationUnavailable);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect(json_encode($exception->context))->not->toContain('private transport credentials');
     }
 
     expect($this->http->requests())->toHaveCount(4);
@@ -1548,9 +1554,9 @@ it('retains write evidence when the confirmation read itself fails in transport'
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Unconfirmed object must remain unknown.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->context())->toMatchArray([
+        expect($exception->providerStatus)->toBeNull();
+        expect($exception->context)->toMatchArray([
             'http_method' => 'GET',
-            'provider_status' => null,
             'confirmation_read' => true,
             'exception_class' => ConnectException::class,
             'provider_attempt' => [
@@ -1559,8 +1565,9 @@ it('retains write evidence when the confirmation read itself fails in transport'
                 'exception_class' => GoogleServiceException::class,
             ],
         ]);
-        expect($exception->outcome->value)->toBe('unknown');
-        expect(json_encode($exception->context()))->not->toContain('private confirmation error');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ConfirmationUnavailable);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect(json_encode($exception->context))->not->toContain('private confirmation error');
     }
 
     expect($this->http->requests())->toHaveCount(4);
@@ -1579,17 +1586,17 @@ it('keeps failed class conflict readback distinct from the prior class insert', 
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Rejected class confirmation must fail.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->context())->toMatchArray([
+        expect($exception->providerStatus)->toBe(400);
+        expect($exception->context)->toMatchArray([
             'http_method' => 'GET',
-            'provider_status' => 400,
             'confirmation_read' => true,
             'provider_attempt' => [
                 'http_method' => 'POST',
                 'http_status' => 409,
             ],
         ]);
-        expect($exception->reason)->toBe('provider_rejected');
-        expect(json_encode($exception->context()))->not->toContain('not-json-private');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ProviderRejected);
+        expect(json_encode($exception->context))->not->toContain('not-json-private');
     }
 
     expect($this->http->requests())->toHaveCount(4);
@@ -1799,10 +1806,10 @@ it('discards secret-bearing transport exception responses without retrying the r
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('A transport failure must stop issuance.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->context())->toMatchArray([
-            'reason' => 'provider_rejected',
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ProviderRejected);
+        expect($exception->providerStatus)->toBe(400);
+        expect($exception->context)->toMatchArray([
             'http_method' => 'GET',
-            'provider_status' => 400,
             'exception_class' => GoogleServiceException::class,
         ]);
         expect($exception->getPrevious())->toBeNull();
@@ -1863,16 +1870,16 @@ it('rejects a present immutable binding mismatch without a fallback read', funct
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Conflicting private bindings must not produce a handoff.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->outcome->value)->toBe('definitive');
-        expect($exception->context())->toMatchArray([
-            'reason' => 'binding_conflict',
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::BindingConflict);
+        expect($exception->isRetryable())->toBeTrue();
+        expect($exception->providerStatus)->toBeNull();
+        expect($exception->context)->toMatchArray([
             'http_method' => 'POST',
-            'provider_status' => null,
             'binding_field' => $field,
             'binding_category' => is_string($value) ? 'different' : 'invalid',
         ]);
         expect($exception->getPrevious())->toBeNull();
-        expect(json_encode($exception->context()))->not->toContain(
+        expect(json_encode($exception->context))->not->toContain(
             'private-conflict-marker',
             $this->credentials->validationToken,
             $this->credentials->manualCode,
@@ -1903,8 +1910,8 @@ it('does not trim identity or credential values when normalizing provider enums'
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Credential normalization must not hide a mismatch.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->reason)->toBe('binding_conflict');
-        expect($exception->context()['binding_field'])->toBe($field);
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::BindingConflict);
+        expect($exception->context['binding_field'])->toBe($field);
     }
 
     expect($this->http->requests())->toHaveCount(3);
@@ -1944,9 +1951,10 @@ it('requires every immutable field in a confirmation model', function (string $f
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
         test()->fail('Missing confirmation must remain unknown.');
     } catch (CustomerPassCreationException $exception) {
-        expect($exception->outcome->value)->toBe('unknown');
-        expect($exception->reason)->toBe('confirmation_unavailable');
-        expect($exception->context()['confirmation_read'])->toBeTrue();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ConfirmationUnavailable);
+        expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+        expect($exception->isRetryable())->toBeFalse();
+        expect($exception->context['confirmation_read'])->toBeTrue();
     }
 
     expect($this->http->requests())->toHaveCount(4);
@@ -1984,9 +1992,10 @@ it('rejects redirects even when their body resembles a successful native model',
         expect($exception->providerStatus)->toBe($stage === 'object' ? 404 : 307);
 
         if ($stage === 'object') {
-            expect($exception->outcome->value)->toBe('unknown');
-            expect($exception->canRetry())->toBeFalse();
-            expect($exception->context()['provider_attempt'])->toBe([
+            expect($exception->failure)->toBe(CustomerPassCreationFailure::ConfirmationUnavailable);
+            expect($exception->outcome)->toBe(FailureOutcome::Unknown);
+            expect($exception->isRetryable())->toBeFalse();
+            expect($exception->context['provider_attempt'])->toBe([
                 'http_method' => 'POST',
                 'http_status' => 307,
                 'exception_class' => GoogleServiceException::class,
@@ -2009,8 +2018,8 @@ it('fails malformed class models before creating an individual object', function
         test()->fail('Malformed classes must not authorize an object write.');
     } catch (CustomerPassCreationException $exception) {
         expect($exception->providerStage->value)->toBe('class');
-        expect($exception->outcome->value)->toBe('definitive');
-        expect($exception->reason)->toBe('class_not_usable');
+        expect($exception->isRetryable())->toBeTrue();
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::ClassNotUsable);
     }
 
     expect($this->http->requests())->toHaveCount(2);
@@ -2028,7 +2037,8 @@ it('does not retry failed authentication or proceed to Wallet resources', functi
         test()->fail('Authentication failure must stop provider work.');
     } catch (CustomerPassCreationException $exception) {
         expect($exception->providerStage->value)->toBe('oauth');
-        expect($exception->outcome->value)->toBe('definitive');
+        expect($exception->outcome)->toBe(FailureOutcome::Definitive);
+        expect($exception->isRetryable())->toBeTrue();
         expect($exception->providerStatus)->toBe($status);
         expect((string) $exception)->not->toContain('private-provider-marker');
     }
@@ -2046,11 +2056,52 @@ it('refuses unsafe SDK stdout logging before loading credentials or authenticati
         test()->fail('Unsafe SDK logging must prevent private provider traffic.');
     } catch (CustomerPassCreationException $exception) {
         expect($exception->providerStage->value)->toBe('configuration');
-        expect($exception->reason)->toBe('unsafe_sdk_logging');
+        expect($exception->failure)->toBe(CustomerPassCreationFailure::UnsafeSdkLogging);
         expect($exception->getPrevious())->toBeNull();
     } finally {
         putenv($previous === false ? 'GOOGLE_SDK_PHP_LOGGING' : 'GOOGLE_SDK_PHP_LOGGING='.$previous);
     }
 
     expect($this->http->requests())->toBeEmpty();
+});
+
+it('classifies native status failures through the creation boundary without changing request counts', function (
+    string $stage, string $method, int $status, CustomerPassCreationFailure $expected, FailureOutcome $outcome,
+) {
+    $responses = walletResponses($this->class, $this->object);
+    if ($stage === 'class') {
+        $responses[$this->classUrl.'/'.$this->classId] = GoogleWalletHttpFake::json([], 404);
+        $responses[$this->classUrl] = GoogleWalletHttpFake::json(['error' => 'private status fixture'], $status);
+    } else {
+        $responses[$this->objectUrl] = GoogleWalletHttpFake::json([], $method === 'GET' ? 409 : $status);
+        $responses[$this->objectUrl.'/'.$this->objectId] = GoogleWalletHttpFake::json(['error' => 'private status fixture'], $method === 'GET' ? $status : 404);
+    }
+    $this->http->respondWith($responses);
+
+    try {
+        app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
+        $this->fail('Rejected or unconfirmed creation must not return a handoff.');
+    } catch (CustomerPassCreationException $exception) {
+        expect($exception->failure)->toBe($expected);
+        expect($exception->outcome)->toBe($outcome);
+        expect($exception->providerStage->value)->toBe($stage);
+        expect($exception->providerStatus)->toBe($stage === 'object' && $method === 'POST' && $outcome === FailureOutcome::Unknown ? 404 : $status);
+        expect($exception->getPrevious())->toBeNull();
+        expect(json_encode($exception->context))->not->toContain('private status fixture');
+    }
+
+    expect($this->http->requests())->toHaveCount($stage === 'object' && ($method === 'GET' || $outcome === FailureOutcome::Unknown) ? 4 : 3);
+})->with(function (): iterable {
+    foreach ([302, 400, 408, 429, 500, 503] as $status) {
+        yield 'class-'.$status => ['class', 'POST', $status, CustomerPassCreationFailure::ProviderRejected, FailureOutcome::Definitive];
+    }
+    foreach ([400, 401, 403, 404, 422] as $status) {
+        yield 'object-rejected-'.$status => ['object', 'POST', $status, CustomerPassCreationFailure::ProviderRejected, FailureOutcome::Definitive];
+    }
+    foreach ([302, 408, 409, 429, 500, 503] as $status) {
+        yield 'object-unknown-'.$status => ['object', 'POST', $status, CustomerPassCreationFailure::ConfirmationUnavailable, FailureOutcome::Unknown];
+    }
+    foreach ([400, 401, 403, 404, 503] as $status) {
+        yield 'confirmation-'.$status => ['object', 'GET', $status, CustomerPassCreationFailure::ConfirmationUnavailable, FailureOutcome::Unknown];
+    }
 });
