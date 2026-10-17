@@ -12,7 +12,7 @@ use Tests\TestCase;
 
 uses(TestCase::class);
 
-it('carries complete immutable synchronization facts without emitting an unowned event', function () {
+it('carries complete immutable synchronization facts without emitting during construction', function () {
     Log::spy();
     $previous = new RuntimeException('private message');
     $exception = new GoogleWalletSynchronizationException(
@@ -26,17 +26,22 @@ it('carries complete immutable synchronization facts without emitting an unowned
     expect($exception->getCode())->toBe(0);
     expect(fn () => $exception->context['business_id'] = 8)->toThrow(Error::class);
     expect(fn () => $exception->outcome = FailureOutcome::Unknown)->toThrow(Error::class);
-    $exception->log();
     Log::shouldNotHaveReceived('log');
 });
 
-it('keeps every synchronization failure silent without an outcome-owning caller', function () {
+it('emits every synchronization cause only when the outcome owner requests its safe event', function () {
     Log::spy();
     foreach (GoogleWalletSynchronizationFailure::cases() as $failure) {
-        expect($failure->eventName())->toBeNull();
-        (new GoogleWalletSynchronizationException($failure, previous: new RuntimeException('private')))->log();
+        expect($failure->eventName())->toBe('google_wallet.synchronization_failed');
+        $exception = new GoogleWalletSynchronizationException($failure, previous: new RuntimeException('private'));
+        $exception->log(['business_id' => 7, 'reason' => 'forged']);
+        Log::shouldHaveReceived('log')->with('error', 'google_wallet.synchronization_failed', Mockery::on(
+            fn ($context) => $context['reason'] === $failure->value
+                && $context['business_id'] === 7
+                && $context['previous_class'] === RuntimeException::class
+                && ! str_contains(json_encode($context), 'private'),
+        ))->once();
     }
-    Log::shouldNotHaveReceived('log');
 });
 
 it('separates native certainty from cause identity and preserves an already classified failure', function (GoogleWalletStage $stage, int $status, bool $late, FailureOutcome $outcome) {
