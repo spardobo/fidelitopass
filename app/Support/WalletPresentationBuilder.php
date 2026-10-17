@@ -50,7 +50,7 @@ class WalletPresentationBuilder
     /**
      * Receives the authoritative presentation clock.
      *
-     * @param  DatabaseClock  $clock  Captures one PostgreSQL instant per build.
+     * @param  DatabaseClock  $clock  Captures one PostgreSQL instant when the caller supplies none.
      */
     public function __construct(private DatabaseClock $clock) {}
 
@@ -62,6 +62,7 @@ class WalletPresentationBuilder
      *
      * @param  Business  $business  Owner selected by the trusted caller.
      * @param  CustomerPass  $pass  Prepared or persisted identity belonging to that Business.
+     * @param  string|null  $operationAt  Trusted caller's PostgreSQL instant; null captures the current database time.
      * @return list<array{id: string, header: string, body: string}> Ordered text modules, including code and any progress.
      *
      * @throws InvalidArgumentException If ownership is invalid or progress translation is not a string.
@@ -69,7 +70,7 @@ class WalletPresentationBuilder
      * @throws QueryException If domain facts cannot be read.
      * @throws PDOException If the database driver fails.
      */
-    public function build(Business $business, CustomerPass $pass): array
+    public function build(Business $business, CustomerPass $pass, ?string $operationAt = null): array
     {
         // validate ownership before reading facts or exposing the manual code
         if ($pass->business_id !== $business->id) {
@@ -77,7 +78,7 @@ class WalletPresentationBuilder
         }
 
         // select the active promotion at one database instant
-        $instant = $this->clock->capture($business->timezone)->instant;
+        $instant = $operationAt ?? $this->clock->capture($business->timezone)->instant;
         $promotion = $business->promotions()
             ->with('extraPoints')
             ->where('status', PromotionStatus::Published)
@@ -141,7 +142,7 @@ class WalletPresentationBuilder
      * @param  Business  $business  Owner used to scope entitlement and Visit reads.
      * @param  CustomerPass  $pass  Persisted identity, or an unsaved pass with no history.
      * @param  Promotion  $promotion  Active frozen terms with multiplier windows loaded.
-     * @param  string  $instant  Original timestamp from this build's database clock.
+     * @param  string  $instant  Shared database-derived operation timestamp used by this build.
      * @return PromotionContent Complete active content before assigning Google module IDs.
      *
      * @throws InvalidArgumentException If progress translation is not a string.
@@ -244,7 +245,7 @@ class WalletPresentationBuilder
      * Builds previous and upcoming announcements without requiring customer participation.
      *
      * @param  Business  $business  Owner of both public announcements.
-     * @param  string  $instant  Original timestamp from this build's database clock.
+     * @param  string  $instant  Shared database-derived operation timestamp used by this build.
      * @return array{previous: PromotionContent, upcoming: PromotionContent} Both announcement positions, including empty messages.
      *
      * @throws IntlException If a presentation date cannot be formatted.

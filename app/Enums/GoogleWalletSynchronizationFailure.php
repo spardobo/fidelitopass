@@ -32,12 +32,12 @@ enum GoogleWalletSynchronizationFailure: string
     }
 
     /**
-     * Keeps the integration silent until a domain caller owns the complete operation outcome.
+     * Names the failure event emitted by the domain outcome owner, never by the integration.
      *
-     * @return string|null No integration-owned event exists.
+     * @return string|null Stable caller-owned synchronization event.
      */
-    public function eventName(): ?string // @phpstan-ignore return.unusedType (uniform failure catalog contract permits named events)
+    public function eventName(): ?string // @phpstan-ignore return.unusedType (uniform failure catalog contract permits silent causes)
     {
-        return null;
+        return 'google_wallet.synchronization_failed';
     }
 }
