@@ -1,7 +1,7 @@
 <?php
 
-use App\Enums\InspectionFailure;
-use App\Exceptions\CustomerPassInspectionException;
+use App\Enums\PassFindingFailure;
+use App\Exceptions\CustomerPassFindingException;
 use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Models\Business;
 use App\Models\CustomerPass;
@@ -195,7 +195,7 @@ it('returns ordinary absence for unknown or foreign operation UUIDs without reve
     Log::shouldNotHaveReceived('log');
 })->with(['foreign business', 'different pass', 'unknown']);
 
-it('rejects current credential and actor failures through the Inspector only once', function (string $kind, string $reason, int $attempts) {
+it('rejects current credential and actor failures through the Finder only once', function (string $kind, string $reason, int $attempts) {
     [$business, $pass, , $operationId] = receiptFixture();
     $actor = $business->user;
     $credential = str_repeat('a', 64);
@@ -218,7 +218,7 @@ it('rejects current credential and actor failures through the Inspector only onc
     $before = receiptStoredFacts();
 
     expect(fn () => app(VisitReceipt::class)->find($actor, 'token', $credential, $operationId))
-        ->toThrow(CustomerPassInspectionException::class, $reason);
+        ->toThrow(CustomerPassFindingException::class, $reason);
 
     expect(receiptStoredFacts())->toBe($before);
     expect($this->http->history)->toBeEmpty();
@@ -238,16 +238,16 @@ it('rejects current credential and actor failures through the Inspector only onc
     ['throttled', 'invalid_attempt_limit', 1],
 ]);
 
-it('propagates the Inspector failure instance without a second outcome log', function () {
+it('propagates the Finder failure instance without a second outcome log', function () {
     [$business, , , $operationId] = receiptFixture();
-    $failure = new CustomerPassInspectionException(InspectionFailure::AuthoritativeReadFailed);
+    $failure = new CustomerPassFindingException(PassFindingFailure::AuthoritativeReadFailed);
     $this->mock(DatabaseClock::class)->shouldReceive('capture')->once()->andThrow($failure);
     $before = receiptStoredFacts();
 
     try {
         app(VisitReceipt::class)->find($business->user, 'manual', '00007', $operationId);
-        test()->fail('Expected original inspection failure.');
-    } catch (CustomerPassInspectionException $caught) {
+        test()->fail('Expected original pass-finding failure.');
+    } catch (CustomerPassFindingException $caught) {
         expect($caught)->toBe($failure);
     }
 
@@ -298,8 +298,8 @@ it('sanitizes native receipt query failures once without changing known committe
     try {
         app(VisitReceipt::class)->find($actor, 'manual', $pass->manual_code, $operationId);
         test()->fail('Expected receipt read failure.');
-    } catch (CustomerPassInspectionException $failure) {
-        expect($failure->failure)->toBe(InspectionFailure::AuthoritativeReadFailed);
+    } catch (CustomerPassFindingException $failure) {
+        expect($failure->failure)->toBe(PassFindingFailure::AuthoritativeReadFailed);
         expect($failure->getPrevious())->toBeNull();
     } finally {
         $connection->setEventDispatcher($dispatcher);

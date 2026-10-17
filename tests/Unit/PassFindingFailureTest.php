@@ -1,13 +1,13 @@
 <?php
 
-use App\Enums\InspectionFailure;
+use App\Enums\PassFindingFailure;
 
-it('provides the closed inspection reason catalog and its operational metadata', function (
+it('provides the closed pass-finding reason catalog and its operational metadata', function (
     string $code,
     string $level,
     ?string $event,
 ) {
-    $failure = InspectionFailure::from($code);
+    $failure = PassFindingFailure::from($code);
 
     expect($failure->value)->toBe($code);
     expect($failure->logLevel())->toBe($level);

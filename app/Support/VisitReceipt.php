@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Exceptions\CustomerPassInspectionException;
+use App\Exceptions\CustomerPassFindingException;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
@@ -17,11 +17,11 @@ use Throwable;
 final class VisitReceipt
 {
     /**
-     * Receives the existing current-credential and owner inspection boundary.
+     * Receives the existing current-credential and owner finder boundary.
      *
-     * @param  CustomerPassInspector  $inspector  Read-only authority check; eligibility is not receipt authority.
+     * @param  CustomerPassFinder  $finder  Read-only authority check; eligibility is not receipt authority.
      */
-    public function __construct(private readonly CustomerPassInspector $inspector) {}
+    public function __construct(private readonly CustomerPassFinder $finder) {}
 
     /**
      * Finds one committed operation using current ownership and a current private credential.
@@ -31,7 +31,7 @@ final class VisitReceipt
      *
      * @param  User|null  $actor  Server-authenticated owner, or null.
      * @param  string  $method  Existing token or manual credential method.
-     * @param  string  $credential  Private input revalidated by the Inspector for this request.
+     * @param  string  $credential  Private input revalidated by the Finder for this request.
      * @param  string  $operationId  UUID for the same intentional confirmation, not mutation authority.
      * @return array{
      *     visit_id: int,
@@ -49,7 +49,7 @@ final class VisitReceipt
      *     }
      * }|null Original Visit facts and frozen terms with progress through this Visit only.
      *
-     * @throws CustomerPassInspectionException If current credential inspection or the receipt read fails.
+     * @throws CustomerPassFindingException If current credential validation or the receipt read fails.
      * @throws Throwable If native logging or an unexpected failure interrupts the read.
      */
     public function find(?User $actor, string $method, #[SensitiveParameter] string $credential, string $operationId): ?array
@@ -59,18 +59,18 @@ final class VisitReceipt
         }
 
         $operationId = strtolower($operationId);
-        $inspection = $this->inspector->inspect($actor, $method, $credential);
+        $found = $this->finder->find($actor, $method, $credential);
 
-        // inspection owns its failures; only the additional receipt query is translated here
+        // the finder owns its failures; only the additional receipt query is translated here
         try {
-            $row = $this->readSnapshot($actor, $inspection['customer_pass_id'], $method, $credential, $operationId);
+            $row = $this->readSnapshot($actor, $found['customer_pass_id'], $method, $credential, $operationId);
 
             return $row === null ? null : $this->buildResult($row);
         } catch (QueryException|PDOException $exception) {
-            $failure = CustomerPassInspectionException::fromException($exception);
+            $failure = CustomerPassFindingException::fromException($exception);
             $failure->log([
                 'actor_id' => $actor?->id,
-                'customer_pass_id' => $inspection['customer_pass_id'],
+                'customer_pass_id' => $found['customer_pass_id'],
                 'operation_id' => $operationId,
                 'read_context' => 'visit_receipt',
                 'outcome' => 'unavailable',
@@ -83,12 +83,12 @@ final class VisitReceipt
     /**
      * Reads the original offer and insertion prefix in one scoped statement snapshot.
      *
-     * The pass identity comes only from current inspection, never hydrated input. The same
+     * The pass identity comes only from the current finder result, never hydrated input. The same
      * statement reconfirms ownership and credential binding without another validity clock.
      *
-     * @param  User|null  $actor  Actor already checked by the Inspector.
-     * @param  int  $passId  Pass resolved by current credential inspection.
-     * @param  string  $method  Credential method already allowlisted by the Inspector.
+     * @param  User|null  $actor  Actor already checked by the Finder.
+     * @param  int  $passId  Pass resolved by the current private credential.
+     * @param  string  $method  Credential method already allowlisted by the Finder.
      * @param  string  $credential  Private input already validated, used only in a bound comparison.
      * @param  string  $operationId  Normalized valid operation UUID.
      * @return stdClass|null Explicit original facts, or no matching committed Visit.

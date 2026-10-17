@@ -2,8 +2,8 @@
 
 namespace App\Support;
 
-use App\Enums\InspectionFailure;
-use App\Exceptions\CustomerPassInspectionException;
+use App\Enums\PassFindingFailure;
+use App\Exceptions\CustomerPassFindingException;
 use App\Models\Business;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -15,13 +15,13 @@ use stdClass;
 use Throwable;
 
 /**
- * Read-only inspection of a private pass, always scoped to the
+ * Finds a private pass read-only, always scoped to the
  * authenticated actor's Business.
  *
  * Performs no domain writes, never echoes the credential and emits
  * every operational event from its single public entry point.
  */
-final class CustomerPassInspector
+final class CustomerPassFinder
 {
     private const int MAX_CREDENTIAL_LENGTH = 256;
 
@@ -34,16 +34,16 @@ final class CustomerPassInspector
     /**
      * Receives the PostgreSQL clock used for the read-only hint.
      *
-     * @param  DatabaseClock  $clock  Authoritative clock captured once per inspection.
+     * @param  DatabaseClock  $clock  Authoritative clock captured once per search.
      */
     public function __construct(private readonly DatabaseClock $clock) {}
 
     /**
-     * Inspects a private credential within the actor's Business.
+     * Finds a pass by private credential within the actor's Business.
      *
      * The actor must be server-authenticated; the credential is never
      * retained in results or logs. Invalid attempts share one actor
-     * window. A successful inspection is a nonauthoritative hint:
+     * window. A successful search is a nonauthoritative hint:
      * later commands must revalidate before accepting a Visit or a
      * redemption.
      *
@@ -66,14 +66,14 @@ final class CustomerPassInspector
      *     can_redeem_reward: bool
      * } Selected nonsecret facts; negative eligibility is still a success.
      *
-     * @throws CustomerPassInspectionException If any validation, credential, throttle or authoritative-read check fails.
-     * @throws Throwable If native logging or an unexpected collaborator failure interrupts inspection.
+     * @throws CustomerPassFindingException If any validation, credential, throttle or authoritative-read check fails.
+     * @throws Throwable If native logging or an unexpected collaborator failure interrupts the search.
      */
-    public function inspect(?User $actor, string $method, #[SensitiveParameter] string $credential): array
+    public function find(?User $actor, string $method, #[SensitiveParameter] string $credential): array
     {
         // reject unauthenticated or unverified actors before any other work
         if ($actor === null || ! $actor->hasVerifiedEmail()) {
-            throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
+            throw new CustomerPassFindingException(PassFindingFailure::Forbidden);
         }
 
         $businessId = null;
@@ -82,7 +82,7 @@ final class CustomerPassInspector
             // resolve the actor's business; lookups are always scoped to it
             $business = $actor->business()->first();
             if ($business === null) {
-                throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
+                throw new CustomerPassFindingException(PassFindingFailure::Forbidden);
             }
 
             $businessId = $business->id;
@@ -95,7 +95,7 @@ final class CustomerPassInspector
             $normalized = $this->normalizeCredential($method, $credential);
             if ($normalized === null) {
                 $this->recordInvalidAttempt($rateLimitKey);
-                throw new CustomerPassInspectionException(InspectionFailure::InvalidCredential);
+                throw new CustomerPassFindingException(PassFindingFailure::InvalidCredential);
             }
 
             // capture one authoritative instant for the whole snapshot
@@ -104,19 +104,19 @@ final class CustomerPassInspector
 
             // reject ambiguous occupancy instead of choosing a pass arbitrarily
             if (count($rows) > 1) {
-                throw new CustomerPassInspectionException(InspectionFailure::AmbiguousActivePromotion);
+                throw new CustomerPassFindingException(PassFindingFailure::AmbiguousActivePromotion);
             }
 
             // a well-formed credential resolving to no pass is a business rejection
             if ($rows === []) {
                 $this->recordInvalidAttempt($rateLimitKey);
-                throw new CustomerPassInspectionException(InspectionFailure::InvalidCredential);
+                throw new CustomerPassFindingException(PassFindingFailure::InvalidCredential);
             }
 
             return $this->buildResult($rows[0], $capturedAt);
         } catch (QueryException|PDOException $exception) {
             // discard the secret-bearing cause while preserving the existing safe diagnostics
-            $failure = CustomerPassInspectionException::fromException($exception);
+            $failure = CustomerPassFindingException::fromException($exception);
             $failure->log([
                 'actor_id' => $actor->id,
                 'business_id' => $businessId,
@@ -124,16 +124,16 @@ final class CustomerPassInspector
             ]);
 
             throw $failure;
-        } catch (CustomerPassInspectionException $exception) {
+        } catch (CustomerPassFindingException $exception) {
             $exception->log([
                 'actor_id' => $actor->id,
                 'business_id' => $businessId,
                 'outcome' => match ($exception->failure) {
-                    InspectionFailure::Forbidden => 'forbidden',
-                    InspectionFailure::InvalidCredential,
-                    InspectionFailure::InvalidAttemptLimit => 'rejected',
-                    InspectionFailure::AuthoritativeReadFailed,
-                    InspectionFailure::AmbiguousActivePromotion => 'unavailable',
+                    PassFindingFailure::Forbidden => 'forbidden',
+                    PassFindingFailure::InvalidCredential,
+                    PassFindingFailure::InvalidAttemptLimit => 'rejected',
+                    PassFindingFailure::AuthoritativeReadFailed,
+                    PassFindingFailure::AmbiguousActivePromotion => 'unavailable',
                 },
             ]);
 
@@ -146,19 +146,19 @@ final class CustomerPassInspector
     // ------------------------------------------------------------------------
 
     /**
-     * Rejects the inspection when the actor's invalid-attempt window is exhausted.
+     * Rejects the search when the actor's invalid-attempt window is exhausted.
      *
      * @param  string  $rateLimitKey  Shared actor window key.
      *
-     * @throws CustomerPassInspectionException If the window is exhausted.
+     * @throws CustomerPassFindingException If the window is exhausted.
      */
     private function assertNotThrottled(string $rateLimitKey): void
     {
         $maxAttempts = max(1, (int) config('pass_lookup.max_invalid_attempts', 10));
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, $maxAttempts)) {
-            throw new CustomerPassInspectionException(
-                InspectionFailure::InvalidAttemptLimit,
+            throw new CustomerPassFindingException(
+                PassFindingFailure::InvalidAttemptLimit,
                 retryAfterSeconds: RateLimiter::availableIn($rateLimitKey),
             );
         }
@@ -270,7 +270,7 @@ final class CustomerPassInspector
      * Projects one snapshot row into the fixed public shape.
      *
      * @param  stdClass  $row  Selected pass facts with zero or one active Promotion.
-     * @param  string  $capturedAt  PostgreSQL instant captured for this inspection.
+     * @param  string  $capturedAt  PostgreSQL instant captured for this search.
      * @return array{
      *     status: 'found',
      *     customer_pass_id: int,

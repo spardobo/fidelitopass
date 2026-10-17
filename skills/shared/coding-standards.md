@@ -19,7 +19,7 @@ NEVER invent an exception for an expected predicate result. NEVER let an infrast
 If a PHP application flow owns more than one classified failure reason, that flow MUST have a string-backed enum. In other languages, use the equivalent native closed catalog; NEVER introduce PHP or TypeScript syntax into JavaScript. The enum owns failure identity and the two required operational mappings. Add other metadata only for an actual consumer:
 
 ```php
-enum InspectionFailure: string
+enum PassFindingFailure: string
 {
     case Forbidden               = 'forbidden';
     case InvalidCredential       = 'invalid_credential';
@@ -34,10 +34,10 @@ enum InspectionFailure: string
 The domain exception carries one cause enum, never a reason string. It is a non-final data container with complete immutable facts:
 
 ```php
-class CustomerPassInspectionException extends RuntimeException
+class CustomerPassFindingException extends RuntimeException
 {
     public function __construct(
-        public readonly InspectionFailure $failure,
+        public readonly PassFindingFailure $failure,
         ?Throwable $previous = null,
         public readonly array $context = [],
         public readonly ?int $retryAfterSeconds = null,
@@ -81,7 +81,7 @@ Pattern:
 ```php
 // classify the native failure at the outcome owner and discard its secret-bearing cause
 catch (QueryException $exception) {
-    $failure = CustomerPassInspectionException::fromException($exception);
+    $failure = CustomerPassFindingException::fromException($exception);
     $failure->log(['actor_id' => $actor->id]);
 
     throw $failure;
@@ -114,7 +114,7 @@ Choose names that describe what the code actually does:
 | Wrong | Right | Why |
 | --- | --- | --- |
 | prepareCredential | normalizeCredential | It validates and canonicalizes, not "prepares" |
-| inspectionResult | buildResult | Verb describing action, not type |
+| findingResult | buildResult | Verb describing action, not type |
 | readPassSnapshot | readSnapshot | "pass" is already implicit in the class |
 | $instant | $capturedAt | Meaning, not type |
 | $rows | $matches | Semantic: at most one result |
@@ -180,25 +180,25 @@ Business methods do not log, do not catch, do not translate. They throw typed ex
 The boundary method (the public entry) owns: translation of infra exceptions, logging, and the try/catch that keeps the flow linear.
 
 ```php
-public function inspect(...): array
+public function find(...): array
 {
     // validations first
-    if (...) { throw new CustomerPassInspectionException(InspectionFailure::Forbidden); }
+    if (...) { throw new CustomerPassFindingException(PassFindingFailure::Forbidden); }
     // ... all guards ...
 
     try {
-        return $this->runInspection($business, $method, $normalized, $rateLimitKey);
+        return $this->runFinding($business, $method, $normalized, $rateLimitKey);
     } catch (QueryException|PDOException $exception) {
-        $failure = CustomerPassInspectionException::fromException($exception);
+        $failure = CustomerPassFindingException::fromException($exception);
         $failure->log(/* explicit safe operation context */);
         throw $failure;
-    } catch (CustomerPassInspectionException $exception) {
+    } catch (CustomerPassFindingException $exception) {
         $exception->log(/* explicit safe outcome context */);
         throw $exception;
     }
 }
 
-private function runInspection(...): array
+private function runFinding(...): array
 {
     // operation flow, no log, no catch
 }
@@ -213,7 +213,7 @@ Anti-pattern:
 // WRONG — PublishPromotion guarantees no overlapping published windows
 $rows = DB::select("... LIMIT 2", [...]);
 if (count($rows) > 1) {
-    throw new CustomerPassInspectionException(AmbiguousActivePromotion);
+    throw new CustomerPassFindingException(AmbiguousActivePromotion);
 }
 ```
 
@@ -265,7 +265,7 @@ Describe responsibility, units, trust, preconditions. Do not restate the signatu
 /**
  * Classifies an authoritative-read failure without retaining its private native payload.
  *
- * @param Throwable $exception Native or already classified inspection failure.
+ * @param Throwable $exception Native or already classified pass-finding failure.
  *
  * @return self Complete immutable failure evidence.
  */
