@@ -114,7 +114,7 @@ async function settle() {
 
 test("camera starts without BarcodeDetector, prefers rear video and never requests audio", async () => {
     const { scanner, calls } = setup(async (...args) => args.at(-1));
-    await scanner.start();
+    await scanner.startCamera();
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0][0], {
         video: { facingMode: { ideal: "environment" } },
@@ -125,25 +125,69 @@ test("camera starts without BarcodeDetector, prefers rear video and never reques
     assert.equal(scanner.error, "");
 });
 
+test("active stop releases only the owned SDK controls exactly once", async () => {
+    const { scanner, stops } = setup();
+    await scanner.startCamera();
+
+    scanner.stopCamera();
+    scanner.stopCamera();
+    scanner.destroy();
+
+    assert.deepEqual(stops, ["owned"]);
+    assert.equal(scanner.active, false);
+});
+
+test("stopping before imports settle never acquires media or publishes stale startup errors", async () => {
+    const { scanner, calls, results } = setup();
+    const starting = scanner.startCamera();
+    scanner.stopCamera();
+    await starting;
+
+    assert.equal(calls.length, 0);
+    assert.deepEqual(results, []);
+    assert.equal(scanner.active, false);
+    assert.equal(scanner.starting, false);
+});
+
+test("synchronous callback controls release the session without stopping its later SDK wrapper twice", async () => {
+    const releases = [];
+    const callbackControls = { stop: () => releases.push("callback") };
+    const returnedControls = { stop: () => callbackControls.stop() };
+    let releasedBeforeReturn = false;
+    const { scanner, results } = setup(async (_constraints, _video, callback) => {
+        callback({ getText: () => "exact-token" }, undefined, callbackControls);
+        releasedBeforeReturn = releases.length === 1;
+        return returnedControls;
+    });
+
+    await scanner.startCamera();
+    scanner.stopCamera();
+
+    assert.equal(releasedBeforeReturn, true);
+    assert.deepEqual(releases, ["callback"]);
+    assert.deepEqual(results, ["exact-token"]);
+    assert.equal(scanner.active, false);
+});
+
 test("duplicate start clicks share one startup and active stream", async () => {
     const permission = deferred();
     const { scanner, calls, controls } = setup(() => permission.promise);
-    const first = scanner.start();
-    await scanner.start();
+    const first = scanner.startCamera();
+    await scanner.startCamera();
     await settle();
     assert.equal(calls.length, 1);
     permission.resolve(controls);
     await first;
-    await scanner.start();
+    await scanner.startCamera();
     assert.equal(calls.length, 1);
 });
 
 test("close during permission releases late scoped controls and never publishes a result", async () => {
     const permission = deferred();
     const { scanner, calls, controls, stops, results } = setup(() => permission.promise);
-    const start = scanner.start();
+    const start = scanner.startCamera();
     await settle();
-    scanner.stop();
+    scanner.stopCamera();
     calls[0][2]({ getText: () => "late-private-token" }, undefined, controls);
     permission.resolve(controls);
     await start;
@@ -162,7 +206,7 @@ test("synchronous first read stops callback controls and delivers exactly one un
             return controls;
         },
     );
-    await scanner.start();
+    await scanner.startCamera();
     calls[0][2]({ getText: () => "later" }, undefined, { stop() {} });
     assert.deepEqual(results, ["  exact-private-token  "]);
     assert.deepEqual(stops, ["owned"]);
@@ -178,11 +222,11 @@ test("reopen waits for obsolete startup before acquiring current video and ignor
     const { scanner, calls, replaceVideo } = setup(() =>
         ++count === 1 ? permission.promise : Promise.resolve(newControls),
     );
-    const first = scanner.start();
+    const first = scanner.startCamera();
     await settle();
-    scanner.stop();
+    scanner.stopCamera();
     const newVideo = replaceVideo();
-    const next = scanner.start();
+    const next = scanner.startCamera();
     await settle();
     assert.equal(calls.length, 1);
     permission.resolve(oldControls);
@@ -193,7 +237,7 @@ test("reopen waits for obsolete startup before acquiring current video and ignor
     calls[0][2](undefined, new Error("private native error"), oldControls);
     assert.equal(scanner.active, true);
     assert.equal(scanner.error, "");
-    scanner.stop();
+    scanner.stopCamera();
     assert.deepEqual(stops, ["old", "new"]);
 });
 
@@ -202,7 +246,7 @@ test("unavailable capability does not initialize SDK camera and leaves a safe re
         const { scanner, calls } = setup(async (...args) => args.at(-1));
         if (unavailable === "insecure") window.isSecureContext = false;
         else window.navigator.mediaDevices = undefined;
-        await scanner.start();
+        await scanner.startCamera();
         assert.equal(scanner.error, "unavailable");
         assert.equal(calls.length, 0);
         scanner.destroy();
@@ -222,7 +266,7 @@ test("startup failures expose only denied, busy, unavailable or initialization r
         const { scanner } = setup(async () => {
             throw Object.assign(new Error("secret details"), { name });
         });
-        await scanner.start();
+        await scanner.startCamera();
         assert.equal(scanner.error, expected);
         assert.equal(scanner.active, false);
         assert.equal(scanner.starting, false);
@@ -233,7 +277,7 @@ test("startup failures expose only denied, busy, unavailable or initialization r
 
 test("ordinary unreadable frames remain SDK-owned while fatal decoding stops the scoped session", async () => {
     const { scanner, calls, controls, stops, results } = setup(async (...args) => args.at(-1));
-    await scanner.start();
+    await scanner.startCamera();
     for (const ErrorType of [NotFoundException, ChecksumException, FormatException])
         calls[0][2](undefined, new ErrorType(), controls);
     assert.equal(scanner.active, true);
@@ -249,12 +293,12 @@ test("ordinary unreadable frames remain SDK-owned while fatal decoding stops the
 test("destroy invalidates pending startup and cannot be reopened", async () => {
     const permission = deferred();
     const { scanner, calls, controls, stops, results } = setup(() => permission.promise);
-    const start = scanner.start();
+    const start = scanner.startCamera();
     await settle();
     scanner.destroy();
     permission.resolve(controls);
     await start;
-    await scanner.start();
+    await scanner.startCamera();
     calls[0][2]({ getText: () => "late" }, undefined, controls);
     assert.deepEqual(stops, ["owned"]);
     assert.deepEqual(results, []);
