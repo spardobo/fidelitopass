@@ -52,13 +52,16 @@ if ($operation === 'guard') {
         throw new RuntimeException('Testing reset did not remove browser fixtures.');
     }
     echo "Rebuilt testing only; users=0, promotions=0.\n";
-} elseif ($operation === 'serve') {
+} elseif (in_array($operation, ['serve', 'serve-visits'], true)) {
     if (file_put_contents(storage_path('server.pid'), (string) getmypid()) === false) {
         throw new RuntimeException('Unable to record the owned listener PID.');
     }
-    // use Laravel's native router directly so the recorded PID owns the listener.
+    // the fixed visits branch preserves native routing for all existing modes
+    $router = $operation === 'serve-visits'
+        ? base_path('scripts/quality/browser/visit-registration-router.php')
+        : base_path('vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php');
     chdir(public_path());
-    pcntl_exec(PHP_BINARY, ['-S', '0.0.0.0:8017', base_path('vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php')]);
+    pcntl_exec(PHP_BINARY, ['-S', '0.0.0.0:8017', $router]);
     throw new RuntimeException('Temporary server could not start.');
 } elseif ($operation === 'stop') {
     $recordedPid = file_get_contents(storage_path('server.pid'));
