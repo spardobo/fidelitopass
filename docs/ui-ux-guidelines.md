@@ -386,29 +386,32 @@ When implemented and operational, the global action opens one identification →
 ### Required order
 
 1. Dialog title: **Registrar visita**.
-2. Scanner/camera area.
-3. Manual fallback **immediately below the scanner**.
-4. Customer-pass lookup, explicit confirmation and result card in the same dialog.
+2. Manual-code entry and **Buscar tarjeta**.
+3. Secondary **Activar cámara** action, with no camera region or media request before activation.
+4. Customer-pass identification, explicit confirmation and result card in the same dialog.
 
-Manual fallback:
+Manual entry:
 
 ```text
 Código de la Tarjeta
-[ 48273               ]
-[ Buscar tarjeta ]
+[ Ej: 583 ] [ Buscar tarjeta ]
 ```
 
-During identification only, keep manual entry visible directly beneath the scanner including camera errors. Scanning and manual lookup are read-only and lead to the same confirmation. Once identified, hide scanner and manual together; display only the relevant confirmation, then only the result after a confirmed commit. **Volver a leer** restores a clean identification. Pause/ignore stale reads after lookup; release camera and listeners on close/navigation.
+Use equal-width input and search-button columns with equal control heights on desktop. Stack both at full width on mobile and center the label. Reuse the current Business-form treatment and shared help-with-icon style. The placeholder is a fixed illustrative three-digit example, not field data. Help explains the five-number code and preservation of leading zeros. Keep enough width for supported historical codes; do not force a numeric keyboard or truncate them to the current issuance length.
+
+Manual controls remain available while the camera starts, runs or reports an error. **Activar cámara** reveals and starts capture only on explicit request; **Desactivar cámara** stops capture and hides its region without erasing the entered code. Deactivation during startup also invalidates late permission results. Typing or erasing manual input cancels obsolete identification requests but does not stop active capture.
+
+Scanning and manual identification are read-only and lead to the same confirmation. Stop capture before pass identification. Once identified, hide camera and manual controls together; display only the relevant confirmation, then only the result after a confirmed commit. **Volver a leer** restores clean manual-first identification without restarting the camera. Release camera and listeners on close/navigation.
 
 ### Camera error
 
-Keep the scanner region in place. Distinguish unavailable camera or secure connection, denied permission, busy device and QR reader initialization failure when observable. Use safe Spanish feedback with a practical next step; do not expose native error messages. Show startup feedback while permission or reader initialization is pending.
+After explicit activation, keep the camera region visible when an error occurs. Distinguish unavailable camera or secure connection, denied permission, busy device and QR reader initialization failure when observable. Use safe Spanish feedback with a practical next step; do not expose native error messages. Show startup feedback while permission or reader initialization is pending, and keep deactivation available.
 
-The manual field remains immediately below and available during startup and after any camera error.
+Manual identification remains available during startup and after any camera error.
 
 ### Customer-pass result
 
-Show only operationally relevant data in the focused stage: current Promoción, current pass progress, applicable Visit point value or Reward deadline, stage result and one primary action. Move focus from reader instructions to confirmation heading to result heading; on close restore focus to the trigger and preserve the originating page's unsaved inputs.
+Show only operationally relevant data in the focused stage: current Promoción, current pass progress, applicable Visit point value or Reward deadline, stage result and one primary action. Failures keep the identification, confirmation or result context where the user acted and show one concise Flux danger toast. Do not replace that context with a technical error or pending-status page, duplicate the toast in long inline guidance, or add a public status-check button. Move focus from the visible manual input to confirmation heading to result heading; on close restore focus to the trigger and preserve the originating page's unsaved inputs.
 
 Do not expose customer identity because none exists.
 
@@ -421,7 +424,7 @@ Do not expose customer identity because none exists.
 | Promoción ended/cancelled | none |
 | Waiting for Promoción | none |
 
-Before mutation, explicitly confirm the intended operation. On confirmation, revalidate ownership, eligibility, published terms and database time on the server with an idempotency key; show resulting progress after commit. Provider sync failures must not invite a duplicate Visit or redemption.
+Before mutation, explicitly confirm the intended operation. On confirmation, revalidate ownership, eligibility, published terms and database time on the server with an idempotency key; show resulting progress after commit. Provider sync failures must not invite a duplicate Visit or redemption. Show immediate scoped loading feedback within the current context. If a registration response is uncertain, keep the selected confirmation and original identity through closing and reopening. Retrying the primary action may reconcile that same Visit read-only, never submit a new Visit. A missing receipt does not prove rollback or allow a new registration. Keep returning to a new identification unavailable until the outcome is resolved. Once acceptance is known, unavailable optional details keep the positive result and produce a concise toast; an internal read-only refresh may run when that result is reopened. Do not poll or expose a separate recovery workflow.
 
 ## Reward redemption
 

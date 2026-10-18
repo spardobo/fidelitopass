@@ -21,12 +21,16 @@ it('renders enabled product destinations and POST logout for the authenticated o
     @$document->loadHTML(mb_convert_encoding($response->getContent(), 'HTML-ENTITIES', 'UTF-8'));
     $xpath = new DOMXPath($document);
 
-    foreach (['/pass', '/invite', '/visits/create'] as $path) {
+    foreach (['/pass', '/invite'] as $path) {
         $links = $xpath->query('//header[@data-flux-header]//a[@href="'.url($path).'"]');
         expect($links->length)->toBe(1);
         expect($links->item(0)->hasAttribute('disabled'))->toBeFalse();
         expect($links->item(0)->getAttribute('aria-disabled'))->not->toBe('true');
     }
+
+    expect($xpath->query('//header[@data-flux-header]//*[@data-flux-modal-trigger]//button[@id="register-visit-trigger"]')->length)->toBe(1);
+    expect($xpath->query('//a[@href="'.url('/visits/create').'"]')->length)->toBe(0);
+    expect($xpath->query('//dialog[@data-modal="visit-registration"]')->length)->toBe(1);
 
     foreach (['business.edit', 'profile.edit', 'security.edit'] as $route) {
         expect($xpath->query('//header[@data-flux-header]//a[@href="'.route($route).'"]')->length)->toBe(1);

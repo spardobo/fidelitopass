@@ -718,8 +718,11 @@ class DashboardTest extends TestCase
         $this->assertSame(['1', '0', '0', '0'], $this->metricValues($component->html()));
         $fail = true;
 
-        $this->get(route('dashboard'))
-            ->assertSee(url('/visits/create'))->assertSee(url('/invite'));
+        $response = $this->get(route('dashboard'))->assertSee(url('/invite'));
+        $document = new \DOMDocument;
+        $document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//button[@id="register-visit-trigger" and not(@disabled) and not(@aria-disabled="true") and normalize-space(.)="Registrar visita"]')->length);
         $component->call('$refresh')
             ->assertSee('No pudimos cargar toda la información.')->assertSee('Reintentar')
             ->assertSee('Inténtalo de nuevo en unos momentos.')
