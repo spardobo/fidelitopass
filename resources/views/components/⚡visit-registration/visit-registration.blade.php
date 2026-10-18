@@ -16,11 +16,14 @@
             <div>
                 @if ($stage === 'identify')
                     <section wire:key="visit-identify" class="space-y-4">
+                        <x-modal-step-heading id="visit-identify-title">
+                            <x-slot:icon>
+                                <flux:icon.qr-code variant="outline" class="size-9" />
+                            </x-slot:icon>
+                            <label for="visit-manual-code">{{ __('visit-registration.manual_label') }}</label>
+                        </x-modal-step-heading>
                         <form x-on:submit.prevent="findPassManually()" x-bind:hidden="cameraEnabled">
                             <flux:field>
-                                <flux:label for="visit-manual-code" class="app-label justify-center text-center sm:justify-start">
-                                    {{ __('visit-registration.manual_label') }}
-                                </flux:label>
                                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                     <flux:input
                                         id="visit-manual-code" name="visit-manual-code" type="text"
@@ -83,32 +86,17 @@
                     </section>
                 @elseif ($stage === 'confirm')
                     <section wire:key="visit-confirm" class="space-y-4">
-                        <h3 id="visit-confirm-title" class="app-role-section">{{ __('visit-registration.confirmation_title') }}</h3>
+                        <x-modal-step-heading id="visit-confirm-title">
+                            <x-slot:icon>
+                                <flux:icon.clipboard-document-check variant="outline" class="size-9" />
+                            </x-slot:icon>
+                            {{ __('visit-registration.confirmation_title') }}
+                        </x-modal-step-heading>
                         @if ($preview['promotion'])
-                            <div class="space-y-4 rounded-2xl border border-app-border bg-app-control p-4">
-                                <div id="visit-reward" class="flex items-center gap-2">
-                                    <flux:icon.gift variant="outline" class="size-5 shrink-0 text-app-accent" />
-                                    <h4 class="app-role-card break-words text-app-ink">{{ $preview['promotion']['reward_title'] }}</h4>
-                                </div>
-                                <dl class="grid grid-cols-2 gap-4">
-                                    <div class="space-y-1">
-                                        <dt id="visit-progress-label" class="app-role-support text-app-ink-secondary">{{ __('visit-registration.progress') }}</dt>
-                                        <dd class="app-role-section tabular-nums text-app-ink">{{ $preview['promotion']['earned_points'] }} / {{ $preview['promotion']['target_points'] }} <span class="app-role-support text-app-ink-secondary">{{ __('visit-registration.points') }}</span></dd>
-                                    </div>
-                                    @if ($preview['can_accept_visit'])
-                                        <div class="space-y-1">
-                                            <dt class="app-role-support text-app-ink-secondary">{{ __('visit-registration.visit_points') }}</dt>
-                                            <dd id="visit-points-gain" class="app-role-metric text-app-ink">+{{ $preview['promotion']['visit_points'] }} <span class="app-role-support text-app-ink-secondary">{{ __('visit-registration.points') }}</span></dd>
-                                        </div>
-                                    @endif
-                                </dl>
-                                <flux:progress
-                                    id="visit-progress" :value="min($preview['promotion']['earned_points'], $preview['promotion']['target_points'])"
-                                    :max="$preview['promotion']['target_points']" aria-labelledby="visit-progress-label"
-                                    :aria-valuetext="__('visit-registration.progress_value', ['earned' => $preview['promotion']['earned_points'], 'target' => $preview['promotion']['target_points']])"
-                                    class="h-2"
-                                />
-                            </div>
+                            <x-visit-points-card
+                                :promotion="$preview['promotion']"
+                                :points="$preview['can_accept_visit'] ? $preview['promotion']['visit_points'] : null"
+                            />
                         @endif
                         @if ($preview['can_accept_visit'])
                             <div id="visit-confirm-help" class="app-note-with-icon text-app-ink-help">
@@ -132,44 +120,13 @@
                     </section>
                 @elseif ($stage === 'result')
                     <section wire:key="visit-result" class="space-y-4">
-                        <div class="flex items-center gap-3 text-app-success-ink">
-                            <flux:icon.check-circle variant="outline" class="size-10 shrink-0" />
-                            <h3 id="visit-result-title" class="app-role-section">{{ __('visit-registration.success_title') }}</h3>
-                        </div>
-                        <div class="space-y-4 rounded-2xl border border-app-border bg-app-control p-4">
-                            <dl class="space-y-4">
-                                <div class="space-y-1">
-                                    <dt class="app-role-support text-app-ink-secondary">{{ __('visit-registration.awarded') }}</dt>
-                                    <dd id="visit-points-gain" class="app-role-metric text-app-ink">+{{ $facts['points_awarded'] }} <span class="app-role-support text-app-ink-secondary">{{ __('visit-registration.points') }}</span></dd>
-                                </div>
-                                @if ($details)
-                                    <div class="space-y-2">
-                                        <dt id="visit-progress-label" class="app-role-support text-app-ink-secondary">{{ __('visit-registration.updated_progress') }}</dt>
-                                        <dd class="space-y-2">
-                                            <p class="app-role-section tabular-nums text-app-ink">{{ $details['earned_points'] }} / {{ $details['target_points'] }} <span class="app-role-support text-app-ink-secondary">{{ __('visit-registration.points') }}</span></p>
-                                            <flux:progress
-                                                id="visit-progress" :value="min($details['earned_points'], $details['target_points'])"
-                                                :max="$details['target_points']" aria-labelledby="visit-progress-label"
-                                                :aria-valuetext="__('visit-registration.progress_value', ['earned' => $details['earned_points'], 'target' => $details['target_points']])"
-                                                class="h-2"
-                                            />
-                                        </dd>
-                                    </div>
-                                @endif
-                            </dl>
-                            @if ($details)
-                                <div class="space-y-1 break-words border-t border-app-line pt-4">
-                                    @if ($details['reward_unlocked'])
-                                        <p class="app-role-action text-app-success-ink">{{ __('visit-registration.reward_unlocked') }}</p>
-                                    @endif
-                                    <div id="visit-reward" class="flex items-center gap-2">
-                                        <flux:icon.gift variant="outline" class="size-5 shrink-0 text-app-accent" />
-                                        <h4 class="app-role-card text-app-ink">{{ $details['reward_title'] }}</h4>
-                                    </div>
-                                    <p class="app-role-support text-app-ink-secondary">{{ $details['reward_description'] }}</p>
-                                </div>
-                            @endif
-                        </div>
+                        <x-modal-step-heading id="visit-result-title" :success="true">
+                            <x-slot:icon>
+                                <flux:icon.check-circle variant="outline" class="size-9" />
+                            </x-slot:icon>
+                            {{ __('visit-registration.success_title') }}
+                        </x-modal-step-heading>
+                        <x-visit-points-card :promotion="$details" :points="$facts['points_awarded']" :confirmed="true" />
                     </section>
                     <flux:error id="visit-result-error" :message="$message" x-show="!transportError" class="app-error" />
                     <flux:error :message="__('visit-registration.details_unavailable')" :icon="false" x-show="transportError" x-text="transportError" x-cloak class="app-error" />
@@ -178,32 +135,32 @@
 
         </div>
 
-        <footer class="flex shrink-0 flex-wrap items-center gap-3 border-t border-app-line pt-4">
-            @if (in_array($stage, ['confirm', 'result'], true))
+        <footer class="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-app-line pt-4">
+            <flux:modal.close :class="$stage === 'result' ? 'ms-auto' : 'me-auto'">
                 <flux:button
-                    type="button" :loading="true" wire:target="resetIdentification"
-                    x-on:click="reset()" x-bind:disabled="busy || ['pending', 'unknown'].includes(visitPhase)"
-                    data-visit-back :class="'app-button-secondary grow sm:grow-0'.(($stage === 'result' || ($preview['can_accept_visit'] ?? false)) ? ' me-auto' : '')"
-                >
-                    {{ __('visit-registration.back') }}
-                </flux:button>
-            @endif
-            <flux:modal.close class="contents">
-                <flux:button
-                    type="button" :variant="$stage === 'result' ? 'primary' : 'outline'" :loading="false"
+                    type="button" :variant="$stage === 'result' ? 'outline' : 'ghost'" :loading="false"
                     x-bind:autofocus="!manualAutofocus" data-visit-close
                     aria-describedby="visit-result-title visit-result-error"
-                    :class="($stage === 'result' ? 'app-button-primary' : 'app-button-secondary').' grow sm:grow-0'"
+                    :class="($stage === 'result' ? 'app-button-secondary' : 'app-button').' min-h-11'"
                 >
                     {{ __('visit-registration.close') }}
                 </flux:button>
             </flux:modal.close>
+            @if (in_array($stage, ['confirm', 'result'], true))
+                <flux:button
+                    type="button" :loading="true" wire:target="resetIdentification"
+                    x-on:click="reset()" x-bind:disabled="busy || ['pending', 'unknown'].includes(visitPhase)"
+                    data-visit-back class="app-button-secondary min-h-11"
+                >
+                    {{ __('visit-registration.back') }}
+                </flux:button>
+            @endif
             @if ($stage === 'confirm' && $preview['can_accept_visit'])
                 <flux:button
                     type="button" variant="primary" :loading="true"
                     wire:target="acceptVisit,findVisitReceipt" x-bind:disabled="busy"
                     x-on:click="acceptVisit(@js($preview['promotion']['id']))"
-                    data-visit-confirm aria-describedby="visit-confirm-title visit-confirm-help visit-action-error" class="app-button-primary grow sm:grow-0"
+                    data-visit-confirm aria-describedby="visit-confirm-title visit-confirm-help visit-action-error" class="app-button-primary min-h-11"
                 >
                     {{ __('visit-registration.confirm_visit') }}
                 </flux:button>

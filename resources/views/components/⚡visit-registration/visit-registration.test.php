@@ -66,6 +66,7 @@ it('identifies a scoped pass read-only without hydrating private credentials', f
             'target_points' => 3,
             'earned_points' => 0,
             'reward_title' => 'Una recompensa real',
+            'reward_description' => 'Términos originales',
             'reward_status' => 'none',
             'visit_points' => 3,
         ],
@@ -498,6 +499,85 @@ it('caps only the visual progress when an authoritative award exceeds the target
     $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 3]);
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
+});
+
+it('uses a matching icon heading for each operational step', function () {
+    [$business, $pass, $promotion] = visitDialogFixture();
+    visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $document = new DOMDocument;
+    foreach (['identify', 'confirm', 'result'] as $stage) {
+        if ($stage === 'confirm') {
+            $component->call('findPass', 'manual', '00007');
+            $id = $component->effects['returns'][0];
+        } elseif ($stage === 'result') {
+            $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
+        }
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+        $xpath = new DOMXPath($document);
+        $heading = $xpath->query('//*[@data-modal-step-heading]')->item(0);
+        expect($heading)->not->toBeNull();
+        expect($xpath->query('//*[@data-modal-step-heading]//*[local-name()="svg"]')->length)->toBe(1);
+        expect($xpath->query('//*[@data-modal-step-heading]//h3')->length)->toBe(1);
+        expect($heading->textContent)->toContain(__([
+            'identify' => 'visit-registration.manual_label',
+            'confirm' => 'visit-registration.confirmation_title',
+            'result' => 'visit-registration.success_title',
+        ][$stage]));
+    }
+});
+
+it('renders one points progress reward composition with truthful descriptions in both cards', function () {
+    [$business, $pass, $promotion] = visitDialogFixture();
+    visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    $component->assertSet('preview.promotion.reward_description', 'Términos originales');
+    $document = new DOMDocument;
+    $structure = null;
+    foreach (['confirm', 'result'] as $stage) {
+        if ($stage === 'result') {
+            $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
+            $component->call('findVisitReceipt', 'manual', '00007', $id);
+        }
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+        $xpath = new DOMXPath($document);
+        $card = $xpath->query('//*[@data-visit-points-card]')->item(0);
+        expect($card)->not->toBeNull();
+        expect($card->getAttribute('class'))->toContain($stage === 'confirm' ? 'bg-app-emphasis' : 'bg-app-success-surface');
+        $roles = [];
+        foreach ($xpath->query('//*[@data-visit-points-card]//*[@id="visit-points-gain" or @id="visit-progress" or @id="visit-reward"]') as $role) {
+            $roles[] = $role->getAttribute('id');
+        }
+        expect($roles)->toBe(['visit-points-gain', 'visit-progress', 'visit-reward']);
+        $component->assertSee('Términos originales')->assertSee('Una recompensa real');
+        expect($xpath->query('//*[@id="visit-reward"]//p')->item(0)->textContent)->toBe('Términos originales');
+        $structure ??= $roles;
+        expect($roles)->toBe($structure);
+    }
+    $this->assertDatabaseCount('visits', 1);
+});
+
+it('orders footer actions by the explicit stage rather than their button count', function () {
+    [$business, $pass, $promotion] = visitDialogFixture();
+    visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $document = new DOMDocument;
+    foreach (['identify' => ['Cerrar'], 'confirm' => ['Cerrar', 'Volver a leer', 'Confirmar visita'], 'result' => ['Cerrar', 'Volver a leer']] as $stage => $expected) {
+        if ($stage === 'confirm') {
+            $component->call('findPass', 'manual', '00007');
+            $id = $component->effects['returns'][0];
+        } elseif ($stage === 'result') {
+            $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
+        }
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+        $labels = [];
+        foreach ((new DOMXPath($document))->query('//footer//button') as $button) {
+            $labels[] = trim($button->textContent);
+        }
+        expect($labels)->toBe($expected);
+    }
 });
 
 /**

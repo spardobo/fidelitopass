@@ -59,6 +59,7 @@ final class CustomerPassFinder
      *         target_points: int,
      *         earned_points: int,
      *         reward_title: string,
+     *         reward_description: string|null,
      *         reward_status: 'none'|'available'|'redeemed',
      *         visit_points: int
      *     }|null,
@@ -234,7 +235,7 @@ final class CustomerPassFinder
 
         return DB::select(<<<SQL
             SELECT pass.id AS customer_pass_id, promotion.id AS promotion_id,
-                   promotion.target_points, promotion.reward_title,
+                   promotion.target_points, promotion.reward_title, promotion.reward_description,
                    COALESCE((SELECT extra.multiplier
                              FROM promotion_multiplier_windows AS extra
                              WHERE extra.promotion_id = promotion.id
@@ -280,6 +281,7 @@ final class CustomerPassFinder
      *         target_points: int,
      *         earned_points: int,
      *         reward_title: string,
+     *         reward_description: string|null,
      *         reward_status: 'none'|'available'|'redeemed',
      *         visit_points: int
      *     }|null,
@@ -295,6 +297,7 @@ final class CustomerPassFinder
             'target_points' => (int) $row->target_points,
             'earned_points' => (int) $row->earned_points,
             'reward_title' => (string) $row->reward_title,
+            'reward_description' => $row->reward_description === null ? null : (string) $row->reward_description,
             'reward_status' => $row->reward_id === null
                 ? 'none'
                 : ($row->redeemed_at === null ? 'available' : 'redeemed'),

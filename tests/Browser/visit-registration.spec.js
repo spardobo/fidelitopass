@@ -133,6 +133,21 @@ async function visitPresentation(dialog) {
         };
     });
     expect(parseFloat(style.fontSize)).toBe(36);
+    await expect(dialog.locator("[data-visit-points-card]")).toHaveClass(/bg-app-emphasis/);
+    const roles = await dialog.locator("[data-visit-points-card]").evaluate((card) => {
+        const icon = card.querySelector("#visit-reward svg").getBoundingClientRect();
+        const text = card.querySelector("#visit-reward > div").getBoundingClientRect();
+        return {
+            iconWidth: icon.width,
+            iconY: icon.y + icon.height / 2,
+            textY: text.y + text.height / 2,
+        };
+    });
+    expect(roles.iconWidth).toBe(32);
+    expect(Math.abs(roles.iconY - roles.textY)).toBeLessThanOrEqual(1);
+    const stageIcon = await dialog.locator("[data-modal-step-heading] svg").boundingBox();
+    expect(stageIcon.width).toBe(36);
+    expect(stageIcon.height).toBe(36);
     const actions = await dialog.locator("footer").evaluate((footer) => {
         const rect = footer.getBoundingClientRect();
         const buttons = [...footer.querySelectorAll("button")];
@@ -146,8 +161,8 @@ async function visitPresentation(dialog) {
         };
     });
     expect(actions.actions.map((action) => action.name)).toEqual([
-        "Volver a leer",
         "Cerrar",
+        "Volver a leer",
         "Confirmar visita",
     ]);
     expect(Math.abs(actions.actions[0].left - actions.left)).toBeLessThanOrEqual(1);
@@ -365,6 +380,10 @@ async function showQrOnCurrentVideo(dialog, testInfo) {
         body: Buffer.from(pixels.image.split(",")[1], "base64"),
         contentType: "image/png",
     });
+    // camera decoding and its rendered lookup are sequential asynchronous boundaries
+    await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toBeVisible({
+        timeout: 15000,
+    });
     await expect(
         dialog.getByRole("button", { name: "Confirmar visita", exact: true }),
     ).toBeFocused();
@@ -418,21 +437,9 @@ for (const width of [1280, 375]) {
             if (width > 640) expect(Math.abs(field.y - button.y)).toBeLessThanOrEqual(2);
             else {
                 expect(button.y).toBeGreaterThanOrEqual(field.y + field.height);
-                const centers = await dialog
-                    .locator('ui-label[for="visit-manual-code"]')
-                    .evaluate((element) => {
-                        const range = document.createRange();
-                        range.selectNodeContents(element);
-                        const text = range.getBoundingClientRect();
-                        const input = element.ownerDocument
-                            .getElementById(element.getAttribute("for"))
-                            .getBoundingClientRect();
-                        return {
-                            text: text.x + text.width / 2,
-                            input: input.x + input.width / 2,
-                        };
-                    });
-                expect(Math.abs(centers.text - centers.input)).toBeLessThanOrEqual(2);
+                await expect(
+                    dialog.getByRole("heading", { name: "Código de la Tarjeta" }),
+                ).toBeVisible();
             }
             const bounds = await dialog.boundingBox();
             expect(bounds.y).toBeGreaterThanOrEqual(0);
@@ -447,6 +454,33 @@ for (const width of [1280, 375]) {
                 body: await page.screenshot(),
                 contentType: "image/png",
             });
+            if (width === 375) {
+                await findManually(dialog, "layout-375");
+                const footer = dialog.locator("footer");
+                const edges = await footer.evaluate((element) => {
+                    const rect = element.getBoundingClientRect();
+                    const close = element
+                        .querySelector("[data-visit-close]")
+                        .getBoundingClientRect();
+                    const confirm = element
+                        .querySelector("[data-visit-confirm]")
+                        .getBoundingClientRect();
+                    return {
+                        left: rect.left,
+                        right: rect.right,
+                        close: close.left,
+                        confirm: confirm.right,
+                    };
+                });
+                expect(Math.abs(edges.left - edges.close)).toBeLessThanOrEqual(1);
+                expect(Math.abs(edges.right - edges.confirm)).toBeLessThanOrEqual(1);
+                await dialog.getByRole("button", { name: "Volver a leer", exact: true }).click();
+                await expect(input).toBeVisible();
+                await expect(input).toHaveValue("");
+                await expect(
+                    dialog.getByRole("button", { name: "Cerrar", exact: true }),
+                ).toBeFocused();
+            }
             await page.keyboard.press("Escape");
             await expect(dialog).not.toBeVisible();
             await expect(
@@ -508,8 +542,14 @@ test("leading-zero manual identification requires explicit confirmation and comm
             background: getComputedStyle(element.closest(".rounded-2xl")).backgroundColor,
         };
     });
-    expect(resultStyle).toEqual(
-        Object.fromEntries(Object.entries(presentation).filter(([key]) => key !== "barColor")),
+    expect(resultStyle.background).not.toBe(presentation.background);
+    expect({ ...resultStyle, background: undefined }).toEqual({
+        ...Object.fromEntries(Object.entries(presentation).filter(([key]) => key !== "barColor")),
+        background: undefined,
+    });
+    await expect(dialog.locator("[data-visit-points-card]")).toHaveClass(/bg-app-success-surface/);
+    await expect(dialog.locator("[data-modal-step-heading] > span")).toHaveClass(
+        /text-app-success-ink/,
     );
     expect(
         await progress
@@ -531,8 +571,8 @@ test("leading-zero manual identification requires explicit confirmation and comm
         .evaluate((element) =>
             [...element.querySelectorAll("button")].map((button) => button.textContent.trim()),
         );
-    expect(order).toEqual(["Volver a leer", "Cerrar"]);
-    await expect(close).toHaveClass(/app-button-primary/);
+    expect(order).toEqual(["Cerrar", "Volver a leer"]);
+    await expect(close).toHaveClass(/app-button-secondary/);
     await test
         .info()
         .attach("result-hierarchy", { body: await page.screenshot(), contentType: "image/png" });
@@ -675,7 +715,7 @@ test("known commit stays positive when optional receipt fails and reopening refr
 test("available Reward has no Visit CTA or enabled redemption stub", async ({ page }) => {
     const dialog = await openVisits(page);
     await findManually(dialog, "reward");
-    await expect(dialog.getByText("Recompensa disponible", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("¡Recompensa lista!", { exact: true })).toBeVisible();
     await expect(dialog.getByRole("button", { name: /Confirmar visita|Canjear/ })).toHaveCount(0);
     const facts = await factsFor(page, "reward");
     expect(facts.visits).toHaveLength(8);

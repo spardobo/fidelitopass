@@ -360,7 +360,7 @@ it('reports immutable awarded points and existing Reward facts without granting 
 
     expect($result['promotion'])->toBe([
         'id' => $promotion->id, 'target_points' => 8, 'earned_points' => $points,
-        'reward_title' => 'Un premio', 'reward_status' => $reward, 'visit_points' => 1,
+        'reward_title' => 'Un premio', 'reward_description' => $promotion->reward_description, 'reward_status' => $reward, 'visit_points' => 1,
     ]);
     expect($result['can_accept_visit'])->toBe($visit);
     expect($result['can_redeem_reward'])->toBe($redeem);
