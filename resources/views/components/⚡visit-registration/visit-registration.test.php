@@ -190,7 +190,7 @@ it('compares the selected offer inside acceptance and rejects a replacement with
 
     expect($component->effects['returns'][0])->toBe('rejected');
     $component->assertSet('stage', 'confirm')->assertSet('preview.promotion.id', $promotion->id)
-        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.promotion_changed')], dataset: ['variant' => 'danger']);
+        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.error_notice')], dataset: ['variant' => 'danger']);
     expect($http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 0);
 });
@@ -312,7 +312,7 @@ it('renders scoped loading and current form control semantics for every backend 
     expect($input->getAttribute('placeholder'))->toBe('Ej: 583');
     expect($input->hasAttribute('autofocus'))->toBeTrue();
     expect($xpath->query('//*[@data-qr-camera-region and @*[name()="x-cloak"]]')->length)->toBe(1);
-    $component->assertSee('Usa el código de 5 números que aparece en la Tarjeta del Cliente. Conserva los ceros iniciales.');
+    $component->assertSee('5 dígitos. Conserva los ceros iniciales.');
     expect($input->hasAttribute('wire:model'))->toBeFalse();
     expect($input->getAttribute('inputmode'))->not->toBe('numeric');
     expect($input->getAttribute('maxlength'))->not->toBe('5');
@@ -353,8 +353,12 @@ it('keeps identification on a failed search and dispatches one contextual danger
     $component->call('findPass', 'manual', '99999');
 
     $component->assertSet('stage', 'identify')->assertSee(__('visit-registration.manual_label'))
-        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.invalid_credential')], dataset: ['variant' => 'danger'])
+        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.error_notice')], dataset: ['variant' => 'danger'])
         ->assertDontSee('Resultado pendiente de comprobar')->assertDontSee('Comprobar estado');
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $error = (new DOMXPath($document))->query('//*[@id="visit-manual-error" and @data-flux-error]')->item(0);
+    expect($error?->textContent)->toContain(__('visit-registration.invalid_credential'));
     expect($component->effects['dispatches'])->toHaveCount(1);
     expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(1);
     $this->assertDatabaseCount('visits', 0);
@@ -372,9 +376,13 @@ it('keeps the selected confirmation on rejection instead of replacing it with an
 
     $component->assertSet('stage', 'confirm')->assertSet('preview', $preview)
         ->assertSee(__('visit-registration.confirm_visit'))
-        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.invalid_credential')], dataset: ['variant' => 'danger'])
+        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.error_notice')], dataset: ['variant' => 'danger'])
         ->assertDontSee('Resultado pendiente de comprobar')->assertDontSee('Comprobar estado');
     expect($component->effects['dispatches'])->toHaveCount(1);
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $error = (new DOMXPath($document))->query('//*[@id="visit-action-error" and @data-flux-error]')->item(0);
+    expect($error?->textContent)->toContain(__('visit-registration.invalid_credential'));
     expect($http->history)->toBeEmpty();
     expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(1);
     $this->assertDatabaseCount('visits', 0);
@@ -392,12 +400,36 @@ it('keeps confirmed facts positive with a toast and no technical refresh button 
     $component->call('findVisitReceipt', 'manual', '00007', (string) Str::uuid());
 
     $component->assertSet('stage', 'result')->assertSet('facts', $facts)
-        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.details_unavailable')], dataset: ['variant' => 'danger'])
+        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.details_notice')], dataset: ['variant' => 'danger'])
         ->assertSee(__('visit-registration.success_title'))->assertDontSee('Actualizar detalles')->assertDontSee('Comprobar estado');
     expect($component->effects['dispatches'])->toHaveCount(1);
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $error = (new DOMXPath($document))->query('//*[@id="visit-result-error" and @data-flux-error]')->item(0);
+    expect($error?->textContent)->toContain(__('visit-registration.details_unavailable'));
     expect($http->history)->toHaveCount(3);
     $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 1]);
     $this->assertDatabaseCount('visits', 1);
+});
+
+it('shows a required manual error without skipping the shared invalid attempt guard', function () {
+    [$business] = visitDialogFixture();
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+
+    $component->call('findPass', 'manual', '   ');
+
+    $component->assertSet('stage', 'identify')
+        ->assertSet('message', __('visit-registration.manual_required'))
+        ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.error_notice')], dataset: ['variant' => 'danger']);
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $error = (new DOMXPath($document))->query('//*[@id="visit-manual-error" and @data-flux-error]')->item(0);
+    expect($error?->textContent)->toContain(__('visit-registration.manual_required'));
+    expect($component->effects['dispatches'])->toHaveCount(1);
+    expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(1);
+    expect($component->effects['returns'][0])->toBeNull();
+    $this->assertDatabaseCount('visits', 0);
+    $this->assertDatabaseCount('reward_entitlements', 0);
 });
 
 /**

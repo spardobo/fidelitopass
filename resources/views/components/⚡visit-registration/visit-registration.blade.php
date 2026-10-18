@@ -1,4 +1,4 @@
-<div x-data="visitRegistration(@js(\Illuminate\Support\Arr::only(__('visit-registration'), ['read_unavailable', 'unknown', 'details_unavailable'])))" class="app-theme">
+<div x-data="visitRegistration(@js(\Illuminate\Support\Arr::only(__('visit-registration'), ['read_unavailable', 'unknown', 'details_unavailable', 'error_notice', 'details_notice'])))" class="app-theme">
     <flux:modal
         name="visit-registration"
         class="app-theme flex max-h-[calc(100dvh-2rem)]! w-[calc(100vw-2rem)] min-w-0! max-w-lg! flex-col overflow-hidden! rounded-[1.25rem]! border border-app-border bg-app-surface! p-4! sm:p-6!"
@@ -25,7 +25,7 @@
                                     <flux:input
                                         id="visit-manual-code" name="visit-manual-code" type="text"
                                         x-on:input="manualChanged()"
-                                        :aria-invalid="$message !== '' ? 'true' : 'false'" aria-describedby="visit-code-help"
+                                        :aria-invalid="$message !== '' ? 'true' : 'false'" aria-describedby="visit-code-help visit-manual-error visit-manual-transport-error"
                                         autocomplete="off" spellcheck="false" maxlength="256" autofocus data-visit-focus
                                         placeholder="{{ __('visit-registration.manual_placeholder') }}"
                                         class:input="app-input text-center tabular-nums"
@@ -36,8 +36,10 @@
                                         <span wire:loading wire:target="findPass" role="status">{{ __('visit-registration.searching') }}</span>
                                     </flux:button>
                                 </div>
+                                <flux:error id="visit-manual-error" :message="$message" x-show="!transportError" class="app-error" />
+                                <flux:error id="visit-manual-transport-error" :message="__('visit-registration.read_unavailable')" :icon="false" x-show="transportError" x-text="transportError" x-cloak class="app-error" />
                                 <p id="visit-code-help" class="app-note-with-icon app-role-support text-app-ink-help">
-                                    <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center">
+                                    <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
                                         <flux:icon.information-circle variant="outline" class="size-4" />
                                     </span>
                                     {{ __('visit-registration.manual_help') }}
@@ -96,7 +98,12 @@
                             </div>
                         @endif
                         @if ($preview['can_accept_visit'])
-                            <p class="app-role-support text-app-ink-help">{{ __('visit-registration.confirmation_help') }}</p>
+                            <div class="app-note-with-icon text-app-ink-help">
+                                <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
+                                    <flux:icon.information-circle variant="outline" class="size-4" />
+                                </span>
+                                <p class="app-role-support">{{ __('visit-registration.confirmation_help') }}</p>
+                            </div>
                         @else
                             <div role="status" class="space-y-2 rounded-2xl border border-app-warning-border bg-app-warning-surface p-4 text-app-warning-ink">
                                 @if ($preview['can_redeem_reward'])
@@ -107,6 +114,8 @@
                                 @endif
                             </div>
                         @endif
+                        <flux:error id="visit-action-error" :message="$message" x-show="!transportError" class="app-error" />
+                        <flux:error :message="__('visit-registration.unknown')" :icon="false" x-show="transportError" x-text="transportError" x-cloak class="app-error" />
                         <p wire:loading wire:target="acceptVisit,findVisitReceipt" role="status" class="app-role-support">{{ __('visit-registration.pending') }}</p>
                     </section>
                 @elseif ($stage === 'result')
@@ -139,6 +148,8 @@
                             @endif
                         </div>
                     </section>
+                    <flux:error id="visit-result-error" :message="$message" x-show="!transportError" class="app-error" />
+                    <flux:error :message="__('visit-registration.details_unavailable')" :icon="false" x-show="transportError" x-text="transportError" x-cloak class="app-error" />
                 @endif
             </div>
 

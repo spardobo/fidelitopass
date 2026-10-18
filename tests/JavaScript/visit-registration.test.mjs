@@ -193,6 +193,8 @@ function setup(responses = {}) {
         };
     }
     const context = factory({
+        error_notice: "Action needs attention",
+        details_notice: "Registered; review the message",
         read_unavailable: "Read unavailable",
         unknown: "Try again safely",
         details_unavailable: "Registered; details unavailable",
@@ -301,7 +303,7 @@ for (const fails of [false, true]) {
         if (fails) {
             assert.equal(wire.details, null);
             assert.deepEqual(toasts, [
-                { variant: "danger", text: "Registered; details unavailable" },
+                { variant: "danger", text: "Registered; review the message" },
             ]);
         } else {
             assert.deepEqual(wire.details, receipt().details);
@@ -743,7 +745,7 @@ test("a transport failure while closed defers feedback but never resets the unre
     assert.deepEqual(toasts, []);
 
     context.handleModalShow();
-    assert.deepEqual(toasts, [{ variant: "danger", text: "Try again safely" }]);
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
     await context.acceptVisit();
 
     assert.equal(mutations.length, 1);
@@ -884,7 +886,7 @@ test("uncertain primary retry reads only the retained Visit and keeps confirmati
     await context.acceptVisit();
     assert.equal(wire.stage, "confirm");
     assert.equal(wire.preview, preview);
-    assert.deepEqual(toasts, [{ variant: "danger", text: "Try again safely" }]);
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
     assert.equal(reads.length, 0);
     context.handleModalClose();
     context.handleModalShow();
@@ -937,7 +939,7 @@ test("optional receipt transport failure toasts once without replacing the posit
     await context.acceptVisit();
     assert.equal(wire.stage, "result");
     assert.equal(wire.facts.points_awarded, 3);
-    assert.deepEqual(toasts, [{ variant: "danger", text: "Registered; details unavailable" }]);
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Registered; review the message" }]);
 });
 
 test("definitive rejection retries the same selected UUID and offer", async () => {
@@ -1048,4 +1050,33 @@ test("closing an in-flight receipt cancels its native render without clearing th
     await context.findVisitReceipt();
     assert.deepEqual(reads, [mutations[0].slice(0, 3), mutations[0].slice(0, 3)]);
     assert.equal(wire.stage, "result");
+});
+
+test("transport failure keeps a safe inline detail and uses only an attention toast", async () => {
+    const { context, wire, toasts } = setup({
+        findPass: async () => {
+            throw new Error("private transport payload");
+        },
+    });
+    context.handleModalShow();
+    await context.findPassManually();
+    assert.equal(context.transportError, "Read unavailable");
+    assert.equal(wire.stage, "identify");
+    assert.equal(wire.preview, null);
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
+    assert.equal(context.busy, false);
+});
+
+test("optional detail failure keeps the positive result and its persistent safe detail", async () => {
+    const { context, wire, toasts } = setup({
+        findVisitReceipt: async () => {
+            throw new Error("private provider payload");
+        },
+    });
+    await identify(context);
+    await context.acceptVisit(7);
+    assert.equal(context.transportError, "Registered; details unavailable");
+    assert.equal(wire.stage, "result");
+    assert.equal(wire.facts.points_awarded, 3);
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Registered; review the message" }]);
 });

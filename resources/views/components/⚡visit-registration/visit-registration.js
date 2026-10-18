@@ -27,6 +27,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
         opened: false,
         cameraEnabled: false,
         busy: false,
+        transportError: "",
 
         visitPhase: VisitPhase.IDLE,
 
@@ -209,6 +210,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
             )
                 return;
 
+            this.transportError = "";
             const read = { name: "findPass", cancel: null };
             currentRead = read;
             this.busy = true;
@@ -250,6 +252,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
             )
                 return;
 
+            this.transportError = "";
             const read = { name: "resetIdentification", cancel: null };
             currentRead = read;
             operation = null;
@@ -288,6 +291,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
             }
             if (this.visitPhase !== VisitPhase.READY || !wire.preview?.can_accept_visit) return;
 
+            this.transportError = "";
             const submitted = operation;
             submitted.promotionId ??= renderedPromotionId;
             this.busy = true;
@@ -338,6 +342,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
             )
                 return;
 
+            this.transportError = "";
             const submitted = operation;
             const read = { name: "findVisitReceipt", cancel: null };
             currentRead = read;
@@ -414,8 +419,13 @@ Alpine.data("visitRegistration", (copy = {}) => {
         announceFailure(text) {
             if (disposed) return;
 
-            if (this.opened) this.$flux.toast({ variant: "danger", text });
-            else deferredToast = text;
+            this.transportError = text;
+            if (this.opened) {
+                this.$flux.toast({
+                    variant: "danger",
+                    text: wire.facts ? copy.details_notice : copy.error_notice,
+                });
+            } else deferredToast = text;
         },
 
         /** Focuses the current stage input/button. */

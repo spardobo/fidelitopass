@@ -64,13 +64,17 @@ new class extends Component
 
             return (string) Str::uuid();
         } catch (CustomerPassFindingException $exception) {
-            $this->message = $this->passFindingMessage($exception);
+            $this->message = $method === 'manual'
+                && trim($credential) === ''
+                && $exception->failure === PassFindingFailure::InvalidCredential
+                    ? __('visit-registration.manual_required')
+                    : $this->passFindingMessage($exception);
         } catch (Throwable $exception) {
             report($exception);
             $this->message = __('visit-registration.read_unavailable');
         }
 
-        Flux::toast(variant: 'danger', text: $this->message);
+        Flux::toast(variant: 'danger', text: __('visit-registration.error_notice'));
 
         return null;
     }
@@ -129,7 +133,7 @@ new class extends Component
             $this->message = __('visit-registration.unknown');
         }
 
-        Flux::toast(variant: 'danger', text: $this->message);
+        Flux::toast(variant: 'danger', text: __('visit-registration.error_notice'));
 
         return $outcome;
     }
@@ -184,7 +188,7 @@ new class extends Component
         if ($this->facts !== null) {
             $this->message = __('visit-registration.details_unavailable');
         }
-        Flux::toast(variant: 'danger', text: $this->message);
+        Flux::toast(variant: 'danger', text: __($this->facts !== null ? 'visit-registration.details_notice' : 'visit-registration.error_notice'));
 
         return false;
     }
