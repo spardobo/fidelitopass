@@ -17,6 +17,7 @@ return [
         'initialization' => 'No se pudo iniciar la lectura del QR. Inténtalo de nuevo o ingresa el código de la Tarjeta.',
     ],
     'camera_retry' => 'Activar cámara',
+    'camera_read_retry' => 'Reintentar lectura',
     'camera_stop' => 'Desactivar cámara',
     'camera_region' => 'Escáner de la tarjeta del cliente',
     'manual_label' => 'Código de la Tarjeta',

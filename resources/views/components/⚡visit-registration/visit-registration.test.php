@@ -316,13 +316,17 @@ it('renders scoped loading and current form control semantics for every backend 
     expect($input->hasAttribute('wire:model'))->toBeFalse();
     expect($input->getAttribute('inputmode'))->not->toBe('numeric');
     expect($input->getAttribute('maxlength'))->not->toBe('5');
-    expect($xpath->query('//*[@*[name()="wire:target"]="findPass" and @*[name()="wire:loading"]]')->length)->toBeGreaterThan(0);
+    expect($xpath->query('//button[@type="submit"]//*[@data-flux-loading-indicator]')->length)->toBe(1);
+    expect($xpath->query('//button[@id="visit-camera-start"]//*[@data-flux-loading-indicator]')->length)->toBe(1);
 
     $component->call('findPass', 'manual', '00007');
     @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
     $xpath = new DOMXPath($document);
     expect($xpath->query('//button[@*[name()="wire:target"]="acceptVisit,findVisitReceipt"]//*[@data-flux-loading-indicator]')->length)->toBe(1);
-    expect($xpath->query('//*[@*[name()="wire:target"]="acceptVisit,findVisitReceipt" and @*[name()="wire:loading"]]')->length)->toBeGreaterThan(0);
+    expect($xpath->query('//button[@data-visit-back]//*[@data-flux-loading-indicator]')->length)->toBe(1);
+    expect($xpath->query('//button[@data-visit-confirm]')->length)->toBe(1);
+    expect($xpath->query('//h3[@tabindex]')->length)->toBe(0);
+    expect($xpath->query('//*[contains(@class, "app-note-with-icon")]//p[contains(text(), "Revisa los puntos")]/../span/svg')->length)->toBe(1);
 });
 
 it('hides the Visit CTA for an available Reward and restores clean native identification', function () {

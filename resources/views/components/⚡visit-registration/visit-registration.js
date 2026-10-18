@@ -168,9 +168,16 @@ Alpine.data("visitRegistration", (copy = {}) => {
             });
         },
 
-        /** Turns off the camera. */
-        stopCamera() {
-            this.cameraEnabled = false;
+        /** Releases capture without revealing manual entry during a camera lookup.
+         *
+         * @param {boolean} [preserveMode=false] Retains the selected camera presentation until explicit return.
+         */
+        stopCamera(preserveMode = false) {
+            if (!preserveMode) {
+                const input = root.querySelector("#visit-manual-code");
+                if (this.cameraEnabled && input) input.value = "";
+                this.cameraEnabled = false;
+            }
             // notify the scanner component to stop capture
             root.querySelector("[data-qr-camera]")?.dispatchEvent(new Event("qr-camera-stop"));
         },
@@ -214,7 +221,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
             const read = { name: "findPass", cancel: null };
             currentRead = read;
             this.busy = true;
-            this.stopCamera();
+            this.stopCamera(method === "token");
 
             try {
                 const operationId = await wire.findPass(method, credential);
@@ -228,7 +235,6 @@ Alpine.data("visitRegistration", (copy = {}) => {
                         promotionId: wire.preview.promotion?.id,
                     };
                     this.visitPhase = VisitPhase.READY;
-                    this.focusStage();
                 }
             } catch {
                 if (!disposed && currentRead === read) this.announceFailure(copy.read_unavailable);
@@ -236,15 +242,17 @@ Alpine.data("visitRegistration", (copy = {}) => {
                 if (currentRead === read) {
                     currentRead = null;
                     this.busy = false;
+                    this.focusStage();
                 }
             }
         },
 
         /** Resets the UI back to identify.
          *
+         * @param {boolean} [preserveCameraMode=false] Keeps deactivation visible while its native reset is pending.
          * @returns {Promise<void>} Clears a resolved intent through the native rendered stage owner.
          */
-        async reset() {
+        async reset(preserveCameraMode = false) {
             if (
                 disposed ||
                 this.busy ||
@@ -258,18 +266,21 @@ Alpine.data("visitRegistration", (copy = {}) => {
             operation = null;
             deferredToast = null;
             this.busy = true;
-            this.stopCamera();
+            this.stopCamera(preserveCameraMode);
+            const input = root.querySelector("#visit-manual-code");
+            if (input) input.value = "";
             this.visitPhase = VisitPhase.IDLE;
 
             try {
                 await wire.resetIdentification();
-                if (!disposed && currentRead === read) this.focusStage();
             } catch {
                 if (!disposed && currentRead === read) this.announceFailure(copy.read_unavailable);
             } finally {
                 if (currentRead === read) {
                     currentRead = null;
                     this.busy = false;
+                    if (preserveCameraMode) this.cameraEnabled = false;
+                    this.focusStage();
                 }
             }
         },
@@ -344,6 +355,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
 
             this.transportError = "";
             const submitted = operation;
+            const previousStage = wire.stage;
             const read = { name: "findVisitReceipt", cancel: null };
             currentRead = read;
             this.busy = true;
@@ -353,7 +365,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
                 if (disposed || currentRead !== read || operation !== submitted) return;
 
                 if (wire.facts) this.visitPhase = VisitPhase.SETTLED;
-                this.focusStage();
+                if (wire.stage !== previousStage || !wire.facts) this.focusStage();
             } catch {
                 if (!disposed && currentRead === read && operation === submitted) {
                     this.announceFailure(
@@ -361,6 +373,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
                             ? copy.details_unavailable
                             : copy.unknown,
                     );
+                    if (!wire.facts) this.focusStage();
                 }
             } finally {
                 if (currentRead === read) {
@@ -428,12 +441,22 @@ Alpine.data("visitRegistration", (copy = {}) => {
             } else deferredToast = text;
         },
 
-        /** Focuses the current stage input/button. */
+        /** Focuses the editable input or the current primary/retry action. */
         focusStage() {
             // defer focus to the next render cycle
             this.$nextTick(() => {
                 if (!disposed && this.opened) {
-                    root.querySelector("[data-visit-focus]")?.focus({ preventScroll: true });
+                    const selector =
+                        wire.stage === "identify"
+                            ? this.cameraEnabled
+                                ? "[data-visit-camera-retry]"
+                                : "#visit-manual-code"
+                            : wire.stage === "confirm"
+                              ? wire.preview?.can_accept_visit
+                                  ? "[data-visit-confirm]"
+                                  : "[data-visit-back]"
+                              : "[data-visit-close]";
+                    root.querySelector(selector)?.focus({ preventScroll: true });
                 }
             });
         },

@@ -1,4 +1,4 @@
-<div x-data="visitRegistration(@js(\Illuminate\Support\Arr::only(__('visit-registration'), ['read_unavailable', 'unknown', 'details_unavailable', 'error_notice', 'details_notice'])))" class="app-theme">
+<div x-data="visitRegistration(@js(\Illuminate\Support\Arr::only(__('visit-registration'), ['read_unavailable', 'unknown', 'details_unavailable', 'error_notice', 'details_notice'])))" x-on:visit-camera-enable="requestCameraStart()" x-on:visit-camera-disable="reset(true)" x-on:visit-camera-error="focusStage()" class="app-theme">
     <flux:modal
         name="visit-registration"
         class="app-theme flex max-h-[calc(100dvh-2rem)]! w-[calc(100vw-2rem)] min-w-0! max-w-lg! flex-col overflow-hidden! rounded-[1.25rem]! border border-app-border bg-app-surface! p-4! sm:p-6!"
@@ -12,11 +12,11 @@
             </p>
         </header>
 
-        <div wire:loading.attr="aria-busy" wire:target="findPass,acceptVisit,findVisitReceipt,resetIdentification" aria-busy="false" class="min-h-0 flex-1 overflow-y-auto py-4 pe-2">
+        <div wire:loading.attr="aria-busy" wire:target="findPass,acceptVisit,findVisitReceipt,resetIdentification" aria-busy="false" class="-mx-2 min-h-0 flex-1 overflow-y-auto px-2 py-4">
             <div>
                 @if ($stage === 'identify')
                     <section wire:key="visit-identify" class="space-y-4">
-                        <form x-on:submit.prevent="findPassManually()">
+                        <form x-on:submit.prevent="findPassManually()" x-bind:hidden="cameraEnabled">
                             <flux:field>
                                 <flux:label for="visit-manual-code" class="app-label justify-center text-center sm:justify-start">
                                     {{ __('visit-registration.manual_label') }}
@@ -30,10 +30,8 @@
                                         placeholder="{{ __('visit-registration.manual_placeholder') }}"
                                         class:input="app-input text-center tabular-nums"
                                     />
-                                    <flux:button type="submit" variant="primary" :loading="false" wire:loading.attr="disabled" wire:target="findPass" class="app-button-primary w-full">
-                                        <flux:icon.loading wire:loading wire:target="findPass" class="size-4" />
-                                        <span wire:loading.remove wire:target="findPass">{{ __('visit-registration.search') }}</span>
-                                        <span wire:loading wire:target="findPass" role="status">{{ __('visit-registration.searching') }}</span>
+                                    <flux:button type="submit" variant="primary" :loading="true" wire:loading.attr="disabled" wire:target="findPass" class="app-button-primary w-full">
+                                        {{ __('visit-registration.search') }}
                                     </flux:button>
                                 </div>
                                 <flux:error id="visit-manual-error" :message="$message" x-show="!transportError" class="app-error" />
@@ -47,39 +45,53 @@
                             </flux:field>
                         </form>
 
-                        <div wire:ignore class="space-y-4">
-                            <flux:button
-                                type="button" :loading="false" icon="qr-code" icon:variant="outline"
-                                wire:loading.attr="disabled" wire:target="findPass"
-                                x-on:click="cameraEnabled ? stopCamera() : requestCameraStart()"
-                                x-bind:aria-expanded="cameraEnabled" aria-controls="visit-camera-region"
-                                class="app-button-secondary w-full"
-                            >
-                                <span x-show="!cameraEnabled">{{ __('visit-registration.camera_retry') }}</span>
-                                <span x-show="cameraEnabled" x-cloak>{{ __('visit-registration.camera_stop') }}</span>
-                            </flux:button>
+                        <div
+                            wire:ignore x-data="qrCameraScanner(token => findPass('token', token))"
+                            x-on:qr-camera-start="startCamera()" x-on:qr-camera-stop="stopCamera()"
+                            x-effect="if (error) $dispatch('visit-camera-error')"
+                            data-qr-camera class="space-y-4"
+                        >
                             <div
-                                id="visit-camera-region"
-                                x-data="qrCameraScanner(token => findPass('token', token))"
-                                x-on:qr-camera-start="startCamera()" x-on:qr-camera-stop="stopCamera()"
-                                x-bind:hidden="!cameraEnabled" x-cloak
-                                aria-label="{{ __('visit-registration.camera_region') }}" data-qr-camera data-qr-camera-region
+                                id="visit-camera-region" x-bind:hidden="!cameraEnabled" x-cloak
+                                aria-label="{{ __('visit-registration.camera_region') }}" data-qr-camera-region
                                 class="space-y-3 rounded-2xl border border-app-border bg-app-control p-4 text-center"
                             >
                                 <h3 class="app-role-card">{{ __('visit-registration.instructions') }}</h3>
                                 {{-- bind visibility before warm SDK startup, without a deferred reveal --}}
                                 <video x-bind:hidden="!active && !starting" muted playsinline aria-hidden="true" class="mx-auto aspect-video w-full rounded-xl object-cover"></video>
-                                <p x-show="starting" role="status" class="app-role-support text-app-ink-secondary">
-                                    <flux:icon.loading class="inline size-4" />
-                                    {{ __('visit-registration.camera_starting') }}
-                                </p>
-                                <p x-show="error" x-text="@js(__('visit-registration.camera_errors'))[error]" role="status" class="app-role-support text-app-warning-ink"></p>
+                                <flux:icon.loading wire:loading wire:target="findPass" class="mx-auto size-5" />
+                                <flux:error
+                                    :message="__('visit-registration.read_unavailable')" :icon="false"
+                                    x-show="error || transportError || $wire.message"
+                                    :x-text="'transportError || $wire.message || '.\Illuminate\Support\Js::from(__('visit-registration.camera_errors')).'[error]'"
+                                    x-cloak class="app-error text-start"
+                                />
                             </div>
+
+                            <flux:button
+                                id="visit-camera-start" type="button" :loading="true" icon="qr-code" icon:variant="outline"
+                                wire:loading.attr="disabled" wire:target="findPass"
+                                x-on:click="$dispatch('visit-camera-enable')"
+                                x-bind:hidden="cameraEnabled && active" x-bind:data-loading="starting"
+                                x-bind:disabled="starting || busy" x-bind:aria-busy="starting"
+                                x-bind:aria-expanded="cameraEnabled" aria-controls="visit-camera-region"
+                                data-visit-camera-retry class="app-button-secondary w-full"
+                            >
+                                <span x-text="cameraEnabled ? @js(__('visit-registration.camera_read_retry')) : @js(__('visit-registration.camera_retry'))"></span>
+                            </flux:button>
+                            <flux:button
+                                type="button" :loading="true" wire:target="resetIdentification"
+                                x-on:click="$dispatch('visit-camera-disable')"
+                                x-bind:hidden="!cameraEnabled" x-bind:disabled="busy" x-cloak
+                                class="app-button-secondary w-full"
+                            >
+                                {{ __('visit-registration.camera_stop') }}
+                            </flux:button>
                         </div>
                     </section>
                 @elseif ($stage === 'confirm')
                     <section wire:key="visit-confirm" class="space-y-4">
-                        <h3 tabindex="-1" data-visit-focus class="app-role-section app-focus">{{ __('visit-registration.confirmation_title') }}</h3>
+                        <h3 id="visit-confirm-title" class="app-role-section">{{ __('visit-registration.confirmation_title') }}</h3>
                         @if ($preview['promotion'])
                             <div class="space-y-4 rounded-2xl border border-app-priority-border bg-app-emphasis p-4">
                                 <h4 class="app-role-card break-words">{{ $preview['promotion']['reward_title'] }}</h4>
@@ -98,7 +110,7 @@
                             </div>
                         @endif
                         @if ($preview['can_accept_visit'])
-                            <div class="app-note-with-icon text-app-ink-help">
+                            <div id="visit-confirm-help" class="app-note-with-icon text-app-ink-help">
                                 <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
                                     <flux:icon.information-circle variant="outline" class="size-4" />
                                 </span>
@@ -116,14 +128,13 @@
                         @endif
                         <flux:error id="visit-action-error" :message="$message" x-show="!transportError" class="app-error" />
                         <flux:error :message="__('visit-registration.unknown')" :icon="false" x-show="transportError" x-text="transportError" x-cloak class="app-error" />
-                        <p wire:loading wire:target="acceptVisit,findVisitReceipt" role="status" class="app-role-support">{{ __('visit-registration.pending') }}</p>
                     </section>
                 @elseif ($stage === 'result')
                     <section wire:key="visit-result" class="space-y-4">
                         <div class="space-y-4 rounded-2xl border border-app-success-border bg-app-success-surface p-4 text-app-success-ink">
                             <div class="flex items-center gap-3">
                                 <flux:icon.check-circle variant="outline" class="size-8 shrink-0" />
-                                <h3 tabindex="-1" data-visit-focus class="app-role-section app-focus">{{ __('visit-registration.success_title') }}</h3>
+                                <h3 id="visit-result-title" class="app-role-section">{{ __('visit-registration.success_title') }}</h3>
                             </div>
                             <dl class="space-y-3">
                                 <div class="space-y-1">
@@ -153,30 +164,29 @@
                 @endif
             </div>
 
-            <p wire:loading wire:target="resetIdentification" role="status" class="app-role-support">{{ __('visit-registration.resetting') }}</p>
         </div>
 
         <footer class="flex shrink-0 flex-wrap justify-end gap-3 border-t border-app-line pt-4">
             @if (in_array($stage, ['confirm', 'result'], true))
                 <flux:button
-                    type="button" wire:loading.attr="disabled" wire:target="resetIdentification,acceptVisit"
+                    type="button" :loading="true" wire:target="resetIdentification"
                     x-on:click="reset()" x-bind:disabled="busy || ['pending', 'unknown'].includes(visitPhase)"
-                    class="app-button-secondary grow sm:grow-0"
+                    data-visit-back class="app-button-secondary grow sm:grow-0"
                 >
                     {{ __('visit-registration.back') }}
                 </flux:button>
             @endif
             <flux:modal.close class="contents">
-                <flux:button type="button" class="app-button-secondary grow sm:grow-0">
+                <flux:button type="button" :loading="false" data-visit-close aria-describedby="visit-result-title visit-result-error" class="app-button-secondary grow sm:grow-0">
                     {{ __('visit-registration.close') }}
                 </flux:button>
             </flux:modal.close>
             @if ($stage === 'confirm' && $preview['can_accept_visit'])
                 <flux:button
                     type="button" variant="primary" :loading="true"
-                    wire:loading.attr="disabled" wire:target="acceptVisit,findVisitReceipt"
+                    wire:target="acceptVisit,findVisitReceipt" x-bind:disabled="busy"
                     x-on:click="acceptVisit(@js($preview['promotion']['id']))"
-                    class="app-button-primary grow sm:grow-0"
+                    data-visit-confirm aria-describedby="visit-confirm-title visit-confirm-help visit-action-error" class="app-button-primary grow sm:grow-0"
                 >
                     {{ __('visit-registration.confirm_visit') }}
                 </flux:button>

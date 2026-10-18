@@ -133,7 +133,7 @@ Required journeys:
 2. Owner creates/publishes a Promotion.
 3. Customer join page -> Add to Google Wallet handoff (provider boundary may be stubbed).
 4. Business validation page with scanner path represented where practical.
-5. Manual-code fallback directly below scanner.
+5. Manual-code fallback directly below scanner where both are presented together. In the Visit dialog's exclusive camera mode, verify that deactivation remains immediately reachable during startup/errors and restores empty, error-free manual entry.
 6. Successful Visit -> progress result.
 7. Reward available -> Redemption.
 8. Responsive dark-only smoke coverage, including saved/system light preferences without a light-theme flash.

@@ -106,7 +106,10 @@ function setup(responses = {}) {
         startup.push(args);
         return controls;
     });
-    const refs = { manual: { value: "00007" }, video: { id: "initial-video" } };
+    const refs = {
+        manual: { value: "00007", focus: () => focus.push("manual") },
+        video: { id: "initial-video" },
+    };
     const native = { isSecureContext: false, navigator: { mediaDevices: { getUserMedia() {} } } };
     globalThis.window = native;
     const interceptors = new Set();
@@ -175,7 +178,6 @@ function setup(responses = {}) {
                             pending.resolve(Boolean(result?.facts));
                         } else {
                             Object.assign(wire, state);
-                            refs.manual.value = "";
                             refs.video = { id: "returned-video" };
                             pending.resolve();
                         }
@@ -212,6 +214,16 @@ function setup(responses = {}) {
                     return wire.stage === "identify" ? cameraRoot : null;
                 if (selector === "#visit-manual-code")
                     return wire.stage === "identify" ? refs.manual : null;
+                if (selector === "[data-visit-confirm]")
+                    return wire.stage === "confirm"
+                        ? { focus: () => focus.push("confirm-button") }
+                        : null;
+                if (selector === "[data-visit-close]")
+                    return { focus: () => focus.push("close-button") };
+                if (selector === "[data-visit-back]")
+                    return { focus: () => focus.push("back-button") };
+                if (selector === "[data-visit-camera-retry]")
+                    return { focus: () => focus.push("camera-retry") };
                 const heading =
                     selector === "[data-visit-transport-focus]"
                         ? "status"
@@ -312,18 +324,20 @@ for (const fails of [false, true]) {
     });
 }
 
-test("unsupported camera leaves manual identification available and focuses the rendered stage", async () => {
-    const { context, camera, wire, focus } = setup();
+test("unsupported camera keeps retry focus and an explicit clean return to manual entry", async () => {
+    const { context, camera, wire, focus, refs } = setup();
     context.handleModalShow();
     context.requestCameraStart();
     await settle();
     assert.equal(camera.error, "unavailable");
     assert.equal(wire.stage, "identify");
-    assert.equal(focus.at(-1), "manual");
+    assert.equal(focus.at(-1), "camera-retry");
+    await context.reset(true);
+    refs.manual.value = "00007";
     await context.findPassManually();
     await settle();
     assert.equal(wire.stage, "confirm");
-    assert.equal(focus.at(-1), "confirmation");
+    assert.equal(focus.at(-1), "confirm-button");
 });
 
 test("camera-capable runtime without a native detector starts the complete SDK", async () => {
@@ -636,7 +650,7 @@ test("known committed facts survive optional receipt failure and read-only refre
     assert.equal(wire.stage, "result");
     assert.equal(wire.facts.points_awarded, 3);
     assert.equal(wire.details, null);
-    assert.equal(focus.at(-1), "result");
+    assert.equal(focus.at(-1), "close-button");
     await context.findVisitReceipt();
     assert.equal(wire.stage, "result");
     assert.equal(wire.facts.visit_id, 1);
@@ -822,7 +836,7 @@ test("typing and erasing preserve explicitly active capture and the editable cod
     assert.equal(camera.active, false);
 });
 
-test("explicit deactivation hides pending capture and releases late permission without erasing input", async () => {
+test("explicit deactivation hides pending capture, releases late permission and clears manual input", async () => {
     const permission = deferred();
     const { context, camera, native, refs, controls, stopped } = setup();
     native.isSecureContext = true;
@@ -835,7 +849,7 @@ test("explicit deactivation hides pending capture and releases late permission w
     assert.equal(camera.starting, true);
     context.stopCamera();
     assert.equal(context.cameraEnabled, false);
-    assert.equal(refs.manual.value, "00007");
+    assert.equal(refs.manual.value, "");
     permission.resolve(controls);
     await settle();
     assert.equal(camera.active, false);
@@ -1079,4 +1093,183 @@ test("optional detail failure keeps the positive result and its persistent safe 
     assert.equal(wire.stage, "result");
     assert.equal(wire.facts.points_awarded, 3);
     assert.deepEqual(toasts, [{ variant: "danger", text: "Registered; review the message" }]);
+});
+
+test("camera lookup keeps manual mode hidden until explicit clean deactivation", async () => {
+    const response = deferred();
+    const { context, refs, wire, native, camera, focus } = setup({
+        findPass: () => response.promise,
+    });
+    native.isSecureContext = true;
+    context.handleModalShow();
+    context.requestCameraStart();
+    await settle();
+    const pending = context.findPass("token", "private-credential");
+    assert.equal(camera.active, false);
+    assert.equal(context.cameraEnabled, true);
+    assert.equal(context.busy, true);
+    response.resolve(null);
+    await pending;
+    await settle();
+    assert.equal(context.cameraEnabled, true);
+    assert.equal(focus.at(-1), "camera-retry");
+    wire.message = "Earlier lookup error";
+    refs.manual.value = "00007";
+    await context.reset(true);
+    await settle();
+    assert.equal(context.cameraEnabled, false);
+    assert.equal(refs.manual.value, "");
+    assert.equal(wire.message, "");
+    assert.equal(focus.at(-1), "manual");
+});
+
+test("failed manual identification returns focus to the editable input", async () => {
+    const { context, refs, focus } = setup({ findPass: async () => null });
+    context.handleModalShow();
+    await settle();
+    focus.push("search-button");
+    await context.findPassManually();
+    await settle();
+    assert.equal(focus.at(-1), "manual");
+    assert.equal(refs.manual.value, "00007");
+});
+
+test("ancillary receipt completion cannot steal focus from another result control", async () => {
+    const response = deferred();
+    const { context, focus } = setup({ findVisitReceipt: () => response.promise });
+    await identify(context);
+    const pending = context.acceptVisit(7);
+    await settle();
+    focus.push("another-result-control");
+    response.resolve(receipt());
+    await pending;
+    await settle();
+    assert.equal(focus.at(-1), "another-result-control");
+});
+
+test("deactivation cancels pending permission before native reset completes", async () => {
+    const permission = deferred(),
+        resetResponse = deferred(),
+        started = deferred();
+    const { context, camera, native, controls, stopped, refs, wire, focus, startup } = setup({
+        resetIdentification: () => resetResponse.promise,
+    });
+    native.isSecureContext = true;
+    BrowserQRCodeReader.prototype.decodeFromConstraints.mock.mockImplementation((...args) => {
+        startup.push(args);
+        started.resolve();
+        return permission.promise;
+    });
+    context.handleModalShow();
+    wire.message = "Earlier invalid code";
+    context.requestCameraStart();
+    await started.promise;
+    assert.equal(camera.starting, true);
+
+    const resetting = context.reset(true);
+    assert.equal(camera.starting, false);
+    assert.equal(context.cameraEnabled, true);
+    assert.equal(refs.manual.value, "");
+    assert.equal(context.busy, true);
+    startup[0][2]({ getText: () => "obsolete-token" }, undefined, controls);
+    permission.resolve(controls);
+    await settle();
+    assert.deepEqual(stopped, ["owned-camera"]);
+    assert.equal(wire.stage, "identify");
+    resetResponse.resolve(null);
+    await resetting;
+    await settle();
+    assert.equal(context.cameraEnabled, false);
+    assert.equal(wire.message, "");
+    assert.equal(context.busy, false);
+    assert.equal(focus.at(-1), "manual");
+});
+
+test("cancelled deactivation cannot hide or stop a successor camera", async () => {
+    const response = deferred();
+    const { context, camera, native, startup, stopped, cancellations, focus } = setup({
+        resetIdentification: () => response.promise,
+    });
+    native.isSecureContext = true;
+    context.handleModalShow();
+    context.requestCameraStart();
+    await settle();
+    const resetting = context.reset(true);
+    context.handleModalClose();
+    context.handleModalShow();
+    context.requestCameraStart();
+    await settle();
+    assert.equal(startup.length, 2);
+    assert.equal(camera.active, true);
+    assert.equal(context.cameraEnabled, true);
+    focus.push("successor-control");
+
+    response.resolve(null);
+    await resetting;
+    await settle();
+    assert.deepEqual(cancellations, ["resetIdentification"]);
+    assert.equal(context.cameraEnabled, true);
+    assert.equal(camera.active, true);
+    assert.deepEqual(stopped, ["owned-camera"]);
+    assert.equal(focus.at(-1), "successor-control");
+});
+
+test("optional receipt rejection cannot refocus an unchanged known result", async () => {
+    const response = deferred();
+    const { context, wire, focus, toasts } = setup({ findVisitReceipt: () => response.promise });
+    await identify(context);
+    const pending = context.acceptVisit(7);
+    await settle();
+    assert.equal(focus.at(-1), "close-button");
+    focus.push("operator-selected-back");
+
+    response.reject(new Error("private native receipt failure"));
+    await pending;
+    await settle();
+    assert.equal(focus.at(-1), "operator-selected-back");
+    assert.equal(wire.stage, "result");
+    assert.equal(wire.facts.points_awarded, 3);
+    assert.equal(context.visitPhase, "settled");
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Registered; review the message" }]);
+});
+
+test("camera-origin uncertainty retains exact identity across close and ignores new intent", async () => {
+    const mutations = [],
+        reads = [];
+    const { context, native, startup, controls, refs, wire, focus } = setup({
+        acceptVisit: async (...args) => {
+            mutations.push(args);
+            return { outcome: "unknown" };
+        },
+        findVisitReceipt: async (...args) => {
+            reads.push(args);
+            return reads.length === 1 ? null : receipt();
+        },
+    });
+    native.isSecureContext = true;
+    context.handleModalShow();
+    context.requestCameraStart();
+    await settle();
+    const token = "a".repeat(64);
+    startup[0][2]({ getText: () => token }, undefined, controls);
+    await settle();
+    assert.equal(focus.at(-1), "confirm-button");
+    await context.acceptVisit(7);
+    await context.reset(true);
+    context.handleModalClose();
+    context.handleModalShow();
+    refs.manual.value = "00008";
+    await context.findPassManually();
+    context.requestCameraStart();
+    await context.acceptVisit(999);
+    await context.acceptVisit(999);
+    await settle();
+    assert.equal(startup.length, 1);
+    assert.equal(mutations.length, 1);
+    assert.deepEqual(mutations[0].slice(0, 2), ["token", token]);
+    assert.equal(mutations[0][3], 7);
+    assert.deepEqual(reads, [mutations[0].slice(0, 3), mutations[0].slice(0, 3)]);
+    assert.equal(wire.stage, "result");
+    assert.equal(focus.at(-1), "close-button");
+    assert.equal(JSON.stringify(context).includes(token), false);
 });

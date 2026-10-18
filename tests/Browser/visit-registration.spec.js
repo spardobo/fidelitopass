@@ -4,6 +4,48 @@ import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
 
 const fixture = JSON.parse(process.env.PLAYWRIGHT_PROMOTION_FIXTURE ?? "{}");
 const updatePath = /\/livewire-[^/]+\/update$/;
+
+/** Holds one real native response without timing sleeps or bypassing server effects.
+ * @param {import('@playwright/test').Page} page Current authenticated browser.
+ * @param {string} method Native action whose response is held.
+ * @returns {Promise<object>} Arrival promise and explicit delivery release.
+ */
+async function holdAction(page, method) {
+    let release, arrived;
+    const delivery = new Promise((resolve) => {
+        release = resolve;
+    });
+    const requested = new Promise((resolve) => {
+        arrived = resolve;
+    });
+    let first = true;
+    await page.route(updatePath, async (route) => {
+        if (first && actionCalls(route.request()).some((call) => call.method === method)) {
+            first = false;
+            const response = await route.fetch();
+            expect(response.ok()).toBe(true);
+            arrived();
+            await delivery;
+            await route.fulfill({ response });
+        } else await route.fallback();
+    });
+    return { requested, release };
+}
+
+/** Checks native visual replacement while keeping geometry and accessible naming.
+ * @param {import('@playwright/test').Locator} button Button with actual pending work.
+ * @param {number} width Layout width before dispatch.
+ * @returns {Promise<void>} Visible spinner, hidden label and unchanged width.
+ */
+async function expectButtonSpinner(button, width) {
+    await expect(button.locator(":scope > [data-flux-loading-indicator]")).toHaveCSS(
+        "opacity",
+        "1",
+    );
+    await expect(button.locator(":scope > span")).toHaveCSS("opacity", "0");
+    expect(await button.evaluate((element) => element.offsetWidth)).toBe(width);
+}
+
 const dummyQr = JSON.parse(
     readFileSync(new URL("../JavaScript/fixtures/qr-token.json", import.meta.url)),
 );
@@ -56,7 +98,12 @@ async function findManually(dialog, caseName) {
         .getByLabel("Código de la Tarjeta", { exact: true })
         .fill(fixture.passes[caseName].code);
     await dialog.getByRole("button", { name: "Buscar tarjeta", exact: true }).click();
-    await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toBeFocused();
+    await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toBeVisible();
+    const confirm = dialog.getByRole("button", { name: "Confirmar visita", exact: true });
+    const primary = (await confirm.count())
+        ? confirm
+        : dialog.getByRole("button", { name: "Volver a leer", exact: true });
+    await expect(primary).toBeFocused();
     await expect(dialog.getByText("Café de la casa", { exact: true })).toBeVisible();
     await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveCount(0);
 }
@@ -165,6 +212,10 @@ async function installCanvasCamera(page, rows) {
                 value: {
                     getUserMedia: async () => {
                         const capture = camera.requests++;
+                        if (camera.holdPermission)
+                            await new Promise((resolve) => {
+                                camera.releasePermission = resolve;
+                            });
                         const video = document.querySelector("dialog video");
                         camera.visibleAtAcquisition.push(Boolean(video?.getClientRects().length));
                         camera.frames[capture] = 0;
@@ -262,7 +313,9 @@ async function showQrOnCurrentVideo(dialog, testInfo) {
         body: Buffer.from(pixels.image.split(",")[1], "base64"),
         contentType: "image/png",
     });
-    await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toBeFocused();
+    await expect(
+        dialog.getByRole("button", { name: "Confirmar visita", exact: true }),
+    ).toBeFocused();
 }
 
 for (const width of [1280, 375]) {
@@ -282,8 +335,25 @@ for (const width of [1280, 375]) {
         await expect(dialog.locator("video")).toBeHidden();
         await expect(dialog.locator("[data-qr-camera-region]")).toBeHidden();
         expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(0);
-        await expect(dialog.getByText(/Usa el código de 5 números/)).toBeVisible();
+        await expect(
+            dialog.getByText("5 dígitos. Conserva los ceros iniciales.", { exact: true }),
+        ).toBeVisible();
         await expect(dialog.locator("#visit-code-help svg")).toBeVisible();
+        const clearance = await input.evaluate((element) => {
+            const field = element.getBoundingClientRect();
+            const scroll = element.closest("[aria-busy]").getBoundingClientRect();
+            const style = getComputedStyle(element);
+            const outline = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+            return {
+                left: field.left - outline - scroll.left,
+                right: scroll.right - field.right - outline,
+            };
+        });
+        expect(
+            clearance.left,
+            "focused outline must fit inside scroll clip",
+        ).toBeGreaterThanOrEqual(0);
+        expect(clearance.right).toBeGreaterThanOrEqual(0);
         const field = await input.boundingBox();
         const button = await search.boundingBox();
         expect(Math.abs(field.width - button.width)).toBeLessThanOrEqual(2);
@@ -336,15 +406,46 @@ test("leading-zero manual identification requires explicit confirmation and comm
     page,
 }) => {
     const dialog = await openVisits(page);
-    await findManually(dialog, "manual");
+    const search = dialog.getByRole("button", { name: "Buscar tarjeta", exact: true });
+    const searchWidth = await search.evaluate((element) => element.offsetWidth);
+    const searchHold = await holdAction(page, "findPass");
+    const finding = findManually(dialog, "manual");
+    await searchHold.requested;
+    try {
+        await expectButtonSpinner(search, searchWidth);
+    } finally {
+        searchHold.release();
+    }
+    await finding;
     expect(await factsFor(page, "manual")).toEqual({ visits: [], effects: { GET: 0, PATCH: 0 } });
-    await dialog.getByRole("button", { name: "Confirmar visita", exact: true }).click();
-    await expect(dialog.getByRole("heading", { name: "Visita registrada" })).toBeFocused();
+    const confirm = dialog.getByRole("button", { name: "Confirmar visita", exact: true });
+    const confirmWidth = await confirm.evaluate((element) => element.offsetWidth);
+    const confirmation = await holdAction(page, "acceptVisit");
+    await confirm.click();
+    await confirmation.requested;
+    try {
+        await expectButtonSpinner(confirm, confirmWidth);
+    } finally {
+        confirmation.release();
+    }
+    await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeFocused();
     await expect(dialog.getByText("1 / 8 puntos", { exact: true })).toBeVisible();
     const facts = await factsFor(page, "manual");
     expect(facts.visits).toHaveLength(1);
     expect(facts.visits[0].awarded_points).toBe(1);
     expect(facts.effects).toEqual({ GET: 1, PATCH: 1 });
+    const back = dialog.getByRole("button", { name: "Volver a leer", exact: true });
+    const backWidth = await back.evaluate((element) => element.offsetWidth);
+    const reset = await holdAction(page, "resetIdentification");
+    await back.click();
+    await reset.requested;
+    try {
+        await expectButtonSpinner(back, backWidth);
+    } finally {
+        reset.release();
+    }
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeFocused();
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("");
 });
 
 test("camera denial, lookup and definitive provider failure retain usable origin", async ({
@@ -364,15 +465,26 @@ test("camera denial, lookup and definitive provider failure retain usable origin
     const dialog = await openVisits(page);
     await dialog.getByRole("button", { name: "Activar cámara", exact: true }).click();
     await expect(dialog.getByText(/No se permitió el acceso a la cámara/)).toBeVisible();
-    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeVisible();
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeHidden();
+    await dialog.getByRole("button", { name: "Desactivar cámara", exact: true }).click();
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeFocused();
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("");
     await dialog.getByLabel("Código de la Tarjeta", { exact: true }).fill("99999");
     await dialog.getByRole("button", { name: "Buscar tarjeta", exact: true }).click();
-    await expectDangerToast(page, "No pudimos identificar la tarjeta.");
+    await expectDangerToast(page, "No se pudo completar la acción.");
     await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("99999");
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeFocused();
+    await expect(dialog.locator("#visit-manual-error")).toContainText("Revisa el código");
     await findManually(dialog, "failure");
     await dialog.getByRole("button", { name: "Confirmar visita", exact: true }).click();
-    await expectDangerToast(page, "No pudimos registrar la visita.");
+    await expectDangerToast(page, "No se pudo completar la acción.");
     await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toBeVisible();
+    await expect(dialog.locator("#visit-action-error")).toContainText(
+        "No pudimos registrar la visita",
+    );
+    await expect(
+        dialog.getByRole("button", { name: "Confirmar visita", exact: true }),
+    ).toBeFocused();
     expect(await factsFor(page, "failure")).toEqual({ visits: [], effects: { GET: 1, PATCH: 1 } });
 });
 
@@ -410,18 +522,18 @@ test("lost committed response and failed receipt preserve UUID; primary retry on
     });
     const primary = dialog.getByRole("button", { name: "Confirmar visita", exact: true });
     await primary.click();
-    await expectDangerToast(page, "No pudimos obtener una respuesta.");
+    await expectDangerToast(page, "No se pudo completar la acción.");
     await expect(primary).toBeEnabled();
     await expect(dialog.getByRole("button", { name: "Volver a leer" })).toBeDisabled();
     await primary.click();
     await expect.poll(() => receipts.length).toBe(1);
     await expect(primary).toBeEnabled();
-    await expectDangerToast(page, "No pudimos obtener una respuesta.");
+    await expectDangerToast(page, "No se pudo completar la acción.");
     await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
     await page.getByRole("button", { name: "Registrar visita", exact: true }).click();
     await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toBeVisible();
     await primary.click();
-    await expect(dialog.getByRole("heading", { name: "Visita registrada" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeVisible();
     const facts = await factsFor(page, "lost");
     expect(accepted).toHaveLength(1);
     expect(receipts).toEqual([accepted[0], accepted[0]]);
@@ -444,11 +556,8 @@ test("known commit stays positive when optional receipt fails and reopening refr
         } else await route.continue();
     });
     await dialog.getByRole("button", { name: "Confirmar visita", exact: true }).click();
-    await expect(dialog.getByRole("heading", { name: "Visita registrada" })).toBeVisible();
-    await expectDangerToast(
-        page,
-        "La visita está registrada, pero no pudimos cargar todos los detalles.",
-    );
+    await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeVisible();
+    await expectDangerToast(page, "La visita está registrada. Revisa el mensaje.");
     await expect(dialog.getByRole("button", { name: "Confirmar visita" })).toHaveCount(0);
     await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
     await page.getByRole("button", { name: "Registrar visita", exact: true }).click();
@@ -562,7 +671,32 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                 await installCanvasCamera(page, rows);
                 const dialog = await openVisits(page);
                 expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(0);
-                await dialog.getByRole("button", { name: "Activar cámara", exact: true }).click();
+                await dialog.getByLabel("Código de la Tarjeta", { exact: true }).fill("012");
+                await page.evaluate(() => {
+                    window.__visitCamera.holdPermission = true;
+                });
+                const start = dialog.locator("#visit-camera-start");
+                const startWidth = await start.evaluate((element) => element.offsetWidth);
+                await start.click();
+                await expect
+                    .poll(() =>
+                        page.evaluate(() => Boolean(window.__visitCamera.releasePermission)),
+                    )
+                    .toBe(true);
+                try {
+                    await expectButtonSpinner(start, startWidth);
+                    await expect(
+                        dialog.getByRole("button", { name: "Desactivar cámara", exact: true }),
+                    ).toBeEnabled();
+                    await expect(
+                        dialog.getByLabel("Código de la Tarjeta", { exact: true }),
+                    ).toBeHidden();
+                } finally {
+                    await page.evaluate(() => {
+                        window.__visitCamera.holdPermission = false;
+                        window.__visitCamera.releasePermission();
+                    });
+                }
                 const video = dialog.locator("video");
                 await expect
                     .poll(() =>
@@ -575,7 +709,12 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                     )
                     .toBe(true);
                 const beforeTyping = await video.evaluate((element) => element.currentTime);
-                await dialog.getByLabel("Código de la Tarjeta", { exact: true }).fill("012");
+                await expect(
+                    dialog.getByLabel("Código de la Tarjeta", { exact: true }),
+                ).toBeHidden();
+                await expect(
+                    dialog.getByRole("button", { name: "Buscar tarjeta", exact: true }),
+                ).toBeHidden();
                 await expect
                     .poll(() => video.evaluate((element) => element.currentTime))
                     .toBeGreaterThan(beforeTyping);
@@ -585,13 +724,23 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                     ),
                 ).toBe("live");
                 await expect(video).toBeVisible();
-                await dialog
-                    .getByRole("button", { name: "Desactivar cámara", exact: true })
-                    .click();
+                const stop = dialog.getByRole("button", { name: "Desactivar cámara", exact: true });
+                const stopWidth = await stop.evaluate((element) => element.offsetWidth);
+                const deactivation = await holdAction(page, "resetIdentification");
+                await stop.click();
+                await deactivation.requested;
+                try {
+                    await expectButtonSpinner(stop, stopWidth);
+                    await expect(
+                        dialog.getByLabel("Código de la Tarjeta", { exact: true }),
+                    ).toBeHidden();
+                } finally {
+                    deactivation.release();
+                }
                 await expect(video).toBeHidden();
                 await expect(
                     dialog.getByLabel("Código de la Tarjeta", { exact: true }),
-                ).toHaveValue("012");
+                ).toHaveValue("");
                 await expect
                     .poll(() =>
                         page.evaluate(() =>
@@ -611,7 +760,7 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                 await showQrOnCurrentVideo(dialog, testInfo);
                 await dialog.getByRole("button", { name: "Confirmar visita", exact: true }).click();
                 await expect(
-                    dialog.getByRole("heading", { name: "Visita registrada" }),
+                    dialog.getByRole("button", { name: "Cerrar", exact: true }),
                 ).toBeFocused();
                 await expect(dialog.getByText("1 / 8 puntos", { exact: true })).toBeVisible();
                 await page.evaluate(() => {
