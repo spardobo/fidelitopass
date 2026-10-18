@@ -110,7 +110,11 @@ function setup(responses = {}) {
         manual: { value: "00007", focus: () => focus.push("manual") },
         video: { id: "initial-video" },
     };
-    const native = { isSecureContext: false, navigator: { mediaDevices: { getUserMedia() {} } } };
+    const native = {
+        isSecureContext: false,
+        matchMedia: () => ({ matches: true }),
+        navigator: { mediaDevices: { getUserMedia() {} } },
+    };
     globalThis.window = native;
     const interceptors = new Set();
     const state = { stage: "identify", preview: null, facts: null, details: null, message: "" };
@@ -222,8 +226,8 @@ function setup(responses = {}) {
                     return { focus: () => focus.push("close-button") };
                 if (selector === "[data-visit-back]")
                     return { focus: () => focus.push("back-button") };
-                if (selector === "[data-visit-camera-retry]")
-                    return { focus: () => focus.push("camera-retry") };
+                if (selector === "[data-visit-camera-control]")
+                    return { focus: () => focus.push("camera-control") };
                 const heading =
                     selector === "[data-visit-transport-focus]"
                         ? "status"
@@ -331,7 +335,7 @@ test("unsupported camera keeps retry focus and an explicit clean return to manua
     await settle();
     assert.equal(camera.error, "unavailable");
     assert.equal(wire.stage, "identify");
-    assert.equal(focus.at(-1), "camera-retry");
+    assert.equal(focus.at(-1), "camera-control");
     await context.reset(true);
     refs.manual.value = "00007";
     await context.findPassManually();
@@ -1112,7 +1116,7 @@ test("camera lookup keeps manual mode hidden until explicit clean deactivation",
     await pending;
     await settle();
     assert.equal(context.cameraEnabled, true);
-    assert.equal(focus.at(-1), "camera-retry");
+    assert.equal(focus.at(-1), "camera-control");
     wire.message = "Earlier lookup error";
     refs.manual.value = "00007";
     await context.reset(true);
@@ -1145,6 +1149,34 @@ test("ancillary receipt completion cannot steal focus from another result contro
     await pending;
     await settle();
     assert.equal(focus.at(-1), "another-result-control");
+});
+
+for (const capability of [false, undefined]) {
+    test(`touch or unknown entry capability avoids opening the editable input (${capability})`, async () => {
+        const { context, native, focus } = setup({ findPass: async () => null });
+        native.matchMedia = capability === undefined ? undefined : () => ({ matches: capability });
+        context.handleModalShow();
+        await settle();
+        assert.equal(context.manualAutofocus, false);
+        assert.equal(focus.at(-1), "close-button");
+        await context.findPassManually();
+        await settle();
+        assert.equal(focus.at(-1), "manual");
+        await context.reset();
+        await settle();
+        assert.equal(focus.at(-1), "close-button");
+    });
+}
+
+test("fine-pointer entry keeps manual autofocus and ordinary validation focus", async () => {
+    const { context, focus } = setup({ findPass: async () => null });
+    context.handleModalShow();
+    await settle();
+    assert.equal(context.manualAutofocus, true);
+    assert.equal(focus.at(-1), "manual");
+    await context.findPassManually();
+    await settle();
+    assert.equal(focus.at(-1), "manual");
 });
 
 test("deactivation cancels pending permission before native reset completes", async () => {
@@ -1231,6 +1263,92 @@ test("optional receipt rejection cannot refocus an unchanged known result", asyn
     assert.equal(wire.facts.points_awarded, 3);
     assert.equal(context.visitPhase, "settled");
     assert.deepEqual(toasts, [{ variant: "danger", text: "Registered; review the message" }]);
+});
+
+test("entry focus rechecks pointer capability when the same modal reopens", async () => {
+    const { context, native, focus } = setup();
+    const queries = [];
+    let matches = false;
+    native.matchMedia = (query) => {
+        queries.push(query);
+        return { matches };
+    };
+    for (const [capability, expected] of [
+        [false, "close-button"],
+        [true, "manual"],
+        [false, "close-button"],
+    ]) {
+        matches = capability;
+        context.handleModalShow();
+        await settle();
+        assert.equal(focus.at(-1), expected);
+        context.handleModalClose();
+    }
+    assert.ok(queries.length >= 3);
+    assert.deepEqual([...new Set(queries)], ["(hover: hover) and (pointer: fine)"]);
+});
+
+test("touch cancellation keeps reset guarded and ignores late permission and decoded token", async () => {
+    const permission = deferred(),
+        resetResponse = deferred(),
+        started = deferred();
+    const {
+        context,
+        camera,
+        native,
+        controls,
+        stopped,
+        refs,
+        wire,
+        focus,
+        startup,
+        renders,
+        toasts,
+    } = setup({
+        resetIdentification: () => resetResponse.promise,
+    });
+    native.isSecureContext = true;
+    native.matchMedia = () => ({ matches: false });
+    BrowserQRCodeReader.prototype.decodeFromConstraints.mock.mockImplementation((...args) => {
+        startup.push(args);
+        started.resolve();
+        return permission.promise;
+    });
+    context.handleModalShow();
+    context.requestCameraStart();
+    await started.promise;
+    const resetting = context.reset(true);
+    context.requestCameraStart();
+    assert.equal(context.busy, true);
+    assert.equal(camera.starting, false);
+    assert.equal(context.cameraEnabled, true);
+    assert.equal(startup.length, 1);
+    permission.resolve(controls);
+    await settle();
+    assert.equal(context.busy, true);
+    assert.deepEqual(stopped, ["owned-camera"]);
+    resetResponse.resolve(null);
+    await resetting;
+    await settle();
+    startup[0][2]({ getText: () => "obsolete-token" }, undefined, controls);
+    await settle();
+    assert.equal(context.cameraEnabled, false);
+    assert.equal(camera.active, false);
+    assert.equal(context.busy, false);
+    assert.equal(refs.manual.value, "");
+    assert.equal(wire.preview, null);
+    assert.equal(focus.at(-1), "close-button");
+    assert.deepEqual(renders, ["resetIdentification"]);
+    assert.deepEqual(toasts, []);
+});
+
+test("queued entry focus never targets a destroyed modal", async () => {
+    const { context, native, focus } = setup();
+    native.matchMedia = () => ({ matches: false });
+    context.handleModalShow();
+    context.destroy();
+    await settle();
+    assert.deepEqual(focus, []);
 });
 
 test("camera-origin uncertainty retains exact identity across close and ignores new intent", async () => {

@@ -310,14 +310,17 @@ it('renders scoped loading and current form control semantics for every backend 
     $input = $xpath->query('//input[@id="visit-manual-code"]')->item(0);
     expect($input->getAttribute('class'))->toContain('app-input');
     expect($input->getAttribute('placeholder'))->toBe('Ej: 583');
-    expect($input->hasAttribute('autofocus'))->toBeTrue();
+    expect($input->hasAttribute('autofocus'))->toBeFalse();
+    expect($input->getAttribute('x-bind:autofocus'))->toBe('manualAutofocus');
+    expect($xpath->query('//button[@data-visit-close]')->item(0)->getAttribute('x-bind:autofocus'))->toBe('!manualAutofocus');
     expect($xpath->query('//*[@data-qr-camera-region and @*[name()="x-cloak"]]')->length)->toBe(1);
-    $component->assertSee('5 dígitos. Conserva los ceros iniciales.');
+    $component->assertSee('Ingresa el código de 5 dígitos que aparece en la Tarjeta del Cliente.');
     expect($input->hasAttribute('wire:model'))->toBeFalse();
     expect($input->getAttribute('inputmode'))->not->toBe('numeric');
     expect($input->getAttribute('maxlength'))->not->toBe('5');
     expect($xpath->query('//button[@type="submit"]//*[@data-flux-loading-indicator]')->length)->toBe(1);
-    expect($xpath->query('//button[@id="visit-camera-start"]//*[@data-flux-loading-indicator]')->length)->toBe(1);
+    expect($xpath->query('//*[@data-qr-camera]//button')->length)->toBe(1);
+    expect($xpath->query('//button[@data-visit-camera-control]//*[@data-flux-loading-indicator]')->length)->toBe(1);
 
     $component->call('findPass', 'manual', '00007');
     @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
@@ -434,6 +437,67 @@ it('shows a required manual error without skipping the shared invalid attempt gu
     expect($component->effects['returns'][0])->toBeNull();
     $this->assertDatabaseCount('visits', 0);
     $this->assertDatabaseCount('reward_entitlements', 0);
+});
+
+it('renders authoritative progress and consistent point and reward roles before and after confirmation', function () {
+    [$business, $pass, $promotion] = visitDialogFixture();
+    $http = visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $xpath = new DOMXPath($document);
+    $bar = $xpath->query('//*[@id="visit-progress" and @data-flux-progress]')->item(0);
+
+    expect($bar)->not->toBeNull();
+    expect($bar->getAttribute('value'))->toBe('0');
+    expect($bar->getAttribute('max'))->toBe('3');
+    expect($xpath->query('//*[@id="visit-points-gain"]')->item(0)->getAttribute('class'))->toContain('app-role-metric');
+    $rewardIcon = $xpath->query('//*[@id="visit-reward"]//*[local-name()="svg"]')->item(0)?->C14N();
+    expect($rewardIcon)->not->toBeNull();
+    $component->assertSee('Una recompensa real');
+    $this->assertDatabaseCount('visits', 0);
+
+    $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
+    $facts = $component->get('facts');
+    $component->call('findVisitReceipt', 'manual', '00007', $id);
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $xpath = new DOMXPath($document);
+    $bar = $xpath->query('//*[@id="visit-progress" and @data-flux-progress]')->item(0);
+    expect($bar->getAttribute('value'))->toBe('1');
+    expect($bar->getAttribute('max'))->toBe('3');
+    expect($xpath->query('//*[@id="visit-points-gain"]')->item(0)->getAttribute('class'))->toContain('app-role-metric');
+    expect($xpath->query('//*[@id="visit-reward"]//*[local-name()="svg"]')->item(0)?->C14N())->toBe($rewardIcon);
+    expect($facts['points_awarded'])->toBe(1);
+    expect($http->history)->toHaveCount(3);
+    $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 1]);
+    $this->assertDatabaseCount('visits', 1);
+    $this->assertDatabaseCount('reward_entitlements', 0);
+});
+
+it('caps only the visual progress when an authoritative award exceeds the target', function () {
+    [$business, $pass, $promotion] = visitDialogFixture(1);
+    $promotion->extraPoints()->create(['weekday' => 3, 'multiplier' => 3]);
+    $http = visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
+    $component->call('findVisitReceipt', 'manual', '00007', $id);
+    $component->assertSet('facts.points_awarded', 3)->assertSet('details.earned_points', 3);
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $bar = (new DOMXPath($document))->query('//*[@id="visit-progress" and @data-flux-progress]')->item(0);
+
+    expect($bar)->not->toBeNull();
+    expect($bar->getAttribute('value'))->toBe('1');
+    expect($bar->getAttribute('max'))->toBe('1');
+    expect($bar->getAttribute('aria-valuetext'))->toBe('3 de 1 puntos');
+    expect($http->history)->toHaveCount(3);
+    $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 3]);
+    $this->assertDatabaseCount('visits', 1);
+    $this->assertDatabaseCount('reward_entitlements', 1);
 });
 
 /**

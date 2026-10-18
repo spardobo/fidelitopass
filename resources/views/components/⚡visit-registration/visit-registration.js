@@ -31,6 +31,11 @@ Alpine.data("visitRegistration", (copy = {}) => {
 
         visitPhase: VisitPhase.IDLE,
 
+        /** Enables automatic text entry only for an ordinary desktop pointer. */
+        get manualAutofocus() {
+            return Boolean(window.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches);
+        },
+
         // ------------------------------------------------------------------------
         // lifecycle
         // ------------------------------------------------------------------------
@@ -109,7 +114,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
                 void this.reset();
             }
 
-            this.focusStage();
+            this.focusStage(true);
         },
 
         /** Runs when the modal closes. */
@@ -280,7 +285,7 @@ Alpine.data("visitRegistration", (copy = {}) => {
                     currentRead = null;
                     this.busy = false;
                     if (preserveCameraMode) this.cameraEnabled = false;
-                    this.focusStage();
+                    this.focusStage(true);
                 }
             }
         },
@@ -441,16 +446,21 @@ Alpine.data("visitRegistration", (copy = {}) => {
             } else deferredToast = text;
         },
 
-        /** Focuses the editable input or the current primary/retry action. */
-        focusStage() {
+        /** Focuses a contextual action, avoiding automatic touch-device text entry.
+         *
+         * @param {boolean} [entering=false] Marks modal opening or return to manual identification.
+         */
+        focusStage(entering = false) {
             // defer focus to the next render cycle
             this.$nextTick(() => {
                 if (!disposed && this.opened) {
                     const selector =
                         wire.stage === "identify"
                             ? this.cameraEnabled
-                                ? "[data-visit-camera-retry]"
-                                : "#visit-manual-code"
+                                ? "[data-visit-camera-control]"
+                                : entering && !this.manualAutofocus
+                                  ? "[data-visit-close]"
+                                  : "#visit-manual-code"
                             : wire.stage === "confirm"
                               ? wire.preview?.can_accept_visit
                                   ? "[data-visit-confirm]"

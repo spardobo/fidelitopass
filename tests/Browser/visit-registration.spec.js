@@ -54,7 +54,7 @@ const dummyQr = JSON.parse(
  * @param {import('@playwright/test').Page} page Current browser page.
  * @returns {Promise<import('@playwright/test').Locator>} Visible native Flux dialog.
  */
-async function openVisits(page) {
+async function openVisits(page, { manualAutofocus = true } = {}) {
     expect(fixture.kind, "Run through run-isolated-promotions.sh --visits").toBe("visits");
     await page.addInitScript(() => {
         window.__visitTopLayer = [];
@@ -84,7 +84,12 @@ async function openVisits(page) {
     await page.getByRole("button", { name: "Registrar visita", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeFocused();
+    const input = dialog.getByLabel("Código de la Tarjeta", { exact: true });
+    if (manualAutofocus) await expect(input).toBeFocused();
+    else {
+        await expect(input).not.toBeFocused();
+        await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeFocused();
+    }
     return dialog;
 }
 
@@ -106,6 +111,53 @@ async function findManually(dialog, caseName) {
     await expect(primary).toBeFocused();
     await expect(dialog.getByText("Café de la casa", { exact: true })).toBeVisible();
     await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveCount(0);
+}
+
+/** Checks shared point/progress roles and the actual desktop action hierarchy.
+ * @param {import('@playwright/test').Locator} dialog Current rendered modal.
+ * @returns {Promise<object>} Computed role styles for before/after comparison.
+ */
+async function visitPresentation(dialog) {
+    const progress = dialog.getByRole("progressbar");
+    await expect(progress).toBeVisible();
+    await expect(progress).toHaveAttribute("aria-valuemax", "8");
+    const gain = dialog.locator("#visit-points-gain");
+    const style = await gain.evaluate((element) => {
+        const value = getComputedStyle(element);
+        const card = getComputedStyle(element.closest(".rounded-2xl"));
+        return {
+            fontSize: value.fontSize,
+            fontWeight: value.fontWeight,
+            color: value.color,
+            background: card.backgroundColor,
+        };
+    });
+    expect(parseFloat(style.fontSize)).toBe(36);
+    const actions = await dialog.locator("footer").evaluate((footer) => {
+        const rect = footer.getBoundingClientRect();
+        const buttons = [...footer.querySelectorAll("button")];
+        return {
+            left: rect.left,
+            right: rect.right,
+            actions: buttons.map((button) => {
+                const box = button.getBoundingClientRect();
+                return { name: button.textContent.trim(), left: box.left, right: box.right };
+            }),
+        };
+    });
+    expect(actions.actions.map((action) => action.name)).toEqual([
+        "Volver a leer",
+        "Cerrar",
+        "Confirmar visita",
+    ]);
+    expect(Math.abs(actions.actions[0].left - actions.left)).toBeLessThanOrEqual(1);
+    expect(Math.abs(actions.actions[2].right - actions.right)).toBeLessThanOrEqual(1);
+    return {
+        ...style,
+        barColor: await progress
+            .locator(":scope > div")
+            .evaluate((element) => getComputedStyle(element).backgroundColor),
+    };
 }
 
 /** Reads persisted facts through the guarded, read-only tests-only router.
@@ -319,87 +371,95 @@ async function showQrOnCurrentVideo(dialog, testInfo) {
 }
 
 for (const width of [1280, 375]) {
-    test(`manual-first composition, viewport and unsaved editor at ${width}px`, async ({
-        page,
-    }, testInfo) => {
-        await page.setViewportSize({ width, height: 800 });
-        await installCanvasCamera(page, dummyQr.rows);
-        const dialog = await openVisits(page);
-        const input = dialog.getByLabel("Código de la Tarjeta", { exact: true });
-        const search = dialog.getByRole("button", { name: "Buscar tarjeta", exact: true });
-        await expect(input).toHaveValue("");
-        await expect(input).toHaveAttribute("placeholder", "Ej: 583");
-        await expect(
-            dialog.getByRole("button", { name: "Activar cámara", exact: true }),
-        ).toBeVisible();
-        await expect(dialog.locator("video")).toBeHidden();
-        await expect(dialog.locator("[data-qr-camera-region]")).toBeHidden();
-        expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(0);
-        await expect(
-            dialog.getByText("5 dígitos. Conserva los ceros iniciales.", { exact: true }),
-        ).toBeVisible();
-        await expect(dialog.locator("#visit-code-help svg")).toBeVisible();
-        const clearance = await input.evaluate((element) => {
-            const field = element.getBoundingClientRect();
-            const scroll = element.closest("[aria-busy]").getBoundingClientRect();
-            const style = getComputedStyle(element);
-            const outline = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
-            return {
-                left: field.left - outline - scroll.left,
-                right: scroll.right - field.right - outline,
-            };
-        });
-        expect(
-            clearance.left,
-            "focused outline must fit inside scroll clip",
-        ).toBeGreaterThanOrEqual(0);
-        expect(clearance.right).toBeGreaterThanOrEqual(0);
-        const field = await input.boundingBox();
-        const button = await search.boundingBox();
-        expect(Math.abs(field.width - button.width)).toBeLessThanOrEqual(2);
-        expect(Math.abs(field.height - button.height)).toBeLessThanOrEqual(2);
-        if (width > 640) expect(Math.abs(field.y - button.y)).toBeLessThanOrEqual(2);
-        else {
-            expect(button.y).toBeGreaterThanOrEqual(field.y + field.height);
-            const centers = await dialog
-                .locator('ui-label[for="visit-manual-code"]')
-                .evaluate((element) => {
-                    const range = document.createRange();
-                    range.selectNodeContents(element);
-                    const text = range.getBoundingClientRect();
-                    const input = element.ownerDocument
-                        .getElementById(element.getAttribute("for"))
-                        .getBoundingClientRect();
-                    return {
-                        text: text.x + text.width / 2,
-                        input: input.x + input.width / 2,
-                    };
-                });
-            expect(Math.abs(centers.text - centers.input)).toBeLessThanOrEqual(2);
-        }
-        const bounds = await dialog.boundingBox();
-        expect(bounds.y).toBeGreaterThanOrEqual(0);
-        expect(bounds.y + bounds.height).toBeLessThanOrEqual(800);
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-            true,
-        );
-        await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeInViewport();
-        await testInfo.attach(`manual-first-${width}`, {
-            body: await page.screenshot(),
-            contentType: "image/png",
-        });
-        await page.keyboard.press("Escape");
-        await expect(dialog).not.toBeVisible();
-        await expect(
-            page.getByRole("button", { name: "Registrar visita", exact: true }),
-        ).toBeFocused();
-        await expect(page.locator("#reward-title")).toHaveValue("Borrador sin guardar");
-        await expect(page).toHaveURL(/\/promotions\/create$/);
-        expect(await factsFor(page, `layout-${width}`)).toEqual({
-            visits: [],
-            effects: { GET: 0, PATCH: 0 },
-        });
-    });
+    const viewportTest = width === 375 ? test.extend({ isMobile: true, hasTouch: true }) : test;
+    viewportTest(
+        `manual-first composition, viewport and unsaved editor at ${width}px`,
+        async ({ page }, testInfo) => {
+            await page.setViewportSize({ width, height: 800 });
+            await installCanvasCamera(page, dummyQr.rows);
+            const dialog = await openVisits(page, { manualAutofocus: width !== 375 });
+            const input = dialog.getByLabel("Código de la Tarjeta", { exact: true });
+            const search = dialog.getByRole("button", { name: "Buscar tarjeta", exact: true });
+            await expect(input).toHaveValue("");
+            await expect(input).toHaveAttribute("placeholder", "Ej: 583");
+            await expect(
+                dialog.getByRole("button", { name: "Activar cámara", exact: true }),
+            ).toBeVisible();
+            await expect(dialog.locator("video")).toBeHidden();
+            await expect(dialog.locator("[data-qr-camera-region]")).toBeHidden();
+            expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(0);
+            await expect(
+                dialog.getByText(
+                    "Ingresa el código de 5 dígitos que aparece en la Tarjeta del Cliente.",
+                    { exact: true },
+                ),
+            ).toBeVisible();
+            await expect(dialog.locator("#visit-code-help svg")).toBeVisible();
+            await input.focus();
+            const clearance = await input.evaluate((element) => {
+                const field = element.getBoundingClientRect();
+                const scroll = element.closest("[aria-busy]").getBoundingClientRect();
+                const style = getComputedStyle(element);
+                const outline = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+                return {
+                    left: field.left - outline - scroll.left,
+                    right: scroll.right - field.right - outline,
+                };
+            });
+            expect(
+                clearance.left,
+                "focused outline must fit inside scroll clip",
+            ).toBeGreaterThanOrEqual(0);
+            expect(clearance.right).toBeGreaterThanOrEqual(0);
+            const field = await input.boundingBox();
+            const button = await search.boundingBox();
+            expect(Math.abs(field.width - button.width)).toBeLessThanOrEqual(2);
+            expect(Math.abs(field.height - button.height)).toBeLessThanOrEqual(2);
+            if (width > 640) expect(Math.abs(field.y - button.y)).toBeLessThanOrEqual(2);
+            else {
+                expect(button.y).toBeGreaterThanOrEqual(field.y + field.height);
+                const centers = await dialog
+                    .locator('ui-label[for="visit-manual-code"]')
+                    .evaluate((element) => {
+                        const range = document.createRange();
+                        range.selectNodeContents(element);
+                        const text = range.getBoundingClientRect();
+                        const input = element.ownerDocument
+                            .getElementById(element.getAttribute("for"))
+                            .getBoundingClientRect();
+                        return {
+                            text: text.x + text.width / 2,
+                            input: input.x + input.width / 2,
+                        };
+                    });
+                expect(Math.abs(centers.text - centers.input)).toBeLessThanOrEqual(2);
+            }
+            const bounds = await dialog.boundingBox();
+            expect(bounds.y).toBeGreaterThanOrEqual(0);
+            expect(bounds.y + bounds.height).toBeLessThanOrEqual(800);
+            expect(
+                await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+            ).toBe(true);
+            await expect(
+                dialog.getByRole("button", { name: "Cerrar", exact: true }),
+            ).toBeInViewport();
+            await testInfo.attach(`manual-first-${width}`, {
+                body: await page.screenshot(),
+                contentType: "image/png",
+            });
+            await page.keyboard.press("Escape");
+            await expect(dialog).not.toBeVisible();
+            await expect(
+                page.getByRole("button", { name: "Registrar visita", exact: true }),
+            ).toBeFocused();
+            await expect(page.locator("#reward-title")).toHaveValue("Borrador sin guardar");
+            await expect(page).toHaveURL(/\/promotions\/create$/);
+            expect(await factsFor(page, `layout-${width}`)).toEqual({
+                visits: [],
+                effects: { GET: 0, PATCH: 0 },
+            });
+        },
+    );
 }
 
 test("leading-zero manual identification requires explicit confirmation and commits one Visit", async ({
@@ -417,6 +477,12 @@ test("leading-zero manual identification requires explicit confirmation and comm
         searchHold.release();
     }
     await finding;
+    const presentation = await visitPresentation(dialog);
+    await expect(dialog.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+    await test.info().attach("confirmation-hierarchy", {
+        body: await page.screenshot(),
+        contentType: "image/png",
+    });
     expect(await factsFor(page, "manual")).toEqual({ visits: [], effects: { GET: 0, PATCH: 0 } });
     const confirm = dialog.getByRole("button", { name: "Confirmar visita", exact: true });
     const confirmWidth = await confirm.evaluate((element) => element.offsetWidth);
@@ -430,6 +496,46 @@ test("leading-zero manual identification requires explicit confirmation and comm
     }
     await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeFocused();
     await expect(dialog.getByText("1 / 8 puntos", { exact: true })).toBeVisible();
+    const progress = dialog.getByRole("progressbar");
+    await expect(progress).toHaveAttribute("aria-valuenow", "1");
+    await expect(progress).toHaveAttribute("aria-valuemax", "8");
+    const resultStyle = await dialog.locator("#visit-points-gain").evaluate((element) => {
+        const value = getComputedStyle(element);
+        return {
+            fontSize: value.fontSize,
+            fontWeight: value.fontWeight,
+            color: value.color,
+            background: getComputedStyle(element.closest(".rounded-2xl")).backgroundColor,
+        };
+    });
+    expect(resultStyle).toEqual(
+        Object.fromEntries(Object.entries(presentation).filter(([key]) => key !== "barColor")),
+    );
+    expect(
+        await progress
+            .locator(":scope > div")
+            .evaluate((element) => getComputedStyle(element).backgroundColor),
+    ).toBe(presentation.barColor);
+    await expect
+        .poll(() =>
+            progress.evaluate((element) => {
+                const track = element.getBoundingClientRect();
+                const fill = element.firstElementChild.getBoundingClientRect();
+                return Math.round((fill.width / track.width) * 1000);
+            }),
+        )
+        .toBe(125);
+    const close = dialog.getByRole("button", { name: "Cerrar", exact: true });
+    const order = await dialog
+        .locator("footer")
+        .evaluate((element) =>
+            [...element.querySelectorAll("button")].map((button) => button.textContent.trim()),
+        );
+    expect(order).toEqual(["Volver a leer", "Cerrar"]);
+    await expect(close).toHaveClass(/app-button-primary/);
+    await test
+        .info()
+        .attach("result-hierarchy", { body: await page.screenshot(), contentType: "image/png" });
     const facts = await factsFor(page, "manual");
     expect(facts.visits).toHaveLength(1);
     expect(facts.visits[0].awarded_points).toBe(1);
@@ -675,7 +781,7 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                 await page.evaluate(() => {
                     window.__visitCamera.holdPermission = true;
                 });
-                const start = dialog.locator("#visit-camera-start");
+                const start = dialog.getByRole("button", { name: "Activar cámara", exact: true });
                 const startWidth = await start.evaluate((element) => element.offsetWidth);
                 await start.click();
                 await expect
@@ -684,10 +790,16 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                     )
                     .toBe(true);
                 try {
-                    await expectButtonSpinner(start, startWidth);
-                    await expect(
-                        dialog.getByRole("button", { name: "Desactivar cámara", exact: true }),
-                    ).toBeEnabled();
+                    const stop = dialog.getByRole("button", {
+                        name: "Desactivar cámara",
+                        exact: true,
+                    });
+                    await expect(dialog.locator("[data-qr-camera] button:visible")).toHaveCount(1);
+                    await expectButtonSpinner(stop, startWidth);
+                    await expect(stop).toBeEnabled();
+                    expect(
+                        await stop.evaluate((element) => getComputedStyle(element).pointerEvents),
+                    ).not.toBe("none");
                     await expect(
                         dialog.getByLabel("Código de la Tarjeta", { exact: true }),
                     ).toBeHidden();
