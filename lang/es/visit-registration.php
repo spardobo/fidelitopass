@@ -46,7 +46,7 @@ return [
     'success_title' => 'Visita registrada',
     'awarded' => 'Puntos confirmados',
     'updated_progress' => 'Progreso tras esta visita',
-    'reward_unlocked' => 'Recompensa desbloqueada con esta visita',
+    'reward_unlocked' => 'Recompensa desbloqueada',
     'available_reward' => '¡Recompensa lista!',
     'reward_read_only' => 'Esta tarjeta ya tiene una recompensa para disfrutar. No necesita otra visita.',
     'completed' => 'Esta tarjeta ya completó la promoción. No corresponde registrar otra visita.',

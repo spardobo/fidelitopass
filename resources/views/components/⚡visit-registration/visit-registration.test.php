@@ -580,6 +580,29 @@ it('orders footer actions by the explicit stage rather than their button count',
     }
 });
 
+it('shows confirmed reward unlocking beside the success heading rather than inside the card', function () {
+    [$business, $pass, $promotion] = visitDialogFixture(1);
+    visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    expect((new DOMXPath($document))->query('//*[@data-visit-reward-unlocked]')->length)->toBe(0);
+    $component->call('findVisitReceipt', 'manual', '00007', $id);
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $xpath = new DOMXPath($document);
+    $badge = $xpath->query('//*[@data-modal-step-heading]//*[@data-visit-reward-unlocked]')->item(0);
+    expect($badge)->not->toBeNull();
+    expect($badge->getAttribute('class'))->not->toContain('uppercase');
+    expect(trim($badge->textContent))->toBe(__('visit-registration.reward_unlocked'));
+    expect($xpath->query('//*[@data-visit-points-card]//*[@data-visit-reward-unlocked]')->length)->toBe(0);
+    expect($xpath->query('//*[@data-visit-points-card]//p[contains(text(), "Recompensa desbloqueada")]')->length)->toBe(0);
+    $this->assertDatabaseCount('visits', 1);
+    $this->assertDatabaseCount('reward_entitlements', 1);
+});
+
 /**
  * Creates owned frozen terms and a private pass without provider effects.
  *

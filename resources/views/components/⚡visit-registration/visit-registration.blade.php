@@ -125,6 +125,15 @@
                                 <flux:icon.check-circle variant="outline" class="size-9" />
                             </x-slot:icon>
                             {{ __('visit-registration.success_title') }}
+                            @if ($details && $details['reward_unlocked'])
+                                <x-slot:badge>
+                                    <flux:badge color="green" role="status" data-visit-reward-unlocked class="app-role-support! relative max-w-full bg-app-success-surface! font-semibold! whitespace-normal! text-app-success-ink!">
+                                        <span aria-hidden="true" class="pointer-events-none absolute inset-0 rounded-[inherit] border border-app-success-ink motion-safe:animate-pulse motion-safe:[animation-iteration-count:2]!">
+                                        </span>
+                                        {{ __('visit-registration.reward_unlocked') }}
+                                    </flux:badge>
+                                </x-slot:badge>
+                            @endif
                         </x-modal-step-heading>
                         <x-visit-points-card :promotion="$details" :points="$facts['points_awarded']" :confirmed="true" />
                     </section>

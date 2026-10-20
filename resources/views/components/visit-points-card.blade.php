@@ -37,9 +37,6 @@
     </dl>
     @if ($promotion)
         <div class="space-y-3 border-t border-app-line pt-4">
-            @if ($confirmed && $promotion['reward_unlocked'])
-                <p class="app-role-action text-app-success-ink">{{ __('visit-registration.reward_unlocked') }}</p>
-            @endif
             <div id="visit-reward" class="flex items-center gap-3">
                 <flux:icon.gift variant="outline" class="size-8 shrink-0 text-app-accent" />
                 <div class="min-w-0 space-y-1 break-words">

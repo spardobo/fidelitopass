@@ -722,6 +722,57 @@ test("available Reward has no Visit CTA or enabled redemption stub", async ({ pa
     expect(facts.effects).toEqual({ GET: 0, PATCH: 0 });
 });
 
+test.extend({ isMobile: true, hasTouch: true })(
+    "newly unlocked reward is readable beside the title with bounded optional motion",
+    async ({ page }) => {
+        await page.setViewportSize({ width: 375, height: 800 });
+        const dialog = await openVisits(page, { manualAutofocus: false });
+        await findManually(dialog, "unlock");
+        await expect(dialog.getByText("7 / 8 puntos", { exact: true })).toBeVisible();
+        await expect(dialog.locator("[data-visit-reward-unlocked]")).toHaveCount(0);
+        await dialog.getByRole("button", { name: "Confirmar visita", exact: true }).click();
+        const badge = dialog.locator("[data-visit-reward-unlocked]");
+        await expect(badge).toBeVisible();
+        await expect(badge).toHaveText("Recompensa desbloqueada");
+        await expect(dialog.getByText("8 / 8 puntos", { exact: true })).toBeVisible();
+        const badgeStyle = await badge.evaluate((element) => ({
+            textTransform: getComputedStyle(element).textTransform,
+            color: getComputedStyle(element).color,
+            top: element.getBoundingClientRect().top,
+            bottom: element.getBoundingClientRect().bottom,
+            cardTop: element
+                .closest("section")
+                .querySelector("[data-visit-points-card]")
+                .getBoundingClientRect().top,
+            cardContains: Boolean(element.closest("[data-visit-points-card]")),
+        }));
+        expect(badgeStyle.textTransform).toBe("none");
+        expect(badgeStyle.cardContains).toBe(false);
+        expect(badgeStyle.bottom).toBeLessThanOrEqual(badgeStyle.cardTop);
+        const pulse = badge.locator("[aria-hidden]");
+        const animation = await pulse.evaluate((element) => ({
+            count: getComputedStyle(element).animationIterationCount,
+            duration: getComputedStyle(element).animationDuration,
+        }));
+        expect(animation.count).toBe("2");
+        expect(parseFloat(animation.duration) * Number(animation.count)).toBeLessThanOrEqual(4);
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await expect
+            .poll(() => pulse.evaluate((element) => getComputedStyle(element).animationName))
+            .toBe("none");
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+            true,
+        );
+        await test.info().attach("reward-unlocked-heading-mobile", {
+            body: await page.screenshot(),
+            contentType: "image/png",
+        });
+        const facts = await factsFor(page, "unlock");
+        expect(facts.visits).toHaveLength(8);
+        expect(facts.effects).toEqual({ GET: 1, PATCH: 1 });
+    },
+);
+
 for (const changedIntent of ["edit", "close", "back"]) {
     test(`late read after ${changedIntent} cannot restore stale confirmation`, async ({ page }) => {
         const dialog = await openVisits(page);

@@ -198,7 +198,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
                     'manual', 'failure', 'lost', 'details', 'reward',
                     'readonly-edit', 'readonly-close', 'readonly-back',
                     'layout-1280', 'layout-375',
-                    'camera-chromium', 'camera-firefox', 'camera-webkit',
+                    'camera-chromium', 'camera-firefox', 'camera-webkit', 'unlock',
                 ];
                 foreach ($cases as $index => $case) {
                     $token = $case === 'camera-chromium'
@@ -213,21 +213,23 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
                     $effects['passes'][$pass->id] = ['GET' => 0, 'PATCH' => 0];
                 }
                 $rewardPass = $passes['reward']['id'];
-                DB::table('promotion_participations')->insert([
-                    'business_id' => $business->id,
-                    'customer_pass_id' => $rewardPass,
-                    'promotion_id' => $promotion->id,
-                ]);
-                for ($index = 0; $index < 8; $index++) {
-                    DB::table('visits')->insert([
+                foreach (['reward' => 8, 'unlock' => 7] as $case => $count) {
+                    DB::table('promotion_participations')->insert([
                         'business_id' => $business->id,
-                        'customer_pass_id' => $rewardPass,
+                        'customer_pass_id' => $passes[$case]['id'],
                         'promotion_id' => $promotion->id,
-                        'operation_id' => (string) Str::uuid(),
-                        'awarded_points' => 1,
-                        'confirmed_by_user_id' => $owner->id,
-                        'confirmed_at' => $instant,
                     ]);
+                    for ($index = 0; $index < $count; $index++) {
+                        DB::table('visits')->insert([
+                            'business_id' => $business->id,
+                            'customer_pass_id' => $passes[$case]['id'],
+                            'promotion_id' => $promotion->id,
+                            'operation_id' => (string) Str::uuid(),
+                            'awarded_points' => 1,
+                            'confirmed_by_user_id' => $owner->id,
+                            'confirmed_at' => $instant,
+                        ]);
+                    }
                 }
                 DB::table('reward_entitlements')->insert([
                     'business_id' => $business->id,
@@ -251,8 +253,8 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
             $expectedOauth = 0;
             foreach ($fixture['passes'] as $case => $pass) {
                 $facts = readVisitBrowserFacts($case);
-                $accepted = in_array($case, ['manual', 'lost', 'details', 'camera-chromium', 'camera-firefox', 'camera-webkit'], true);
-                $expectedVisits = $case === 'reward' ? 8 : (int) $accepted;
+                $accepted = in_array($case, ['manual', 'lost', 'details', 'camera-chromium', 'camera-firefox', 'camera-webkit', 'unlock'], true);
+                $expectedVisits = in_array($case, ['reward', 'unlock'], true) ? 8 : (int) $accepted;
                 $expectedWrites = (int) ($accepted || $case === 'failure');
                 $expectedOauth += $expectedWrites;
                 if (
@@ -269,7 +271,8 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
             $promotion = Promotion::query()->findOrFail($fixture['promotion']['id']);
             if (
                 $promotion->getAttributes() !== $fixture['promotion']
-                || DB::table('reward_entitlements')->count() !== 1
+                || DB::table('reward_entitlements')->count() !== 2
+                || ! DB::table('reward_entitlements')->where('customer_pass_id', $fixture['passes']['unlock']['id'])->where('promotion_id', $promotion->id)->exists()
             ) {
                 throw new RuntimeException('Visit journeys changed frozen terms or Reward facts.');
             }

@@ -8,7 +8,10 @@
     ]) aria-hidden="true">
         {{ $icon }}
     </span>
-    <h3 id="{{ $id }}" class="app-role-section min-w-0 break-words text-app-ink">
-        {{ $slot }}
-    </h3>
+    <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <h3 id="{{ $id }}" class="app-role-section min-w-0 break-words text-app-ink">
+            {{ $slot }}
+        </h3>
+        {{ $badge ?? '' }}
+    </div>
 </div>
