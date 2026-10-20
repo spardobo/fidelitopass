@@ -72,12 +72,15 @@ it('addresses card configuration to the owner while preserving the customer exam
         ->assertSeeText('Ahora tu visita vale 3 puntos.');
 
     if ($saved) {
-        $response->assertSeeText('Tu tarjeta acompaña a tus clientes')
+        $response->assertSeeText('Tarjeta preparada')
+            ->assertDontSeeText('Apariencia guardada')
+            ->assertSeeText('Tu tarjeta acompaña a tus clientes')
             ->assertSeeText('Tus clientes conservan tu tarjeta. Cuando una promoción termina, la siguiente se presenta en esa misma tarjeta.')
             ->assertSeeText('La primera razón para que tus clientes vuelvan')
             ->assertDontSeeText('Tu primera razón para volver');
     } else {
         $response->assertSeeText('Primero prepara tu tarjeta para crear promociones.')
+            ->assertDontSeeText('Tarjeta preparada')
             ->assertDontSeeText('La primera razón para que tus clientes vuelvan');
     }
 

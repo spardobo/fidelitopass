@@ -231,7 +231,7 @@
             <div class="app-pass-overview-content min-w-0 space-y-4">
                 @if ($this->business->pass_background_color)
                     <flux:badge icon="check" color="green" class="app-role-support! font-medium!">
-                        {{ __('business.pass.saved_status') }}
+                        {{ __('business.pass.prepared_badge') }}
                     </flux:badge>
                     <div class="space-y-2">
                         <flux:heading level="2" size="lg" id="pass-overview-heading" class="app-role-section! text-app-ink!">

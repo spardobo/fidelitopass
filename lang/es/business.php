@@ -38,6 +38,7 @@ return [
         'waiting_state_heading' => 'Tu tarjeta ya está lista.',
         'waiting_state_description' => 'Aquí aparecerá la próxima promoción del negocio.',
         'saved_status' => 'Apariencia guardada',
+        'prepared_badge' => 'Tarjeta preparada',
         'unsaved_badge' => 'Tarjeta sin preparar',
         'unsaved_heading' => 'Primero, dale tu identidad',
         'unsaved_description' => 'Prepara la apariencia de tu tarjeta, que conservarán tus clientes. Después podrás crear tu primera promoción.',
