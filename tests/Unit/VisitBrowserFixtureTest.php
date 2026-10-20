@@ -4,6 +4,7 @@ use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Integrations\GoogleWallet\GoogleWalletConfiguration;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
@@ -118,7 +119,7 @@ it('rejects the traced null Promotion argument before accepting a Visit', functi
 });
 
 /**
- * Fingerprints domain rows without reserving, resetting or seeding any database.
+ * Fingerprints existing domain rows and absent tables without provisioning any schema or fixtures.
  *
  * @return string Digest of existing domain facts.
  */
@@ -126,7 +127,9 @@ function visitBrowserStoredFingerprint(): string
 {
     $snapshot = [];
     foreach (['users', 'businesses', 'promotions', 'customer_passes', 'promotion_participations', 'visits', 'reward_entitlements'] as $table) {
-        $snapshot[$table] = DB::table($table)->orderBy('id')->get()->all();
+        $snapshot[$table] = Schema::hasTable($table)
+            ? DB::table($table)->orderBy('id')->get()->all()
+            : null;
     }
 
     return hash('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR));

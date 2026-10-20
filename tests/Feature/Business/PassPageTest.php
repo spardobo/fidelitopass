@@ -528,7 +528,7 @@ it('saves a valid appearance and restores the persisted value when cancelled', f
             return GoogleWalletHttpFake::json($remote);
         },
     ]);
-    Log::spy();
+    Log::partialMock()->shouldReceive('log')->byDefault();
     $this->actingAs($business->user);
 
     Livewire::test('pages::business.pass')
@@ -545,7 +545,7 @@ it('saves a valid appearance and restores the persisted value when cancelled', f
         ->call('cancel')
         ->assertSet('backgroundColor', '#A77BFF');
 
-    $this->get(route('business.pass'))->assertSee('#A77BFF');
+    $this->get(route('business.pass'))->assertOk()->assertSee('#A77BFF');
 
     expect($remote['hexBackgroundColor'])->toBe('#A77BFF');
     expect($http->requests()->map(fn (array $pair) => $pair[0]->method())->all())
