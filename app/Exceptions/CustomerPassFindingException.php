@@ -2,7 +2,7 @@
 
 namespace App\Exceptions;
 
-use App\Enums\InspectionFailure;
+use App\Enums\PassFindingFailure;
 use Illuminate\Contracts\Debug\ShouldntReport;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
@@ -11,23 +11,23 @@ use SensitiveParameter;
 use Throwable;
 
 /**
- * Carries a typed inspection failure and emits its safe operational event on request.
+ * Carries a typed pass-finding failure and emits its safe operational event on request.
  *
- * The inspection boundary owns logging. Secret-bearing native causes must be
+ * The finder boundary owns logging. Secret-bearing native causes must be
  * omitted; that boundary supplies only their selected safe source metadata.
  */
-class CustomerPassInspectionException extends RuntimeException implements ShouldntReport
+class CustomerPassFindingException extends RuntimeException implements ShouldntReport
 {
     /**
      * Builds the failure with an optional cause known to be safe to retain.
      *
-     * @param  InspectionFailure  $failure  Typed reason propagated to the caller.
+     * @param  PassFindingFailure  $failure  Typed reason propagated to the caller.
      * @param  Throwable|null  $previous  Optional non-secret-bearing native cause.
      * @param  array<string, mixed>  $context  Selected safe source or operation evidence.
      * @param  int|null  $retryAfterSeconds  Seconds to wait when throttled, otherwise null.
      */
     public function __construct(
-        public readonly InspectionFailure $failure,
+        public readonly PassFindingFailure $failure,
         ?Throwable $previous = null,
         public readonly array $context = [],
         public readonly ?int $retryAfterSeconds = null,
@@ -38,7 +38,7 @@ class CustomerPassInspectionException extends RuntimeException implements Should
     /**
      * Classifies an authoritative-read failure without retaining SQL, bindings or native causes.
      *
-     * @param  Throwable  $exception  Native read failure or already classified inspection failure.
+     * @param  Throwable  $exception  Native read failure or already classified pass-finding failure.
      * @return self Immutable safe evidence; existing classifications are preserved.
      */
     public static function fromException(#[SensitiveParameter] Throwable $exception): self
@@ -47,7 +47,7 @@ class CustomerPassInspectionException extends RuntimeException implements Should
             return $exception;
         }
 
-        return new self(InspectionFailure::AuthoritativeReadFailed, context: [
+        return new self(PassFindingFailure::AuthoritativeReadFailed, context: [
             'previous_class' => $exception::class,
             'exception_class' => $exception::class,
             'source_file' => $exception->getFile(),

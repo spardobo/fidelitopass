@@ -2,8 +2,8 @@
 
 namespace App\Support;
 
-use App\Enums\InspectionFailure;
-use App\Exceptions\CustomerPassInspectionException;
+use App\Enums\PassFindingFailure;
+use App\Exceptions\CustomerPassFindingException;
 use App\Models\Business;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -15,13 +15,13 @@ use stdClass;
 use Throwable;
 
 /**
- * Read-only inspection of a private pass, always scoped to the
+ * Finds a private pass read-only, always scoped to the
  * authenticated actor's Business.
  *
  * Performs no domain writes, never echoes the credential and emits
  * every operational event from its single public entry point.
  */
-final class CustomerPassInspector
+final class CustomerPassFinder
 {
     private const int MAX_CREDENTIAL_LENGTH = 256;
 
@@ -34,16 +34,16 @@ final class CustomerPassInspector
     /**
      * Receives the PostgreSQL clock used for the read-only hint.
      *
-     * @param  DatabaseClock  $clock  Authoritative clock captured once per inspection.
+     * @param  DatabaseClock  $clock  Authoritative clock captured once per search.
      */
     public function __construct(private readonly DatabaseClock $clock) {}
 
     /**
-     * Inspects a private credential within the actor's Business.
+     * Finds a pass by private credential within the actor's Business.
      *
      * The actor must be server-authenticated; the credential is never
      * retained in results or logs. Invalid attempts share one actor
-     * window. A successful inspection is a nonauthoritative hint:
+     * window. A successful search is a nonauthoritative hint:
      * later commands must revalidate before accepting a Visit or a
      * redemption.
      *
@@ -59,20 +59,22 @@ final class CustomerPassInspector
      *         target_points: int,
      *         earned_points: int,
      *         reward_title: string,
-     *         reward_status: 'none'|'available'|'redeemed'
+     *         reward_description: string|null,
+     *         reward_status: 'none'|'available'|'redeemed',
+     *         visit_points: int
      *     }|null,
      *     can_accept_visit: bool,
      *     can_redeem_reward: bool
      * } Selected nonsecret facts; negative eligibility is still a success.
      *
-     * @throws CustomerPassInspectionException If any validation, credential, throttle or authoritative-read check fails.
-     * @throws Throwable If native logging or an unexpected collaborator failure interrupts inspection.
+     * @throws CustomerPassFindingException If any validation, credential, throttle or authoritative-read check fails.
+     * @throws Throwable If native logging or an unexpected collaborator failure interrupts the search.
      */
-    public function inspect(?User $actor, string $method, #[SensitiveParameter] string $credential): array
+    public function find(?User $actor, string $method, #[SensitiveParameter] string $credential): array
     {
         // reject unauthenticated or unverified actors before any other work
         if ($actor === null || ! $actor->hasVerifiedEmail()) {
-            throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
+            throw new CustomerPassFindingException(PassFindingFailure::Forbidden);
         }
 
         $businessId = null;
@@ -81,7 +83,7 @@ final class CustomerPassInspector
             // resolve the actor's business; lookups are always scoped to it
             $business = $actor->business()->first();
             if ($business === null) {
-                throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
+                throw new CustomerPassFindingException(PassFindingFailure::Forbidden);
             }
 
             $businessId = $business->id;
@@ -94,7 +96,7 @@ final class CustomerPassInspector
             $normalized = $this->normalizeCredential($method, $credential);
             if ($normalized === null) {
                 $this->recordInvalidAttempt($rateLimitKey);
-                throw new CustomerPassInspectionException(InspectionFailure::InvalidCredential);
+                throw new CustomerPassFindingException(PassFindingFailure::InvalidCredential);
             }
 
             // capture one authoritative instant for the whole snapshot
@@ -103,19 +105,19 @@ final class CustomerPassInspector
 
             // reject ambiguous occupancy instead of choosing a pass arbitrarily
             if (count($rows) > 1) {
-                throw new CustomerPassInspectionException(InspectionFailure::AmbiguousActivePromotion);
+                throw new CustomerPassFindingException(PassFindingFailure::AmbiguousActivePromotion);
             }
 
             // a well-formed credential resolving to no pass is a business rejection
             if ($rows === []) {
                 $this->recordInvalidAttempt($rateLimitKey);
-                throw new CustomerPassInspectionException(InspectionFailure::InvalidCredential);
+                throw new CustomerPassFindingException(PassFindingFailure::InvalidCredential);
             }
 
             return $this->buildResult($rows[0], $capturedAt);
         } catch (QueryException|PDOException $exception) {
             // discard the secret-bearing cause while preserving the existing safe diagnostics
-            $failure = CustomerPassInspectionException::fromException($exception);
+            $failure = CustomerPassFindingException::fromException($exception);
             $failure->log([
                 'actor_id' => $actor->id,
                 'business_id' => $businessId,
@@ -123,16 +125,16 @@ final class CustomerPassInspector
             ]);
 
             throw $failure;
-        } catch (CustomerPassInspectionException $exception) {
+        } catch (CustomerPassFindingException $exception) {
             $exception->log([
                 'actor_id' => $actor->id,
                 'business_id' => $businessId,
                 'outcome' => match ($exception->failure) {
-                    InspectionFailure::Forbidden => 'forbidden',
-                    InspectionFailure::InvalidCredential,
-                    InspectionFailure::InvalidAttemptLimit => 'rejected',
-                    InspectionFailure::AuthoritativeReadFailed,
-                    InspectionFailure::AmbiguousActivePromotion => 'unavailable',
+                    PassFindingFailure::Forbidden => 'forbidden',
+                    PassFindingFailure::InvalidCredential,
+                    PassFindingFailure::InvalidAttemptLimit => 'rejected',
+                    PassFindingFailure::AuthoritativeReadFailed,
+                    PassFindingFailure::AmbiguousActivePromotion => 'unavailable',
                 },
             ]);
 
@@ -145,19 +147,19 @@ final class CustomerPassInspector
     // ------------------------------------------------------------------------
 
     /**
-     * Rejects the inspection when the actor's invalid-attempt window is exhausted.
+     * Rejects the search when the actor's invalid-attempt window is exhausted.
      *
      * @param  string  $rateLimitKey  Shared actor window key.
      *
-     * @throws CustomerPassInspectionException If the window is exhausted.
+     * @throws CustomerPassFindingException If the window is exhausted.
      */
     private function assertNotThrottled(string $rateLimitKey): void
     {
         $maxAttempts = max(1, (int) config('pass_lookup.max_invalid_attempts', 10));
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, $maxAttempts)) {
-            throw new CustomerPassInspectionException(
-                InspectionFailure::InvalidAttemptLimit,
+            throw new CustomerPassFindingException(
+                PassFindingFailure::InvalidAttemptLimit,
                 retryAfterSeconds: RateLimiter::availableIn($rateLimitKey),
             );
         }
@@ -233,7 +235,17 @@ final class CustomerPassInspector
 
         return DB::select(<<<SQL
             SELECT pass.id AS customer_pass_id, promotion.id AS promotion_id,
-                   promotion.target_points, promotion.reward_title,
+                   promotion.target_points, promotion.reward_title, promotion.reward_description,
+                   COALESCE((SELECT extra.multiplier
+                             FROM promotion_multiplier_windows AS extra
+                             WHERE extra.promotion_id = promotion.id
+                               AND extra.weekday =
+                                   EXTRACT(ISODOW FROM (CAST(? AS timestamptz) AT TIME ZONE promotion.timezone_snapshot))
+                               AND (extra.start_time IS NULL
+                                    OR (extra.start_time <=
+                                        (CAST(? AS timestamptz) AT TIME ZONE promotion.timezone_snapshot)::time
+                                        AND extra.end_time >
+                                        (CAST(? AS timestamptz) AT TIME ZONE promotion.timezone_snapshot)::time))), 1) AS visit_points,
                    COALESCE((SELECT SUM(visit.awarded_points)
                              FROM visits AS visit
                              WHERE visit.business_id = pass.business_id
@@ -252,14 +264,14 @@ final class CustomerPassInspector
                 AND reward.customer_pass_id = pass.id
                 AND reward.promotion_id = promotion.id
             WHERE pass.business_id = ? AND pass.{$column} = ?
-            SQL, [$capturedAt, $capturedAt, $business->id, $value]);
+            SQL, [$capturedAt, $capturedAt, $capturedAt, $capturedAt, $capturedAt, $business->id, $value]);
     }
 
     /**
      * Projects one snapshot row into the fixed public shape.
      *
      * @param  stdClass  $row  Selected pass facts with zero or one active Promotion.
-     * @param  string  $capturedAt  PostgreSQL instant captured for this inspection.
+     * @param  string  $capturedAt  PostgreSQL instant captured for this search.
      * @return array{
      *     status: 'found',
      *     customer_pass_id: int,
@@ -269,7 +281,9 @@ final class CustomerPassInspector
      *         target_points: int,
      *         earned_points: int,
      *         reward_title: string,
-     *         reward_status: 'none'|'available'|'redeemed'
+     *         reward_description: string|null,
+     *         reward_status: 'none'|'available'|'redeemed',
+     *         visit_points: int
      *     }|null,
      *     can_accept_visit: bool,
      *     can_redeem_reward: bool
@@ -283,9 +297,11 @@ final class CustomerPassInspector
             'target_points' => (int) $row->target_points,
             'earned_points' => (int) $row->earned_points,
             'reward_title' => (string) $row->reward_title,
+            'reward_description' => $row->reward_description === null ? null : (string) $row->reward_description,
             'reward_status' => $row->reward_id === null
                 ? 'none'
                 : ($row->redeemed_at === null ? 'available' : 'redeemed'),
+            'visit_points' => (int) $row->visit_points,
         ];
 
         return [

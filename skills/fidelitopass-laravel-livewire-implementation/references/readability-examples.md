@@ -7,8 +7,8 @@ Read before the first code change in a task. Examples calibrate naming, paragrap
 
 namespace App\Enums;
 
-/** Identifies inspection causes independently of operation facts. */
-enum InspectionFailure: string
+/** Identifies pass-finding causes independently of operation facts. */
+enum PassFindingFailure: string
 {
     case Forbidden = 'forbidden';
     case InvalidCredential = 'invalid_credential';
@@ -50,18 +50,18 @@ Only intrinsic metadata belongs here. If one native database failure can happen 
 
 ## Canonical: complete immutable container
 ```php
-class CustomerPassInspectionException extends RuntimeException implements ShouldntReport
+class CustomerPassFindingException extends RuntimeException implements ShouldntReport
 {
     /**
      * Stores a typed cause and complete safe evidence without logging.
      *
-     * @param InspectionFailure $failure Application-owned cause.
+     * @param PassFindingFailure $failure Application-owned cause.
      * @param Throwable|null $previous Optional safe native cause.
      * @param array<string, mixed> $context Selected nonsecret evidence.
      * @param int|null $retryAfterSeconds Seconds to wait when throttled.
      */
     public function __construct(
-        public readonly InspectionFailure $failure,
+        public readonly PassFindingFailure $failure,
         ?Throwable $previous = null,
         public readonly array $context = [],
         public readonly ?int $retryAfterSeconds = null,
@@ -77,10 +77,10 @@ Select safe diagnostics for secret-bearing SQL, HTTP, SDK and signing failures a
 
 ## Canonical: ordinary throw and outcome-owner catch
 ```php
-public function inspect(?User $actor, string $method, #[SensitiveParameter] string $credential): array
+public function find(?User $actor, string $method, #[SensitiveParameter] string $credential): array
 {
     if ($actor === null || ! $actor->hasVerifiedEmail()) {
-        throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
+        throw new CustomerPassFindingException(PassFindingFailure::Forbidden);
     }
 
     $businessId = null;
@@ -88,7 +88,7 @@ public function inspect(?User $actor, string $method, #[SensitiveParameter] stri
     try {
         $business = $actor->business()->first();
         if ($business === null) {
-            throw new CustomerPassInspectionException(InspectionFailure::Forbidden);
+            throw new CustomerPassFindingException(PassFindingFailure::Forbidden);
         }
 
         $businessId = $business->id;
@@ -97,23 +97,23 @@ public function inspect(?User $actor, string $method, #[SensitiveParameter] stri
         $normalized = $this->normalizeCredential($method, $credential);
         if ($normalized === null) {
             $this->recordInvalidAttempt($rateLimitKey);
-            throw new CustomerPassInspectionException(InspectionFailure::InvalidCredential);
+            throw new CustomerPassFindingException(PassFindingFailure::InvalidCredential);
         }
 
-        return $this->runInspection($business, $method, $normalized);
+        return $this->runFinding($business, $method, $normalized);
     } catch (QueryException|PDOException $exception) {
-        $failure = CustomerPassInspectionException::fromException($exception);
+        $failure = CustomerPassFindingException::fromException($exception);
         $failure->log(['actor_id' => $actor->id, 'business_id' => $businessId, 'outcome' => 'unavailable']);
 
         throw $failure;
-    } catch (CustomerPassInspectionException $exception) {
+    } catch (CustomerPassFindingException $exception) {
         $exception->log([
             'actor_id' => $actor->id,
             'business_id' => $businessId,
             'outcome' => match ($exception->failure) {
-                InspectionFailure::Forbidden => 'forbidden',
-                InspectionFailure::InvalidCredential, InspectionFailure::InvalidAttemptLimit => 'rejected',
-                InspectionFailure::AuthoritativeReadFailed => 'unavailable',
+                PassFindingFailure::Forbidden => 'forbidden',
+                PassFindingFailure::InvalidCredential, PassFindingFailure::InvalidAttemptLimit => 'rejected',
+                PassFindingFailure::AuthoritativeReadFailed => 'unavailable',
             },
         ]);
 
@@ -122,7 +122,7 @@ public function inspect(?User $actor, string $method, #[SensitiveParameter] stri
 }
 ```
 
-This boundary owns the outcome and logs once before propagation. Collaborators never log the same outcome. Native logging failures propagate; do not wrap them or imply they undo a commit. A retry delay is supplied with `new CustomerPassInspectionException(InspectionFailure::InvalidAttemptLimit, retryAfterSeconds: $seconds)`, not assigned later. HTTP adapters use actual stage/certainty; retry permission is a separate decision.
+This boundary owns the outcome and logs once before propagation. Collaborators never log the same outcome. Native logging failures propagate; do not wrap them or imply they undo a commit. A retry delay is supplied with `new CustomerPassFindingException(PassFindingFailure::InvalidAttemptLimit, retryAfterSeconds: $seconds)`, not assigned later. HTTP adapters use actual stage/certainty; retry permission is a separate decision.
 
 ## Canonical: fixed return shape
 ```php

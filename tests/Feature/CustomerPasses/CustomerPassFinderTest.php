@@ -1,8 +1,8 @@
 <?php
 
 use App\Data\Time\DatabaseTime;
-use App\Enums\InspectionFailure;
-use App\Exceptions\CustomerPassInspectionException;
+use App\Enums\PassFindingFailure;
+use App\Exceptions\CustomerPassFindingException;
 use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
 use App\Integrations\GoogleWallet\GoogleWalletPassUpdater;
 use App\Models\Business;
@@ -10,7 +10,7 @@ use App\Models\CustomerPass;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Support\BusinessSummary;
-use App\Support\CustomerPassInspector;
+use App\Support\CustomerPassFinder;
 use App\Support\DatabaseClock;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Debug\ExceptionHandler;
@@ -22,19 +22,42 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 
-uses(RefreshDatabase::class);
+/** Guards cleanup before the framework can reset any PostgreSQL data. */
+trait GuardsCustomerPassFinderDatabase
+{
+    use RefreshDatabase;
+
+    /**
+     * Refuses configured or actual databases outside the isolated testing runtime.
+     *
+     * @throws LogicException If the runtime or database is not the testing target.
+     */
+    protected function beforeRefreshingDatabase(): void
+    {
+        if (
+            ! app()->environment('testing')
+            || DB::connection()->getDriverName() !== 'pgsql'
+            || DB::connection()->getDatabaseName() !== 'testing'
+            || DB::selectOne('SELECT current_database() AS name')->name !== 'testing'
+        ) {
+            throw new LogicException('Refusing to reset a non-testing database.');
+        }
+    }
+}
+
+uses(GuardsCustomerPassFinderDatabase::class);
 
 beforeEach(function () {
     config(['pass_lookup.max_invalid_attempts' => 3, 'pass_lookup.decay_seconds' => 60]);
 });
 
 it('identifies the same own-Business pass with exact token or canonical manual entry without writes', function (string $type, string $value, string $storedCode) {
-    $pass = lookupFixturePass($storedCode);
+    $pass = finderFixturePass($storedCode);
     $this->actingAs($pass->business->user);
     $this->mock(GoogleWalletPassCreator::class)->shouldNotReceive('create');
     $this->mock(GoogleWalletPassUpdater::class)->shouldNotReceive('update');
     $this->mock(BusinessSummary::class)->shouldNotReceive('read');
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
     $writes = [];
     DB::listen(function (QueryExecuted $query) use (&$writes): void {
         if (preg_match('/^\s*(insert|update|delete)/i', $query->sql)) {
@@ -42,8 +65,8 @@ it('identifies the same own-Business pass with exact token or canonical manual e
         }
     });
 
-    $first = app(CustomerPassInspector::class)->inspect(auth()->user(), $type, $value);
-    $second = app(CustomerPassInspector::class)->inspect(auth()->user(), $type, $value);
+    $first = app(CustomerPassFinder::class)->find(auth()->user(), $type, $value);
+    $second = app(CustomerPassFinder::class)->find(auth()->user(), $type, $value);
 
     expect($first['status'])->toBe('found');
     expect($first['customer_pass_id'])->toBe($pass->id);
@@ -54,7 +77,7 @@ it('identifies the same own-Business pass with exact token or canonical manual e
         'status', 'customer_pass_id', 'checked_at', 'promotion', 'can_accept_visit', 'can_redeem_reward',
     ]);
     expect(array_diff_key($first, ['checked_at' => true]))->toBe(array_diff_key($second, ['checked_at' => true]));
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     expect($writes)->toBeEmpty();
     expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(0);
 })->with([
@@ -66,74 +89,74 @@ it('identifies the same own-Business pass with exact token or canonical manual e
 ]);
 
 it('rejects unauthorized actors without consuming credential attempts or exposing state', function (string $actor) {
-    $pass = lookupFixturePass();
+    $pass = finderFixturePass();
     if ($actor === 'unverified') {
         $pass->business->user->forceFill(['email_verified_at' => null])->save();
         $this->actingAs($pass->business->user);
     } elseif ($actor === 'without Business') {
         $this->actingAs(User::factory()->create());
     }
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
     Log::spy();
 
-    $failure = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(auth()->user(), 'token', str_repeat('a', 64)));
+    $failure = passFindingFailure(fn () => app(CustomerPassFinder::class)->find(auth()->user(), 'token', str_repeat('a', 64)));
 
     Log::shouldNotHaveReceived('log');
-    expect($failure->failure)->toBe(InspectionFailure::Forbidden);
+    expect($failure->failure)->toBe(PassFindingFailure::Forbidden);
     expect($failure->retryAfterSeconds)->toBeNull();
     expect($failure->getPrevious())->toBeNull();
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(0);
 })->with(['anonymous', 'unverified', 'without Business']);
 
 it('uses only the explicit trusted actor and never substitutes the ambient session', function () {
-    $own = lookupFixturePass();
-    $foreign = lookupFixturePass('00007', str_repeat('b', 64));
+    $own = finderFixturePass();
+    $foreign = finderFixturePass('00007', str_repeat('b', 64));
     $this->actingAs($foreign->business->user);
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
 
-    $found = app(CustomerPassInspector::class)->inspect($own->business->user, 'manual', '00007');
-    $failure = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(null, 'manual', '00007'));
+    $found = app(CustomerPassFinder::class)->find($own->business->user, 'manual', '00007');
+    $failure = passFindingFailure(fn () => app(CustomerPassFinder::class)->find(null, 'manual', '00007'));
 
     expect($found['customer_pass_id'])->toBe($own->id)->not->toBe($foreign->id);
-    expect($failure->failure)->toBe(InspectionFailure::Forbidden);
+    expect($failure->failure)->toBe(PassFindingFailure::Forbidden);
     expect(RateLimiter::attempts('pass-lookup:'.$own->business->user_id))->toBe(0);
     expect(RateLimiter::attempts('pass-lookup:'.$foreign->business->user_id))->toBe(0);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
 });
 
 it('never reveals a foreign token while duplicate manual codes remain Business scoped', function () {
-    $own = lookupFixturePass();
-    $foreign = lookupFixturePass('00007', str_repeat('b', 64));
+    $own = finderFixturePass();
+    $foreign = finderFixturePass('00007', str_repeat('b', 64));
     $this->actingAs($own->business->user);
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
 
-    $rejected = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(auth()->user(), 'token', str_repeat('b', 64)));
-    $found = app(CustomerPassInspector::class)->inspect(auth()->user(), 'manual', '00007');
+    $rejected = passFindingFailure(fn () => app(CustomerPassFinder::class)->find(auth()->user(), 'token', str_repeat('b', 64)));
+    $found = app(CustomerPassFinder::class)->find(auth()->user(), 'manual', '00007');
 
-    expect($rejected->failure)->toBe(InspectionFailure::InvalidCredential);
+    expect($rejected->failure)->toBe(PassFindingFailure::InvalidCredential);
     expect($rejected->retryAfterSeconds)->toBeNull();
     expect($found['customer_pass_id'])->toBe($own->id)->not->toBe($foreign->id);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     expect(RateLimiter::attempts('pass-lookup:'.$own->business->user_id))->toBe(1);
 });
 
 it('rejects invalid or public identifiers uniformly without leaking them', function (string $type, string $value) {
-    $pass = lookupFixturePass();
+    $pass = finderFixturePass();
     $this->actingAs($pass->business->user);
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
     Log::spy();
 
-    $failure = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(auth()->user(), $type, $value));
+    $failure = passFindingFailure(fn () => app(CustomerPassFinder::class)->find(auth()->user(), $type, $value));
 
-    expect($failure->failure)->toBe(InspectionFailure::InvalidCredential);
+    expect($failure->failure)->toBe(PassFindingFailure::InvalidCredential);
     expect($failure->retryAfterSeconds)->toBeNull();
     expect($failure->getPrevious())->toBeNull();
     expect($failure->getMessage())->toBe('invalid_credential');
     app(ExceptionHandler::class)->report($failure);
 
     Log::shouldNotHaveReceived('error');
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(1);
     Log::shouldHaveReceived('log')->once()->with('notice', 'customer_pass.lookup_rejected', [
         'actor_id' => $pass->business->user_id,
@@ -160,24 +183,24 @@ it('rejects invalid or public identifiers uniformly without leaking them', funct
 ]);
 
 it('rejects malformed credentials before reading the database clock or pass state', function (string $method, string $credential) {
-    $pass = lookupFixturePass();
-    $before = lookupDomainSnapshot();
+    $pass = finderFixturePass();
+    $before = finderDomainSnapshot();
     $this->mock(DatabaseClock::class)
         ->shouldReceive('capture')
         ->never()
         ->andThrow(new LogicException('Malformed input reached the database clock.'));
     Log::spy();
 
-    $failure = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(
+    $failure = passFindingFailure(fn () => app(CustomerPassFinder::class)->find(
         $pass->business->user,
         $method,
         $credential,
     ));
 
-    expect($failure->failure)->toBe(InspectionFailure::InvalidCredential);
+    expect($failure->failure)->toBe(PassFindingFailure::InvalidCredential);
     expect($failure->getPrevious())->toBeNull();
     expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(1);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     Log::shouldHaveReceived('log')->once()->with('notice', 'customer_pass.lookup_rejected', [
         'actor_id' => $pass->business->user_id,
         'business_id' => $pass->business_id,
@@ -191,22 +214,22 @@ it('rejects malformed credentials before reading the database clock or pass stat
 ]);
 
 it('temporarily restricts rotating invalid credentials across both input methods without adding blocked attempts', function () {
-    $pass = lookupFixturePass();
+    $pass = finderFixturePass();
     $this->actingAs($pass->business->user);
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
     Log::spy();
 
     foreach (['00001', '00002', '00003'] as $code) {
-        expect(inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(auth()->user(), 'manual', $code))->failure)
-            ->toBe(InspectionFailure::InvalidCredential);
+        expect(passFindingFailure(fn () => app(CustomerPassFinder::class)->find(auth()->user(), 'manual', $code))->failure)
+            ->toBe(PassFindingFailure::InvalidCredential);
     }
-    $blocked = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(auth()->user(), 'token', str_repeat('a', 64)));
+    $blocked = passFindingFailure(fn () => app(CustomerPassFinder::class)->find(auth()->user(), 'token', str_repeat('a', 64)));
 
-    expect($blocked->failure)->toBe(InspectionFailure::InvalidAttemptLimit);
+    expect($blocked->failure)->toBe(PassFindingFailure::InvalidAttemptLimit);
     expect($blocked->retryAfterSeconds)->toBeGreaterThan(0)->toBeLessThanOrEqual(60);
     expect($blocked->getPrevious())->toBeNull();
     expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(3);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     Log::shouldHaveReceived('log')->with('notice', 'customer_pass.lookup_throttled', [
         'actor_id' => $pass->business->user_id,
         'business_id' => $pass->business_id,
@@ -215,26 +238,26 @@ it('temporarily restricts rotating invalid credentials across both input methods
     ])->once();
 
     $this->travel(61)->seconds();
-    expect(app(CustomerPassInspector::class)->inspect(auth()->user(), 'manual', '00007')['status'])->toBe('found');
+    expect(app(CustomerPassFinder::class)->find(auth()->user(), 'manual', '00007')['status'])->toBe('found');
     $this->travelBack();
 });
 
 it('derives eligibility from one database-time hint and rejects inactive boundaries', function (string $phase, string $start, string $end, bool $active) {
-    $pass = lookupFixturePass();
+    $pass = finderFixturePass();
     $this->actingAs($pass->business->user);
-    $promotion = lookupFixturePromotion($pass->business, $phase, $start, $end);
+    $promotion = finderFixturePromotion($pass->business, $phase, $start, $end);
     $this->mock(DatabaseClock::class)->shouldReceive('capture')->once()->with($pass->business->timezone)
         ->andReturn(new DatabaseTime('2030-01-02 12:00:00+00', '2030-01-02'));
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
 
-    $result = app(CustomerPassInspector::class)->inspect(auth()->user(), 'manual', '00007');
+    $result = app(CustomerPassFinder::class)->find(auth()->user(), 'manual', '00007');
 
     expect($result['status'])->toBe('found');
     expect($result['checked_at'])->toBe('2030-01-02 12:00:00+00');
     expect($result['can_accept_visit'])->toBe($active);
     expect($result['can_redeem_reward'])->toBeFalse();
     expect($result['promotion']['id'] ?? null)->toBe($active ? $promotion->id : null);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
 })->with([
     'inclusive start' => ['published', '2030-01-02 12:00:00+00', '2030-01-03 12:00:00+00', true],
     'exclusive end' => ['published', '2030-01-01 12:00:00+00', '2030-01-02 12:00:00+00', false],
@@ -245,22 +268,22 @@ it('derives eligibility from one database-time hint and rejects inactive boundar
 ]);
 
 it('rejects multiple active Promotion matches without changing facts or invalid-attempt history', function (string $method, string $credential) {
-    $pass = lookupFixturePass();
+    $pass = finderFixturePass();
     $actor = $pass->business->user;
-    lookupFixturePromotion($pass->business, 'published', '2030-01-01 12:00:00+00', '2030-01-03 12:00:00+00');
-    lookupFixturePromotion($pass->business, 'published', '2030-01-01 12:00:00+00', '2030-01-03 12:00:00+00');
-    expect(inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect($actor, 'manual', 'invalid'))->failure)
-        ->toBe(InspectionFailure::InvalidCredential);
+    finderFixturePromotion($pass->business, 'published', '2030-01-01 12:00:00+00', '2030-01-03 12:00:00+00');
+    finderFixturePromotion($pass->business, 'published', '2030-01-01 12:00:00+00', '2030-01-03 12:00:00+00');
+    expect(passFindingFailure(fn () => app(CustomerPassFinder::class)->find($actor, 'manual', 'invalid'))->failure)
+        ->toBe(PassFindingFailure::InvalidCredential);
 
     $this->mock(DatabaseClock::class)
         ->shouldReceive('capture')
         ->once()
         ->with($pass->business->timezone)
         ->andReturn(new DatabaseTime('2030-01-02 12:00:00+00', '2030-01-02'));
-    $inspector = app(CustomerPassInspector::class);
+    $finder = app(CustomerPassFinder::class);
     $this->mock(GoogleWalletPassCreator::class)->shouldNotReceive('create');
     $this->mock(GoogleWalletPassUpdater::class)->shouldNotReceive('update');
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
     $writes = [];
     DB::listen(function (QueryExecuted $query) use (&$writes): void {
         if (preg_match('/^\\s*(insert|update|delete)/i', $query->sql)) {
@@ -269,14 +292,14 @@ it('rejects multiple active Promotion matches without changing facts or invalid-
     });
     Log::spy();
 
-    $failure = inspectionFailure(fn () => $inspector->inspect($actor, $method, $credential));
+    $failure = passFindingFailure(fn () => $finder->find($actor, $method, $credential));
 
-    expect($failure->failure)->toBe(InspectionFailure::AmbiguousActivePromotion);
+    expect($failure->failure)->toBe(PassFindingFailure::AmbiguousActivePromotion);
     expect($failure->retryAfterSeconds)->toBeNull();
     expect($failure->getMessage())->toBe('ambiguous_active_promotion');
     expect($failure->getPrevious())->toBeNull();
     expect(RateLimiter::attempts('pass-lookup:'.$actor->id))->toBe(1);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     expect($writes)->toBeEmpty();
 
     app(ExceptionHandler::class)->report($failure);
@@ -294,27 +317,27 @@ it('rejects multiple active Promotion matches without changing facts or invalid-
 ]);
 
 it('uses actual PostgreSQL time despite an incorrect application clock and unavailable Summary reader', function () {
-    $pass = lookupFixturePass();
+    $pass = finderFixturePass();
     $this->actingAs($pass->business->user);
     $instant = DB::selectOne('SELECT clock_timestamp() AS instant')->instant;
     $time = CarbonImmutable::parse($instant);
-    lookupFixturePromotion($pass->business, 'published', $time->subHour()->toIso8601String(), $time->addHour()->toIso8601String());
+    finderFixturePromotion($pass->business, 'published', $time->subHour()->toIso8601String(), $time->addHour()->toIso8601String());
     $this->travelTo('2040-01-01');
     $this->mock(BusinessSummary::class)->shouldNotReceive('read');
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
 
-    $result = app(CustomerPassInspector::class)->inspect(auth()->user(), 'manual', '00007');
+    $result = app(CustomerPassFinder::class)->find(auth()->user(), 'manual', '00007');
 
     expect($result['can_accept_visit'])->toBeTrue();
     expect(CarbonImmutable::parse($result['checked_at'])->year)->toBe($time->year);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     $this->travelBack();
 });
 
 it('reports immutable awarded points and existing Reward facts without granting or redeeming anything', function (int $points, string $reward, bool $visit, bool $redeem) {
-    $pass = lookupFixturePass();
+    $pass = finderFixturePass();
     $this->actingAs($pass->business->user);
-    $promotion = lookupFixturePromotion($pass->business, 'published', '2030-01-01 12:00:00+00', '2030-01-03 12:00:00+00');
+    $promotion = finderFixturePromotion($pass->business, 'published', '2030-01-01 12:00:00+00', '2030-01-03 12:00:00+00');
     $ownership = ['business_id' => $pass->business_id, 'customer_pass_id' => $pass->id, 'promotion_id' => $promotion->id];
     DB::table('visits')->insert($ownership + [
         'awarded_points' => $points,
@@ -331,17 +354,17 @@ it('reports immutable awarded points and existing Reward facts without granting 
     }
     $this->mock(DatabaseClock::class)->shouldReceive('capture')->once()
         ->andReturn(new DatabaseTime('2030-01-02 12:00:00+00', '2030-01-02'));
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
 
-    $result = app(CustomerPassInspector::class)->inspect(auth()->user(), 'manual', '00007');
+    $result = app(CustomerPassFinder::class)->find(auth()->user(), 'manual', '00007');
 
     expect($result['promotion'])->toBe([
         'id' => $promotion->id, 'target_points' => 8, 'earned_points' => $points,
-        'reward_title' => 'Un premio', 'reward_status' => $reward,
+        'reward_title' => 'Un premio', 'reward_description' => $promotion->reward_description, 'reward_status' => $reward, 'visit_points' => 1,
     ]);
     expect($result['can_accept_visit'])->toBe($visit);
     expect($result['can_redeem_reward'])->toBe($redeem);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
 })->with([
     'below goal' => [3, 'none', true, false],
     'completion does not grant missing entitlement' => [8, 'none', false, false],
@@ -349,10 +372,46 @@ it('reports immutable awarded points and existing Reward facts without granting 
     'redeemed reward' => [8, 'redeemed', false, false],
 ]);
 
+it('previews frozen Promotion points at the single captured instant without writes or provider work', function (string $instant, ?string $start, ?string $end, int $multiplier, int $expected) {
+    $pass = finderFixturePass();
+    $promotion = finderFixturePromotion($pass->business, 'published', '2030-01-01 00:00:00+00', '2030-01-04 00:00:00+00');
+    $promotion->forceFill(['timezone_snapshot' => 'America/Bogota'])->save();
+    $pass->business->update(['timezone' => 'Pacific/Auckland']);
+    $promotion->extraPoints()->create(['weekday' => 3, 'start_time' => $start, 'end_time' => $end, 'multiplier' => $multiplier]);
+    $this->mock(DatabaseClock::class)->shouldReceive('capture')->once()->with('Pacific/Auckland')
+        ->andReturn(new DatabaseTime($instant, '2030-01-03'));
+    $this->mock(GoogleWalletPassCreator::class)->shouldNotReceive('create');
+    $this->mock(GoogleWalletPassUpdater::class)->shouldNotReceive('update');
+    $before = finderDomainSnapshot();
+    $actor = $pass->business->user;
+    $queries = [];
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+    $this->travelTo('2040-01-01');
+
+    $result = app(CustomerPassFinder::class)->find($actor, 'manual', '00007');
+
+    expect($result['promotion']['visit_points'])->toBe($expected);
+    expect($result['checked_at'])->toBe($instant);
+    expect($queries)->toHaveCount(2);
+    expect(implode(' ', $queries))->not->toMatch('/clock_timestamp|current_timestamp|now\(|^\s*(insert|update|delete)/i');
+    expect(finderDomainSnapshot())->toBe($before);
+    expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(0);
+    $this->travelBack();
+})->with([
+    'base outside window' => ['2030-01-02 11:59:59.999999+00', '07:00:00', '08:00:00', 3, 1],
+    'x2 whole day' => ['2030-01-02 12:00:00+00', null, null, 2, 2],
+    'x3 inclusive start' => ['2030-01-02 12:00:00+00', '07:00:00', '08:00:00', 3, 3],
+    'x5 last microsecond' => ['2030-01-02 12:59:59.999999+00', '07:00:00', '08:00:00', 5, 5],
+    'exclusive end' => ['2030-01-02 13:00:00+00', '07:00:00', '08:00:00', 3, 1],
+    'frozen local weekday' => ['2030-01-03 02:00:00+00', null, null, 5, 5],
+]);
+
 it('fails closed with sanitized diagnostics when the authoritative clock read fails', function (string $source) {
-    $pass = lookupFixturePass();
+    $pass = finderFixturePass();
     $this->actingAs($pass->business->user);
-    $before = lookupDomainSnapshot();
+    $before = finderDomainSnapshot();
     $native = $source === 'query'
         ? new QueryException('pgsql', 'select secret', ['00007'], new PDOException('private provider error'))
         : new PDOException('private provider error');
@@ -363,13 +422,13 @@ it('fails closed with sanitized diagnostics when the authoritative clock read fa
         ->once()
         ->with('error', 'customer_pass.lookup_unavailable', Mockery::capture($payload));
 
-    $failure = inspectionFailure(fn () => app(CustomerPassInspector::class)->inspect(auth()->user(), 'manual', '00007'));
+    $failure = passFindingFailure(fn () => app(CustomerPassFinder::class)->find(auth()->user(), 'manual', '00007'));
 
-    expect($failure->failure)->toBe(InspectionFailure::AuthoritativeReadFailed);
+    expect($failure->failure)->toBe(PassFindingFailure::AuthoritativeReadFailed);
     expect($failure->retryAfterSeconds)->toBeNull();
     expect($failure->getPrevious())->toBeNull();
     expect($failure->getMessage())->toBe('authoritative_read_failed');
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
     expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(0);
     expect($payload['reason'])->toBe('authoritative_read_failed');
     expect($payload['actor_id'])->toBe($pass->business->user_id);
@@ -392,17 +451,17 @@ it('fails closed with sanitized diagnostics when the authoritative clock read fa
     Log::shouldNotHaveReceived('error');
 })->with(['query', 'driver']);
 
-it('propagates logging failures without repeating the rejected inspection or its limiter effect', function () {
-    $pass = lookupFixturePass();
-    $before = lookupDomainSnapshot();
+it('propagates logging failures without repeating the rejected search or its limiter effect', function () {
+    $pass = finderFixturePass();
+    $before = finderDomainSnapshot();
     $loggingFailure = new RuntimeException('synthetic logging failure');
     Log::shouldReceive('log')->once()->andThrow($loggingFailure);
 
-    expect(fn () => app(CustomerPassInspector::class)->inspect($pass->business->user, 'manual', 'invalid'))
+    expect(fn () => app(CustomerPassFinder::class)->find($pass->business->user, 'manual', 'invalid'))
         ->toThrow($loggingFailure);
 
     expect(RateLimiter::attempts('pass-lookup:'.$pass->business->user_id))->toBe(1);
-    expect(lookupDomainSnapshot())->toBe($before);
+    expect(finderDomainSnapshot())->toBe($before);
 });
 
 /**
@@ -412,7 +471,7 @@ it('propagates logging failures without repeating the rejected inspection or its
  * @param  string  $token  Synthetic private scan value.
  * @return CustomerPass Persisted identity without provider calls.
  */
-function lookupFixturePass(string $code = '00007', string $token = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'): CustomerPass
+function finderFixturePass(string $code = '00007', string $token = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'): CustomerPass
 {
     return CustomerPass::factory()->create([
         'manual_code' => $code,
@@ -430,7 +489,7 @@ function lookupFixturePass(string $code = '00007', string $token = 'aaaaaaaaaaaa
  * @param  string  $end  Exclusive timestamp.
  * @return Promotion Persisted fixture.
  */
-function lookupFixturePromotion(Business $business, string $status, string $start, string $end): Promotion
+function finderFixturePromotion(Business $business, string $status, string $start, string $end): Promotion
 {
     $promotion = $business->promotions()->make();
     $promotion->forceFill([
@@ -449,11 +508,11 @@ function lookupFixturePromotion(Business $business, string $status, string $star
 }
 
 /**
- * Reads complete domain rows to detect unintended lookup mutations.
+ * Reads complete domain rows to detect unintended finder mutations.
  *
  * @return array<string, array<int, array<string, mixed>>> Existing facts in stable primary-key order.
  */
-function lookupDomainSnapshot(): array
+function finderDomainSnapshot(): array
 {
     $snapshot = [];
     foreach (['customer_passes', 'promotion_participations', 'visits', 'reward_entitlements'] as $table) {
@@ -464,20 +523,20 @@ function lookupDomainSnapshot(): array
 }
 
 /**
- * Captures the safe rejection emitted by the public inspection boundary.
+ * Captures the safe rejection emitted by the public finder boundary.
  *
- * @param  callable(): array  $inspect  Inspection expected to reject without returning data.
- * @return CustomerPassInspectionException Classified failure for assertions on safe fields.
+ * @param  callable(): array  $find  Search expected to reject without returning data.
+ * @return CustomerPassFindingException Classified failure for assertions on safe fields.
  *
  * @throws RuntimeException If the operation incorrectly returns instead of rejecting.
  */
-function inspectionFailure(callable $inspect): CustomerPassInspectionException
+function passFindingFailure(callable $find): CustomerPassFindingException
 {
     try {
-        $inspect();
-    } catch (CustomerPassInspectionException $failure) {
+        $find();
+    } catch (CustomerPassFindingException $failure) {
         return $failure;
     }
 
-    throw new RuntimeException('Expected an inspection exception, but data was returned.');
+    throw new RuntimeException('Expected a pass-finding exception, but data was returned.');
 }

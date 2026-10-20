@@ -3,13 +3,13 @@
 namespace App\Enums;
 
 /**
- * Single catalog of failures raised by the pass inspection flow.
+ * Single catalog of failures raised by the pass finder.
  *
  * Keeps identity and operational metadata together.
  * Extend the relevant mappings when adding a failure; callers consume
  * this catalog rather than maintaining parallel reason mappings.
  */
-enum InspectionFailure: string
+enum PassFindingFailure: string
 {
     case Forbidden = 'forbidden';
     case InvalidCredential = 'invalid_credential';

@@ -12,6 +12,7 @@ enum VisitAcceptanceFailure: string
     case InvalidOperation = 'invalid_operation';
     case OperationConflict = 'operation_conflict';
     case PromotionUnavailable = 'promotion_unavailable';
+    case PromotionChanged = 'promotion_changed';
     case PromotionCompleted = 'promotion_completed';
     case SaveRejected = 'save_rejected';
     case DatabaseFailed = 'database_failed';

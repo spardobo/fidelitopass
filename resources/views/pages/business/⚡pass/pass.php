@@ -1,7 +1,10 @@
 <?php
 
+use App\Actions\Businesses\UpdatePassAppearance;
 use App\Actions\Promotions\CancelPromotion;
 use App\Enums\PromotionStatus;
+use App\Exceptions\GoogleWalletSynchronizationException;
+use App\Exceptions\PassAppearanceException;
 use App\Models\Business;
 use App\Models\Promotion;
 use App\Support\DatabaseClock;
@@ -116,24 +119,40 @@ new #[Layout('layouts::app'), Title('business.pass.title')] class extends Compon
     }
 
     /**
-     * Validates and persist the selected appearance, then show a success toast and return to Pase.
+     * Delegates the consequential save and presents success only after confirmed persistence.
+     *
+     * @param  UpdatePassAppearance  $updateAppearance  Owns validation, authorization and synchronization.
      *
      * @throws AuthorizationException When the actor cannot update the Business.
      * @throws ModelNotFoundException When the actor has no Business.
      * @throws ValidationException When the selected color is invalid.
      */
-    public function save(): void
+    public function save(UpdatePassAppearance $updateAppearance): void
     {
-        $business = $this->authorizedBusiness();
+        // clear stale appearance feedback before attempting the authoritative save
+        $this->resetValidation('appearance');
 
-        $validated = $this->validate([
-            'backgroundColor' => ['required', 'string', 'regex:/\A#[0-9A-Fa-f]{6}\z/'],
-        ]);
+        try {
+            $updateAppearance->handle($this->backgroundColor);
+        } catch (AuthorizationException|ModelNotFoundException|ValidationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            // avoid reporting failures already logged by the owning Action
+            $alreadyLogged = $exception instanceof GoogleWalletSynchronizationException
+                || $exception instanceof PassAppearanceException;
 
-        $business->update([
-            'pass_background_color' => strtoupper($validated['backgroundColor']),
-        ]);
+            if (! $alreadyLogged) {
+                report($exception);
+            }
 
+            // keep the editor open and present only generic failure feedback
+            $this->addError('appearance', __('business.pass.save_unconfirmed'));
+            Flux::toast(__('business.pass.save_attention'), null, 5000, 'danger');
+
+            return;
+        }
+
+        // acknowledge the confirmed save and return to the pass overview
         $this->resetValidation();
         Flux::toast(__('business.pass.saved_status'), null, 5000, 'success');
         $this->redirectRoute('business.pass', navigate: true);

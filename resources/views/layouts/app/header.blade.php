@@ -13,15 +13,17 @@
                 <x-app-navigation class="col-span-3 row-start-3 min-[900px]:col-span-1 min-[900px]:col-start-2 min-[900px]:row-start-1" />
 
                 <div class="contents min-[900px]:col-span-1 min-[900px]:col-start-3 min-[900px]:row-start-1 min-[900px]:flex min-[900px]:flex-wrap min-[900px]:items-center min-[900px]:justify-end min-[900px]:gap-2">
-                    <flux:button
-                        :href="url('/visits/create')"
-                        variant="primary"
-                        icon:leading="qr-code"
-                        icon:variant="outline"
-                        class="app-button-primary col-span-3 row-start-2 min-h-11 justify-self-center px-3! min-[900px]:col-auto min-[900px]:row-auto min-[900px]:justify-self-auto"
-                    >
-                        {{ __('app-header.register_visit') }}
-                    </flux:button>
+                    <flux:modal.trigger name="visit-registration" class="contents">
+                        <flux:button
+                            id="register-visit-trigger" type="button"
+                            variant="primary"
+                            icon="qr-code"
+                            icon:variant="outline"
+                            class="app-button-primary col-span-3 row-start-2 min-h-11 justify-self-center px-3! min-[900px]:col-auto min-[900px]:row-auto min-[900px]:justify-self-auto"
+                        >
+                            {{ __('app-header.register_visit') }}
+                        </flux:button>
+                    </flux:modal.trigger>
                     <div class="col-start-3 row-start-1 flex justify-end min-[900px]:col-auto min-[900px]:row-auto">
                         <x-desktop-user-menu />
                     </div>
@@ -30,6 +32,8 @@
         </header>
 
         {{ $slot }}
+
+        <livewire:visit-registration />
 
         @persist('toast')
             <flux:toast.group>

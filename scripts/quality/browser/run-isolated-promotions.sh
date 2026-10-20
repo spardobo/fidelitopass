@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if test "${1:-}" = --help; then
+    printf '%s\n' 'Usage: scripts/quality/browser/run-isolated-promotions.sh [--public-join|--visits] [Playwright arguments]' \
+        'Default: promotion journeys. --public-join: public acquisition reads. --visits: isolated Visit journeys.' \
+        'Owns testing exclusively; keep other PostgreSQL test suites stopped until cleanup completes.'
+    exit 0
+fi
+
 cd -- "$(dirname -- "$0")/../../.."
 readonly app_service=fidelitopass-laravel-app
 readonly runtime="/tmp/fidelitopass-browser-$$"
@@ -10,9 +17,15 @@ readonly base_url="http://${app_service}:${port}"
 readonly fixture=scripts/quality/browser/promotion-fixture.php
 scenario_fixture="$fixture"
 spec=tests/Browser/business-promotion-draft.spec.js
+server_operation=serve
 if test "${1:-}" = --public-join; then
     scenario_fixture=scripts/quality/browser/public-join-fixture.php
     spec=tests/Browser/public-join.spec.js
+    shift
+elif test "${1:-}" = --visits; then
+    scenario_fixture=scripts/quality/browser/visit-registration-fixture.php
+    spec=tests/Browser/visit-registration.spec.js
+    server_operation=serve-visits
     shift
 fi
 server_started=false
@@ -89,7 +102,7 @@ PLAYWRIGHT_PROMOTION_FIXTURE=$(app "$scenario_fixture" seed)
 docker run --detach --rm --pull=never --name "$mail_container" \
     --network fidelitopass-network "$mail_image" >/dev/null
 mail_started=true
-app "$fixture" serve >"/tmp/fidelitopass-browser-$$.log" 2>&1 &
+app "$fixture" "$server_operation" >"/tmp/fidelitopass-browser-$$.log" 2>&1 &
 launcher_pid=$!
 server_started=true
 app "$fixture" ready
