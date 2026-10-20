@@ -89,7 +89,8 @@ it('keeps transport deadlines authoritative without reclassifying non-OAuth stat
 
 it('keeps synchronization cause catalog compact without speculative consumer extensions', function () {
     expect(array_column(GoogleWalletSynchronizationFailure::cases(), 'value'))->toEqualCanonicalizing([
-        'transaction_required', 'pass_invalid', 'binding_conflict', 'confirmation_mismatch',
+        'transaction_required', 'pass_invalid', 'binding_conflict', 'class_not_usable',
+        'confirmation_mismatch',
         'unsafe_sdk_logging', 'configuration_invalid', 'logo_url_invalid', 'credentials_invalid',
         'signing_key_invalid', 'origin_invalid', 'malformed_response', 'deadline_exceeded',
         'transport_failed', 'request_failed', 'provider_rejected',

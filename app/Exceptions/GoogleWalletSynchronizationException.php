@@ -63,7 +63,7 @@ class GoogleWalletSynchronizationException extends RuntimeException
             default => null,
         };
         $status = is_int($status) && $status >= 100 && $status <= 599 ? $status : null;
-        $unknown = $stage === GoogleWalletStage::Confirmation || ($stage === GoogleWalletStage::ObjectUpdate && (
+        $unknown = $stage === GoogleWalletStage::Confirmation || (in_array($stage, [GoogleWalletStage::ObjectUpdate, GoogleWalletStage::ClassUpdate], true) && (
             $status === null || $status < 400 || in_array($status, [408, 409, 429], true) || $status >= 500
         ));
 

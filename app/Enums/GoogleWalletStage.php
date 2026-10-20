@@ -15,6 +15,10 @@ enum GoogleWalletStage: string
 
     case ClassDefinition = 'class';
 
+    case ClassRead = 'class_read';
+
+    case ClassUpdate = 'class_update';
+
     case ObjectCreation = 'object';
 
     case ObjectRead = 'read';

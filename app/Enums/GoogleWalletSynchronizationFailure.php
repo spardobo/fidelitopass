@@ -8,6 +8,7 @@ enum GoogleWalletSynchronizationFailure: string
     case TransactionRequired = 'transaction_required';
     case PassInvalid = 'pass_invalid';
     case BindingConflict = 'binding_conflict';
+    case ClassNotUsable = 'class_not_usable';
     case ConfirmationMismatch = 'confirmation_mismatch';
     case UnsafeSdkLogging = 'unsafe_sdk_logging';
     case ConfigurationInvalid = 'configuration_invalid';
