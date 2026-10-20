@@ -281,6 +281,8 @@ Class changes do not recompute existing Object content. Development passes creat
 
 ## Existing-object synchronization
 
+Saving Business appearance updates only the shared Class background for already issued cards. It does not rewrite Object content, credentials, points or Reward facts. Provider confirmation gates the local appearance save, but does not guarantee immediate device rendering. With no issued passes, appearance is saved locally for future issuance.
+
 Update the same persistent pass from current authoritative state. Initial zero-progress content must never replace earned progress. Preserve identity and credentials and remove active-only content when inactive.
 
 A Class-template change does not recompute existing Object content. Publication, cancellation, Visits, canjes and time boundaries require their own synchronization integration. This presentation change alone does not establish that jobs, scheduling, retries or device rollout exist.

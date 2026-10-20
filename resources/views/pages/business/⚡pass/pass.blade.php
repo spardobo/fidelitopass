@@ -153,6 +153,8 @@
                         <p class="app-role-support!">{{ __('business.pass.wallet_color_note') }}</p>
                     </div>
 
+                    <flux:error name="appearance" class="app-error" />
+
                     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         @if ($this->isDirty)
                             <flux:modal.trigger name="discard-pass-appearance">

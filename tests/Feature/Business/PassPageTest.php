@@ -1,11 +1,21 @@
 <?php
 
+use App\Actions\Businesses\UpdatePassAppearance;
+use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Models\Business;
 use App\Models\User;
+use App\Support\CustomerPassCredentials;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
+use Tests\Support\GoogleWalletHttpFake;
 
 uses(RefreshDatabase::class);
 
@@ -123,6 +133,9 @@ it('keeps the pass overview focused on appearance status and promotions', functi
 });
 
 it('opens a separate appearance editor with a savable fallback draft', function () {
+    $http = new GoogleWalletHttpFake;
+    app()->instance(GoogleWalletClient::class, new GoogleWalletClient($http->client));
+    config(['services.google_wallet.credentials_path' => null, 'services.google_wallet.issuer_id' => '']);
     $business = Business::factory()->create();
 
     $this->actingAs($business->user)
@@ -136,7 +149,8 @@ it('opens a separate appearance editor with a savable fallback draft', function 
         ->test('pages::business.pass')
         ->assertSet('backgroundColor', '#A77BFF')
         ->call('save')
-        ->assertHasNoErrors();
+        ->assertHasNoErrors()
+        ->assertDispatched('toast-show', duration: 5000, slots: ['text' => 'Apariencia guardada'], dataset: ['variant' => 'success']);
 
     Livewire::actingAs($business->user)
         ->test('pages::business.pass')
@@ -144,6 +158,7 @@ it('opens a separate appearance editor with a savable fallback draft', function 
         ->assertSet('isDirty', true);
 
     expect($business->fresh()->pass_background_color)->toBe('#A77BFF');
+    expect($http->history)->toBeEmpty();
 });
 
 it('keeps the untouched fallback draft clean and compares hex values case-insensitively', function () {
@@ -465,6 +480,52 @@ it('leaves an unset appearance unset when the editor is cancelled', function () 
 
 it('saves a valid appearance and restores the persisted value when cancelled', function () {
     $business = Business::factory()->create();
+    $otherBusiness = Business::factory()->create(['pass_background_color' => '#000000']);
+    $credentials = CustomerPassCredentials::prepare($business);
+    $pass = $business->customerPasses()->make([
+        'wallet_object_id' => '123456.pass_'.$credentials->publicPassId,
+        'manual_code' => $credentials->manualCode,
+        'validation_token_hash' => $credentials->hashValidationToken(),
+    ]);
+    $pass->public_id = $credentials->publicPassId;
+    $pass->save();
+    $passFacts = $pass->fresh()->getAttributes();
+    $otherFacts = $otherBusiness->fresh()->getAttributes();
+
+    $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+    openssl_pkey_export($key, $pem);
+    File::ensureDirectoryExists(base_path('tmp/pass-appearance-wallet-sync'), 0700);
+    $credentialsPath = tempnam(base_path('tmp/pass-appearance-wallet-sync'), 'appearance-key-');
+    file_put_contents($credentialsPath, json_encode([
+        'type' => 'service_account',
+        'client_email' => 'wallet@platform.iam.gserviceaccount.com',
+        'private_key' => $pem,
+    ]));
+    config([
+        'app.url' => 'https://passes.example.test',
+        'services.google_wallet.issuer_id' => '123456',
+        'services.google_wallet.credentials_path' => $credentialsPath,
+        'services.google_wallet.connect_timeout' => 3,
+        'services.google_wallet.timeout' => 10,
+    ]);
+    $http = new GoogleWalletHttpFake;
+    app()->instance(GoogleWalletClient::class, new GoogleWalletClient($http->client));
+    $classId = '123456.business_'.$business->public_id;
+    $url = 'https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/'.$classId;
+    $remote = ['id' => $classId, 'reviewStatus' => 'approved', 'hexBackgroundColor' => '#2C3E50'];
+    $http->respondWith([
+        'https://oauth2.googleapis.com/token' => GoogleWalletHttpFake::json([
+            'access_token' => 'synthetic-access', 'expires_in' => 3600,
+        ]),
+        $url => function (Request $request) use (&$remote) {
+            if ($request->method() === 'PATCH') {
+                $remote['hexBackgroundColor'] = $request->data()['hexBackgroundColor'];
+            }
+
+            return GoogleWalletHttpFake::json($remote);
+        },
+    ]);
+    Log::spy();
     $this->actingAs($business->user);
 
     Livewire::test('pages::business.pass')
@@ -482,6 +543,97 @@ it('saves a valid appearance and restores the persisted value when cancelled', f
         ->assertSet('backgroundColor', '#A77BFF');
 
     $this->get(route('business.pass'))->assertSee('#A77BFF');
+
+    expect($remote['hexBackgroundColor'])->toBe('#A77BFF');
+    expect($http->requests()->map(fn (array $pair) => $pair[0]->method())->all())
+        ->toBe(['POST', 'GET', 'PATCH']);
+    expect($http->requests(fn (Request $request) => $request->method() === 'PATCH')->sole()[0]->data())
+        ->toBe(['hexBackgroundColor' => '#A77BFF', 'reviewStatus' => 'UNDER_REVIEW']);
+    expect($pass->fresh()->getAttributes())->toBe($passFacts);
+    expect($otherBusiness->fresh()->getAttributes())->toBe($otherFacts);
+
+    $http->respondWith([$url => fn (Request $request) => $request->method() === 'PATCH'
+        ? GoogleWalletHttpFake::json(['error' => 'private-provider-marker'], 503)
+        : GoogleWalletHttpFake::json($remote)]);
+    Livewire::test('pages::business.pass')
+        ->set('backgroundColor', '#E53935')
+        ->call('save')
+        ->assertHasErrors(['appearance'])
+        ->assertSet('backgroundColor', '#E53935')
+        ->assertNoRedirect()
+        ->assertDispatched('toast-show', fn (string $event, array $parameters): bool => $parameters['slots']['text'] === __('business.pass.save_attention')
+            && $parameters['dataset']['variant'] === 'danger')
+        ->assertNotDispatched('toast-show', fn (string $event, array $parameters): bool => ($parameters['dataset']['variant'] ?? null) === 'success')
+        ->assertDontSee('private-provider-marker');
+
+    expect($business->fresh()->pass_background_color)->toBe('#A77BFF');
+    expect($pass->fresh()->getAttributes())->toBe($passFacts);
+    expect($otherBusiness->fresh()->getAttributes())->toBe($otherFacts);
+    Log::shouldHaveReceived('log')->once()->with('error', 'google_wallet.synchronization_failed', Mockery::on(
+        fn (array $context): bool => $context['business_id'] === $business->id
+            && $context['actor_id'] === $business->user_id
+            && $context['reason'] === 'provider_rejected'
+            && $context['stage'] === 'class_update'
+            && $context['outcome'] === 'unknown'
+            && ! str_contains(json_encode($context), 'private-provider-marker'),
+    ));
+    expect($http->requests(fn (Request $request) => str_contains($request->url(), 'loyaltyObject')))->toBeEmpty();
+    expect($http->requests(fn (Request $request) => $request->method() === 'PATCH'))->toHaveCount(2);
+
+    $connection = DB::connection();
+    $dispatcher = $connection->getEventDispatcher();
+    $observer = clone $dispatcher;
+    $native = null;
+    $observer->listen(QueryExecuted::class, function (QueryExecuted $query) use (&$native): void {
+        if (str_starts_with($query->sql, 'update "businesses"')) {
+            $native = new QueryException('pgsql', 'update private-sql-marker set token = ?', ['private-binding-marker'], new PDOException('private-driver-marker'));
+
+            throw $native;
+        }
+    });
+    $connection->setEventDispatcher($observer);
+    $payload = null;
+    $requestsBeforeSqlFailure = count($http->history);
+    Log::shouldReceive('log')->once()->with('error', 'pass_appearance.save_failed', Mockery::capture($payload));
+
+    try {
+        Livewire::test('pages::business.pass')
+            ->set('backgroundColor', '#1E88E5')
+            ->call('save')
+            ->assertHasErrors(['appearance'])
+            ->assertSet('backgroundColor', '#1E88E5')
+            ->assertNoRedirect()
+            ->assertDispatched('toast-show', fn (string $event, array $parameters): bool => $parameters['slots']['text'] === __('business.pass.save_attention')
+                && $parameters['dataset']['variant'] === 'danger')
+            ->assertNotDispatched('toast-show', fn (string $event, array $parameters): bool => ($parameters['dataset']['variant'] ?? null) === 'success')
+            ->assertDontSee('private-sql-marker')
+            ->assertDontSee('private-binding-marker')
+            ->assertDontSee('private-driver-marker');
+    } finally {
+        $connection->setEventDispatcher($dispatcher);
+    }
+
+    expect($business->fresh()->pass_background_color)->toBe('#A77BFF');
+    expect($pass->fresh()->getAttributes())->toBe($passFacts);
+    expect($otherBusiness->fresh()->getAttributes())->toBe($otherFacts);
+    expect($http->history)->toHaveCount($requestsBeforeSqlFailure);
+    expect($native)->toBeInstanceOf(QueryException::class);
+    expect($payload)->toHaveKeys(['previous_class', 'previous_file', 'previous_line', 'previous_frames']);
+    expect($payload['previous_class'])->toBe(QueryException::class);
+    expect($payload['previous_file'])->toBe($native->getFile());
+    expect($payload['previous_line'])->toBe($native->getLine());
+    expect($payload['previous_frames'])->toBe(array_map(
+        static fn (array $frame): array => array_intersect_key($frame, array_flip(['file', 'line', 'class', 'function'])),
+        $native->getTrace(),
+    ));
+    expect(array_column($payload['previous_frames'], 'class'))->toContain(UpdatePassAppearance::class);
+    expect($payload['provider_confirmed'])->toBeFalse();
+    expect(array_diff(array_keys($payload), [
+        'previous_class', 'previous_file', 'previous_line', 'previous_frames',
+        'provider_confirmed', 'actor_id', 'business_id', 'reason',
+    ]))->toBeEmpty();
+    expect(json_encode($payload))->not->toContain('private-sql-marker', 'private-binding-marker', 'private-driver-marker');
+    Log::shouldHaveReceived('log')->twice();
 });
 
 it('rejects malformed appearance colors without changing the saved value', function () {

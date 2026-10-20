@@ -78,6 +78,8 @@ return [
         'continue_editing' => 'Seguir editando',
         'discard_changes' => 'Descartar cambios',
         'invalid_color' => 'Ingresa un color hexadecimal válido de seis dígitos, por ejemplo #A77BFF.',
+        'save_unconfirmed' => 'No pudimos confirmar el guardado de la apariencia. Conservamos tu color elegido; intenta guardarlo de nuevo. Google Wallet puede tardar en mostrar los cambios.',
+        'save_attention' => 'Revisa el mensaje junto a Guardar apariencia.',
         'save' => 'Guardar apariencia',
         'cancel' => 'Cancelar',
         'promotions_title' => 'Promociones',
