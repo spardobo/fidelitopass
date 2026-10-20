@@ -29,6 +29,7 @@ return [
     'search' => 'Buscar tarjeta',
     'searching' => 'Buscando tarjeta…',
     'resetting' => 'Preparando lectura…',
+    'reset_retry' => 'Reintentar',
     'read_only' => 'Leer la tarjeta no registra visitas ni canjea recompensas.',
     'identified' => 'Tarjeta identificada',
     'confirmation_title' => 'Revisa la visita',
@@ -59,4 +60,5 @@ return [
     'promotion_changed' => 'La promoción cambió desde la lectura. Vuelve a identificar la tarjeta y revisa la nueva promoción.',
     'not_accepted' => 'No se pudo aceptar la visita. Vuelve a identificar la tarjeta antes de continuar.',
     'wallet_unavailable' => 'No pudimos registrar la visita. Inténtalo de nuevo.',
+    'network_error' => 'Problema de conexión a internet. Verifica tu red e intenta de nuevo.',
 ];

@@ -175,6 +175,30 @@ async function visitPresentation(dialog) {
     };
 }
 
+/** Verifies the native pending-work lock, including both dismissal paths.
+ * @param {import('@playwright/test').Page} page Owning browser page.
+ * @param {import('@playwright/test').Locator} dialog Current pending modal.
+ * @returns {Promise<void>} Disabled native controls and retained modal.
+ */
+async function expectModalLocked(page, dialog) {
+    const assertLocked = async () => {
+        await expect(dialog).toBeVisible();
+        await expect(dialog).toHaveJSProperty("open", true);
+        await expect.poll(() => dialog.evaluate((element) => element.matches(":modal"))).toBe(true);
+    };
+    for (const control of await dialog.locator("button, input").all()) {
+        await expect(control).toBeDisabled();
+    }
+    await page.keyboard.press("Escape");
+    await assertLocked();
+    await page.mouse.click(1, 1);
+    await assertLocked();
+    for (const close of await dialog.locator("[data-flux-modal-close] button").all()) {
+        await close.click({ force: true });
+        await assertLocked();
+    }
+}
+
 /** Reads persisted facts through the guarded, read-only tests-only router.
  * @param {import('@playwright/test').Page} page Authenticated page sharing the fixture origin.
  * @param {string} caseName Allowlisted independent pass.
@@ -450,6 +474,23 @@ for (const width of [1280, 375]) {
             await expect(
                 dialog.getByRole("button", { name: "Cerrar", exact: true }),
             ).toBeInViewport();
+            await input.fill("99999");
+            await search.click();
+            await expectDangerToast(page, "No se pudo completar la acción.");
+            const manualError = dialog.locator("#visit-manual-error");
+            await expect(manualError).toBeVisible();
+            await expect(manualError).toContainText("Revisa el código");
+            const invalidField = await input.boundingBox();
+            const error = await manualError.boundingBox();
+            const invalidButton = await search.boundingBox();
+            expect(error.y).toBeGreaterThanOrEqual(invalidField.y + invalidField.height);
+            if (width === 375) {
+                expect(error.y + error.height).toBeLessThanOrEqual(invalidButton.y);
+            }
+            expect(Math.abs(invalidField.width - field.width)).toBeLessThanOrEqual(2);
+            expect(Math.abs(invalidField.height - field.height)).toBeLessThanOrEqual(2);
+            expect(Math.abs(invalidButton.width - button.width)).toBeLessThanOrEqual(2);
+            expect(Math.abs(invalidButton.height - button.height)).toBeLessThanOrEqual(2);
             await testInfo.attach(`manual-first-${width}`, {
                 body: await page.screenshot(),
                 contentType: "image/png",
@@ -507,11 +548,22 @@ test("leading-zero manual identification requires explicit confirmation and comm
     await searchHold.requested;
     try {
         await expectButtonSpinner(search, searchWidth);
+        await expectModalLocked(page, dialog);
     } finally {
         searchHold.release();
     }
     await finding;
     const presentation = await visitPresentation(dialog);
+    const keyboardTarget = dialog.getByRole("button", { name: "Confirmar visita", exact: true });
+    await expect
+        .poll(() => keyboardTarget.evaluate((element) => getComputedStyle(element).outlineStyle))
+        .toBe("none");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(keyboardTarget).toBeFocused();
+    await expect
+        .poll(() => keyboardTarget.evaluate((element) => getComputedStyle(element).outlineStyle))
+        .toBe("solid");
     await expect(dialog.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
     await test.info().attach("confirmation-hierarchy", {
         body: await page.screenshot(),
@@ -525,6 +577,7 @@ test("leading-zero manual identification requires explicit confirmation and comm
     await confirmation.requested;
     try {
         await expectButtonSpinner(confirm, confirmWidth);
+        await expectModalLocked(page, dialog);
     } finally {
         confirmation.release();
     }
@@ -572,7 +625,12 @@ test("leading-zero manual identification requires explicit confirmation and comm
             [...element.querySelectorAll("button")].map((button) => button.textContent.trim()),
         );
     expect(order).toEqual(["Cerrar", "Volver a leer"]);
-    await expect(close).toHaveClass(/app-button-secondary/);
+    await expect(close).not.toHaveClass(/app-button-secondary/);
+    const resultEdges = await dialog.locator("footer").evaluate((element) => ({
+        left: element.getBoundingClientRect().left,
+        close: element.querySelector("[data-visit-close]").getBoundingClientRect().left,
+    }));
+    expect(Math.abs(resultEdges.left - resultEdges.close)).toBeLessThanOrEqual(1);
     await test
         .info()
         .attach("result-hierarchy", { body: await page.screenshot(), contentType: "image/png" });
@@ -587,6 +645,7 @@ test("leading-zero manual identification requires explicit confirmation and comm
     await reset.requested;
     try {
         await expectButtonSpinner(back, backWidth);
+        await expectModalLocked(page, dialog);
     } finally {
         reset.release();
     }
@@ -602,25 +661,44 @@ test("camera denial, lookup and definitive provider failure retain usable origin
         Object.defineProperty(navigator, "mediaDevices", {
             configurable: true,
             value: {
-                getUserMedia: async () => {
-                    throw new DOMException("Synthetic denial", "NotAllowedError");
-                },
+                getUserMedia: () =>
+                    new Promise((resolve, reject) => {
+                        window.__visitRejectPermission = () =>
+                            reject(new DOMException("Synthetic denial", "NotAllowedError"));
+                    }),
             },
         });
     });
     const dialog = await openVisits(page);
-    await dialog.getByRole("button", { name: "Activar cámara", exact: true }).click();
-    await expect(dialog.getByText(/No se permitió el acceso a la cámara/)).toBeVisible();
-    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeHidden();
-    await dialog.getByRole("button", { name: "Desactivar cámara", exact: true }).click();
-    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeFocused();
-    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("");
     await dialog.getByLabel("Código de la Tarjeta", { exact: true }).fill("99999");
     await dialog.getByRole("button", { name: "Buscar tarjeta", exact: true }).click();
     await expectDangerToast(page, "No se pudo completar la acción.");
     await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("99999");
     await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeFocused();
     await expect(dialog.locator("#visit-manual-error")).toContainText("Revisa el código");
+    await expect(dialog.locator("#visit-manual-error")).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Activar cámara", exact: true }).click();
+    const cameraRegion = dialog.getByLabel("Escáner de la tarjeta del cliente", { exact: true });
+    await expect(cameraRegion).toBeVisible();
+    await expect
+        .poll(() => page.evaluate(() => typeof window.__visitRejectPermission))
+        .toBe("function");
+    await expect(cameraRegion.getByText(/Revisa el código/)).toBeHidden();
+    await expect(
+        dialog.getByRole("button", { name: "Desactivar cámara", exact: true }),
+    ).toBeEnabled();
+    await page.evaluate(() => window.__visitRejectPermission());
+    await expect(
+        dialog
+            .getByLabel("Escáner de la tarjeta del cliente", { exact: true })
+            .getByText(/No se permitió el acceso a la cámara/),
+    ).toBeVisible();
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeHidden();
+    await dialog.getByRole("button", { name: "Desactivar cámara", exact: true }).click();
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeFocused();
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("");
+    await expect(dialog.locator("#visit-manual-error")).toBeHidden();
     await findManually(dialog, "failure");
     await dialog.getByRole("button", { name: "Confirmar visita", exact: true }).click();
     await expectDangerToast(page, "No se pudo completar la acción.");
@@ -628,6 +706,13 @@ test("camera denial, lookup and definitive provider failure retain usable origin
     await expect(dialog.locator("#visit-action-error")).toContainText(
         "No pudimos registrar la visita",
     );
+    await expect(
+        dialog
+            .locator("section")
+            .filter({ has: page.getByRole("heading", { name: "Revisa la visita" }) })
+            .getByRole("alert")
+            .filter({ hasText: /No pudimos registrar la visita/ }),
+    ).toBeVisible();
     await expect(
         dialog.getByRole("button", { name: "Confirmar visita", exact: true }),
     ).toBeFocused();
@@ -677,9 +762,12 @@ test("lost committed response and failed receipt preserve UUID; primary retry on
     await expectDangerToast(page, "No se pudo completar la acción.");
     await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
     await page.getByRole("button", { name: "Registrar visita", exact: true }).click();
-    await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toBeVisible();
-    await primary.click();
-    await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeVisible();
+    const freshCode = dialog.getByLabel("Código de la Tarjeta", { exact: true });
+    await expect(freshCode).toBeVisible();
+    await expect(freshCode).toHaveValue("");
+    await expect(dialog.getByRole("heading", { name: "Visita registrada" })).toHaveCount(0);
+    await findManually(dialog, "lost");
+    await expect(dialog.getByText("1 / 8 puntos", { exact: true })).toBeVisible();
     const facts = await factsFor(page, "lost");
     expect(accepted).toHaveLength(1);
     expect(receipts).toEqual([accepted[0], accepted[0]]);
@@ -687,29 +775,108 @@ test("lost committed response and failed receipt preserve UUID; primary retry on
     expect(facts.effects).toEqual({ GET: 1, PATCH: 1 });
 });
 
-test("known commit stays positive when optional receipt fails and reopening refreshes read-only", async ({
+test("known commit stays positive after detail failure and reopening requires a fresh read", async ({
     page,
 }) => {
     const dialog = await openVisits(page);
     await findManually(dialog, "details");
     let receipts = 0;
+    let allowFreshReset = false;
     await page.route(updatePath, async (route) => {
-        if (
-            actionCalls(route.request()).some((call) => call.method === "findVisitReceipt") &&
-            ++receipts === 1
-        ) {
+        const calls = actionCalls(route.request());
+        if (calls.some((call) => call.method === "findVisitReceipt") && ++receipts === 1) {
             await route.fulfill({ status: 503, body: "Synthetic optional read failure" });
+        } else if (
+            !allowFreshReset &&
+            calls.some((call) => call.method === "resetIdentification")
+        ) {
+            await route.fulfill({ status: 503, body: "Synthetic fresh preparation failure" });
         } else await route.continue();
     });
     await dialog.getByRole("button", { name: "Confirmar visita", exact: true }).click();
     await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeVisible();
     await expectDangerToast(page, "La visita está registrada. Revisa el mensaje.");
+    await expect(
+        dialog
+            .locator("section")
+            .filter({ has: page.getByRole("heading", { name: "Visita registrada" }) })
+            .getByText("La visita está registrada, pero no pudimos cargar todos los detalles.", {
+                exact: true,
+            }),
+    ).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Confirmar visita" })).toHaveCount(0);
     await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
     await page.getByRole("button", { name: "Registrar visita", exact: true }).click();
+    const restart = dialog.getByRole("button", { name: "Reintentar", exact: true });
+    await expect(restart).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Visita registrada" })).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "Volver a leer", exact: true })).toHaveCount(0);
+    allowFreshReset = true;
+    await restart.click();
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("");
+    expect(receipts).toBe(1);
+    await findManually(dialog, "details");
     await expect(dialog.getByText("1 / 8 puntos", { exact: true })).toBeVisible();
-    expect(receipts).toBe(2);
+    expect(receipts).toBe(1);
     expect((await factsFor(page, "details")).effects).toEqual({ GET: 1, PATCH: 1 });
+});
+
+test("failed lookup reopening cannot replay a closed reset error or toast", async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__visitReopenToasts = 0;
+        document.addEventListener("toast-show", () => window.__visitReopenToasts++);
+    });
+    const dialog = await openVisits(page);
+    let releaseOld, oldArrived, oldFinished;
+    const delivery = new Promise((resolve) => {
+        releaseOld = resolve;
+    });
+    const arrived = new Promise((resolve) => {
+        oldArrived = resolve;
+    });
+    const finished = new Promise((resolve) => {
+        oldFinished = resolve;
+    });
+    let failLookup = true,
+        resets = 0;
+    await page.route(updatePath, async (route) => {
+        const calls = actionCalls(route.request());
+        if (failLookup && calls.some((call) => call.method === "findPass")) {
+            failLookup = false;
+            await route.fulfill({ status: 503, body: "Synthetic lookup failure" });
+        } else if (calls.some((call) => call.method === "resetIdentification") && ++resets === 1) {
+            oldArrived();
+            await delivery;
+            try {
+                await route.fulfill({ status: 503, body: "Synthetic closed reset failure" });
+            } finally {
+                oldFinished();
+            }
+        } else await route.continue();
+    });
+    await dialog
+        .getByLabel("Código de la Tarjeta", { exact: true })
+        .fill(fixture.passes.details.code);
+    await dialog.getByRole("button", { name: "Buscar tarjeta", exact: true }).click();
+    await expectDangerToast(page, "No se pudo completar la acción.");
+    await expect.poll(() => page.evaluate(() => window.__visitReopenToasts)).toBe(1);
+    await expect(dialog.locator("#visit-manual-transport-error")).toBeVisible();
+    await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await arrived;
+    await page.getByRole("button", { name: "Registrar visita", exact: true }).click();
+    try {
+        await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("");
+        await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeEnabled();
+        await expect(dialog.locator("#visit-manual-transport-error")).toBeHidden();
+        await expect(dialog.locator("#visit-manual-error")).toBeHidden();
+        expect(resets).toBe(2);
+    } finally {
+        releaseOld();
+    }
+    await finished;
+    await expect.poll(() => page.evaluate(() => window.__visitReopenToasts)).toBe(1);
+    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("");
+    await expect(dialog.locator("#visit-manual-transport-error")).toBeHidden();
 });
 
 test("available Reward has no Visit CTA or enabled redemption stub", async ({ page }) => {
@@ -774,7 +941,9 @@ test.extend({ isMobile: true, hasTouch: true })(
 );
 
 for (const changedIntent of ["edit", "close", "back"]) {
-    test(`late read after ${changedIntent} cannot restore stale confirmation`, async ({ page }) => {
+    test(`pending read blocks ${changedIntent} intent without cancelling its response`, async ({
+        page,
+    }) => {
         const dialog = await openVisits(page);
         const caseName = `readonly-${changedIntent}`;
         let release;
@@ -806,15 +975,20 @@ for (const changedIntent of ["edit", "close", "back"]) {
         await dialog.getByRole("button", { name: "Buscar tarjeta", exact: true }).click();
         await serverRead;
         try {
-            if (changedIntent === "edit") await input.fill("00000");
-            else {
-                await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
-                await page.getByRole("button", { name: "Registrar visita", exact: true }).click();
-                if (changedIntent === "back") {
-                    await findManually(dialog, caseName);
-                    await dialog.getByRole("button", { name: "Volver a leer" }).click();
-                    await expect(input).toBeVisible();
-                }
+            await expect(input).toBeDisabled();
+            await expect(
+                dialog.getByRole("button", { name: "Cerrar", exact: true }),
+            ).toBeDisabled();
+            if (changedIntent === "edit") {
+                await input.evaluate((element) => element.focus());
+                await expect(input).not.toBeFocused();
+                await expect(input).toHaveValue(fixture.passes[caseName].code);
+            } else if (changedIntent === "close") {
+                await expectModalLocked(page, dialog);
+            } else {
+                await expect(
+                    dialog.getByRole("button", { name: "Buscar tarjeta", exact: true }),
+                ).toBeDisabled();
             }
         } finally {
             release();
@@ -827,9 +1001,13 @@ for (const changedIntent of ["edit", "close", "back"]) {
                     requestAnimationFrame(() => requestAnimationFrame(resolve)),
                 ),
         );
+        await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toBeVisible();
+        await expect(
+            dialog.getByRole("button", { name: "Confirmar visita", exact: true }),
+        ).toBeFocused();
+        await dialog.getByRole("button", { name: "Volver a leer", exact: true }).click();
         await expect(input).toBeVisible();
-        await expect(input).toHaveValue(changedIntent === "edit" ? "00000" : "");
-        await expect(dialog.getByRole("heading", { name: "Revisa la visita" })).toHaveCount(0);
+        await expect(input).toHaveValue("");
         expect(await factsFor(page, caseName)).toEqual({
             visits: [],
             effects: { GET: 0, PATCH: 0 },
@@ -838,7 +1016,12 @@ for (const changedIntent of ["edit", "close", "back"]) {
 }
 
 for (const browserName of ["chromium", "firefox", "webkit"]) {
-    const cameraTest = test.extend({ browserName });
+    const cameraTest = test.extend({
+        browserName,
+        ...(browserName === "chromium"
+            ? { isMobile: true, hasTouch: true, viewport: { width: 393, height: 851 } }
+            : {}),
+    });
     cameraTest.describe(`synthetic Canvas camera in actual ${browserName}`, () => {
         cameraTest(
             "explicit capture, typing, deactivation and new video after real Flux return",
@@ -866,7 +1049,9 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                               ).join(""),
                           );
                 await installCanvasCamera(page, rows);
-                const dialog = await openVisits(page);
+                const dialog = await openVisits(page, {
+                    manualAutofocus: browserName !== "chromium",
+                });
                 expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(0);
                 await dialog.getByLabel("Código de la Tarjeta", { exact: true }).fill("012");
                 await page.evaluate(() => {
@@ -971,7 +1156,9 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                 });
                 await dialog.getByRole("button", { name: "Volver a leer" }).click();
                 await expect(
-                    dialog.getByLabel("Código de la Tarjeta", { exact: true }),
+                    browserName === "chromium"
+                        ? dialog.getByRole("button", { name: "Cerrar", exact: true })
+                        : dialog.getByLabel("Código de la Tarjeta", { exact: true }),
                 ).toBeFocused();
                 await expect(dialog.locator("video")).toBeHidden();
                 expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(2);
@@ -1002,7 +1189,9 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                 });
                 await page.getByRole("button", { name: "Registrar visita", exact: true }).click();
                 await expect(
-                    dialog.getByLabel("Código de la Tarjeta", { exact: true }),
+                    browserName === "chromium"
+                        ? dialog.getByRole("button", { name: "Cerrar", exact: true })
+                        : dialog.getByLabel("Código de la Tarjeta", { exact: true }),
                 ).toBeFocused();
                 expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(3);
                 await dialog.getByRole("button", { name: "Activar cámara", exact: true }).click();

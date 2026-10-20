@@ -90,8 +90,14 @@ function setup(decode) {
         calls.push(args);
         return decode === undefined ? Promise.resolve(controls) : decode(...args, controls);
     });
-    scanner = qrCameraScanner((token) => results.push(token));
+    scanner = qrCameraScanner((token) => results.push(token), {
+        DENIED: "denied",
+        BUSY: "busy",
+        UNAVAILABLE: "unavailable",
+        INITIALIZATION: "initialization",
+    });
     scanner.$el = { querySelector: () => video };
+    scanner.$dispatch = () => {};
     return {
         scanner,
         results,

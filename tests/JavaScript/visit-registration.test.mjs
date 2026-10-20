@@ -101,6 +101,15 @@ function setup(responses = {}) {
         focus: () => focus.push("trigger"),
     });
     const dialog = new EventTarget();
+    const root = new EventTarget();
+    const nativeDispatch = dialog.dispatchEvent.bind(dialog);
+    dialog.dispatchEvent = (event) => {
+        if (!Object.hasOwn(event, "target")) {
+            Object.defineProperty(event, "target", { value: dialog, configurable: true });
+        }
+        root.dispatchEvent(event);
+        return event.defaultPrevented ? false : nativeDispatch(event);
+    };
     const controls = { stop: () => stopped.push("owned-camera") };
     mock.method(BrowserQRCodeReader.prototype, "decodeFromConstraints", async (...args) => {
         startup.push(args);
@@ -109,17 +118,20 @@ function setup(responses = {}) {
     const refs = {
         manual: { value: "00007", focus: () => focus.push("manual") },
         video: { id: "initial-video" },
+        dialog,
     };
     const native = {
         isSecureContext: false,
         matchMedia: () => ({ matches: true }),
-        navigator: { mediaDevices: { getUserMedia() {} } },
+        navigator: { onLine: true, mediaDevices: { getUserMedia() {} } },
     };
     globalThis.window = native;
     const interceptors = new Set();
-    const state = { stage: "identify", preview: null, facts: null, details: null, message: "" };
+    const state = { stage: "identify", preview: null, facts: null, details: null, errorCode: "" };
     const wire = {
         ...state,
+        logCameraFatalError: async () => {},
+        logTransportError: async () => {},
         intercept(callback) {
             interceptors.add(callback);
             return () => interceptors.delete(callback);
@@ -137,19 +149,22 @@ function setup(responses = {}) {
             const pending = deferred();
             let cancelled = false;
             const finish = [],
-                errors = [];
+                errors = [],
+                cancels = [];
             const action = {
                 name,
                 cancel() {
                     cancelled = true;
                     cancellations.push(name);
+                    cancels.forEach((callback) => callback());
                     finish.forEach((callback) => callback());
-                    pending.reject(new Error("cancelled native action"));
+                    pending.reject({ status: null, body: null, json: null, errors: null });
                 },
             };
             for (const interceptor of interceptors) {
                 interceptor({
                     action,
+                    onCancel: (callback) => cancels.push(callback),
                     onError: (callback) => errors.push(callback),
                     onFinish: (callback) => finish.push(callback),
                 });
@@ -173,12 +188,14 @@ function setup(responses = {}) {
                             }
                             pending.resolve(result.outcome);
                         } else if (name === "findVisitReceipt") {
-                            if (result?.facts) {
-                                wire.preview = null;
-                                wire.facts = result.facts;
-                                wire.details = result.details;
+                            if (args[3] !== false) {
+                                if (result?.facts) {
+                                    wire.preview = null;
+                                    wire.facts = result.facts;
+                                    wire.details = result.details;
+                                }
+                                if (wire.facts) wire.stage = "result";
                             }
-                            if (wire.facts) wire.stage = "result";
                             pending.resolve(Boolean(result?.facts));
                         } else {
                             Object.assign(wire, state);
@@ -199,21 +216,41 @@ function setup(responses = {}) {
         };
     }
     const context = factory({
-        error_notice: "Action needs attention",
-        details_notice: "Registered; review the message",
-        read_unavailable: "Read unavailable",
-        unknown: "Try again safely",
-        details_unavailable: "Registered; details unavailable",
+        errors: {
+            read_unavailable: { message: "Read unavailable", notice: "Action needs attention" },
+            unknown: { message: "Try again safely", notice: "Action needs attention" },
+            details_unavailable: {
+                message: "Registered; details unavailable",
+                notice: "Registered; review the message",
+            },
+            invalid_credential: { message: "Check the code", notice: "Action needs attention" },
+            network_error: { message: "Check connection", notice: "Action needs attention" },
+            denied: { message: "Camera denied", notice: "Action needs attention" },
+            busy: { message: "Camera busy", notice: "Action needs attention" },
+            unavailable: { message: "Camera unavailable", notice: "Action needs attention" },
+            initialization: { message: "Reader unavailable", notice: "Action needs attention" },
+        },
+        codes: {
+            network: "network_error",
+            transport: "transport_failed",
+            read: "read_unavailable",
+            unknown: "unknown",
+            details: "details_unavailable",
+        },
     });
     const cameraRoot = new EventTarget();
     cameraRoot.querySelector = () => refs.video;
     Object.assign(context, {
         $wire: wire,
         $flux: { toast: (toast) => toasts.push(toast) },
-        $el: {
+        $dispatch: (name, detail) => {
+            if (name === "qr-camera-fatal-error") void context.cameraFailed(detail);
+            if (name === "livewire-transport-error") void context.logTransportError(detail);
+        },
+        $el: Object.assign(root, {
             ownerDocument: document,
             querySelector: (selector) => {
-                if (selector === "dialog") return dialog;
+                if (selector === "dialog") return refs.dialog;
                 if (selector === "[data-qr-camera]")
                     return wire.stage === "identify" ? cameraRoot : null;
                 if (selector === "#visit-manual-code")
@@ -222,6 +259,8 @@ function setup(responses = {}) {
                     return wire.stage === "confirm"
                         ? { focus: () => focus.push("confirm-button") }
                         : null;
+                if (selector === "[data-visit-restart]")
+                    return { focus: () => focus.push("restart-button") };
                 if (selector === "[data-visit-close]")
                     return { focus: () => focus.push("close-button") };
                 if (selector === "[data-visit-back]")
@@ -236,11 +275,17 @@ function setup(responses = {}) {
                           ] ?? "status");
                 return { focus: () => focus.push(heading) };
             },
-        },
+        }),
         $nextTick: (callback) => Promise.resolve().then(callback),
     });
-    const camera = qrCameraScanner((token) => void context.findPass("token", token));
+    const camera = qrCameraScanner((token) => void context.findPass("token", token), {
+        DENIED: "denied",
+        BUSY: "busy",
+        UNAVAILABLE: "unavailable",
+        INITIALIZATION: "initialization",
+    });
     camera.$el = cameraRoot;
+    camera.$dispatch = context.$dispatch;
     cameraRoot.addEventListener("qr-camera-start", () => void camera.startCamera());
     cameraRoot.addEventListener("qr-camera-stop", () => camera.stopCamera());
     context.init();
@@ -255,6 +300,7 @@ function setup(responses = {}) {
         wire,
         camera,
         native,
+        root,
         dialog,
         document,
         refs,
@@ -367,6 +413,10 @@ test("denied permission and failed reader startup retain manual identification",
         await settle();
         assert.equal(wire.stage, "identify");
         assert.equal(camera.error, name === "NotAllowedError" ? "denied" : "initialization");
+        assert.equal(
+            context.errorMessage,
+            name === "NotAllowedError" ? "Camera denied" : "Reader unavailable",
+        );
         assert.equal(camera.active, false);
         await context.findPassManually();
         assert.equal(wire.stage, "confirm");
@@ -584,11 +634,13 @@ test("lost response and reopen retain the same identity for receipt finding, nev
     assert.equal(wire.preview.promotion.id, 7);
     context.handleModalClose();
     context.handleModalShow();
-    await context.acceptVisit();
-    assert.deepEqual(reads, [mutations[0].slice(0, 3)]);
+    await settle();
+    assert.equal(wire.stage, "identify");
+    await context.findPassManually();
+    assert.deepEqual(reads, [[...mutations[0].slice(0, 3), false]]);
     assert.equal(mutations.length, 1);
-    assert.equal(wire.stage, "result");
-    assert.equal(wire.preview, null);
+    assert.equal(wire.stage, "confirm");
+    assert.equal(wire.facts, null);
 });
 
 test("null receipt cannot prove rollback or permit a new pass or mutation", async () => {
@@ -637,9 +689,10 @@ test("close during acceptance never cancels the mutation or discards its returne
     assert.equal(reads, 0);
     assert.equal(wire.facts.visit_id, 1);
     context.handleModalShow();
-    assert.equal(wire.stage, "result");
-    await context.findVisitReceipt();
-    assert.equal(reads, 1);
+    await settle();
+    assert.equal(wire.stage, "identify");
+    assert.equal(wire.facts, null);
+    assert.equal(reads, 0);
 });
 
 test("known committed facts survive optional receipt failure and read-only refresh", async () => {
@@ -763,11 +816,12 @@ test("a transport failure while closed defers feedback but never resets the unre
     assert.deepEqual(toasts, []);
 
     context.handleModalShow();
-    assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
-    await context.acceptVisit();
+    await settle();
+    assert.deepEqual(toasts, []);
+    await context.findPassManually();
 
     assert.equal(mutations.length, 1);
-    assert.deepEqual(reads, [mutations[0].slice(0, 3)]);
+    assert.deepEqual(reads, [[...mutations[0].slice(0, 3), false]]);
 });
 
 test("native close, navigation and root destruction unsubscribe owned hooks and ignore late work", async () => {
@@ -780,6 +834,7 @@ test("native close, navigation and root destruction unsubscribe owned hooks and 
     dialog.dispatchEvent(new Event("close"));
     assert.equal(context.opened, false);
     context.handleModalShow();
+    assert.deepEqual(cancellations, ["findPass", "resetIdentification"]);
     document.dispatchEvent(new Event("livewire:navigating"));
     request.resolve(identified());
     await search;
@@ -787,7 +842,7 @@ test("native close, navigation and root destruction unsubscribe owned hooks and 
     assert.equal(context.opened, false);
     assert.equal(wire.preview, null);
     assert.equal(interceptors.size, 0);
-    assert.deepEqual(cancellations, ["findPass"]);
+    assert.deepEqual(cancellations, ["findPass", "resetIdentification", "resetIdentification"]);
     const event = new Event("modal-show");
     event.detail = { name: "visit-registration" };
     document.dispatchEvent(event);
@@ -906,8 +961,6 @@ test("uncertain primary retry reads only the retained Visit and keeps confirmati
     assert.equal(wire.preview, preview);
     assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
     assert.equal(reads.length, 0);
-    context.handleModalClose();
-    context.handleModalShow();
     await context.reset();
     await context.findPassManually();
     assert.equal(wire.stage, "confirm");
@@ -938,11 +991,11 @@ test("reopen honors committed native facts even when closing interrupted receipt
     Object.assign(wire, { stage: "result", facts: confirmed().facts, details: receipt().details });
     context.handleModalClose();
     await reading;
-    context.handleModalShow();
-    assert.equal(wire.stage, "result");
     assert.equal(wire.facts.points_awarded, 3);
-    await context.reset();
+    context.handleModalShow();
+    await settle();
     assert.equal(wire.stage, "identify");
+    assert.equal(wire.facts, null);
     assert.equal(mutations, 1);
     response.resolve(receipt());
 });
@@ -1000,18 +1053,19 @@ test("stale receipt cannot clear a newer same-operation read", async () => {
     await settle();
     context.handleModalClose();
     context.handleModalShow();
-    const second = context.acceptVisit();
+    await settle();
+    const second = context.findPassManually();
     await settle();
     old.resolve(receipt());
     await first;
     assert.equal(context.busy, true);
-    assert.equal(wire.stage, "confirm");
-    assert.equal(context.visitPhase, "unknown");
-    assert.deepEqual(reads, [mutations[0].slice(0, 3), mutations[0].slice(0, 3)]);
+    assert.equal(wire.stage, "identify");
+    assert.equal(context.visitPhase, "idle");
+    assert.deepEqual(reads, [mutations[0].slice(0, 3), [...mutations[0].slice(0, 3), false]]);
     next.resolve(receipt());
     await second;
     assert.equal(context.busy, false);
-    assert.equal(wire.stage, "result");
+    assert.equal(wire.stage, "confirm");
     assert.equal(mutations.length, 1);
 });
 
@@ -1065,9 +1119,11 @@ test("closing an in-flight receipt cancels its native render without clearing th
     assert.equal(wire.stage, "confirm");
     assert.equal(renders.includes("findVisitReceipt"), false);
     context.handleModalShow();
-    await context.findVisitReceipt();
-    assert.deepEqual(reads, [mutations[0].slice(0, 3), mutations[0].slice(0, 3)]);
-    assert.equal(wire.stage, "result");
+    await settle();
+    await context.findPassManually();
+    assert.deepEqual(reads, [mutations[0].slice(0, 3), [...mutations[0].slice(0, 3), false]]);
+    assert.equal(wire.stage, "confirm");
+    assert.equal(wire.facts, null);
 });
 
 test("transport failure keeps a safe inline detail and uses only an attention toast", async () => {
@@ -1078,7 +1134,7 @@ test("transport failure keeps a safe inline detail and uses only an attention to
     });
     context.handleModalShow();
     await context.findPassManually();
-    assert.equal(context.transportError, "Read unavailable");
+    assert.equal(context.errorMessage, "Read unavailable");
     assert.equal(wire.stage, "identify");
     assert.equal(wire.preview, null);
     assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
@@ -1093,7 +1149,7 @@ test("optional detail failure keeps the positive result and its persistent safe 
     });
     await identify(context);
     await context.acceptVisit(7);
-    assert.equal(context.transportError, "Registered; details unavailable");
+    assert.equal(context.errorMessage, "Registered; details unavailable");
     assert.equal(wire.stage, "result");
     assert.equal(wire.facts.points_awarded, 3);
     assert.deepEqual(toasts, [{ variant: "danger", text: "Registered; review the message" }]);
@@ -1101,29 +1157,59 @@ test("optional detail failure keeps the positive result and its persistent safe 
 
 test("camera lookup keeps manual mode hidden until explicit clean deactivation", async () => {
     const response = deferred();
-    const { context, refs, wire, native, camera, focus } = setup({
-        findPass: () => response.promise,
+    const calls = [];
+    const { context, refs, wire, native, camera, focus, toasts } = setup({
+        findPass: (...args) => {
+            calls.push(["findPass", ...args]);
+            return response.promise;
+        },
+        resetIdentification: async () => {
+            calls.push(["resetIdentification"]);
+            return null;
+        },
+    });
+    mock.method(wire, "logCameraFatalError", async (...args) => {
+        calls.push(["logCameraFatalError", ...args]);
+    });
+    mock.method(wire, "logTransportError", async (...args) => {
+        calls.push(["logTransportError", ...args]);
     });
     native.isSecureContext = true;
     context.handleModalShow();
+    wire.errorCode = "invalid_credential";
+    assert.equal(context.errorMessage, "Check the code");
+
     context.requestCameraStart();
+    assert.equal(context.errorMessage, "");
+    assert.equal(wire.errorCode, "invalid_credential");
+    assert.deepEqual(calls, []);
+    assert.deepEqual(toasts, []);
     await settle();
+    assert.equal(context.errorMessage, "");
+    assert.deepEqual(calls, []);
+    assert.deepEqual(toasts, []);
+
     const pending = context.findPass("token", "private-credential");
     assert.equal(camera.active, false);
     assert.equal(context.cameraEnabled, true);
     assert.equal(context.busy, true);
+    wire.errorCode = "invalid_credential";
     response.resolve(null);
     await pending;
     await settle();
+    assert.equal(context.errorMessage, "Check the code");
+    assert.deepEqual(calls, [["findPass", "token", "private-credential"]]);
     assert.equal(context.cameraEnabled, true);
     assert.equal(focus.at(-1), "camera-control");
-    wire.message = "Earlier lookup error";
+    wire.errorCode = "invalid_credential";
     refs.manual.value = "00007";
     await context.reset(true);
     await settle();
     assert.equal(context.cameraEnabled, false);
     assert.equal(refs.manual.value, "");
-    assert.equal(wire.message, "");
+    assert.equal(wire.errorCode, "");
+    assert.equal(context.errorMessage, "");
+    assert.deepEqual(calls, [["findPass", "token", "private-credential"], ["resetIdentification"]]);
     assert.equal(focus.at(-1), "manual");
 });
 
@@ -1140,11 +1226,15 @@ test("failed manual identification returns focus to the editable input", async (
 
 test("ancillary receipt completion cannot steal focus from another result control", async () => {
     const response = deferred();
-    const { context, focus } = setup({ findVisitReceipt: () => response.promise });
+    let reads = 0;
+    const { context, focus } = setup({
+        findVisitReceipt: () => (++reads === 1 ? receipt() : response.promise),
+    });
     await identify(context);
-    const pending = context.acceptVisit(7);
+    await context.acceptVisit(7);
     await settle();
     focus.push("another-result-control");
+    const pending = context.findVisitReceipt();
     response.resolve(receipt());
     await pending;
     await settle();
@@ -1193,7 +1283,7 @@ test("deactivation cancels pending permission before native reset completes", as
         return permission.promise;
     });
     context.handleModalShow();
-    wire.message = "Earlier invalid code";
+    wire.errorCode = "invalid_credential";
     context.requestCameraStart();
     await started.promise;
     assert.equal(camera.starting, true);
@@ -1212,15 +1302,16 @@ test("deactivation cancels pending permission before native reset completes", as
     await resetting;
     await settle();
     assert.equal(context.cameraEnabled, false);
-    assert.equal(wire.message, "");
+    assert.equal(wire.errorCode, "");
     assert.equal(context.busy, false);
     assert.equal(focus.at(-1), "manual");
 });
 
 test("cancelled deactivation cannot hide or stop a successor camera", async () => {
     const response = deferred();
+    let resets = 0;
     const { context, camera, native, startup, stopped, cancellations, focus } = setup({
-        resetIdentification: () => response.promise,
+        resetIdentification: () => (++resets === 1 ? response.promise : null),
     });
     native.isSecureContext = true;
     context.handleModalShow();
@@ -1229,6 +1320,7 @@ test("cancelled deactivation cannot hide or stop a successor camera", async () =
     const resetting = context.reset(true);
     context.handleModalClose();
     context.handleModalShow();
+    await settle();
     context.requestCameraStart();
     await settle();
     assert.equal(startup.length, 2);
@@ -1248,12 +1340,16 @@ test("cancelled deactivation cannot hide or stop a successor camera", async () =
 
 test("optional receipt rejection cannot refocus an unchanged known result", async () => {
     const response = deferred();
-    const { context, wire, focus, toasts } = setup({ findVisitReceipt: () => response.promise });
+    let reads = 0;
+    const { context, wire, focus, toasts } = setup({
+        findVisitReceipt: () => (++reads === 1 ? receipt() : response.promise),
+    });
     await identify(context);
-    const pending = context.acceptVisit(7);
+    await context.acceptVisit(7);
     await settle();
     assert.equal(focus.at(-1), "close-button");
     focus.push("operator-selected-back");
+    const pending = context.findVisitReceipt();
 
     response.reject(new Error("private native receipt failure"));
     await pending;
@@ -1376,18 +1472,357 @@ test("camera-origin uncertainty retains exact identity across close and ignores 
     await context.reset(true);
     context.handleModalClose();
     context.handleModalShow();
+    await settle();
     refs.manual.value = "00008";
     await context.findPassManually();
     context.requestCameraStart();
     await context.acceptVisit(999);
     await context.acceptVisit(999);
     await settle();
-    assert.equal(startup.length, 1);
+    await context.findPassManually();
+    assert.equal(startup.length, 2);
     assert.equal(mutations.length, 1);
     assert.deepEqual(mutations[0].slice(0, 2), ["token", token]);
     assert.equal(mutations[0][3], 7);
-    assert.deepEqual(reads, [mutations[0].slice(0, 3), mutations[0].slice(0, 3)]);
-    assert.equal(wire.stage, "result");
-    assert.equal(focus.at(-1), "close-button");
+    assert.deepEqual(reads, [
+        [...mutations[0].slice(0, 3), false],
+        [...mutations[0].slice(0, 3), false],
+    ]);
+    assert.equal(wire.stage, "confirm");
+    assert.equal(focus.at(-1), "confirm-button");
     assert.equal(JSON.stringify(context).includes(token), false);
+});
+
+test("pending lookup prevents dismissal without cancelling the selected read", async () => {
+    const response = deferred();
+    const { context, dialog, wire, renders, cancellations } = setup({
+        findPass: () => response.promise,
+    });
+    context.handleModalShow();
+    const pending = context.findPassManually();
+    await settle();
+    const event = new Event("cancel", { cancelable: true });
+    dialog.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, true);
+    assert.equal(context.opened, true);
+    assert.equal(context.busy, true);
+    assert.deepEqual(cancellations, []);
+    response.resolve(identified());
+    await pending;
+    await settle();
+    assert.equal(wire.stage, "confirm");
+    assert.deepEqual(renders, ["findPass"]);
+    assert.equal(context.busy, false);
+});
+
+test("allowed cancellation cleans up only when the native dialog actually closes", async () => {
+    const { context, dialog, focus } = setup();
+    context.handleModalShow();
+    await settle();
+
+    dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
+    assert.equal(context.opened, true);
+    assert.notEqual(focus.at(-1), "trigger");
+    dialog.dispatchEvent(new Event("close"));
+    assert.equal(context.opened, false);
+    assert.equal(focus.at(-1), "trigger");
+});
+
+test("successful acceptance focuses Close only after its initial receipt work settles", async () => {
+    const details = deferred();
+    const { context, wire, focus } = setup({ findVisitReceipt: () => details.promise });
+    await identify(context);
+    await settle();
+    const before = focus.length;
+    const accepting = context.acceptVisit();
+    await settle();
+    assert.equal(wire.facts.points_awarded, 3);
+    assert.equal(context.busy, true);
+    assert.deepEqual(focus.slice(before), []);
+    details.resolve(receipt());
+    await accepting;
+    await settle();
+    assert.equal(context.busy, false);
+    assert.equal(focus.at(-1), "close-button");
+});
+
+test("button indicator modality is scoped to the open modal or its trigger and releases listeners", async () => {
+    const { context, document } = setup();
+    const trigger = { closest: (selector) => (selector === "#register-visit-trigger" ? {} : null) };
+    const send = (type, target = null) => {
+        const event = new Event(type);
+        Object.defineProperty(event, "target", { value: target });
+        document.dispatchEvent(event);
+    };
+    assert.equal(context.focusModality, "keyboard");
+    send("pointerdown");
+    assert.equal(context.focusModality, "keyboard");
+    send("pointerdown", trigger);
+    assert.equal(context.focusModality, "pointer");
+    context.handleModalShow();
+    send("keydown");
+    assert.equal(context.focusModality, "keyboard");
+    send("pointerdown");
+    assert.equal(context.focusModality, "pointer");
+    context.handleModalClose();
+    send("keydown");
+    assert.equal(context.focusModality, "pointer");
+    context.destroy();
+    send("keydown", trigger);
+    assert.equal(context.focusModality, "pointer");
+});
+
+test("pending SVG dismissal click is intercepted before the native close wrapper", async () => {
+    const response = deferred();
+    const { context, dialog, cancellations, renders } = setup({ findPass: () => response.promise });
+    context.handleModalShow();
+    const pending = context.findPassManually();
+    await settle();
+    const event = new Event("click", { cancelable: true });
+    Object.defineProperty(event, "target", {
+        value: { closest: (selector) => (selector === "[data-flux-modal-close]" ? {} : null) },
+    });
+    let wrapperReached = false;
+    dialog.addEventListener("click", () => {
+        wrapperReached = true;
+    });
+    dialog.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, true);
+    assert.equal(wrapperReached, false);
+    assert.equal(context.opened, true);
+    assert.equal(context.busy, true);
+    assert.deepEqual(cancellations, []);
+    response.resolve(identified());
+    await pending;
+    assert.deepEqual(renders, ["findPass"]);
+});
+
+test("known result reopening starts with empty identification rather than old receipt details", async () => {
+    const { context, wire, refs } = setup();
+    await identify(context);
+    await context.acceptVisit(7);
+    assert.equal(wire.stage, "result");
+    context.handleModalClose();
+    context.handleModalShow();
+    await settle();
+    assert.equal(wire.stage, "identify");
+    assert.equal(wire.facts, null);
+    assert.equal(wire.details, null);
+    assert.equal(wire.preview, null);
+    assert.equal(refs.manual.value, "");
+    assert.equal(context.visitPhase, "idle");
+});
+
+test("failed lookup reopening clears its old field and transport feedback", async () => {
+    const { context, wire, refs } = setup();
+    context.handleModalShow();
+    wire.errorCode = "invalid_credential";
+    context.clientErrorCode = "read_unavailable";
+    context.handleModalClose();
+    context.handleModalShow();
+    await settle();
+    assert.equal(wire.stage, "identify");
+    assert.equal(wire.errorCode, "");
+    assert.equal(context.clientErrorCode, "");
+    assert.equal(refs.manual.value, "");
+});
+
+for (const found of [false, true]) {
+    test(`fresh reopening reconciles private uncertainty before a new lookup (${found})`, async () => {
+        const mutations = [],
+            receipts = [],
+            lookups = [];
+        const { context, wire, refs } = setup({
+            findPass: async (...args) => {
+                lookups.push(args);
+                return identified();
+            },
+            acceptVisit: async (...args) => {
+                mutations.push(args);
+                throw new Error("lost response");
+            },
+            findVisitReceipt: async (...args) => {
+                receipts.push(args);
+                return found ? receipt() : null;
+            },
+        });
+        await identify(context);
+        await context.acceptVisit(7);
+        const original = mutations[0];
+        context.handleModalClose();
+        context.handleModalShow();
+        await settle();
+        assert.equal(wire.stage, "identify");
+        assert.equal(wire.facts, null);
+        assert.equal(refs.manual.value, "");
+        assert.equal(context.visitPhase, "idle");
+        assert.equal(receipts.length, 0);
+        await context.findPass("manual", "22222");
+        assert.deepEqual(receipts, [[...original.slice(0, 3), false]]);
+        assert.equal(mutations.length, 1);
+        assert.equal(lookups.length, found ? 2 : 1);
+        assert.equal(wire.stage, found ? "confirm" : "identify");
+        if (!found) {
+            await context.findPass("manual", "33333");
+            assert.deepEqual(receipts, [
+                [...original.slice(0, 3), false],
+                [...original.slice(0, 3), false],
+            ]);
+            assert.equal(lookups.length, 1);
+            assert.equal(mutations.length, 1);
+        }
+    });
+}
+
+test("failed fresh preparation never makes an old result available again", async () => {
+    let attempts = 0;
+    const { context, wire, focus, native, startup } = setup({
+        resetIdentification: async () => {
+            if (++attempts === 1) throw new Error("reset transport failure");
+            return null;
+        },
+    });
+    native.isSecureContext = true;
+    await identify(context);
+    await context.acceptVisit(7);
+    context.handleModalClose();
+    context.handleModalShow();
+    await settle();
+    assert.equal(wire.stage, "result");
+    assert.equal(context.presentationReady, false);
+    assert.equal(context.busy, false);
+    assert.equal(focus.at(-1), "restart-button");
+    context.requestCameraStart();
+    await settle();
+    assert.equal(startup.length, 0);
+    assert.equal(context.cameraEnabled, false);
+    await context.reset();
+    await settle();
+    assert.equal(context.presentationReady, true);
+    assert.equal(wire.stage, "identify");
+    assert.equal(wire.facts, null);
+});
+
+test("pending dismissal guard follows the current dialog after a framework replacement", async () => {
+    const response = deferred();
+    const { context, root, refs } = setup({ findPass: () => response.promise });
+    context.handleModalShow();
+    const pending = context.findPassManually();
+    await settle();
+    const replacement = new EventTarget();
+    refs.dialog = replacement;
+    const cancel = new Event("cancel", { cancelable: true });
+    Object.defineProperty(cancel, "target", { value: replacement });
+    root.dispatchEvent(cancel);
+    assert.equal(cancel.defaultPrevented, true);
+    assert.equal(context.opened, true);
+    response.resolve(identified());
+    await pending;
+});
+
+test("late recovery finish cannot release the newer lookup cancellation handle", async () => {
+    const reply = deferred();
+    let searches = 0,
+        previousFinish;
+    const { context, wire, cancellations, interceptors } = setup({
+        findPass: () => (++searches === 1 ? identified() : reply.promise),
+        acceptVisit: async () => ({ outcome: "unknown" }),
+        findVisitReceipt: async () => receipt(),
+    });
+    const registered = [...interceptors][0];
+    interceptors.delete(registered);
+    interceptors.add((payload) => {
+        registered({
+            ...payload,
+            onFinish: (callback) =>
+                payload.onFinish(() => {
+                    if (payload.action.name === "findVisitReceipt") previousFinish = callback;
+                    else callback();
+                }),
+        });
+    });
+    await identify(context);
+    await context.acceptVisit(7);
+    context.handleModalClose();
+    context.handleModalShow();
+    await settle();
+    const reading = context.findPassManually();
+    await settle();
+    assert.equal(typeof previousFinish, "function");
+    previousFinish();
+    context.manualChanged();
+    assert.deepEqual(cancellations, ["findPass"]);
+    reply.resolve(identified());
+    await reading;
+    await settle();
+    assert.equal(wire.stage, "identify");
+    assert.equal(wire.preview, null);
+    assert.equal(context.busy, false);
+});
+
+test("owned Escape keydown blocks native dismissal only during an application request", async () => {
+    const response = deferred();
+    const { context, document } = setup({ findPass: () => response.promise });
+    const escape = () => {
+        const event = new Event("keydown", { cancelable: true });
+        Object.defineProperty(event, "key", { value: "Escape" });
+        document.dispatchEvent(event);
+        return event.defaultPrevented;
+    };
+    context.handleModalShow();
+    assert.equal(escape(), false);
+    const reading = context.findPassManually();
+    await settle();
+    assert.equal(escape(), true);
+    response.resolve(identified());
+    await reading;
+    assert.equal(escape(), false);
+    context.handleModalClose();
+    assert.equal(escape(), false);
+});
+
+test("reopening after a failed QR read cannot inherit a closed-cycle reset failure or toast", async () => {
+    const oldReset = deferred();
+    let resets = 0,
+        mutations = 0;
+    const { context, wire, native, refs, dialog, toasts, cancellations } = setup({
+        findPass: async () => {
+            throw new Error("lookup transport failure");
+        },
+        resetIdentification: () => (++resets === 1 ? oldReset.promise : null),
+        acceptVisit: async () => {
+            mutations++;
+            return confirmed();
+        },
+    });
+    native.isSecureContext = true;
+    context.handleModalShow();
+    context.requestCameraStart();
+    await settle();
+    await context.findPass("token", "a".repeat(64));
+    assert.equal(context.errorMessage, "Read unavailable");
+    assert.equal(context.cameraEnabled, true);
+    const originalToasts = [...toasts];
+
+    dialog.dispatchEvent(new Event("close"));
+    await settle();
+    context.handleModalShow();
+    oldReset.reject(new Error("late closed-cycle reset failure"));
+    await settle();
+
+    assert.deepEqual(toasts, originalToasts);
+    assert.equal(resets, 2);
+    assert.deepEqual(cancellations, ["resetIdentification"]);
+    assert.equal(context.clientErrorCode, "");
+    assert.equal(context.presentationReady, true);
+    assert.equal(context.cameraEnabled, false);
+    assert.equal(context.busy, false);
+    assert.equal(context.visitPhase, "idle");
+    assert.equal(refs.manual.value, "");
+    assert.equal(wire.stage, "identify");
+    assert.equal(wire.errorCode, "");
+    assert.equal(wire.preview, null);
+    assert.equal(wire.facts, null);
+    assert.equal(wire.details, null);
+    assert.equal(mutations, 0);
 });

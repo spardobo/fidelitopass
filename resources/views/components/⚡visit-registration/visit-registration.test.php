@@ -88,7 +88,7 @@ it('rejects foreign or malformed credentials with the shared invalid-attempt cou
     $component->call('findPass', $method, $credential);
 
     expect($component->effects['returns'][0])->toBeNull();
-    $component->assertSet('stage', 'identify')->assertSet('message', __('visit-registration.invalid_credential'))
+    $component->assertSet('stage', 'identify')->assertSet('errorCode', 'invalid_credential')
         ->assertSet('preview', null)->assertSet('facts', null)->assertSet('details', null);
     expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(1);
     $this->assertDatabaseCount('visits', 0);
@@ -128,7 +128,7 @@ it('rechecks actor permission on every read and mutation request', function (str
             'findPass' => null,
             'findVisitReceipt' => false,
         });
-        $component->assertSet('message', __('visit-registration.forbidden'));
+        $component->assertSet('errorCode', 'forbidden');
     }
     $this->assertDatabaseCount('visits', 0);
 })->with(['guest', 'unverified']);
@@ -141,7 +141,7 @@ it('throttles pass finding without disclosing a previous selection', function ()
 
     $component->call('findPass', 'manual', '00007');
 
-    $component->assertSet('message', __('visit-registration.throttled'))->assertSet('preview', null);
+    $component->assertSet('errorCode', 'throttled')->assertSet('preview', null);
 });
 
 it('confirms a real Visit and Reward once and reads the immutable original receipt', function () {
@@ -174,7 +174,7 @@ it('confirms a real Visit and Reward once and reads the immutable original recei
     $this->assertDatabaseCount('reward_entitlements', 1);
     expect($http->history)->toHaveCount(3);
     expect(json_encode($component->snapshot['data']))->not->toContain('00007', 'manual_code', 'validation_token_hash');
-    expect(array_keys($component->snapshot['data']))->toBe(['stage', 'preview', 'facts', 'details', 'message']);
+    expect(array_keys($component->snapshot['data']))->toBe(['stage', 'preview', 'facts', 'details', 'errorCode']);
 });
 
 it('compares the selected offer inside acceptance and rejects a replacement without provider writes', function () {
@@ -202,7 +202,7 @@ it('keeps receipt checks read-only and scoped to the current credential', functi
     $component = Livewire::actingAs($business->user)->test('visit-registration');
     $id = (string) Str::uuid();
     $component->call('findVisitReceipt', 'manual', '00007', 'not-an-operation-uuid');
-    $component->assertSet('stage', 'identify')->assertSet('message', __('visit-registration.unknown'));
+    $component->assertSet('stage', 'identify')->assertSet('errorCode', 'unknown');
     expect($http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 0);
     $component->call('findVisitReceipt', 'manual', '00007', $id);
@@ -427,7 +427,7 @@ it('shows a required manual error without skipping the shared invalid attempt gu
     $component->call('findPass', 'manual', '   ');
 
     $component->assertSet('stage', 'identify')
-        ->assertSet('message', __('visit-registration.manual_required'))
+        ->assertSet('errorCode', 'manual_required')
         ->assertDispatched('toast-show', slots: ['text' => __('visit-registration.error_notice')], dataset: ['variant' => 'danger']);
     $document = new DOMDocument;
     @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
@@ -577,7 +577,25 @@ it('orders footer actions by the explicit stage rather than their button count',
             $labels[] = trim($button->textContent);
         }
         expect($labels)->toBe($expected);
+        $close = (new DOMXPath($document))->query('//footer//button[@data-visit-close]')->item(0);
+        expect($close->getAttribute('class'))->not->toContain('app-button-secondary');
+        expect($close->parentNode->getAttribute('class'))->toContain('me-auto');
     }
+});
+
+it('checks an original receipt without replacing fresh identification when presentation is suppressed', function () {
+    [$business, $pass, $promotion] = visitDialogFixture();
+    $http = visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
+    $component->call('resetIdentification');
+    $component->call('findVisitReceipt', 'manual', '00007', $id, false);
+    expect($component->effects['returns'][0])->toBeTrue();
+    $component->assertSet('stage', 'identify')->assertSet('facts', null)->assertSet('details', null)->assertSet('preview', null);
+    expect($http->history)->toHaveCount(3);
+    $this->assertDatabaseCount('visits', 1);
 });
 
 it('shows confirmed reward unlocking beside the success heading rather than inside the card', function () {
