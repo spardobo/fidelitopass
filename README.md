@@ -1,472 +1,267 @@
 # FidelitoPass
 
-> **Promociones que hacen volver a tus clientes.**
+**Promociones que hacen volver a tus clientes.**
 
-**FidelitoPass** es una aplicación web de fidelización para pequeños negocios que transforma las visitas recurrentes en Promociones temporales simples, claras y atractivas.
+**FidelitoPass** es una aplicación web de fidelización para pequeños negocios. Permite crear promociones por tiempo limitado, premiar las visitas recurrentes y entregar una tarjeta digital que el cliente conserva en **Google Wallet**. La mecánica es simple: **visitar el negocio, sumar puntos y obtener una recompensa**.
 
-El negocio crea una Promoción, define una recompensa y comparte un QR público permanente. El cliente añade un único Pase a Google Wallet y lo conserva para las próximas Promociones de ese negocio. Cada visita confirmada otorga puntos y actualiza el progreso de la Promoción activa hasta desbloquear una recompensa canjeable dentro del plazo.
+El producto se desarrolla como un **MVP funcional** con un ciclo de fidelización completo. El alcance está acotado y tanto las reglas de negocio como los controles técnicos quedan preparados para siguientes versiones.
 
-La propuesta es deliberadamente pequeña: **visitas, puntos, Promoción y recompensa**. Sin CRM, sin analítica avanzada y sin aplicaciones móviles adicionales.
+## El problema y la propuesta
 
-> **Estado del proyecto:** este README presenta el diseño completo acordado del producto, no afirma que el MVP esté implementado. El repositorio cuenta con la base Laravel, autenticación, configuración del negocio y una landing con Pase y QR ilustrativos. La publicación de Promociones, la emisión real en Wallet, la validación de visitas y el canje son flujos previstos, no operaciones ya entregadas. Los ejemplos y diagramas no son evidencia de migraciones ni pruebas de extremo a extremo ejecutadas.
+Muchos negocios de atención directa quieren incentivar el regreso de sus clientes sin incorporar un CRM complejo, sin pedirles que instalen una aplicación adicional y sin gestionar tarjetas físicas. Además, un programa de puntos pierde atractivo cuando el cliente no entiende cómo participa, cuánto le falta o cuándo vence su recompensa.
+
+FidelitoPass propone una experiencia sencilla para ambos lados:
+
+1. **El negocio** configura una promoción, comparte un código QR permanente, registra las visitas y confirma los canjes.
+2. **El cliente** accede sin registrarse en FidelitoPass, guarda la tarjeta en Google Wallet y la presenta cuando vuelve. La misma tarjeta le sirve para futuras promociones del negocio.
+
+El objetivo del MVP es **validar la viabilidad funcional y técnica del ciclo de fidelización**, desde la incorporación del cliente hasta el canje. La validación comercial requiere pilotos y mediciones posteriores, el presente MVP todavía no es una conclusión del producto como tal.
 
 ## Cómo funciona
 
-Flujo de producto previsto:
-
-```text
-Negocio crea una Promoción
-        ↓
-Define una recompensa
-        ↓
-Cliente escanea el QR público permanente
-        ↓
-Añade el Pase a Google Wallet
-        ↓
-Presenta el Pase en cada visita
-        ↓
-Negocio confirma la visita
-        ↓
-FidelitoPass otorga los puntos que correspondan
-        ↓
-FidelitoPass actualiza el progreso
-        ↓
-Cliente completa la Promoción
-        ↓
-Recompensa disponible
-        ↓
-Negocio confirma el canje
-        ↓
-El mismo Pase espera la próxima Promoción
-```
-
-## El diferencial
-
-FidelitoPass utiliza una única mecánica fácil de explicar:
-
-> **Visita → gana puntos → completa la Promoción → desbloquea una recompensa.**
-
-Cada negocio puede conservar varios borradores y Promociones futuras programadas, pero solo una Promoción puede estar efectivamente activa en un instante. La meta consiste en alcanzar un número de puntos antes de una fecha.
-
-Ejemplo conceptual:
-
-```text
-🎯 PROMOCIÓN ACTUAL
-
-Consigue 15 puntos hasta el 30 SEP.
-
-9 / 15 puntos
-
-Tu visita ahora vale 1 punto.
-
-🎁 Hamburguesa gratis
-```
-
-Cada visita regular confirmada vale **exactamente 1 punto**. Cada Promoción puede definir cualquier número de ventanas semanales propias de **Puntos extra** x2, x3 o x5, por día local completo o por franjas horarias de ese día. Las franjas son semiabiertas `[inicio, fin)`: pueden tocarse, pero no solaparse. Una regla de día completo no convive con franjas del mismo día; una franja que cruza medianoche se divide entre los días correspondientes. Se aplica un solo multiplicador por instante, nunca una suma de reglas; fuera de las ventanas rige x1. Ni el negocio ni la Promoción anterior transmiten reglas a una nueva Promoción. Los puntos ya otorgados permanecen inmutables.
-
-Cuando una ventana está activa, el Pase lo comunica de forma inmediata como información de diseño; la actualización real desde el proveedor puede demorarse:
-
-```text
-⚡ Ahora tu visita vale 2 puntos.
-```
-
-No existen mecánicas combinables, rachas, reglas arbitrarias ni varias Promociones efectivamente activas simultáneamente en el MVP.
-
-## Un Pase permanente por negocio
-
-El cliente conserva un único Pase Google Wallet para ese negocio.
-
-```text
-Cliente + Negocio
-       ↓
-Pase de cliente permanente
-       ↓
-Google Wallet
-       ↓
-La Promoción actual cambia con el tiempo
-```
-
-Cuando una Promoción termina o se cancela:
-
-- Deja de aceptar progreso y canjes para esa Promoción.
-- El Pase permanece instalado.
-- Muestra el estado final o la espera de una nueva Promoción.
-- La siguiente Promoción reutiliza el mismo Pase sin borrar el historial.
-
-Los estados previstos incluyen espera, progreso, recompensa disponible, recompensa canjeada, Promoción finalizada, recompensa vencida y Promoción cancelada. Completar la meta genera como máximo una recompensa por Pase y Promoción; el canje es final, una sola vez, hasta el fin exclusivo y nunca después de una cancelación. No se reinicia el progreso para obtener otra recompensa en la misma Promoción.
-
-## Experiencia del cliente
-
-Durante una Promoción activa, el Pase responde las mismas preguntas:
-
-1. **¿Dónde estoy participando?**
-2. **¿Cuál es la Promoción?**
-3. **¿Cómo funciona?**
-4. **¿Cómo voy?**
-5. **¿Qué debo hacer ahora?**
-6. **¿Qué gano?**
-7. **¿Hasta cuándo?**
-
-Ejemplo conceptual:
-
-```text
-CAFÉ CENTRAL
-
-🎯 PROMOCIÓN ACTUAL
-
-Consigue 15 puntos hasta el 30 SEP.
-
-9 / 15 puntos
-
-⚡ Ahora tu visita vale 2 puntos.
-
-🎁 Café especial gratis
-Válido hasta 30 SEP
-
-[ código privado de validación ]
-Código del Pase: 482731
-```
-
-El progreso se representa con números y texto. No se generan círculos, sellos ni gráficos dinámicos para representar el progreso. El código manual identifica el Pase para su búsqueda por el negocio; no sustituye la autorización del servidor ni es el secreto privado del código de barras. El QR público de invitación es otro identificador distinto y nunca autoriza una visita.
-
-## Experiencia del negocio
-
-La aplicación prevista prioriza operaciones rápidas y simples.
-
-### Resumen y Pase
-
-**Resumen** es el inicio habitual de la aplicación autenticada, no una parada obligatoria tras iniciar sesión. Si falta configuración, una acción conduce a la misma ruta **Pase** de la navegación, sin asistente obligatorio.
-
-Resumen muestra únicamente:
-
-- Promoción actual o programada y siguiente acción pertinente.
-- Pases con actividad: Pases distintos con al menos una visita aceptada en la Promoción activa (no Pases emitidos ni personas únicas).
-- Puntos obtenidos en la Promoción actual.
-- Recompensas desbloqueadas.
-- Recompensas canjeadas.
-- Accesos rápidos a **Registrar visita**, **Pase** e **Invitar clientes**.
-
-**Pase** reúne una vista previa compacta, apariencia guardada independientemente y una lista de Promociones en borrador, programadas, activas, terminadas o canceladas. El editor ocupa una página completa dentro de **Pase**, sin modal ni pestañas, con las secciones **Información general** (fechas locales, meta y una recompensa con descripción opcional) y **Puntos extra** (días, horas y multiplicadores). Cambiar de sección o revisar conserva los datos sin guardar; guardar un borrador o publicar persiste la Promoción completa y sus ventanas de forma atómica. La apariencia del Pase se guarda por separado.
-
-Los borradores son editables. La publicación congela **todos** los términos incluso si está programada: fechas locales e instantes UTC, zona horaria copiada del negocio, meta, título y descripción de recompensa, y días, horas y valores de Puntos extra. Si la zona horaria del negocio cambió después de revisar el borrador, hay que revisar y confirmar de nuevo antes de publicar; no se reinterpretan fechas silenciosamente. Las Promociones publicadas ocupan ventanas efectivas secuenciales sin solapamiento, aunque pueden tocarse en los extremos. Cancelar una Promoción programada o activa detiene progreso y canje sin reescribir sus términos ni su historial; libera solamente la ocupación futura. Una cancelación durante un día local no permite iniciar ese mismo día un reemplazo configurado por fechas: el siguiente inicio posible es la siguiente medianoche local.
-
-### Registrar una visita
-
-El diseño previsto utiliza un **único diálogo** de identificación, confirmación y resultado para atención rápida en mostrador:
-
-```text
-┌───────────────────────────┐
-│      Cámara / escáner     │
-└───────────────────────────┘
-
-Código del Pase
-[ 482731                  ]
-[ Buscar Pase ]
-
-┌───────────────────────────┐
-│ Estado y progreso         │
-│                           │
-│ [ Confirmar visita ]      │
-└───────────────────────────┘
-```
-
-El código manual está **siempre justo debajo del escáner dentro del mismo diálogo**. No se oculta en menús ni pantallas secundarias. Si la cámara falla, permanece disponible. Identificar el Pase no registra la visita: el negocio confirma explícitamente y el servidor vuelve a comprobar propiedad, elegibilidad y vigencia. Se admiten visitas legítimas repetidas el mismo día; reintentar la **misma operación** no duplica la visita ni sus puntos.
-
-Cuando existe una recompensa disponible, la única acción principal cambia a:
-
-> **Canjear recompensa**
-
-## Landing pública
-
-La página principal explica FidelitoPass antes de mostrar cualquier panel de gestión.
-
-Estructura:
-
-1. Hero con la propuesta de valor.
-2. Cómo funciona.
-3. Cómo funcionan los puntos y la Promoción actual.
-4. Un solo Pase Google Wallet.
-5. CTA para crear la primera Promoción.
-
-Copy orientativo (la landing publicada conserva sus textos propios):
-
-> **Haz que volver sea parte del juego.**
-
-> Crea Promociones de puntos, invita a guardar el Pase en Google Wallet y recompensa a tus clientes cuando las completen.
-
-El Pase y el QR de muestra en la landing son ilustraciones: no son credenciales emitidas ni prueban que la validación esté operativa. La comunicación pública no debe presentar capacidades pendientes como acciones disponibles hoy.
-
-## Diseño visual
-
-El diseño aprobado de FidelitoPass define una interfaz limpia, redondeada y **exclusivamente oscura**, tanto en páginas públicas como en autenticación y aplicación.
-
-### Tema oscuro único
-
-- Tipografía Onest Variable servida localmente.
-- Lienzo y shell gris oscuro, superficies neutras y acento lavanda, con roles de lectura, estado y foco diferenciados.
-- La [paleta aprobada](docs/ui-ux-guidelines.md#approved-dark-only-palette) es la única autoridad para valores y contraste; su definición no certifica la adopción en todas las pantallas.
-- Sin selector de tema ni variante clara; una preferencia previa o del sistema no debe producir un destello claro.
-
-Los estados de éxito, advertencia y error utilizan color + icono + texto. El color por sí solo nunca transmite el significado. La vista previa web puede controlar el contraste de texto; Google Wallet controla la representación nativa del texto y no garantiza un color elegido para él.
-
-## Reglas de tiempo
-
-Toda fecha/hora que representa un hecho del dominio se almacena como un instante UTC mediante PostgreSQL 16 `timestamptz`.
-
-El negocio configura una zona horaria IANA, por ejemplo:
-
-```text
-America/La_Paz
-Europe/Madrid
-```
-
-Al publicar una Promoción, esa zona horaria se copia y congela con sus términos para que cambios futuros del negocio no alteren las reglas históricas. Las fechas locales se convierten en una ventana UTC de inicio inclusivo y fin exclusivo (medianoche posterior al último día).
-
-Las visitas guardan el instante:
-
-```text
-visited_at
-```
-
-No se persiste una fecha local duplicada. Cuando FidelitoPass necesita saber el día local de una visita, PostgreSQL lo calcula utilizando la zona horaria publicada de la Promoción.
-
-Ejemplo ilustrativo:
-
-```text
-2026-09-22 02:30 UTC -> 2026-09-21 22:30 America/La_Paz
-2026-09-22 05:00 UTC -> 2026-09-22 01:00 America/La_Paz
-```
-
-Aunque ambos instantes pertenecen al 22 de septiembre en UTC, corresponden a días locales diferentes. El [contrato de datos](docs/development/database-standard.md) define esta representación; la expresión SQL pertenece a la implementación.
-
-Las decisiones de vigencia utilizan el reloj de PostgreSQL, no el del navegador ni el del servidor PHP. En una mutación se bloquean primero las filas pertinentes y se captura **una sola vez** `clock_timestamp()`; el mismo instante rige plazos, Puntos extra, visita y marcas de auditoría relacionadas. Las consultas de estado utilizan una lectura explícitamente actual del reloj de PostgreSQL, no el inicio de una transacción que pudo esperar un bloqueo.
-
-## Modelo conceptual
-
 ```mermaid
-erDiagram
-    USERS ||--|| BUSINESSES : owns
-    BUSINESSES ||--o{ PROMOTIONS : publishes
-    PROMOTIONS ||--o{ MULTIPLIER_WINDOWS : owns
-    BUSINESSES ||--o{ CUSTOMER_PASSES : issues
-    CUSTOMER_PASSES ||--o{ VISITS : records
-    PROMOTIONS ||--o{ VISITS : contextualizes
-    CUSTOMER_PASSES ||--o{ REWARD_ENTITLEMENTS : earns
-    PROMOTIONS ||--o{ REWARD_ENTITLEMENTS : unlocks
+flowchart LR
+    A[Negocio crea una promoción] --> B[Comparte su QR permanente]
+    B --> C[Cliente guarda su tarjeta en Google Wallet]
+    C --> D[Negocio registra visitas]
+    D --> E[Se acumulan puntos]
+    E --> F[Se desbloquea una recompensa]
+    F --> G[Negocio confirma el canje]
+    G --> H[La tarjeta permanece para próximas promociones]
 ```
 
-Este diagrama muestra el **modelo previsto, no un esquema ya migrado**. Las ventanas de multiplicación pertenecen a cada Promoción; el nombre concreto de su tabla se decidirá en la implementación. El canje final se representa en el propio `RewardEntitlement` mediante `redeemed_at` y `redeemed_by_user_id`. Para el MVP no se prevé una tabla adicional de redenciones.
+Una visita normal suma **1 punto**. Para incentivar determinados días u horarios, cada promoción puede configurar **puntos extra x2, x3 o x5**. Al alcanzar la meta, el cliente obtiene una recompensa canjeable dentro de la vigencia de esa promoción.
 
-## Arquitectura general
+## Qué busca validar el MVP
 
-FidelitoPass se diseña como **monolito Laravel convencional**.
+El alcance permite comprobar tres aspectos de la propuesta:
+
+1. **Participación sencilla:** un cliente puede sumarse mediante QR y utilizar una tarjeta persistente sin registrar otra cuenta.
+2. **Operación viable en mostrador:** el negocio identifica la tarjeta, confirma cada acción y conoce su resultado sin recorrer múltiples pantallas.
+3. **Confianza en los resultados:** puntos, vigencia y canjes dependen de reglas verificadas por el servidor, incluso frente a reintentos y operaciones concurrentes.
+
+Estas capacidades demuestran el funcionamiento del producto, sin embargo, no representan todavía una validación de demanda o de impacto comercial en negocios reales.
+
+## Funcionalidades principales
+
+| Para el negocio | Para el cliente |
+|---|---|
+| Registro, autenticación y configuración del negocio y su zona horaria. | Incorporación sin crear una cuenta en FidelitoPass. |
+| Personalización de la apariencia de la tarjeta. | Acceso desde un QR público permanente del negocio. |
+| Creación y edición de borradores de promociones. | Emisión de una tarjeta digital en Google Wallet. |
+| Programación, publicación y cancelación de promociones. | Consulta de puntos, vigencia y recompensa en su tarjeta. |
+| Configuración de metas, recompensas y horarios de puntos extra. | Conservación de la misma tarjeta entre promociones. |
+| Resumen operativo e historial de promociones. | Presentación de la tarjeta en cada visita. |
+| Identificación por escáner QR o código manual. | Consulta del resultado cuando el negocio valida una visita o un canje. |
+| Confirmación de visitas, acumulación de puntos y canje único de recompensas. |  |
+
+La experiencia en mostrador del negocio se resolvió con un diálogo modal de **identificación → confirmación → resultado**, con alternativas claras si la cámara no está disponible. Consultar una tarjeta no registra automáticamente una visita sino que la operación requiere una confirmación explícita y se vuelve a validar en el servidor.
+
+**Requisito para el escaneo en mostrador:** se recomienda un teléfono móvil con cámara y navegador compatible, o una laptop con cámara externa u orientable para leer el QR que presenta el cliente. El navegador debe tener permiso para usar la cámara y acceder desde un contexto seguro (HTTPS o `localhost` en pruebas). Si no hay cámara disponible, puede utilizarse el código manual de la tarjeta.
+
+### Qué diferencia la propuesta
+
+La diferenciación de FidelitoPass está en la combinación de decisiones de producto, no en afirmar que sus funcionalidades sean inéditas en el mercado:
+
+1. **Una tarjeta persistente por negocio.** El cliente no necesita una tarjeta nueva en cada campaña, la información de Google Wallet cambia con la promoción.
+2. **Una mecánica comprensible.** Visitas, puntos y una recompensa. Los puntos extra se utilizan como incentivo horario, sin reglas difíciles de explicar.
+3. **Poca fricción para participar.** El cliente no necesita una cuenta propia de FidelitoPass ni instalar una aplicación adicional.
+4. **Una operación de mostrador rápida.** Escaneo o código manual, verificación, confirmación y resultado en un mismo recorrido.
+5. **Vigencia y resultados controlados por el servidor.** El estado de la tarjeta no decide por sí solo si una visita o un canje son válidos.
+
+## Alcance del MVP y evolución prevista
+
+El MVP se concentra intencionalmente en un negocio por cuenta, una promoción activa a la vez, un objetivo de puntos, una recompensa por promoción y Google Wallet como tarjeta del cliente. **La cuenta autenticada actúa como administradora del negocio y tiene acceso a todas las funciones.** No se contempla todavía la gestión de varios usuarios dentro de un mismo negocio ni la asignación de roles o permisos al personal. También quedan fuera el CRM, los perfiles de clientes, las campañas de marketing automatizadas, los pagos, la integración con cajas o POS, múltiples sucursales, Apple Wallet y analíticas avanzadas.
+
+Esa reducción de alcance permitió completar el ciclo principal y dedicar tiempo a resolver los riesgos técnicos que más importaban. Las siguientes líneas de evolución **no son funciones implementadas ni compromisos de lanzamiento**:
+
+1. **Pasarelas de pago y suscripciones:** planes de suscripción y pagos por diferentes medios.
+2. **Operación en equipos reales:** gestión de usuarios y empleados con permisos limitados, acceso específico para mostrador y gestión de sucursales.
+3. **Mayor cobertura del cliente:** compatibilidad con otras billeteras digitales y mejores mecanismos de recuperación de tarjetas.
+4. **Más valor para el negocio:** indicadores sencillos de recurrencia, campañas mejor segmentadas e integraciones puntuales con herramientas de venta.
+
+La hipótesis de producto para una etapa posterior sería evaluar si la facilidad de incorporación, la permanencia de la tarjeta y los incentivos temporales contribuyen a mejorar la recurrencia de clientes. Esa hipótesis requiere pruebas con negocios y usuarios reales, no se presenta como un resultado ya demostrado.
+
+## Arquitectura y decisiones de ingeniería
+
+FidelitoPass es un **monolito Laravel organizado por responsabilidades**. PostgreSQL funciona como fuente de verdad, la interfaz se construye con Livewire y la integración con Google Wallet está aislada en un componente específico.
 
 ```mermaid
 flowchart LR
-    C[Cliente / Google Wallet] --> A[Laravel 13 + Livewire 4]
-    B[Negocio] --> A
-    A --> P[(PostgreSQL 16)]
-    A --> G[Google Wallet]
+    N[Negocio · navegador] --> UI[Laravel · Blade · Livewire]
+    C[Cliente · navegador / Wallet] --> UI
+    UI --> A[Actions y servicios especializados]
+    A --> DB[(PostgreSQL)]
+    A --> W[Google Wallet API]
 ```
 
-PostgreSQL es la fuente de verdad del diseño de dominio. Google Wallet, una vez integrado:
+### Framework-First y patrón Action
 
-- Presentaría la Promoción y su estado.
-- Mostraría el progreso y el valor de la visita actual.
-- Transportaría el token privado de validación, separado del QR público de invitación y del código manual.
-- Se sincronizaría después de cambios confirmados en PostgreSQL.
+FidelitoPass adopta una arquitectura **Framework-First**, basada en las convenciones de Laravel, y utiliza **Actions** para organizar operaciones de negocio relevantes, como publicar promociones, registrar visitas y canjear recompensas.
 
-Por diseño, una caída temporal de Google Wallet no debe revertir una visita o canje ya confirmado. La integración real y esa garantía operativa siguen pendientes.
+Es una decisión de proporcionalidad, el sistema debe ser entendible y mantenible por equipos de trabajo reducidos, sin renunciar a reglas rigurosas. Laravel ya ofrece soluciones maduras para persistencia, relaciones, autenticación, validación, transacciones, inyección de dependencias y logging. Por ejemplo, Eloquent sigue Active Record y combina modelo de datos con operaciones de persistencia. Una aplicación estrictamente basada en Clean Architecture habría necesitado separar entidades puras, puertos, repositorios, adaptadores y mapeos para aislar esos mecanismos del dominio.
+
+Ese aislamiento puede ser valioso en otros contextos, pero **no existía un requisito de independencia de Laravel que justificara su coste adicional en este MVP**. Por eso se separa la comunicación con Google Wallet y se evitan capas añadidas solo para cumplir una estructura teórica. Lo mismo motivó no utilizar microservicios, CQRS ni un motor genérico de reglas para las promociones.
+
+Esto no significa que Laravel sea incompatible con Clean Architecture o que el patrón Action, por sí solo, garantice buen diseño. La decisión implica un acoplamiento consciente al framework, a cambio de menor complejidad estructural y una forma de trabajo coherente con el alcance del proyecto.
+
+### Decisiones técnicas principales
+
+1. **Gestión del tiempo.** PostgreSQL es la referencia para determinar la vigencia de las promociones. Se respetan las zonas horarias de cada negocio y las condiciones de una promoción permanecen inmutables después de su publicación.
+
+2. **Idempotencia.** Los reintentos de una misma operación no generan visitas, puntos ni canjes duplicados. El sistema reconoce las operaciones ya procesadas y conserva sus resultados originales.
+
+3. **Concurrencia y bloqueos.** Se utilizan bloqueos de PostgreSQL para prevenir condiciones de carrera cuando varias solicitudes intentan modificar información relacionada. Esto evita, por ejemplo, que dos operaciones canjeen simultáneamente una misma recompensa. Las reglas y la vigencia se verifican nuevamente después de obtener los bloqueos.
+
+4. **Integridad transaccional.** El registro de visitas, la asignación de puntos y la gestión de recompensas se coordinan mediante transacciones, evitando cambios parciales o inconsistencias en la base de datos.
+
+5. **Integración con Google Wallet.** La tarjeta de fidelización refleja el estado gestionado por PostgreSQL. La integración contempla fallos de comunicación y resultados inciertos, reconociendo que ambos sistemas no comparten una transacción atómica.
+
+6. **Seguridad.** Se separa el QR público de invitación de los mecanismos privados de identificación. Toda visita o canje requiere autorización del negocio, validaciones en el servidor y controles contra intentos indebidos.
+
+Las alternativas evaluadas, sus fundamentos y consecuencias se encuentran en la documentación de [Arquitectura](docs/architecture/overview.md), [Seguridad](docs/architecture/security.md) y los [registros de decisiones arquitectónicas (ADR)](docs/architecture/decisions/).
 
 ## Stack tecnológico
 
 | Área | Tecnología |
 |---|---|
-| Backend | PHP 8.4, Laravel 13 |
-| UI | Blade, Livewire 4, Alpine.js, Flux UI Free |
-| CSS | Tailwind CSS 4, Onest Variable |
+| Backend | PHP 8.4 · Laravel 13 |
+| Interfaz | Livewire 4 · Blade · Alpine.js · Flux UI |
+| Estilos y compilación | Tailwind CSS 4 · Onest Variable · Vite |
 | Base de datos | PostgreSQL 16 |
-| Autenticación | Laravel Starter Kit / Fortify |
-| Tests PHP | Pest / PHPUnit |
-| Browser testing | Playwright |
-| Análisis estático | Larastan / PHPStan |
-| Formato | Laravel Pint |
-| Desarrollo local | Docker + Laravel Sail |
-| Build frontend | Vite |
-| Integración externa prevista | Google Wallet |
-| Logging previsto | Laravel + Monolog, JSON en producción |
+| Autenticación | Laravel Fortify / Starter Kit |
+| Integración | Google Wallet API / SDK de Google |
+| Pruebas PHP | Pest · PHPUnit |
+| Pruebas de navegador | Playwright |
+| Análisis y formato | PHPStan/Larastan · Pint · Vite+ |
+| Entorno local | Docker · Laravel Sail |
+| Automatización | Husky · GitHub Actions |
 
-La presencia de dependencias o herramientas no demuestra que los flujos de producto, pruebas de navegador o controles previstos ya estén implementados.
+## Calidad, seguridad y proceso de desarrollo
 
-## Instalación local
+La calidad se integró al flujo de trabajo desde el principio. Las decisiones de cobertura parten del **riesgo de negocio**: la prioridad es evitar puntos incorrectos, visitas duplicadas por reintentos, dobles canjes, accesos entre negocios, condiciones de carrera y errores en los límites horarios.
 
-### Requisitos
+Se incorporaron pruebas unitarias, funcionales y de integración con **PostgreSQL real** para los casos donde importan las transacciones, restricciones e idempotencia. Algunas pruebas provocan esperas reales por bloqueos y verifican qué sucede si una promoción vence mientras una operación está esperando. También cubren límites de tiempo, zonas horarias y concurrencia. Las integraciones con Wallet tienen pruebas con dobles del transporte externo y los recorridos críticos de interfaz se verifican con Playwright. Una prueba automatizada del proveedor simulado no equivale a demostrar el comportamiento de Google Wallet en un dispositivo físico.
 
-- Git.
-- Docker con Docker Compose.
+La seguridad forma parte de esas mismas decisiones: autenticación y autorización por negocio, separación entre QR público y tokens privados de validación, límites de intentos, validación del lado servidor, tratamiento de secretos y logging estructurado sin datos sensibles. La interfaz incorpora controles de accesibilidad, foco, mensajes comprensibles y comportamiento adaptable a distintos tamaños de pantalla.
 
-El flujo normal no requiere instalar PHP, PostgreSQL o Node directamente en el host.
+### Desde el cambio de código hasta `main`
 
-### 1. Clonar el repositorio
-
-```bash
-git clone <repository-url> fidelitopass
-cd fidelitopass
+```mermaid
+flowchart LR
+    I[Issue y criterios de aceptación] --> B[Rama de trabajo]
+    B --> D[Implementación y pruebas]
+    D --> C[Commit · pre-commit]
+    C --> P[Push · pre-push]
+    P --> R[Pull Request y revisión]
+    R --> CI[CI en GitHub Actions]
+    CI --> M[Merge aprobado]
+    M --> V[Verificación de CI en main]
 ```
 
-### 2. Crear configuración local
+1. **Antes del commit**, los hooks verifican formato PHP/JavaScript, análisis estático, pruebas unitarias y consistencia documental.
+2. **Antes del push**, se ejecutan además pruebas PHP y Node, auditorías de dependencias, búsqueda de secretos en el historial y compilación de los recursos frontend.
+3. **En GitHub Actions**, los PR hacia `main` y los pushes a `main` pasan por validación de dependencias, formato, análisis estático, tests, auditorías, escaneo de secretos, documentación y build, con PostgreSQL como servicio de pruebas.
+4. **La entrega de cambios** sigue issues, criterios de aceptación, revisión de PR y comprobación del resultado integrado en `main`, el detalle operativo está documentado en el repositorio.
 
-```bash
-cp .env.dev.example .env
-```
+El repositorio tiene **integración continua (CI)**. El despliegue continuo (CD) no está configurado. La CI actúa como una verificación reproducible del código integrado y no sustituye la revisión técnica del cambio. Los objetivos de cobertura, los resultados de cada ejecución y las evidencias técnicas se consultan en la documentación y en los checks de GitHub, sin atribuir resultados que no se hayan verificado.
 
-### 3. Instalar dependencias PHP para disponer de Sail
+Para profundizar: [Estrategia de calidad](docs/quality-strategy.md), [Flujo de desarrollo](docs/development/workflow.md), [CI](.github/workflows/ci.yml) y [Logging operativo](docs/development/operational-logging.md).
 
-Linux/macOS/WSL:
-
-```bash
-docker run --rm \
-  -u "$(id -u):$(id -g)" \
-  -v "$PWD:/app" \
-  -w /app \
-  composer:2 composer install
-```
-
-### 4. Iniciar servicios
-
-```bash
-./vendor/bin/sail up -d
-```
-
-### 5. Ejecutar setup
-
-```bash
-./vendor/bin/sail composer setup
-```
-
-El script `setup` instala dependencias, genera la clave, ejecuta migraciones y compila assets; revisa el entorno antes de ejecutarlo. La aplicación estará disponible normalmente en:
+## Estructura del proyecto
 
 ```text
-http://localhost:8000
+app/                    Dominio aplicado, Actions, modelos e integraciones
+bootstrap/              Arranque y configuración de Laravel
+config/                 Configuración de aplicación y servicios
+database/               Migraciones, factories y seeders
+docs/                   Requisitos, arquitectura, seguridad, ADR y calidad
+resources/              Vistas Blade/Livewire, JavaScript y estilos
+routes/                 Rutas públicas y autenticadas
+tests/                  Pruebas PHP, navegador y JavaScript
+scripts/quality/        Controles de calidad, seguridad y runners
+.github/workflows/       Integración continua
+docker/                 Configuración del contenedor de producción
+skills/                 Convenciones de implementación del repositorio
 ```
 
-## Comandos de calidad
+El directorio [`docs/`](docs/README.md) es la referencia técnica detallada. Este README presenta las decisiones y el producto sin duplicar todos los contratos, reglas y casos de prueba.
 
-Estos comandos figuran en los scripts actuales de `composer.json` y `package.json`; **no se presentan como pruebas superadas** por este README:
+## Instalación y ejecución local
+
+**Requisitos:** Git, Docker con Docker Compose y una terminal compatible con Linux/macOS o WSL en Windows. No es necesario instalar PostgreSQL, PHP y Node directamente en el equipo anfitrión.
+
+1. Clonar el proyecto y entrar al directorio:
+
+   ```bash
+   git clone https://github.com/spardobo/fidelitopass.git && cd fidelitopass
+   ```
+
+2. Crear el archivo de entorno:
+
+   ```bash
+   cp .env.dev.example .env
+   ```
+
+3. Descargar las dependencias PHP para disponer del ejecutable Sail, sin ejecutar scripts ni plugins:
+
+   ```bash
+   docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/app" -w /app composer:2 composer install --ignore-platform-reqs --no-scripts --no-plugins
+   ```
+
+   Este paso omite los requisitos de plataforma solo para la descarga inicial. No demuestra compatibilidad con el PHP ni las extensiones que necesita el proyecto.
+
+4. Levantar el entorno:
+
+   ```bash
+   ./vendor/bin/sail up -d
+   ```
+
+5. Comprobar los requisitos de plataforma dentro de Sail antes de preparar la aplicación:
+
+   ```bash
+   ./vendor/bin/sail composer check-platform-reqs
+   ```
+
+   El conjunto de dependencias requiere PHP 8.4.1 o superior y extensiones como `intl` y `pdo_pgsql`. Si la comprobación falla, resolver el runtime antes de continuar.
+
+6. Preparar Laravel, la base de datos y los recursos frontend usando el script del proyecto:
+
+   ```bash
+   ./vendor/bin/sail composer setup
+   ```
+
+   Es la preparación inicial del entorno local. El script instala dependencias PHP, configura Laravel Boost, genera la clave, ejecuta migraciones con `--force`, instala dependencias con `npm ci` y compila los recursos frontend. Revisar la configuración y la base de datos de destino antes de ejecutarlo.
+
+7. Abrir **http://localhost:8000**. La primera cuenta de negocio puede crearse desde la interfaz de registro. Para completar la verificación por correo en el entorno local, revisar los mensajes en **http://localhost:8025** (Mailpit).
+
+Para utilizar la emisión y las actualizaciones reales de Google Wallet en visitas y canjes, se necesita un emisor existente y autorizado, credenciales de cuenta de servicio legibles desde el contenedor y una URL pública HTTPS para el logo, incluso si la aplicación se abre en `localhost`. Estos valores se configuran mediante `GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_CREDENTIALS_PATH` y `GOOGLE_WALLET_LOGO_BLACK_URL` (con `GOOGLE_WALLET_LOGO_URL` como alternativa si el anterior no está definido). Los detalles técnicos y los límites de esa integración se describen en la [arquitectura de Wallet](docs/architecture/overview.md#google-wallet-model).
+
+### Verificación local
+
+Los siguientes comandos permiten reproducir los controles definidos en el proyecto:
 
 ```bash
-# Suite PHP
 ./vendor/bin/sail composer test
-
-# Formato PHP
 ./vendor/bin/sail composer check:format
-
-# Análisis estático
 ./vendor/bin/sail composer check:lint
-
-# Tests de herramientas/frontend
 ./vendor/bin/sail npm test
-
-# Build de producción
+./vendor/bin/sail npm run check:documentation
 ./vendor/bin/sail npm run build
 ```
 
-La estrategia de calidad también contempla pruebas PostgreSQL para límites horarios y concurrencia, verificaciones de integración Wallet y recorridos de navegador cuando existan los flujos. No se atribuyen métricas, cobertura ni resultados de ejecución a este documento.
-
-## Seguridad
-
-El diseño requiere controles directamente relacionados con el producto; esta lista no certifica su implementación completa:
-
-- Autorización por propiedad del negocio.
-- CSRF y sesiones Laravel.
-- Validación autoritativa en servidor.
-- Eloquent/query binding para consultas.
-- Separación entre QR público permanente de invitación y token privado del Pase; el código manual es una búsqueda limitada al negocio, no autoridad independiente.
-- Rate limiting en autenticación y búsqueda/validación.
-- Transacciones, bloqueos y claves de idempotencia para visitas/canjes.
-- Secretos fuera del código fuente.
-- Debug desactivado en producción.
-- Logging estructurado sin credenciales.
-- Escaneo de dependencias y secretos en el flujo de calidad.
-
-## Logging
-
-El formato **previsto** en producción es JSON estructurado para facilitar diagnóstico y una futura integración con sistemas de agregación.
-
-Ejemplo conceptual del objetivo, no un evento observado ni afirmación sobre el esquema implementado:
-
-```json
-{
-  "event": "visit.accepted",
-  "request_id": "019...",
-  "business_id": 12,
-  "promotion_id": 44,
-  "customer_pass_id": 381,
-  "outcome": "accepted"
-}
-```
-
-Nunca deben registrarse contraseñas, cookies, cabeceras de autorización, tokens privados de validación ni claves de Google Wallet.
-
-## Estructura
-
-```text
-app/                    Código Laravel
-bootstrap/              Bootstrap del framework
-config/                 Configuración
-database/               Migraciones, factories y seeders
-docker/                 Runtime de producción
-docs/                   Documentación técnica en inglés
-public/                 Entrada HTTP y assets públicos
-resources/              Blade/Livewire, CSS y JavaScript
-routes/                 Rutas
-scripts/quality/        Automatización de calidad y seguridad
-skills/                 Convenciones operativas del proyecto
-tests/                  Tests PHP y browser
-Dockerfile              Imagen de producción
-compose.yaml            Entorno local
-```
-
-La estructura describe directorios y responsabilidades, no que todas las capacidades descritas aquí estén desplegadas.
+Las pruebas Playwright utilizan los runners y fixtures descritos en [`tests/Browser/README.md`](tests/Browser/README.md), no basta con ejecutar las especificaciones sin preparar su entorno aislado.
 
 ## Documentación técnica
 
-La documentación técnica se encuentra en [`docs/`](docs/README.md).
+La documentación detallada permite profundizar en las reglas, alternativas consideradas, contratos y evidencias del proyecto:
 
-El orden de diseño es:
+1. [Modelo conceptual de partida y reglas del producto](docs/conceptual-design.md).
+2. [Alcance del MVP](docs/product-scope.md) y [requisitos verificables](docs/requirements.md).
+3. [Arquitectura](docs/architecture/overview.md) y [seguridad](docs/architecture/security.md).
+4. [Estrategia de calidad](docs/quality-strategy.md) y [flujo de desarrollo](docs/development/workflow.md).
+5. [Índice completo de documentación](docs/README.md).
 
-1. Concepto ([`conceptual-design.md`](docs/conceptual-design.md)).
-2. Alcance ([`product-scope.md`](docs/product-scope.md)).
-3. Modelo de Promociones y Puntos extra ([`promotion-model.md`](docs/promotion-model.md)).
-4. Requisitos ([`requirements.md`](docs/requirements.md)).
-5. Presentación Wallet ([`wallet-presentation.md`](docs/wallet-presentation.md)).
-6. UX ([`ui-ux-guidelines.md`](docs/ui-ux-guidelines.md)).
-7. Arquitectura y seguridad ([`architecture/overview.md`](docs/architecture/overview.md)).
-8. Estándares de datos/Laravel ([`development/database-standard.md`](docs/development/database-standard.md)).
-9. Calidad ([`quality-strategy.md`](docs/quality-strategy.md)).
-10. Plan de entrega ([`delivery-plan.md`](docs/delivery-plan.md)).
+***
 
-Los documentos están separados por dominio de conocimiento y se consultan mediante **lazy loading**: una tarea abre únicamente la fuente que necesita. [`docs/README.md`](docs/README.md) ofrece el mapa completo de rutas y decisiones históricas.
-
-## Fuera de alcance
-
-FidelitoPass no incluye en el MVP:
-
-- CRM.
-- Analítica avanzada.
-- Campañas email/SMS.
-- Referidos.
-- POS.
-- Pagos.
-- Múltiples sucursales.
-- Roles de empleados.
-- Múltiples Promociones efectivamente activas simultáneas (sí admite borradores y futuras programadas).
-- Recompensas múltiples por Promoción.
-- Reglas personalizadas o acumulación de multiplicadores (sí incluye ventanas x2/x3/x5 propias de cada Promoción).
-- Apple Wallet.
-- Aplicación móvil nativa.
-- Marketplace de negocios.
-
-## Licencia
-
-Consulta [`LICENSE`](LICENSE).
+[![Built with Gentle-AI](https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/docs/assets/brand/built-with-gentle-ai.png)](https://github.com/Gentleman-Programming/gentle-ai)

@@ -19,7 +19,7 @@ Create Promotion
 
 The product wins through clarity and playful mechanics, not feature volume.
 
-Implementation status (separate from this product design): registration, login, email verification, Business setup/profile, and a public landing page with a conceptual sample pass and static fictional QR/code exist. Promotion creation, customer acquisition, Wallet issuance, visit validation, and Redemption are not delivered flows. The sample QR/code does not validate a Visit.
+This document defines the agreed product scope, not delivery status. Source code and observed verification results provide evidence of implemented capabilities. Scope statements alone do not establish implementation or acceptance.
 
 ## Must-have capabilities
 
