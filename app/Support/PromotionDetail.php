@@ -21,6 +21,13 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 class PromotionDetail
 {
     /**
+     * Receives the authoritative clock without capturing an operation instant.
+     *
+     * @param  DatabaseClock  $databaseClock  Clock used after resolving authorized Promotion terms.
+     */
+    public function __construct(private readonly DatabaseClock $databaseClock) {}
+
+    /**
      * Re-resolves ownership and frozen terms, deriving phase from a fresh database instant.
      *
      * @param  User  $actor  Current authenticated owner supplied by the server.
@@ -53,7 +60,7 @@ class PromotionDetail
             ->firstOr(fn () => abort(404));
 
         $instant = CarbonImmutable::parse(
-            app(DatabaseClock::class)->captureForBusinessTimezone($business->timezone)['instant'],
+            $this->databaseClock->captureForBusinessTimezone($business->timezone)['instant'],
         );
 
         $phase = match (true) {

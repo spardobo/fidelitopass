@@ -37,14 +37,15 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
      * Reads fresh owner-authorized facts for this render without serialized tenant state.
      *
      * @param  View  $view  Native component view receiving the current read snapshot.
+     * @param  BusinessSummary  $businessSummary  Reader for fresh owner-authorized Summary facts.
      *
      * @throws IntlException When ICU cannot format a date.
      */
-    public function rendering(View $view): void
+    public function rendering(View $view, BusinessSummary $businessSummary): void
     {
         $actor = Auth::user();
         abort_unless($actor instanceof User, 401);
-        $summary = app(BusinessSummary::class)->read($actor);
+        $summary = $businessSummary->read($actor);
         $primary = $summary['primaryPromotion'];
         $upcoming = $summary['upcomingPromotion'];
         $phase = $primary?->phase ?? 'none';
