@@ -5,6 +5,7 @@ use App\Integrations\GoogleWallet\GoogleWalletConfiguration;
 use App\Models\Business;
 use App\Models\CustomerPass;
 use App\Models\Promotion;
+use App\Models\RewardEntitlement;
 use App\Models\User;
 use App\Models\Visit;
 use Carbon\CarbonImmutable;
@@ -102,6 +103,13 @@ function bindVisitBrowserWallet(Application $application): void
                 throw new LogicException('Expected tentative Visit and absolute native Wallet replacement.');
             }
             $modules = $request->data()['textModulesData'];
+            if ($pass->manual_code === $fixture['passes']['compound']['code']) {
+                $reward = RewardEntitlement::query()->where('customer_pass_id', $pass->id)->sole();
+                if ($reward->redeemed_at === null || $reward->redeemed_by_user_id !== $pass->business->user_id
+                    || collect($modules)->keyBy('id')['card_primary']['header'] !== '✅ RECOMPENSA CANJEADA') {
+                    throw new LogicException('Expected one compound final Wallet projection.');
+                }
+            }
         }
 
         return GoogleWalletHttpFake::json([
@@ -198,7 +206,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
                     'manual', 'failure', 'lost', 'details', 'reward',
                     'readonly-edit', 'readonly-close', 'readonly-back',
                     'layout-1280', 'layout-375',
-                    'camera-chromium', 'camera-firefox', 'camera-webkit', 'unlock',
+                    'camera-chromium', 'camera-firefox', 'camera-webkit', 'unlock', 'compound',
                 ];
                 foreach ($cases as $index => $case) {
                     $token = $case === 'camera-chromium'
@@ -213,7 +221,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
                     $effects['passes'][$pass->id] = ['GET' => 0, 'PATCH' => 0];
                 }
                 $rewardPass = $passes['reward']['id'];
-                foreach (['reward' => 8, 'unlock' => 7] as $case => $count) {
+                foreach (['reward' => 8, 'unlock' => 7, 'compound' => 7] as $case => $count) {
                     DB::table('promotion_participations')->insert([
                         'business_id' => $business->id,
                         'customer_pass_id' => $passes[$case]['id'],
@@ -255,7 +263,17 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
                 $facts = readVisitBrowserFacts($case);
                 $accepted = in_array($case, ['manual', 'lost', 'details', 'camera-chromium', 'camera-firefox', 'camera-webkit', 'unlock'], true);
                 $expectedVisits = in_array($case, ['reward', 'unlock'], true) ? 8 : (int) $accepted;
-                $expectedWrites = (int) ($accepted || $case === 'failure');
+                $expectedWrites = match ($case) {
+                    'reward' => 1,
+                    'unlock' => 2,
+                    default => (int) ($accepted || $case === 'failure'),
+                };
+                if (in_array($case, ['reward', 'unlock'], true)) {
+                    $reward = DB::table('reward_entitlements')->where('customer_pass_id', $pass['id'])->sole();
+                    if ($reward->redeemed_at === null || $reward->redeemed_by_user_id === null) {
+                        throw new RuntimeException('Expected one final Reward redemption for '.$case.'.');
+                    }
+                }
                 $expectedOauth += $expectedWrites;
                 if (
                     count($facts['visits']) !== $expectedVisits

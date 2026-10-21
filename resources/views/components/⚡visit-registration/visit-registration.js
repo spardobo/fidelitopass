@@ -1,7 +1,7 @@
 /**
  * @typedef {object} VisitFailureCatalog
  * @property {Object<string, {message: string, notice: string}>} errors Server-translated feedback by enum value.
- * @property {{network: string, transport: string, read: string, unknown: string, details: string}} codes Server-owned aliases.
+ * @property {{network: string, transport: string, read: string, unknown: string, details: string, rewardDetails: string}} codes Server-owned aliases.
  */
 
 /**
@@ -66,7 +66,10 @@ function bindVisitRegistrationModal(root, screen) {
      * @returns {void}
      */
     function onCancel(event) {
-        if (event.target === root.querySelector("dialog") && screen.busy) {
+        if (
+            event.target === root.querySelector("dialog") &&
+            (screen.busy || screen.cameraStarting)
+        ) {
             event.preventDefault();
         }
     }
@@ -78,7 +81,10 @@ function bindVisitRegistrationModal(root, screen) {
      * @returns {void}
      */
     function onDismissClick(event) {
-        if (screen.busy && event.target?.closest?.("[data-flux-modal-close]")) {
+        if (
+            (screen.busy || screen.cameraStarting) &&
+            event.target?.closest?.("[data-flux-modal-close]")
+        ) {
             event.preventDefault();
             event.stopImmediatePropagation();
         }
@@ -95,7 +101,7 @@ function bindVisitRegistrationModal(root, screen) {
             screen.focusModality = "keyboard";
         }
 
-        if (screen.opened && screen.busy && event.key === "Escape") {
+        if (screen.opened && (screen.busy || screen.cameraStarting) && event.key === "Escape") {
             event.preventDefault();
             event.stopImmediatePropagation();
         }
@@ -174,7 +180,10 @@ function bindVisitRegistrationModal(root, screen) {
 
 /**
  * @typedef {object} VisitSelection
- * @property {string} uuid Intentional operation identity retained while its outcome is unknown.
+ * @property {string} uuid Intentional Visit identity retained while its outcome is unknown.
+ * @property {'visit'|'reward'} [kind] Original operation family.
+ * @property {boolean} [combined] Whether this Visit also requested Reward redemption.
+ * @property {number} [entitlementId] Original entitlement for naturally idempotent redemption.
  * @property {string} method Credential method revalidated by the server.
  * @property {string} credential Private action argument retained only in this closure.
  * @property {number|undefined} promotionId Selected offer comparison, never mutation authority.
@@ -207,6 +216,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
     let wire;
     let removeListeners = () => {};
     let removeInterceptor = () => {};
+    let removeCloseBinding = () => {};
     /** @type {VisitRead|null} */
     let activeRead = null;
     /** @type {VisitSelection|null} */
@@ -220,7 +230,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
         cameraFeedbackReady: false,
         busy: false,
         clientErrorCode: "",
-        focusModality: "keyboard",
+        focusModality: "pointer",
         presentationReady: true,
 
         visitPhase: VISIT_PHASE.IDLE,
@@ -235,6 +245,14 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             wire = this.$wire;
             this.registerActionInterceptors();
             removeListeners = bindVisitRegistrationModal(root, this);
+            const close = root.querySelector(
+                "[data-flux-modal-close] button:not([data-visit-close])",
+            );
+            if (close) {
+                removeCloseBinding = Alpine.bind(close, {
+                    ":disabled": () => this.busy || this.cameraStarting,
+                });
+            }
         },
 
         /**
@@ -255,6 +273,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             this.visitPhase = VISIT_PHASE.IDLE;
             removeListeners();
             removeInterceptor();
+            removeCloseBinding();
         },
 
         // -----------------------------------------------------------------------------
@@ -292,6 +311,61 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             return Boolean(window.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches);
         },
 
+        /**
+         * Reads the scanner's existing reactive startup truth without duplicating its lifecycle.
+         *
+         * @returns {boolean} Whether native permission or decoder startup is pending.
+         */
+        get cameraStarting() {
+            const camera = root.querySelector("[data-qr-camera]");
+            return camera ? Boolean(Alpine.$data(camera).starting) : false;
+        },
+
+        /**
+         * Identifies the return link's own reset rather than camera deactivation work.
+         *
+         * @returns {boolean} Whether this link owns the active reset.
+         */
+        get resettingReading() {
+            return activeRead?.name === "resetIdentification" && !this.cameraEnabled;
+        },
+
+        /**
+         * Identifies the camera control's own deactivation request.
+         *
+         * @returns {boolean} Whether camera deactivation owns the reset.
+         */
+        get resettingCamera() {
+            return activeRead?.name === "resetIdentification" && this.cameraEnabled;
+        },
+
+        /**
+         * Identifies the search control's own identification or prerequisite reconciliation.
+         *
+         * @returns {boolean} Whether the visible search owns a read.
+         */
+        get searchingPass() {
+            return (
+                this.busy &&
+                wire.stage === "identify" &&
+                ["findPass", "findVisitReceipt", "findRewardReceipt"].includes(activeRead?.name)
+            );
+        },
+
+        /**
+         * Distinguishes committed redemption from an older Visit result still on screen.
+         *
+         * @returns {boolean} Whether the selected operation itself has confirmed facts.
+         */
+        get hasCommittedOperation() {
+            if (selectedOperation?.combined) {
+                return Boolean(
+                    wire.facts && (wire.combinedConfirmed || wire.redemption?.redeemed_at),
+                );
+            }
+            return Boolean(selectedOperation?.kind === "reward" ? wire.redemption : wire.facts);
+        },
+
         // -----------------------------------------------------------------------------
         // modal interaction
         // -----------------------------------------------------------------------------
@@ -314,9 +388,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             }
 
             // a late response can settle while an unpreventable lifecycle close is hidden
-            if (selectedOperation && wire.facts && this.visitPhase !== VISIT_PHASE.PENDING) {
-                this.visitPhase = VISIT_PHASE.SETTLED;
-            }
+            this.settleCommittedOperation();
 
             if (this.visitPhase === VISIT_PHASE.UNKNOWN) {
                 unresolvedVisit = selectedOperation;
@@ -369,9 +441,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             }
 
             // native facts can arrive just before a receipt read is cancelled
-            if (selectedOperation && wire.facts && this.visitPhase !== VISIT_PHASE.PENDING) {
-                this.visitPhase = VISIT_PHASE.SETTLED;
-            }
+            this.settleCommittedOperation();
 
             // clear the transient credential input
             const input = root.querySelector("#visit-manual-code");
@@ -387,6 +457,21 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             } else if ([VISIT_PHASE.READY, VISIT_PHASE.SETTLED].includes(this.visitPhase)) {
                 selectedOperation = null;
                 this.visitPhase = VISIT_PHASE.IDLE;
+            }
+        },
+
+        /**
+         * Recognizes committed server facts without treating a pending request as settled.
+         *
+         * @returns {void}
+         */
+        settleCommittedOperation() {
+            if (
+                selectedOperation &&
+                this.hasCommittedOperation &&
+                this.visitPhase !== VISIT_PHASE.PENDING
+            ) {
+                this.visitPhase = VISIT_PHASE.SETTLED;
             }
         },
 
@@ -488,6 +573,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             if (
                 isDisposed ||
                 this.busy ||
+                this.cameraStarting ||
                 !this.opened ||
                 wire.stage !== "identify" ||
                 this.visitPhase !== VISIT_PHASE.IDLE
@@ -503,8 +589,9 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                 return;
             }
 
+            // reconcile a previous uncertain submission before identifying a new pass
             let read = {
-                name: unresolvedVisit ? "findVisitReceipt" : "findPass",
+                name: unresolvedVisit ? this.receiptActionName(unresolvedVisit) : "findPass",
                 cancel: null,
             };
             activeRead = read;
@@ -513,12 +600,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             try {
                 if (unresolvedVisit) {
                     const previousVisit = unresolvedVisit;
-                    const found = await wire.findVisitReceipt(
-                        previousVisit.method,
-                        previousVisit.credential,
-                        previousVisit.uuid,
-                        false,
-                    );
+                    const found = await this.readOriginalReceipt(previousVisit, false);
                     if (isDisposed || activeRead !== read) {
                         return;
                     }
@@ -577,6 +659,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             if (
                 isDisposed ||
                 this.busy ||
+                (this.cameraStarting && !preserveCameraMode) ||
                 [VISIT_PHASE.PENDING, VISIT_PHASE.UNKNOWN].includes(this.visitPhase)
             ) {
                 return;
@@ -620,13 +703,25 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
         // -----------------------------------------------------------------------------
 
         /**
-         * Sends one explicit visit, or resolves the same unknown operation read-only.
+         * Submits an independent redemption or reads its unresolved original entitlement.
          *
-         * @param {number} [renderedPromotionId] Server-rendered offer when the reactive hint was unavailable.
-         * @returns {Promise<void>} Settles the captured operation even while the modal is closed.
+         * Blade directs combined commands to acceptVisit() instead.
+         *
+         * @returns {Promise<void>} Settles the original naturally idempotent target.
          */
-        async acceptVisit(renderedPromotionId) {
-            if (isDisposed || this.busy || !this.opened || !selectedOperation) {
+        async redeemReward() {
+            if (
+                isDisposed ||
+                this.busy ||
+                this.cameraStarting ||
+                !this.opened ||
+                !selectedOperation
+            ) {
+                return;
+            }
+
+            if (window.navigator.onLine === false) {
+                this.announceFailure(codes.network);
                 return;
             }
 
@@ -635,55 +730,173 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                 return;
             }
 
-            if (this.visitPhase !== VISIT_PHASE.READY || !wire.preview?.can_accept_visit) {
+            if (
+                this.visitPhase !== VISIT_PHASE.READY ||
+                wire.stage !== "confirm" ||
+                !wire.reward?.can_redeem_reward ||
+                wire.reward.promotion_id !== selectedOperation.promotionId
+            ) {
                 return;
             }
 
+            selectedOperation = {
+                ...selectedOperation,
+                kind: "reward",
+                entitlementId: wire.reward.reward_entitlement_id,
+                promotionId: wire.reward.promotion_id,
+            };
+
+            const operation = selectedOperation;
+            operation.cancelled = false;
             this.clientErrorCode = "";
-            const submittedVisit = selectedOperation;
-            submittedVisit.cancelled = false;
-            submittedVisit.promotionId ??= renderedPromotionId;
+            this.visitPhase = VISIT_PHASE.PENDING;
+            this.busy = true;
+
+            await this.submitOperation("redeemReward", operation, [
+                operation.method,
+                operation.credential,
+                operation.entitlementId,
+                operation.promotionId,
+            ]);
+        },
+
+        /**
+         * Routes a read to its original Visit or entitlement without changing that target.
+         *
+         * @param {VisitSelection} operation Retained private original target.
+         * @param {boolean} showResult Whether confirmed facts should replace the visible step.
+         * @returns {Promise<boolean>} Whether the original commit is authoritatively found.
+         */
+        readOriginalReceipt(operation, showResult = true) {
+            if (operation.kind === "reward") {
+                return wire.findRewardReceipt(
+                    operation.method,
+                    operation.credential,
+                    operation.entitlementId,
+                    operation.promotionId,
+                    showResult,
+                );
+            }
+
+            if (operation.combined) {
+                return wire.findVisitReceipt(
+                    operation.method,
+                    operation.credential,
+                    operation.uuid,
+                    showResult,
+                    true,
+                );
+            }
+
+            if (!showResult) {
+                return wire.findVisitReceipt(
+                    operation.method,
+                    operation.credential,
+                    operation.uuid,
+                    false,
+                );
+            }
+
+            return wire.findVisitReceipt(operation.method, operation.credential, operation.uuid);
+        },
+
+        /**
+         * Sends one explicit visit, or resolves the same unknown operation read-only.
+         *
+         * @param {number} [renderedPromotionId] Server-rendered offer when the reactive hint was unavailable.
+         * @param {boolean} [redeemReward=false] Explicit compound command, never preview authority.
+         * @returns {Promise<void>} Settles the captured operation even while the modal is closed.
+         */
+        async acceptVisit(renderedPromotionId, redeemReward = false) {
+            if (
+                isDisposed ||
+                this.busy ||
+                this.cameraStarting ||
+                !this.opened ||
+                !selectedOperation
+            ) {
+                return;
+            }
+
+            // keep the combined action's existing offline guard before receipt recovery
+            if (redeemReward && window.navigator.onLine === false) {
+                this.announceFailure(codes.network);
+                return;
+            }
+
+            if (this.visitPhase === VISIT_PHASE.UNKNOWN) {
+                await this.findVisitReceipt();
+                return;
+            }
+
+            if (
+                this.visitPhase !== VISIT_PHASE.READY ||
+                wire.stage !== "confirm" ||
+                !wire.preview?.can_accept_visit
+            ) {
+                return;
+            }
+
+            if (redeemReward) {
+                selectedOperation = { ...selectedOperation, kind: "visit", combined: true };
+            }
+
+            const operation = selectedOperation;
+            operation.cancelled = false;
+            operation.promotionId ??= renderedPromotionId;
+            this.clientErrorCode = "";
             this.busy = true;
             this.visitPhase = VISIT_PHASE.PENDING;
             this.stopCamera();
 
+            const args = [
+                operation.method,
+                operation.credential,
+                operation.uuid,
+                operation.promotionId,
+            ];
+            if (redeemReward) {
+                args.push(true);
+            }
+
+            await this.submitOperation("acceptVisit", operation, args);
+        },
+
+        /**
+         * Coordinates one already-selected mutation and reconciles its original receipt after success.
+         *
+         * An interrupted submission remains unknown; a received rejection remains ready for the
+         * same operation. Only the read-only receipt path may resolve an uncertain submission.
+         *
+         * @param {'acceptVisit'|'redeemReward'} action Native Livewire mutation name.
+         * @param {VisitSelection} operation Captured identity, never replaced by a later request.
+         * @param {Array<string|number|boolean|undefined>} args Arguments for the selected server action.
+         * @returns {Promise<void>} Finalizes local request ownership without repeating its mutation.
+         */
+        async submitOperation(action, operation, args) {
             try {
-                const outcome = await wire.acceptVisit(
-                    submittedVisit.method,
-                    submittedVisit.credential,
-                    submittedVisit.uuid,
-                    submittedVisit.promotionId,
-                );
-                if (isDisposed || selectedOperation !== submittedVisit) {
+                const outcome = await wire[action](...args);
+                if (isDisposed || selectedOperation !== operation) {
                     return;
                 }
 
-                switch (outcome) {
-                    case "confirmed":
-                        this.visitPhase = VISIT_PHASE.SETTLED;
-                        break;
-                    case "rejected":
-                        this.visitPhase = VISIT_PHASE.READY;
-                        break;
-                    default:
-                        this.visitPhase = VISIT_PHASE.UNKNOWN;
-                }
+                this.visitPhase = this.phaseAfterSubmission(outcome);
             } catch (error) {
-                if (isDisposed || selectedOperation !== submittedVisit) {
+                if (isDisposed || selectedOperation !== operation) {
                     return;
                 }
 
                 this.visitPhase = VISIT_PHASE.UNKNOWN;
-                if (!submittedVisit.cancelled) {
-                    this.transportFailed(error, "acceptVisit", codes.unknown);
+                if (!operation.cancelled) {
+                    this.transportFailed(error, action, codes.unknown);
                 }
             } finally {
-                if (!isDisposed && selectedOperation === submittedVisit) {
+                if (!isDisposed && selectedOperation === operation) {
                     this.busy = false;
                 }
             }
 
-            if (isDisposed || selectedOperation !== submittedVisit || !this.opened) {
+            if (isDisposed || selectedOperation !== operation || !this.opened) {
                 return;
             }
 
@@ -692,6 +905,30 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             } else {
                 this.focusStage();
             }
+        },
+
+        /**
+         * Maps the server's operation outcome to the local submission state.
+         *
+         * @param {string} outcome Server reply for this intentional mutation.
+         * @returns {string} Settled, ready for the same intent, or unresolved.
+         */
+        phaseAfterSubmission(outcome) {
+            if (outcome === "confirmed") {
+                return VISIT_PHASE.SETTLED;
+            }
+
+            return outcome === "rejected" ? VISIT_PHASE.READY : VISIT_PHASE.UNKNOWN;
+        },
+
+        /**
+         * Names the read-only request for an original Visit or Reward redemption.
+         *
+         * @param {VisitSelection} operation Original selection requiring reconciliation.
+         * @returns {'findVisitReceipt'|'findRewardReceipt'} Matching Livewire reader.
+         */
+        receiptActionName(operation) {
+            return operation.kind === "reward" ? "findRewardReceipt" : "findVisitReceipt";
         },
 
         /**
@@ -714,21 +951,20 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             this.clientErrorCode = "";
             const submittedVisit = selectedOperation;
             const previousStage = wire.stage;
-            const read = { name: "findVisitReceipt", cancel: null };
+            const read = {
+                name: this.receiptActionName(submittedVisit),
+                cancel: null,
+            };
             activeRead = read;
             this.busy = true;
 
             try {
-                await wire.findVisitReceipt(
-                    submittedVisit.method,
-                    submittedVisit.credential,
-                    submittedVisit.uuid,
-                );
+                await this.readOriginalReceipt(submittedVisit);
                 if (isDisposed || activeRead !== read || selectedOperation !== submittedVisit) {
                     return;
                 }
 
-                if (wire.facts) {
+                if (this.hasCommittedOperation) {
                     this.visitPhase = VISIT_PHASE.SETTLED;
                 }
             } catch (error) {
@@ -738,17 +974,20 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                     selectedOperation === submittedVisit &&
                     !read.cancelled
                 ) {
-                    this.transportFailed(
-                        error,
-                        read.name,
-                        this.visitPhase === VISIT_PHASE.SETTLED ? codes.details : codes.unknown,
-                    );
+                    // settled operations retain success; only optional details failed
+                    const failureCode =
+                        this.visitPhase === VISIT_PHASE.SETTLED
+                            ? submittedVisit.kind === "reward"
+                                ? codes.rewardDetails
+                                : codes.details
+                            : codes.unknown;
+                    this.transportFailed(error, read.name, failureCode);
                 }
             } finally {
                 if (activeRead === read) {
                     activeRead = null;
                     this.busy = false;
-                    if (focusAfter || wire.stage !== previousStage || !wire.facts) {
+                    if (focusAfter || wire.stage !== previousStage || !this.hasCommittedOperation) {
                         this.focusStage();
                     }
                 }
@@ -765,56 +1004,63 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
          * @returns {void}
          */
         registerActionInterceptors() {
-            removeInterceptor = wire.intercept(interceptVisitAction);
+            removeInterceptor = wire.intercept((lifecycle) => {
+                const { action, onCancel, onError } = lifecycle;
 
-            /**
-             * Connects one native action to its captured read or submitted visit.
-             *
-             * @param {object} interception Existing Livewire action and lifecycle callbacks.
-             * @returns {void} Suppresses native error presentation and binds owned cancellation.
-             */
-            function interceptVisitAction({ action, onCancel, onError, onFinish }) {
                 if (["logCameraFatalError", "logTransportError"].includes(action.name)) {
                     onError(({ preventDefault }) => preventDefault());
                     return;
                 }
 
-                const intercepted = [
-                    "findPass",
-                    "findVisitReceipt",
-                    "resetIdentification",
-                    "acceptVisit",
-                ];
-                if (!intercepted.includes(action.name)) {
+                if (
+                    ![
+                        "findPass",
+                        "findVisitReceipt",
+                        "resetIdentification",
+                        "acceptVisit",
+                        "redeemReward",
+                        "findRewardReceipt",
+                    ].includes(action.name)
+                ) {
                     return;
                 }
 
                 onError(({ preventDefault }) => preventDefault());
-                if (action.name === "acceptVisit") {
-                    const submittedVisit = selectedOperation;
+                if (["acceptVisit", "redeemReward"].includes(action.name)) {
+                    // native cancellation must not turn an uncertain write into a new one
+                    const operation = selectedOperation;
                     onCancel(() => {
-                        if (submittedVisit) {
-                            submittedVisit.cancelled = true;
+                        if (operation) {
+                            operation.cancelled = true;
                         }
                     });
                     return;
                 }
 
-                // bind cancellation to the exact read, not a successor's busy flag
-                const read = activeRead;
-                if (isDisposed || !read || read.name !== action.name) {
-                    action.cancel();
-                    return;
-                }
+                this.interceptRead(lifecycle);
+            });
+        },
 
-                onCancel(() => {
-                    read.cancelled = true;
-                });
-                read.cancel = () => action.cancel();
-                onFinish(() => {
-                    read.cancel = null;
-                });
+        /**
+         * Binds a replaceable read to its own cancellation and completion callbacks.
+         *
+         * @param {object} lifecycle Native read request and callbacks.
+         * @returns {void}
+         */
+        interceptRead({ action, onCancel, onFinish }) {
+            const read = activeRead;
+            if (isDisposed || !read || read.name !== action.name) {
+                action.cancel();
+                return;
             }
+
+            onCancel(() => {
+                read.cancelled = true;
+            });
+            read.cancel = () => action.cancel();
+            onFinish(() => {
+                read.cancel = null;
+            });
         },
 
         /**
@@ -956,8 +1202,10 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             // defer focus to the next render cycle
             this.$nextTick(() => {
                 if (!isDisposed && this.opened && !this.busy) {
-                    const selector = this.focusTargetSelector(entering);
-                    root.querySelector(selector)?.focus({ preventScroll: true });
+                    const target = root.querySelector(this.focusTargetSelector(entering));
+                    if (target && !target.disabled && !target.closest?.("fieldset[disabled]")) {
+                        target.focus({ preventScroll: true });
+                    }
                 }
             });
         },
@@ -970,7 +1218,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
          */
         focusTargetSelector(entering) {
             if (!this.presentationReady) {
-                return "[data-visit-restart]";
+                return "[data-visit-close]";
             }
 
             switch (wire.stage) {
@@ -979,17 +1227,22 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                         return "[data-visit-camera-control]";
                     }
 
-                    if (entering && !this.manualAutofocus) {
+                    if (entering && !this.manualAutofocus && this.focusModality !== "keyboard") {
                         return "[data-visit-close]";
                     }
 
                     return "#visit-manual-code";
                 case "confirm":
-                    return wire.preview?.can_accept_visit
+                    if (root.querySelector("[data-reward-redeem]")) {
+                        return "[data-reward-redeem]";
+                    }
+                    return root.querySelector("[data-visit-confirm]")
                         ? "[data-visit-confirm]"
                         : "[data-visit-back]";
                 default:
-                    return "[data-visit-close]";
+                    return this.focusModality === "keyboard"
+                        ? "[data-visit-back]"
+                        : "[data-visit-close]";
             }
         },
     };

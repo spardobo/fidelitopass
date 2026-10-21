@@ -14,9 +14,14 @@ enum VisitRegistrationFailure: string
     case PromotionChanged = 'promotion_changed';
     case NoPromotion = 'no_promotion';
     case Completed = 'completed';
+    case RewardNotEarned = 'reward_not_earned';
     case NotAccepted = 'not_accepted';
     case WalletUnavailable = 'wallet_unavailable';
     case DetailsUnavailable = 'details_unavailable';
+    case RewardExpired = 'reward_expired';
+    case RewardCancelled = 'reward_cancelled';
+    case RewardUnavailable = 'reward_unavailable';
+    case RewardDetailsUnavailable = 'reward_details_unavailable';
     case NetworkError = 'network_error';
     case TransportFailed = 'transport_failed';
     case CameraDenied = 'denied';
@@ -52,9 +57,11 @@ enum VisitRegistrationFailure: string
      */
     public function noticeKey(): string
     {
-        return $this === self::DetailsUnavailable
-            ? 'visit-registration.details_notice'
-            : 'visit-registration.error_notice';
+        return match ($this) {
+            self::DetailsUnavailable => 'visit-registration.details_notice',
+            self::RewardDetailsUnavailable => 'visit-registration.reward_details_notice',
+            default => 'visit-registration.error_notice',
+        };
     }
 
     // ------------------------------------------------------------------------

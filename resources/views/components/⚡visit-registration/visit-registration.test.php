@@ -1,11 +1,13 @@
 <?php
 
+use App\Actions\Visits\AcceptVisit;
 use App\Data\Time\DatabaseTime;
 use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Integrations\GoogleWallet\GoogleWalletConfiguration;
 use App\Models\Business;
 use App\Models\CustomerPass;
 use App\Models\Promotion;
+use App\Models\RewardEntitlement;
 use App\Support\DatabaseClock;
 use Illuminate\Http\Client\Request;
 use Illuminate\Log\Events\MessageLogged;
@@ -47,6 +49,104 @@ beforeEach(function () {
 
 afterEach(function () {
     $this->truncateTablesForAllConnections();
+});
+
+it('redeems only after an explicit command and reads the original final Reward without duplicating Visits', function () {
+    [$business, $pass, $promotion] = visitDialogFixture();
+    $http = visitDialogProvider($business, $pass);
+    $promotion->forceFill(['target_points' => 1])->save();
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
+    $component->call('findVisitReceipt', 'manual', '00007', $id);
+    $visit = $component->get('facts');
+    $reward = RewardEntitlement::query()->sole();
+    $component->assertSet('stage', 'result')->assertSet('reward.can_redeem_reward', true);
+    expect($http->history)->toHaveCount(3);
+
+    $component->call('redeemReward', 'manual', '00007', $reward->id, $promotion->id);
+
+    expect($component->effects['returns'][0])->toBe('confirmed');
+    $component->assertSet('stage', 'result')->assertSet('facts', $visit)
+        ->assertSet('redemption.reward_entitlement_id', $reward->id)
+        ->assertSee('Recompensa canjeada');
+    $component->call('findRewardReceipt', 'manual', '00007', $reward->id, $promotion->id);
+    expect($component->effects['returns'][0])->toBeTrue();
+    expect($http->history)->toHaveCount(6);
+    $this->assertDatabaseCount('visits', 1);
+    $this->assertDatabaseCount('reward_entitlements', 1);
+    expect(json_encode($component->snapshot['data']))->not->toContain('00007', 'validation_token_hash');
+});
+
+it('renders native close controls without a return action during identification', function () {
+    [$business] = visitDialogFixture();
+    Livewire::actingAs($business->user)->test('visit-registration')
+        ->assertSeeHtml('data-visit-close')
+        ->assertSeeHtml('data-visit-steps')
+        ->assertDontSeeHtml('data-visit-restart')
+        ->assertSeeHtml('<footer')
+        ->assertSeeHtml('disable-click-outside')
+        ->assertDontSeeHtml('data-visit-back');
+});
+
+it('distinguishes completed current and future steps through public identification and committed Visit results', function () {
+    [$business, $pass, $promotion] = visitDialogFixture(1);
+    $http = visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $document = new DOMDocument;
+    $operationId = null;
+
+    foreach (['identify', 'confirm', 'result'] as $currentIndex => $stage) {
+        if ($stage === 'confirm') {
+            $component->call('findPass', 'manual', '00007');
+            $operationId = $component->effects['returns'][0];
+        } elseif ($stage === 'result') {
+            $component->call('acceptVisit', 'manual', '00007', $operationId, $promotion->id);
+        }
+
+        $component->assertSet('stage', $stage);
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+        $xpath = new DOMXPath($document);
+        $steps = $xpath->query('//*[@data-visit-steps]/li');
+        expect($steps->length)->toBe(3);
+        expect($xpath->query('//*[@data-visit-steps]//button | //*[@data-visit-steps]//a')->length)->toBe(0);
+        expect($xpath->query('//*[@data-visit-steps]/li[@aria-current="step"]')->length)->toBe(1);
+        $styles = [];
+
+        foreach ($steps as $index => $step) {
+            $completed = $index < $currentIndex;
+            $current = $index === $currentIndex;
+            $marker = $xpath->query('./span[@aria-hidden="true"]', $step)->item(0);
+            expect($marker)->not->toBeNull();
+            expect($step->getAttribute('aria-current'))->toBe($current ? 'step' : '');
+            expect($xpath->query('.//*[local-name()="svg"]', $marker)->length)->toBe($completed ? 1 : 0);
+            expect($xpath->query('./span[contains(@class, "sr-only")]', $step)->length)->toBe($completed ? 1 : 0);
+            if ($completed) {
+                expect($step->textContent)->toContain('Paso completado');
+                expect($marker->getAttribute('class'))->not->toContain('bg-app-');
+                expect($step->getAttribute('class'))->toContain('text-app-accent');
+                expect($marker->getAttribute('class'))->toContain('text-app-accent');
+            } else {
+                expect($step->textContent)->not->toContain('Paso completado');
+                expect(trim($marker->textContent))->toBe((string) ($index + 1));
+                expect($marker->getAttribute('class'))->not->toContain('bg-app-emphasis');
+            }
+            if ($current) {
+                expect($marker->getAttribute('class'))->toContain('bg-app-accent', 'font-bold', 'text-app-on-accent');
+                expect($step->getAttribute('class'))->toContain('text-app-accent', 'font-bold');
+            }
+            expect($marker->getAttribute('class'))->toContain($current ? 'border-app-accent' : ($completed ? 'border-app-priority-border' : 'border-app-line'));
+            $styles[] = $marker->getAttribute('class');
+        }
+
+        if ($stage === 'confirm') {
+            expect(count(array_unique($styles)))->toBe(3);
+        }
+        expect($http->history)->toHaveCount($stage === 'result' ? 3 : 0);
+        $this->assertDatabaseCount('visits', $stage === 'result' ? 1 : 0);
+        $this->assertDatabaseCount('reward_entitlements', $stage === 'result' ? 1 : 0);
+    }
 });
 
 it('identifies a scoped pass read-only without hydrating private credentials', function (string $method, string $credential) {
@@ -174,7 +274,7 @@ it('confirms a real Visit and Reward once and reads the immutable original recei
     $this->assertDatabaseCount('reward_entitlements', 1);
     expect($http->history)->toHaveCount(3);
     expect(json_encode($component->snapshot['data']))->not->toContain('00007', 'manual_code', 'validation_token_hash');
-    expect(array_keys($component->snapshot['data']))->toBe(['stage', 'preview', 'facts', 'details', 'errorCode']);
+    expect(array_keys($component->snapshot['data']))->toBe(['stage', 'preview', 'facts', 'details', 'reward', 'redemption', 'combinedConfirmed', 'errorCode']);
 });
 
 it('compares the selected offer inside acceptance and rejects a replacement without provider writes', function () {
@@ -223,8 +323,8 @@ it('keeps receipt checks read-only and scoped to the current credential', functi
     $this->assertDatabaseCount('visits', 1);
 });
 
-it('treats a native completion-log failure as unknown and recovers without another mutation', function () {
-    [$business, $pass, $promotion] = visitDialogFixture();
+it('treats a native completion-log failure as unknown and recovers without another mutation', function (bool $combined) {
+    [$business, $pass, $promotion] = visitDialogFixture($combined ? 1 : 3);
     $http = visitDialogProvider($business, $pass);
     $id = (string) Str::uuid();
     $events = [];
@@ -244,7 +344,7 @@ it('treats a native completion-log failure as unknown and recovers without anoth
         'components' => [[
             'snapshot' => json_encode($component->snapshot),
             'updates' => [],
-            'calls' => [['path' => '', 'method' => 'acceptVisit', 'params' => ['manual', '00007', $id, $promotion->id]]],
+            'calls' => [['path' => '', 'method' => 'acceptVisit', 'params' => ['manual', '00007', $id, $promotion->id, $combined]]],
         ]],
     ], ['X-Livewire' => 'true']);
     $response->assertOk()->assertJsonPath('components.0.effects.returns.0', 'unknown')
@@ -255,7 +355,7 @@ it('treats a native completion-log failure as unknown and recovers without anoth
     expect($committedBeforeLogging)->toBeTrue();
     expect(array_count_values($events)['application.unexpected_exception'])->toBe(1);
     expect($events)->not->toContain('visit.rejected', 'visit.acceptance_failed');
-    $component->call('findVisitReceipt', 'manual', '00007', $id);
+    $component->call('findVisitReceipt', 'manual', '00007', $id, true, $combined);
 
     expect($component->effects['returns'][0])->toBeTrue();
     $component->assertSet('stage', 'result')->assertSet('facts.points_awarded', 1);
@@ -263,8 +363,12 @@ it('treats a native completion-log failure as unknown and recovers without anoth
     expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(0);
     $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 1]);
     $this->assertDatabaseCount('visits', 1);
-    $this->assertDatabaseCount('reward_entitlements', 0);
-});
+    $this->assertDatabaseCount('reward_entitlements', $combined ? 1 : 0);
+    if ($combined) {
+        $component->assertSee('Recompensa canjeada')->assertSet('combinedConfirmed', true);
+        expect(RewardEntitlement::query()->sole()->redeemed_by_user_id)->toBe($business->user_id);
+    }
+})->with([false, true]);
 
 it('renders native stages and safe locked facts without hydrating the private credential', function () {
     [$business, , $promotion] = visitDialogFixture();
@@ -302,6 +406,71 @@ it('keeps known committed facts positive when a receipt is missing or its creden
     $this->assertDatabaseCount('visits', 1);
 });
 
+it('renders direct compound and Visit-only commands without mutating during identification', function () {
+    [$business, $pass, $promotion] = visitDialogFixture(1);
+    $http = visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $xpath = new DOMXPath($document);
+    $labels = [];
+    foreach ($xpath->query('//footer//button') as $button) {
+        $labels[] = trim($button->textContent);
+    }
+    expect($labels)->toBe(['Cerrar', 'Solo registrar', 'Registrar y canjear']);
+    expect($xpath->query('//button[@data-reward-redeem]')->item(0)?->getAttribute('x-on:click'))->toBe('acceptVisit('.$promotion->id.', true)');
+    expect($xpath->query('//button[@data-visit-confirm]')->item(0)->getAttribute('x-on:click'))->toBe('acceptVisit('.$promotion->id.')');
+    expect(json_encode($component->snapshot['data']))->not->toContain('00007', 'validation_token_hash');
+    $this->assertDatabaseCount('visits', 0);
+    $this->assertDatabaseCount('reward_entitlements', 0);
+    expect($http->history)->toBeEmpty();
+});
+
+it('renders a direct original Reward command without another Visit or provider call', function () {
+    [$business, $pass, $promotion] = visitDialogFixture(1);
+    $http = visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('acceptVisit', 'manual', '00007', (string) Str::uuid(), $promotion->id);
+    $component->call('resetIdentification');
+    $component->call('findPass', 'manual', '00007');
+
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//button[@data-reward-redeem]')->item(0)?->getAttribute('x-on:click'))->toBe('redeemReward()');
+    expect($xpath->query('//footer//button')->length)->toBe(2);
+    $component->assertSee('Canjear recompensa')->assertDontSee('Solo registrar')->assertDontSee('Sí, canjear');
+    $this->assertDatabaseCount('visits', 1);
+    expect(RewardEntitlement::query()->sole()->redeemed_at)->toBeNull();
+    expect($http->history)->toHaveCount(3);
+});
+
+it('offers no redemption command outside eligible confirmation or after identification reset', function () {
+    [$business] = visitDialogFixture();
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->assertDontSeeHtml('data-reward-redeem');
+    $component->call('findPass', 'manual', '00007')->assertDontSeeHtml('data-reward-redeem');
+    $component->call('resetIdentification')->assertSet('stage', 'identify')->assertDontSeeHtml('data-reward-redeem');
+    $this->assertDatabaseCount('visits', 0);
+});
+
+it('renders an executable confirmation binding for the identified Promotion', function (int $targetPoints) {
+    [$business, $pass, $promotion] = visitDialogFixture($targetPoints);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $button = (new DOMXPath($document))->query('//button[@data-visit-confirm]')->item(0);
+
+    expect($button)->not->toBeNull();
+    expect($button->getAttribute('x-on:click'))->toBe('acceptVisit('.$promotion->id.')');
+    $this->assertDatabaseCount('visits', 0);
+    $this->assertDatabaseCount('reward_entitlements', 0);
+})->with(['ordinary Visit' => 3, 'Reward-completing Visit' => 1]);
+
 it('renders scoped loading and current form control semantics for every backend operation', function () {
     [$business] = visitDialogFixture();
     $component = Livewire::actingAs($business->user)->test('visit-registration');
@@ -319,7 +488,7 @@ it('renders scoped loading and current form control semantics for every backend 
     expect($input->hasAttribute('wire:model'))->toBeFalse();
     expect($input->getAttribute('inputmode'))->not->toBe('numeric');
     expect($input->getAttribute('maxlength'))->not->toBe('5');
-    expect($xpath->query('//button[@type="submit"]//*[@data-flux-loading-indicator]')->length)->toBe(1);
+    expect($xpath->query('//button[@data-visit-search]//*[@data-flux-loading-indicator]')->length)->toBe(1);
     expect($xpath->query('//*[@data-qr-camera]//button')->length)->toBe(1);
     expect($xpath->query('//button[@data-visit-camera-control]//*[@data-flux-loading-indicator]')->length)->toBe(1);
 
@@ -327,7 +496,7 @@ it('renders scoped loading and current form control semantics for every backend 
     @$document->loadHTML(mb_convert_encoding($component->html(), 'HTML-ENTITIES', 'UTF-8'));
     $xpath = new DOMXPath($document);
     expect($xpath->query('//button[@*[name()="wire:target"]="acceptVisit,findVisitReceipt"]//*[@data-flux-loading-indicator]')->length)->toBe(1);
-    expect($xpath->query('//button[@data-visit-back]//*[@data-flux-loading-indicator]')->length)->toBe(1);
+    expect($xpath->query('//button[@data-visit-back]//*[local-name()="svg"]')->length)->toBe(2);
     expect($xpath->query('//button[@data-visit-confirm]')->length)->toBe(1);
     expect($xpath->query('//h3[@tabindex]')->length)->toBe(0);
     expect($xpath->query('//*[contains(@class, "app-note-with-icon")]//p[contains(text(), "Revisa los puntos")]/../span/svg')->length)->toBe(1);
@@ -449,11 +618,11 @@ it('renders authoritative progress and consistent point and reward roles before 
     $document = new DOMDocument;
     @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
     $xpath = new DOMXPath($document);
-    $bar = $xpath->query('//*[@id="visit-progress" and @data-flux-progress]')->item(0);
+    $progress = $xpath->query('//*[@id="visit-progress"]')->item(0);
 
-    expect($bar)->not->toBeNull();
-    expect($bar->getAttribute('value'))->toBe('0');
-    expect($bar->getAttribute('max'))->toBe('3');
+    expect($progress)->not->toBeNull();
+    expect(trim($progress->textContent))->toBe('0 / 3 puntos');
+    expect($xpath->query('//*[@data-flux-progress]')->length)->toBe(0);
     expect($xpath->query('//*[@id="visit-points-gain"]')->item(0)->getAttribute('class'))->toContain('app-role-metric');
     $rewardIcon = $xpath->query('//*[@id="visit-reward"]//*[local-name()="svg"]')->item(0)?->C14N();
     expect($rewardIcon)->not->toBeNull();
@@ -465,9 +634,9 @@ it('renders authoritative progress and consistent point and reward roles before 
     $component->call('findVisitReceipt', 'manual', '00007', $id);
     @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
     $xpath = new DOMXPath($document);
-    $bar = $xpath->query('//*[@id="visit-progress" and @data-flux-progress]')->item(0);
-    expect($bar->getAttribute('value'))->toBe('1');
-    expect($bar->getAttribute('max'))->toBe('3');
+    $progress = $xpath->query('//*[@id="visit-progress"]')->item(0);
+    expect(trim($progress->textContent))->toBe('1 / 3 puntos');
+    expect($xpath->query('//*[@data-flux-progress]')->length)->toBe(0);
     expect($xpath->query('//*[@id="visit-points-gain"]')->item(0)->getAttribute('class'))->toContain('app-role-metric');
     expect($xpath->query('//*[@id="visit-reward"]//*[local-name()="svg"]')->item(0)?->C14N())->toBe($rewardIcon);
     expect($facts['points_awarded'])->toBe(1);
@@ -477,7 +646,7 @@ it('renders authoritative progress and consistent point and reward roles before 
     $this->assertDatabaseCount('reward_entitlements', 0);
 });
 
-it('caps only the visual progress when an authoritative award exceeds the target', function () {
+it('retains actual numeric progress when an authoritative award exceeds the target', function () {
     [$business, $pass, $promotion] = visitDialogFixture(1);
     $promotion->extraPoints()->create(['weekday' => 3, 'multiplier' => 3]);
     $http = visitDialogProvider($business, $pass);
@@ -489,12 +658,12 @@ it('caps only the visual progress when an authoritative award exceeds the target
     $component->assertSet('facts.points_awarded', 3)->assertSet('details.earned_points', 3);
     $document = new DOMDocument;
     @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
-    $bar = (new DOMXPath($document))->query('//*[@id="visit-progress" and @data-flux-progress]')->item(0);
+    $xpath = new DOMXPath($document);
+    $progress = $xpath->query('//*[@id="visit-progress"]')->item(0);
 
-    expect($bar)->not->toBeNull();
-    expect($bar->getAttribute('value'))->toBe('1');
-    expect($bar->getAttribute('max'))->toBe('1');
-    expect($bar->getAttribute('aria-valuetext'))->toBe('3 de 1 puntos');
+    expect($progress)->not->toBeNull();
+    expect(trim($progress->textContent))->toBe('3 / 1 puntos');
+    expect($xpath->query('//*[@data-flux-progress]')->length)->toBe(0);
     expect($http->history)->toHaveCount(3);
     $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 3]);
     $this->assertDatabaseCount('visits', 1);
@@ -550,7 +719,7 @@ it('renders one points progress reward composition with truthful descriptions in
         foreach ($xpath->query('//*[@data-visit-points-card]//*[@id="visit-points-gain" or @id="visit-progress" or @id="visit-reward"]') as $role) {
             $roles[] = $role->getAttribute('id');
         }
-        expect($roles)->toBe(['visit-points-gain', 'visit-progress', 'visit-reward']);
+        expect($roles)->toBe(['visit-reward', 'visit-points-gain', 'visit-progress']);
         $component->assertSee('Términos originales')->assertSee('Una recompensa real');
         expect($xpath->query('//*[@id="visit-reward"]//p')->item(0)->textContent)->toBe('Términos originales');
         $structure ??= $roles;
@@ -564,7 +733,7 @@ it('orders footer actions by the explicit stage rather than their button count',
     visitDialogProvider($business, $pass);
     $component = Livewire::actingAs($business->user)->test('visit-registration');
     $document = new DOMDocument;
-    foreach (['identify' => ['Cerrar'], 'confirm' => ['Cerrar', 'Volver a leer', 'Confirmar visita'], 'result' => ['Cerrar', 'Volver a leer']] as $stage => $expected) {
+    foreach (['identify' => ['Cerrar'], 'confirm' => ['Cerrar', 'Confirmar visita'], 'result' => ['Cerrar']] as $stage => $expected) {
         if ($stage === 'confirm') {
             $component->call('findPass', 'manual', '00007');
             $id = $component->effects['returns'][0];
@@ -577,9 +746,14 @@ it('orders footer actions by the explicit stage rather than their button count',
             $labels[] = trim($button->textContent);
         }
         expect($labels)->toBe($expected);
-        $close = (new DOMXPath($document))->query('//footer//button[@data-visit-close]')->item(0);
-        expect($close->getAttribute('class'))->not->toContain('app-button-secondary');
-        expect($close->parentNode->getAttribute('class'))->toContain('me-auto');
+        $xpath = new DOMXPath($document);
+        $close = $xpath->query('//footer//button[@data-visit-close]')->item(0);
+        expect($close)->not->toBeNull();
+        expect(trim($close->textContent))->toBe('Cerrar');
+        expect($xpath->query('//*[@data-flux-modal-close]')->length)->toBe(2);
+        expect($xpath->query('//header//button')->length)->toBe(0);
+        expect($xpath->query('//footer//button[@data-visit-back]')->length)->toBe(0);
+        expect($xpath->query('//button[@data-visit-back]')->length)->toBe($stage === 'identify' ? 0 : 1);
     }
 });
 
@@ -598,12 +772,14 @@ it('checks an original receipt without replacing fresh identification when prese
     $this->assertDatabaseCount('visits', 1);
 });
 
-it('shows confirmed reward unlocking beside the success heading rather than inside the card', function () {
+it('uses future and final reward titles without a duplicate unlock badge', function () {
     [$business, $pass, $promotion] = visitDialogFixture(1);
     visitDialogProvider($business, $pass);
     $component = Livewire::actingAs($business->user)->test('visit-registration');
     $component->call('findPass', 'manual', '00007');
     $id = $component->effects['returns'][0];
+    $component->assertSee('Recompensa al confirmar')->assertSee('Solo registrar')->assertSee('Registrar y canjear');
+    $component->assertDontSee('Recompensa desbloqueada');
     $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id);
     $document = new DOMDocument;
     @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
@@ -611,14 +787,78 @@ it('shows confirmed reward unlocking beside the success heading rather than insi
     $component->call('findVisitReceipt', 'manual', '00007', $id);
     @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
     $xpath = new DOMXPath($document);
-    $badge = $xpath->query('//*[@data-modal-step-heading]//*[@data-visit-reward-unlocked]')->item(0);
-    expect($badge)->not->toBeNull();
-    expect($badge->getAttribute('class'))->not->toContain('uppercase');
-    expect(trim($badge->textContent))->toBe(__('visit-registration.reward_unlocked'));
+    expect($xpath->query('//*[@data-visit-reward-unlocked]')->length)->toBe(0);
+    expect($xpath->query('//*[@id="visit-result-title"]')->item(0)->textContent)->toContain('Recompensa desbloqueada');
+    $component->assertSee('Puntos sumados')->assertSee('Progreso actualizado');
     expect($xpath->query('//*[@data-visit-points-card]//*[@data-visit-reward-unlocked]')->length)->toBe(0);
     expect($xpath->query('//*[@data-visit-points-card]//p[contains(text(), "Recompensa desbloqueada")]')->length)->toBe(0);
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
+});
+
+it('confirms compound postconditions through public actions and retains known success without optional receipt details', function () {
+    [$business, $pass, $promotion] = visitDialogFixture(1);
+    $http = visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id, true);
+
+    expect($component->effects['returns'][0])->toBe('confirmed');
+    $component->assertSee('Recompensa canjeada')->assertSee('Puntos sumados');
+    expect(RewardEntitlement::query()->sole()->redeemed_at)->not->toBeNull();
+    $component->call('findVisitReceipt', 'manual', '00007', $id, true, true);
+    expect($component->effects['returns'][0])->toBeTrue();
+    $component->assertSee('Progreso actualizado')->assertSee('Recompensa canjeada');
+    $pass->update(['manual_code' => '00008']);
+    $component->call('findVisitReceipt', 'manual', '00007', $id, true, true);
+    expect($component->effects['returns'][0])->toBeFalse();
+    $component->assertSet('stage', 'result')->assertSet('facts.points_awarded', 1)->assertSee('Recompensa canjeada');
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//footer//button')->length)->toBe(1);
+    expect($xpath->query('//*[@data-reward-arm or @data-reward-confirm]')->length)->toBe(0);
+    expect($http->history)->toHaveCount(3);
+});
+
+it('rechecks the actual multiplier after a completing preview instead of partially recording a compound Visit', function () {
+    [$business, $pass, $promotion] = visitDialogFixture(3);
+    $http = visitDialogProvider($business, $pass);
+    $promotion->extraPoints()->create(['weekday' => 3, 'start_time' => '07:00:00', 'end_time' => '08:00:00', 'multiplier' => 3]);
+    $this->mock(DatabaseClock::class)->shouldReceive('capture')->andReturn(
+        new DatabaseTime('2030-01-02 12:59:59+00', '2030-01-02'),
+        new DatabaseTime('2030-01-02 13:00:00+00', '2030-01-02'),
+    );
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    $component->assertSee('Recompensa al confirmar');
+
+    $component->call('acceptVisit', 'manual', '00007', $id, $promotion->id, true);
+
+    expect($component->effects['returns'][0])->toBe('rejected');
+    $component->assertSet('stage', 'confirm')->assertSet('facts', null)->assertSet('combinedConfirmed', false)
+        ->assertSet('errorCode', 'reward_not_earned')->assertSee(__('visit-registration.reward_not_earned'));
+    $this->assertDatabaseCount('visits', 0);
+    $this->assertDatabaseCount('reward_entitlements', 0);
+    expect($http->history)->toBeEmpty();
+});
+
+it('does not reconcile an unredeemed Visit-only receipt as compound success', function () {
+    [$business, $pass, $promotion] = visitDialogFixture(1);
+    $http = visitDialogProvider($business, $pass);
+    $component = Livewire::actingAs($business->user)->test('visit-registration');
+    $component->call('findPass', 'manual', '00007');
+    $id = $component->effects['returns'][0];
+    app(AcceptVisit::class)->handle($business->user, 'manual', '00007', $id, $promotion->id);
+
+    $component->call('findVisitReceipt', 'manual', '00007', $id, true, true);
+
+    expect($component->effects['returns'][0])->toBeFalse();
+    $component->assertSet('stage', 'confirm')->assertSet('facts', null)->assertSet('redemption', null)->assertSet('errorCode', 'unknown');
+    expect(RewardEntitlement::query()->sole()->redeemed_at)->toBeNull();
+    expect($http->history)->toHaveCount(3);
 });
 
 /**
