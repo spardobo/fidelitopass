@@ -8,7 +8,7 @@ Accepted design. Provider integration is not implied by this decision.
 
 Public acquisition has no customer account or persistent browser identity. The customer explicitly requests saving; opening the join page alone must not create a Customer pass. Definitive Google creation failure must not leave a newly issued local pass.
 
-Initial issuance spans Google and PostgreSQL. They cannot share one atomic transaction. Existing Visit and Redemption synchronization already follows local commit and must retain that safety.
+Initial issuance spans Google and PostgreSQL. They cannot share one atomic transaction. This decision originally retained local commit before Visit and Redemption synchronization. [ADR-007](007-synchronous-wallet-updates.md) supersedes that assumption, not the initial-issuance decision.
 
 ## Options Considered
 
@@ -24,7 +24,7 @@ Definitive Google failure creates no local Customer pass. Confirmed local rollba
 
 Use sanitized correlation/operation identifiers in application logs. Do not add a durable attempt/reservation table or persistent browser identity. Reuse the current operation identity where available to prevent double-click duplication, without promising durable or cross-visit deduplication.
 
-This decision replaces only the initial-issuance timing/retry obligations identified by [REQ-WAL-003](../../requirements.md#req-wal-003--google-first-initial-customer-pass-issuance). [ADR-002](002-persistent-google-wallet-pass.md) remains applicable: update each issued Object across Promotions. Its persistent-pass decision and all Visit/Redemption post-commit safety remain unchanged.
+This decision replaces only the initial-issuance timing/retry obligations identified by [REQ-WAL-003](../../requirements.md#req-wal-003--google-first-initial-customer-pass-issuance). [ADR-002](002-persistent-google-wallet-pass.md) remains applicable: update each issued Object across Promotions. Its persistent-pass decision remains unchanged. [ADR-007](007-synchronous-wallet-updates.md) now governs Visit/Redemption synchronization.
 
 ## Rationale
 
@@ -36,4 +36,4 @@ The selected order meets the explicit saving flow without local issuance after d
 - The backend must distinguish definitive failures from uncertain provider/commit outcomes.
 - Abandonment after pair creation leaves an issued pair. A new acquisition visit may create another pair, including on the same browser; this accepted duplication does not alter in-place updates of an existing pass.
 - Sanitized application logs support diagnosis without storing tokens, JWTs, manual codes or sensitive provider payloads.
-- Existing Visit and Redemption facts still commit before asynchronous Wallet updates; provider failure cannot undo them.
+- The original assumption that Visit and Redemption facts commit before asynchronous Wallet updates is superseded by [ADR-007](007-synchronous-wallet-updates.md). Its synchronous update contract now governs those operations.
