@@ -160,6 +160,11 @@ it('reserves the QR area with one contextual appearance or download action', fun
         ->and($xpath->query('//main//button[@disabled and @aria-describedby="invitation-action-help"]')->length)->toBe(0)
         ->and($xpath->query('//*[@id="invitation-action-help"]//svg[@aria-hidden="true"]')->length)->toBe(1)
         ->and($xpath->query('//*[@id="invitation-action-help"]//p')->length)->toBe(1)
+        ->and($xpath->query('//section[@aria-labelledby="invitation-instructions-heading"]/figure//img')->length)->toBe(1)
+        ->and($xpath->query('//section[@aria-labelledby="invitation-instructions-heading"]/figure//img')->item(0)?->getAttribute('src'))->toBe(asset('table_tend_card.png'))
+        ->and($xpath->query('//section[@aria-labelledby="invitation-instructions-heading"]/figure//img')->item(0)?->getAttribute('alt'))->toBe('Ejemplo de un cartel de sobremesa con el QR del negocio')
+        ->and($xpath->query('//section[@aria-labelledby="invitation-instructions-heading"]/figure/preceding-sibling::ol')->length)->toBe(1)
+        ->and($xpath->query('//section[@aria-labelledby="invitation-instructions-heading"]/figure/figcaption')->item(0)?->textContent)->toContain('Para imprimir, usa siempre el QR de tu negocio.')
         ->and($xpath->query('//main//ol/li')->length)->toBe(3)
         ->and($xpath->query('//main//ol/li//svg[@aria-hidden="true"]')->length)->toBe(3)
         ->and($xpath->query('//main//a')->length)->toBe($recoveryLinks);

@@ -12,7 +12,7 @@
     </header>
 
     <div class="grid min-w-0 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <section aria-labelledby="invitation-qr-heading" class="flex min-w-0 flex-col gap-4 rounded-[20px] border border-app-priority-border bg-app-emphasis p-4 sm:p-6">
+        <section aria-labelledby="invitation-qr-heading" class="flex min-w-0 flex-col gap-4 rounded-[20px] border border-app-priority-border bg-app-emphasis p-4 sm:p-6 lg:sticky lg:top-8 lg:self-start">
             <div class="space-y-2">
                 <flux:heading level="2" id="invitation-qr-heading" class="app-role-section! text-app-ink!">
                     {{ __('invitation.qr_heading') }}
@@ -124,6 +124,18 @@
                     {{ __('invitation.public_private_note') }}
                 </p>
             </div>
+
+            <figure class="space-y-3 border-t border-app-line pt-6">
+                <figcaption class="space-y-2">
+                    <p class="app-role-card text-app-ink">
+                        {{ __('invitation.print_example_heading') }}
+                    </p>
+                    <p class="app-role-support text-app-ink-secondary">
+                        {{ __('invitation.print_example_description') }}
+                    </p>
+                </figcaption>
+                <img src="{{ asset('table_tend_card.png') }}" alt="{{ __('invitation.print_example_alt') }}" width="2304" height="1536" loading="lazy" decoding="async" class="block h-auto w-full rounded-2xl border border-app-border" />
+            </figure>
         </section>
     </div>
 </main>
