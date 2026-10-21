@@ -1,5 +1,9 @@
 <x-layouts::auth :title="__('Confirm password')">
-    <div class="flex flex-col gap-6">
+    <div
+        x-data="{ pending: false }"
+        x-on:pageshow.window="pending = false"
+        class="flex flex-col gap-6"
+    >
         <div class="flex w-full flex-col text-center">
             <flux:heading size="xl" level="1" class="app-heading">
                 {{ __('Confirm password') }}
@@ -23,7 +27,12 @@
         @endif
         {{-- @end-chisel-passkeys --}}
 
-        <form method="POST" action="{{ route('password.confirm.store') }}" class="flex flex-col gap-6">
+        <form
+            method="POST"
+            action="{{ route('password.confirm.store') }}"
+            x-on:submit="if (pending) { $event.preventDefault() } else { pending = true }"
+            class="flex flex-col gap-6"
+        >
             @csrf
 
             <flux:input
@@ -42,7 +51,16 @@
                 </x-slot>
             </flux:input>
 
-            <flux:button variant="primary" type="submit" class="app-button-primary w-full" data-test="confirm-password-button">
+            <flux:button
+                variant="primary"
+                type="submit"
+                :loading="false"
+                x-bind:disabled="pending"
+                x-bind:aria-busy="pending"
+                data-test="confirm-password-button"
+                class="app-button-primary w-full"
+            >
+                <flux:icon.loading x-show="pending" x-cloak variant="micro" aria-hidden="true" data-pending-spinner />
                 {{ __('Confirm') }}
             </flux:button>
         </form>

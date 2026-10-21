@@ -89,7 +89,7 @@ new class extends Component {
 
         <div class="flex flex-wrap justify-end gap-2">
             <flux:modal.close>
-                <flux:button variant="filled" class="app-button-secondary">
+                <flux:button variant="ghost" wire:loading.attr="disabled" wire:target="deleteUser" class="app-button">
                     {{ __('Cancel') }}
                 </flux:button>
             </flux:modal.close>
@@ -107,7 +107,7 @@ new class extends Component {
 
     <div class="absolute end-4 top-4">
         <flux:modal.close>
-            <flux:button variant="ghost" icon="x-mark" icon:variant="outline" :aria-label="__('Close modal')" class="app-button-toggle" />
+            <flux:button variant="ghost" icon="x-mark" icon:variant="outline" wire:loading.attr="disabled" wire:target="deleteUser" :aria-label="__('Close modal')" class="app-button-toggle" />
         </flux:modal.close>
     </div>
 </flux:modal>

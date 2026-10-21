@@ -1,3 +1,5 @@
+@php($pendingTargets = 'save,cancel,addExtraPoint,removeExtraPoint,reviewPublication,confirmPublication,dismissPublicationReview')
+
 <main
     class="app-theme app-workspace app-promotion-page"
     data-test="promotion-editor"
@@ -38,6 +40,7 @@
         },
     }"
 >
+
     <header class="space-y-6">
         <div class="flex min-h-11 items-center">
             <a
@@ -46,24 +49,26 @@
                 wire:navigate
                 wire:loading.attr="inert"
                 wire:loading.class="opacity-60"
-                wire:target="save"
+                wire:target="{{ $pendingTargets }}"
                 class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline"
             >
                 <flux:icon.arrow-left variant="outline" class="size-4" />
                 {{ __('business.promotion.back_to_pass') }}
             </a>
-            <button
-                x-cloak
-                x-show="hasUnsavedChanges()"
-                x-on:click="$dispatch('modal-show', { name: 'discard-promotion-draft' })"
-                type="button"
-                wire:loading.attr="disabled"
-                wire:target="save"
-                class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline"
-            >
-                <flux:icon.arrow-left variant="outline" class="size-4" />
-                {{ __('business.promotion.back_to_pass') }}
-            </button>
+            <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+                <button
+                    x-cloak
+                    x-show="hasUnsavedChanges()"
+                    x-on:click="$dispatch('modal-show', { name: 'discard-promotion-draft' })"
+                    type="button"
+                    wire:loading.attr="disabled"
+                    wire:target="{{ $pendingTargets }}"
+                    class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline"
+                >
+                    <flux:icon.arrow-left variant="outline" class="size-4" />
+                    {{ __('business.promotion.back_to_pass') }}
+                </button>
+            </fieldset>
         </div>
 
         <div class="space-y-2">
@@ -77,7 +82,11 @@
         </div>
     </header>
 
-    <form wire:submit="save" novalidate class="space-y-8">
+    <form
+        wire:submit="save"
+        novalidate
+        class="space-y-8"
+    >
         <div class="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,2.4fr)_minmax(17rem,1fr)]">
             <div class="min-w-0 space-y-5">
                 <section aria-labelledby="promotion-general-heading" class="space-y-6 rounded-2xl border border-app-priority-border bg-app-emphasis p-4 sm:p-6">
@@ -256,17 +265,19 @@
                         @endif
 
                         <div class="flex flex-wrap items-center justify-between gap-3">
-                            <flux:button
-                                type="button"
-                                wire:click="addExtraPoint"
-                                wire:loading.attr="disabled"
-                                wire:target="addExtraPoint,removeExtraPoint,draftWeekday,draftMultiplier,draftMode,draftStartTime,draftEndTime,save"
-                                variant="filled"
-                                icon:leading="plus"
-                                class="app-button-secondary min-h-11"
-                            >
-                                {{ __('business.promotion.add_rule') }}
-                            </flux:button>
+                            <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+                                <flux:button
+                                    type="button"
+                                    wire:click="addExtraPoint"
+                                    wire:loading.attr="disabled"
+                                    wire:target="addExtraPoint"
+                                    variant="filled"
+                                    icon:leading="plus"
+                                    class="app-button-secondary min-h-11"
+                                >
+                                    {{ __('business.promotion.add_rule') }}
+                                </flux:button>
+                            </fieldset>
                         </div>
 
                         <flux:error name="extraPoints" class="app-error" />
@@ -283,17 +294,19 @@
                                             <flux:badge color="violet" class="app-role-support! shrink-0 font-medium!">
                                                 {{ __('business.promotion.points', ['points' => $rule['multiplier']]) }} · ×{{ $rule['multiplier'] }}
                                             </flux:badge>
-                                            <flux:button
-                                                type="button"
-                                                wire:click="removeExtraPoint({{ $index }})"
-                                                wire:loading.attr="disabled"
-                                                wire:target="addExtraPoint,removeExtraPoint,save"
-                                                variant="ghost"
-                                                class="app-button min-h-11 shrink-0 text-app-accent-text!"
-                                                aria-label="{{ __('business.promotion.remove_rule', ['weekday' => __('business.promotion.weekdays.'.$rule['weekday'])]) }}"
-                                            >
-                                                {{ __('business.promotion.remove') }}
-                                            </flux:button>
+                                            <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+                                                <flux:button
+                                                    type="button"
+                                                    wire:click="removeExtraPoint({{ $index }})"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="removeExtraPoint({{ $index }})"
+                                                    variant="ghost"
+                                                    class="app-button min-h-11 shrink-0 text-app-accent-text!"
+                                                    aria-label="{{ __('business.promotion.remove_rule', ['weekday' => __('business.promotion.weekdays.'.$rule['weekday'])]) }}"
+                                                >
+                                                    {{ __('business.promotion.remove') }}
+                                                </flux:button>
+                                            </fieldset>
                                         </div>
                                     </li>
                                 @endforeach
@@ -312,43 +325,50 @@
                 <div class="border-t border-app-line pt-6">
                     <flux:error name="promotion" class="app-error" />
                     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <flux:button
-                            x-show="! hasUnsavedChanges()"
-                            type="button"
-                            wire:click="cancel"
-                            wire:loading.attr="disabled"
-                            wire:target="save"
-                            variant="ghost"
-                            class="app-button min-h-11"
-                        >
-                            {{ __('business.promotion.cancel') }}
-                        </flux:button>
-                        <flux:button
-                            x-cloak
-                            x-show="hasUnsavedChanges()"
-                            x-on:click="$dispatch('modal-show', { name: 'discard-promotion-draft' })"
-                            type="button"
-                            wire:loading.attr="disabled"
-                            wire:target="save"
-                            variant="ghost"
-                            class="app-button min-h-11"
-                        >
-                            {{ __('business.promotion.cancel') }}
-                        </flux:button>
+                        <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+                            <flux:button
+                                x-show="! hasUnsavedChanges()"
+                                type="button"
+                                wire:click="cancel"
+                                wire:loading.attr="disabled"
+                                wire:target="cancel"
+                                variant="ghost"
+                                class="app-button min-h-11"
+                            >
+                                {{ __('business.promotion.cancel') }}
+                            </flux:button>
+                        </fieldset>
+                        <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+                            <flux:button
+                                x-cloak
+                                x-show="hasUnsavedChanges()"
+                                x-on:click="$dispatch('modal-show', { name: 'discard-promotion-draft' })"
+                                type="button"
+                                wire:loading.attr="disabled"
+                                wire:target="{{ $pendingTargets }}"
+                                variant="ghost"
+                                class="app-button min-h-11"
+                            >
+                                {{ __('business.promotion.cancel') }}
+                            </flux:button>
+                        </fieldset>
 
                         <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                            <flux:button
-                                type="submit"
-                                variant="filled"
-                                class="app-button-secondary min-h-11"
-                                wire:loading.attr="disabled"
-                                wire:target="save"
-                            >
-                                {{ __('business.promotion.save_draft') }}
-                            </flux:button>
-                            <flux:button data-test="promotion-review-trigger" type="button" wire:click="reviewPublication" wire:loading.attr="disabled" wire:target="reviewPublication,save" variant="primary" icon:trailing="arrow-right" class="app-button-primary min-h-11">
-                                {{ __('business.promotion.review_publication') }}
-                            </flux:button>
+                            <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+                                <flux:button
+                                    type="submit"
+                                    variant="filled"
+                                    class="app-button-secondary min-h-11"
+                                    wire:target="save"
+                                >
+                                    {{ __('business.promotion.save_draft') }}
+                                </flux:button>
+                            </fieldset>
+                            <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+                                <flux:button data-test="promotion-review-trigger" type="button" wire:click="reviewPublication" wire:loading.attr="disabled" wire:target="reviewPublication" variant="primary" icon:trailing="arrow-right" class="app-button-primary min-h-11">
+                                    {{ __('business.promotion.review_publication') }}
+                                </flux:button>
+                            </fieldset>
                         </div>
                     </div>
                 </div>
@@ -439,108 +459,114 @@
         </div>
     </form>
 
-    <flux:modal
-        name="promotion-publication-review"
-        x-on:close="
-            $wire.dismissPublicationReview().then(() => {
-                $root
-                    .closest('[data-test=promotion-editor]')
-                    .querySelector('[data-test=promotion-review-trigger]')
-                    .focus({ preventScroll: true });
-            })
-        "
-        scroll="body"
-        class="app-theme w-[calc(100vw-2rem)] sm:w-[calc(100vw-3rem)] max-w-xl! min-w-0! max-h-[calc(100dvh-2rem)]! sm:max-h-[calc(100dvh-3rem)]! flex flex-col overflow-hidden!"
-    >
-        @if ($reviewingPublication)
-            <div class="flex min-h-0 flex-1 flex-col">
-                <header class="flex shrink-0 min-w-0 items-center gap-4 pb-2 pe-10">
-                    <span class="flex size-16 shrink-0 items-center justify-center rounded-full bg-app-emphasis text-app-accent" aria-hidden="true">
-                        <flux:icon.rocket-launch variant="outline" class="size-9" />
-                    </span>
-                    <div class="min-w-0 space-y-1">
-                        <p class="app-role-support! font-semibold! uppercase tracking-wide text-app-accent-text">
-                            {{ __('business.promotion.review_eyebrow') }}
-                        </p>
-                        <flux:heading level="2" class="app-role-title! break-words text-app-ink!">
-                            {{ __('business.promotion.review_heading') }}
-                        </flux:heading>
-                        <flux:text class="app-role-support! break-words text-app-ink-secondary!">
-                            {{ __('business.promotion.review_description') }}
-                        </flux:text>
-                    </div>
-                </header>
-
-                <div data-test="promotion-review-scroll-body" data-promotion-review-scroll-body tabindex="0" autofocus class="min-h-0 flex-1 space-y-4 overflow-y-auto py-3 pe-2 [scrollbar-gutter:stable]">
-                    <x-promotion-summary
-                        :reward-title="$rewardTitle"
-                        :reward-description="$rewardDescription"
-                        :target-points="$targetPoints"
-                        :start-date="$this->publicationReview['start_date']"
-                        :end-date="$this->publicationReview['end_date']"
-                        :start-date-label="$this->publicationReview['start_date_label']"
-                        :end-date-label="$this->publicationReview['end_date_label']"
-                        :extra-points="$extraPoints"
-                        data-test="promotion-review-summary"
-                    />
-
-                    <aside class="flex min-w-0 items-center gap-3 rounded-xl border border-app-priority-border bg-app-emphasis p-4 app-role-support! text-app-ink-priority">
-                        <flux:icon.lock-closed variant="outline" class="size-5 shrink-0" aria-hidden="true" />
+    <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+        <flux:modal
+            name="promotion-publication-review"
+            x-on:cancel="if ($el.closest('fieldset')?.disabled) $event.preventDefault()"
+            x-on:close="
+                $wire.dismissPublicationReview().then(() => {
+                    $root
+                        .closest('[data-test=promotion-editor]')
+                        .querySelector('[data-test=promotion-review-trigger]')
+                        .focus({ preventScroll: true });
+                })
+            "
+            scroll="body"
+            class="app-theme w-[calc(100vw-2rem)] sm:w-[calc(100vw-3rem)] max-w-xl! min-w-0! max-h-[calc(100dvh-2rem)]! sm:max-h-[calc(100dvh-3rem)]! flex flex-col overflow-hidden!"
+        >
+            @if ($reviewingPublication)
+                <div class="flex min-h-0 flex-1 flex-col">
+                    <header class="flex shrink-0 min-w-0 items-center gap-4 pb-2 pe-10">
+                        <span class="flex size-16 shrink-0 items-center justify-center rounded-full bg-app-emphasis text-app-accent" aria-hidden="true">
+                            <flux:icon.rocket-launch variant="outline" class="size-9" />
+                        </span>
                         <div class="min-w-0 space-y-1">
-                            <p class="font-semibold!">{{ __('business.promotion.publication_note_title') }}</p>
-                            <p class="break-words">{{ __('business.promotion.publication_note') }}</p>
+                            <p class="app-role-support! font-semibold! uppercase tracking-wide text-app-accent-text">
+                                {{ __('business.promotion.review_eyebrow') }}
+                            </p>
+                            <flux:heading level="2" class="app-role-title! break-words text-app-ink!">
+                                {{ __('business.promotion.review_heading') }}
+                            </flux:heading>
+                            <flux:text class="app-role-support! break-words text-app-ink-secondary!">
+                                {{ __('business.promotion.review_description') }}
+                            </flux:text>
                         </div>
-                    </aside>
-                    <flux:error name="promotion" class="app-error" />
-                </div>
+                    </header>
 
-                <footer data-test="promotion-review-actions" class="flex shrink-0 flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
-                    <flux:modal.close class="w-full sm:w-auto">
-                        <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
-                            {{ __('business.promotion.return_to_editor') }}
+                    <div data-test="promotion-review-scroll-body" data-promotion-review-scroll-body tabindex="0" autofocus class="min-h-0 flex-1 space-y-4 overflow-y-auto py-3 pe-2 [scrollbar-gutter:stable]">
+                        <x-promotion-summary
+                            :reward-title="$rewardTitle"
+                            :reward-description="$rewardDescription"
+                            :target-points="$targetPoints"
+                            :start-date="$this->publicationReview['start_date']"
+                            :end-date="$this->publicationReview['end_date']"
+                            :start-date-label="$this->publicationReview['start_date_label']"
+                            :end-date-label="$this->publicationReview['end_date_label']"
+                            :extra-points="$extraPoints"
+                            data-test="promotion-review-summary"
+                        />
+
+                        <aside class="flex min-w-0 items-center gap-3 rounded-xl border border-app-priority-border bg-app-emphasis p-4 app-role-support! text-app-ink-priority">
+                            <flux:icon.lock-closed variant="outline" class="size-5 shrink-0" aria-hidden="true" />
+                            <div class="min-w-0 space-y-1">
+                                <p class="font-semibold!">{{ __('business.promotion.publication_note_title') }}</p>
+                                <p class="break-words">{{ __('business.promotion.publication_note') }}</p>
+                            </div>
+                        </aside>
+                        <flux:error name="promotion" class="app-error" />
+                    </div>
+
+                    <footer data-test="promotion-review-actions" class="flex shrink-0 flex-col gap-3 pt-3 sm:flex-row sm:justify-between">
+                        <flux:modal.close class="w-full sm:w-auto">
+                            <flux:button type="button" variant="ghost" class="app-button min-h-11 w-full sm:w-auto">
+                                {{ __('business.promotion.return_to_editor') }}
+                            </flux:button>
+                        </flux:modal.close>
+                        <flux:button
+                            type="button"
+                            wire:click="confirmPublication"
+                            wire:loading.attr="disabled"
+                            wire:target="confirmPublication"
+                            variant="primary"
+                            class="app-button-primary min-h-11 w-full sm:w-auto"
+                        >
+                            {{ __('business.promotion.confirm_publish') }}
                         </flux:button>
-                    </flux:modal.close>
+                    </footer>
+                </div>
+            @endif
+        </flux:modal>
+    </fieldset>
+
+    <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="promotion" class="contents">
+        <flux:modal name="discard-promotion-draft" x-on:cancel="if ($el.closest('fieldset')?.disabled) $event.preventDefault()" class="app-theme space-y-6">
+            <div class="space-y-2">
+                <flux:heading size="lg" class="app-role-section! text-app-ink!">{{ __('business.promotion.discard_title') }}</flux:heading>
+                <flux:text class="app-role-support!">{{ __('business.promotion.discard_confirmation') }}</flux:text>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:justify-between">
+                <flux:modal.close class="w-full sm:w-auto">
                     <flux:button
                         type="button"
-                        wire:click="confirmPublication"
                         wire:loading.attr="disabled"
-                        wire:target="confirmPublication"
-                        variant="primary"
-                        class="app-button-primary min-h-11 w-full sm:w-auto"
+                        wire:target="{{ $pendingTargets }}"
+                        variant="ghost"
+                        class="app-button min-h-11 w-full sm:w-auto"
                     >
-                        {{ __('business.promotion.confirm_publish') }}
+                        {{ __('business.promotion.continue_editing') }}
                     </flux:button>
-                </footer>
-            </div>
-        @endif
-    </flux:modal>
-
-    <flux:modal name="discard-promotion-draft" class="app-theme space-y-6">
-        <div class="space-y-2">
-            <flux:heading size="lg" class="app-role-section! text-app-ink!">{{ __('business.promotion.discard_title') }}</flux:heading>
-            <flux:text class="app-role-support!">{{ __('business.promotion.discard_confirmation') }}</flux:text>
-        </div>
-        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <flux:modal.close class="w-full sm:w-auto">
+                </flux:modal.close>
                 <flux:button
                     type="button"
+                    wire:click="cancel"
                     wire:loading.attr="disabled"
-                    wire:target="save"
-                    class="app-button min-h-11 w-full sm:w-auto"
+                    wire:target="cancel"
+                    variant="primary"
+                    class="app-button-primary min-h-11 w-full sm:w-auto"
                 >
-                    {{ __('business.promotion.continue_editing') }}
+                    {{ __('business.promotion.discard_changes') }}
                 </flux:button>
-            </flux:modal.close>
-            <flux:button
-                type="button"
-                wire:click="cancel"
-                wire:loading.attr="disabled"
-                wire:target="save"
-                variant="primary"
-                class="app-button-primary min-h-11 w-full sm:w-auto"
-            >
-                {{ __('business.promotion.discard_changes') }}
-            </flux:button>
-        </div>
-    </flux:modal>
+            </div>
+        </flux:modal>
+    </fieldset>
 </main>

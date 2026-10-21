@@ -297,6 +297,598 @@ for (const hasTouch of [false, true]) {
     });
 }
 
+/** Fills real Promotion fields without persisting or bypassing the editor.
+ * @param {import('@playwright/test').Page} page Current Promotion editor.
+ * @param {string} title Reward title owned by this journey.
+ * @returns {Promise<object>} Server-relative calendar cases used by the form.
+ */
+async function fillFeedbackPromotion(page, title) {
+    const dates = await promotionDateCases(page);
+    await page.getByLabel("¿Qué recompensa recibirá tu cliente?").fill(title);
+    await page
+        .getByLabel("Detalle de la recompensa")
+        .fill("Condiciones conservadas de la recompensa.");
+    await page.getByLabel("¿Cuántos puntos necesita?").fill("8");
+    await selectPicker(page, "Fecha de inicio", dates.minimum);
+    await selectPicker(page, "Fecha de fin", dates.futureEnd);
+
+    return dates;
+}
+
+/** Checks resting ghost treatment, leading geometry and real keyboard order.
+ * @param {import('@playwright/test').Page} page Current Business page.
+ * @param {import('@playwright/test').Locator} dismissal Footer navigation or dismissal control.
+ * @param {import('@playwright/test').Locator|null} command Optional consequential action following dismissal.
+ * @returns {Promise<void>} Resolves after computed layout and keyboard assertions.
+ */
+async function expectLeadingGhost(page, dismissal, command = null) {
+    await dismissal.scrollIntoViewIfNeeded();
+    await page.mouse.move(0, 0);
+    await expect
+        .soft(dismissal)
+        .toHaveCSS("background-color", "rgba(0, 0, 0, 0)", { timeout: 1000 });
+    const layout = await dismissal.evaluate((element) => {
+        const footer =
+            element.closest("footer") ??
+            element.closest("ui-close, ui-modal-trigger")?.parentElement ??
+            element.parentElement;
+        const bounds = element.getBoundingClientRect();
+        const footerBounds = footer.getBoundingClientRect();
+        const style = getComputedStyle(footer);
+        const controls = Array.from(footer.querySelectorAll("a, button")).filter(
+            (control) => control.getClientRects().length > 0,
+        );
+
+        return {
+            leadingInset:
+                bounds.left -
+                footerBounds.left -
+                parseFloat(style.paddingLeft) -
+                parseFloat(style.borderLeftWidth),
+            firstControl: controls[0] === element,
+            top: bounds.top,
+            nextTop: controls[1]?.getBoundingClientRect().top ?? bounds.top,
+        };
+    });
+    expect
+        .soft(Math.abs(layout.leadingInset), "dismissal starts at the footer's leading edge")
+        .toBeLessThanOrEqual(1);
+    expect.soft(layout.firstControl, "dismissal is first in DOM keyboard order").toBe(true);
+    expect
+        .soft(layout.top, "narrow footer does not reverse visual and keyboard order")
+        .toBeLessThanOrEqual(layout.nextTop + 1);
+
+    await dismissal.focus();
+    await page.keyboard.press("Tab");
+    if (command) await expect(command).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(dismissal).toBeFocused();
+    await expect(dismissal).toHaveCSS("outline-style", "solid");
+    await expect(dismissal).toHaveCSS("outline-width", "2px");
+}
+
+for (const action of ["addExtraPoint", "removeExtraPoint", "save", "reviewPublication"]) {
+    test(`UI consistency: only ${action} spins and recovers after a rejected request`, async ({
+        page,
+        request,
+    }) => {
+        test.setTimeout(60_000);
+        await registerVerifiedBusiness(page, request);
+        await page.goto("/promotions/create");
+        await fillFeedbackPromotion(page, "Recompensa persistida");
+        const weekday = page.getByLabel("Día", { exact: true });
+        const addRule = page.getByRole("button", { name: "Añadir puntos extra" });
+        const rules = page.getByRole("list", { name: "Reglas de puntos extra añadidas" });
+        const mondayRule = rules
+            .getByRole("listitem")
+            .filter({ has: page.getByText("Lunes", { exact: true }) });
+        const wednesdayRule = rules
+            .getByRole("listitem")
+            .filter({ has: page.getByText("Miércoles", { exact: true }) });
+        for (const [index, value] of ["1", "3"].entries()) {
+            await expect(addRule).toBeEnabled();
+            await weekday.selectOption(value);
+            await expect(weekday).toHaveValue(value);
+            await addRule.click();
+            await expect(rules.getByRole("listitem")).toHaveCount(index + 1);
+            await expect(weekday).toHaveValue("");
+            await expect(addRule).toBeEnabled();
+        }
+        await expect(mondayRule).toHaveCount(1);
+        await expect(wednesdayRule).toHaveCount(1);
+        await page.getByRole("button", { name: "Guardar borrador" }).click();
+        await expect(page).toHaveURL(/\/pass$/);
+        await page.getByRole("link", { name: "Editar borrador" }).click();
+        await expect(page).toHaveURL(/\/promotions\/[0-9a-f-]+\/edit$/);
+        await page.reload();
+
+        const reward = page.getByLabel("¿Qué recompensa recibirá tu cliente?");
+        await expect(reward).toHaveValue("Recompensa persistida");
+        await expect(rules.getByRole("listitem")).toHaveCount(2);
+        await expect(mondayRule).toHaveCount(1);
+        await expect(wednesdayRule).toHaveCount(1);
+        await expect(weekday).toHaveValue("");
+        const controls = {
+            addExtraPoint: addRule,
+            removeExtraPoint: wednesdayRule.getByRole("button", { name: /^Quitar la regla de / }),
+            otherRemoval: mondayRule.getByRole("button", { name: /^Quitar la regla de / }),
+            save: page.getByRole("button", { name: "Guardar borrador" }),
+            reviewPublication: page.getByRole("button", {
+                name: "Publicar promoción",
+                exact: true,
+            }),
+        };
+        for (const control of Object.values(controls)) await expect(control).toBeEnabled();
+        if (action === "addExtraPoint") {
+            await weekday.selectOption("5");
+            await expect(weekday).toHaveValue("5");
+        }
+        if (action === "save") await reward.fill("Cambio sin confirmar");
+        const beforeRules = await rules.innerText();
+        const active = controls[action];
+        const width = await active.evaluate((element) => element.offsetWidth);
+        let release;
+        let finish;
+        let intercepted = 0;
+        const calls = [];
+        const gate = new Promise((resolve) => {
+            release = resolve;
+        });
+        const finished = new Promise((resolve) => {
+            finish = resolve;
+        });
+        /** Holds the selected native action before rejecting it without reaching the backend.
+         * @param {import('@playwright/test').Route} route Public Livewire HTTP request.
+         * @returns {Promise<void>} Resolves after continuation or the controlled network failure.
+         */
+        const handler = async (route) => {
+            const actions =
+                route
+                    .request()
+                    .postDataJSON()
+                    ?.components?.flatMap((component) => component.calls ?? []) ?? [];
+            calls.push(...actions.map((call) => call.method));
+            if (!actions.some((call) => call.method === action)) return route.continue();
+            intercepted++;
+            await gate;
+            try {
+                await route.abort("failed");
+            } finally {
+                finish();
+            }
+        };
+        await page.route(LIVEWIRE_UPDATE_PATH, handler);
+
+        try {
+            await active.click();
+            await expect.poll(() => intercepted).toBe(1);
+            await expect(active).toBeDisabled();
+            await expect(active.locator(":scope > [data-flux-loading-indicator]")).toHaveCSS(
+                "opacity",
+                "1",
+            );
+            expect(await active.evaluate((element) => element.offsetWidth)).toBe(width);
+            for (const [name, control] of Object.entries(controls)) {
+                if (name === action) continue;
+                await expect
+                    .soft(
+                        control.locator(":scope > [data-flux-loading-indicator]"),
+                        `${name} must not spin for ${action}`,
+                    )
+                    .toHaveCSS("opacity", "0", { timeout: 1000 });
+            }
+            if (action !== "reviewPublication") {
+                for (const name of ["addExtraPoint", "removeExtraPoint", "otherRemoval"]) {
+                    await expect(controls[name]).toBeDisabled();
+                    await controls[name].evaluate((button) => button.focus());
+                    await expect(controls[name]).not.toBeFocused();
+                }
+            }
+            if (action === "save") {
+                await expect(reward).toHaveAttribute("readonly");
+                await expect(
+                    page.getByRole("button", { name: "Cancelar", exact: true }),
+                ).toBeDisabled();
+            }
+            for (const control of Object.values(controls)) await expect(control).toBeDisabled();
+            const backLink = page.getByRole("link", { name: "Volver a tu tarjeta", exact: true });
+            if (await backLink.isVisible()) {
+                await expect(backLink).toHaveAttribute("inert");
+            } else {
+                await expect(
+                    page.getByRole("button", { name: "Volver a tu tarjeta", exact: true }),
+                ).toBeDisabled();
+            }
+            await page.keyboard.press("Enter");
+            await page.keyboard.press("Space");
+            expect(calls).toEqual([action]);
+        } finally {
+            release();
+            if (intercepted) await finished;
+            await page.unroute(LIVEWIRE_UPDATE_PATH, handler);
+        }
+
+        for (const control of Object.values(controls)) {
+            await expect(control).toBeEnabled();
+            await expect(control.locator(":scope > [data-flux-loading-indicator]")).toHaveCSS(
+                "opacity",
+                "0",
+            );
+        }
+        await expect(rules).toHaveText(beforeRules);
+        await expect(reward).toHaveValue(
+            action === "save" ? "Cambio sin confirmar" : "Recompensa persistida",
+        );
+        await expect(
+            page.locator('dialog[data-modal="promotion-publication-review"]'),
+        ).not.toBeVisible();
+        await page.reload();
+        await expect(reward).toHaveValue("Recompensa persistida");
+        await expect(rules.getByRole("listitem")).toHaveCount(2);
+        await expect(rules).toContainText("Lunes");
+        await expect(rules).toContainText("Miércoles");
+        await expect(rules).not.toContainText("Viernes");
+        expect(calls).toEqual([action]);
+    });
+}
+
+for (const viewport of [
+    { width: 1440, height: 1000 },
+    { width: 375, height: 812 },
+]) {
+    test(`UI consistency: leading ghost Pass and Promotion footers at ${viewport.width}px`, async ({
+        page,
+        request,
+    }) => {
+        test.setTimeout(90_000);
+        await registerVerifiedBusiness(page, request);
+        await page.setViewportSize(viewport);
+        await page.goto("/pass/appearance");
+        const appearanceCancel = page.getByRole("button", { name: "Cancelar", exact: true });
+        const appearanceSave = page.getByRole("button", { name: "Guardar apariencia" });
+        await expectLeadingGhost(page, appearanceCancel, appearanceSave);
+        await appearanceSave.click();
+        await expect(page).toHaveURL(/\/pass$/);
+        await page.getByRole("link", { name: "Editar apariencia", exact: true }).click();
+        const hex = page.getByLabel("Código hexadecimal");
+        await hex.fill("#E53935");
+        await expect(
+            page.getByRole("button", { name: "Volver a tu tarjeta", exact: true }),
+        ).toBeVisible();
+        await appearanceCancel.click();
+        const appearanceDiscard = page.locator('dialog[data-modal="discard-pass-appearance"]');
+        const keepAppearance = appearanceDiscard.getByRole("button", { name: "Seguir editando" });
+        await expectLeadingGhost(
+            page,
+            keepAppearance,
+            appearanceDiscard.getByRole("button", { name: "Descartar cambios" }),
+        );
+        await page.keyboard.press("Escape");
+        await expect(appearanceDiscard).not.toBeVisible();
+        await expect(appearanceCancel).toBeFocused();
+        await expect(hex).toHaveValue("#E53935");
+        await appearanceCancel.click();
+        await keepAppearance.focus();
+        await page.keyboard.press("Enter");
+        await expect(appearanceDiscard).not.toBeVisible();
+        await expect(hex).toHaveValue("#E53935");
+        await appearanceCancel.click();
+        await appearanceDiscard.getByRole("button", { name: "Descartar cambios" }).click();
+        await expect(page).toHaveURL(/\/pass$/);
+        await page.getByRole("link", { name: "Editar apariencia", exact: true }).click();
+        await expect(hex).toHaveValue("#A77BFF");
+
+        await page.goto("/promotions/create");
+        const dates = await fillFeedbackPromotion(page, "Recompensa de navegación");
+        const reviewOpener = page.getByRole("button", { name: "Publicar promoción", exact: true });
+        await reviewOpener.click();
+        const review = page.locator('dialog[data-modal="promotion-publication-review"]');
+        await expect(review).toBeVisible();
+        const keepPromotion = review.getByRole("button", { name: "Seguir editando" });
+        await expectLeadingGhost(
+            page,
+            keepPromotion,
+            review.getByRole("button", { name: "Confirmar publicación" }),
+        );
+        await page.keyboard.press("Escape");
+        await expect(review).not.toBeVisible();
+        await expect(reviewOpener).toBeFocused();
+        await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+        const discard = page.locator('dialog[data-modal="discard-promotion-draft"]');
+        const keepDraft = discard.getByRole("button", { name: "Seguir editando" });
+        await expectLeadingGhost(
+            page,
+            keepDraft,
+            discard.getByRole("button", { name: "Descartar cambios" }),
+        );
+        await page.keyboard.press("Enter");
+        await expect(discard).not.toBeVisible();
+        await expect(page.getByRole("button", { name: "Cancelar", exact: true })).toBeFocused();
+        await expect(page.getByLabel("¿Qué recompensa recibirá tu cliente?")).toHaveValue(
+            "Recompensa de navegación",
+        );
+        await reviewOpener.click();
+        await keepPromotion.focus();
+        await page.keyboard.press("Enter");
+        await expect(review).not.toBeVisible();
+        await expect(reviewOpener).toBeFocused();
+        await reviewOpener.click();
+        await review.getByRole("button", { name: "Confirmar publicación" }).click();
+        await expect(page).toHaveURL(/\/pass$/);
+        const detailOpener = page
+            .locator('article[data-promotion-phase="active"]')
+            .getByRole("button", { name: "Ver detalle" });
+        await detailOpener.click();
+        const detail = page.locator('dialog[data-modal="promotion-detail"]');
+        await expect(detail).toBeVisible();
+        const backToPass = detail.getByRole("button", { name: "Volver a tu tarjeta" });
+        const cancellation = detail.getByRole("button", {
+            name: "Cancelar promoción",
+            exact: true,
+        });
+        await expectLeadingGhost(page, backToPass, cancellation);
+        await expect(cancellation).toHaveCSS("background-color", "rgb(167, 123, 255)");
+        await cancellation.click();
+        await expect(detail.locator("#promotion-cancellation-heading")).toBeFocused();
+        const confirmCancellation = detail.getByRole("button", { name: "Sí, cancelar promoción" });
+        await expectLeadingGhost(page, backToPass, confirmCancellation);
+        await expect(confirmCancellation).not.toHaveCSS("background-color", "rgb(167, 123, 255)");
+        await page.keyboard.press("Escape");
+        await expect(detail).not.toBeVisible();
+        await expect(detailOpener).toBeFocused();
+        await page.reload();
+        await detailOpener.click();
+        await expect(detail.locator("[data-promotion-detail-phase]")).toHaveAttribute(
+            "data-promotion-detail-phase",
+            "active",
+        );
+        await expect(detail.locator("dd").nth(1)).toContainText(
+            expectedValidityRange(dates.minimum, dates.futureEnd),
+        );
+        await backToPass.click();
+        await expect(detailOpener).toBeFocused();
+        await page.goto("/dashboard");
+        const summaryOpener = page
+            .locator('section[aria-labelledby="promotion-title"]')
+            .getByRole("button", { name: "Ver detalle" });
+        await summaryOpener.click();
+        const backToSummary = detail.getByRole("button", { name: "Volver al resumen" });
+        await expectLeadingGhost(page, backToSummary);
+        await expect(detail.getByRole("button", { name: /cancelar promoción/i })).toHaveCount(0);
+        await backToSummary.focus();
+        await page.keyboard.press("Enter");
+        await expect(detail).not.toBeVisible();
+        await expect(summaryOpener).toBeFocused();
+    });
+
+    test(`UI consistency: Pass active Promotion matches Summary roles and saved facts at ${viewport.width}px`, async ({
+        page,
+        request,
+    }) => {
+        await registerVerifiedBusiness(page, request);
+        await page.setViewportSize(viewport);
+        await page.goto("/promotions/create");
+        const dates = await fillFeedbackPromotion(page, "Recompensa de comparación");
+        await page.getByRole("button", { name: "Publicar promoción", exact: true }).click();
+        const review = page.locator('dialog[data-modal="promotion-publication-review"]');
+        await review.getByRole("button", { name: "Confirmar publicación" }).click();
+        await expect(page).toHaveURL(/\/pass$/);
+        await page.goto("/dashboard");
+        await page.evaluate(() => document.fonts.ready);
+        const summary = page.locator('section[aria-labelledby="promotion-title"]');
+        await page.mouse.move(0, 0);
+        const summaryRoles = await readActivePromotionRoles(summary);
+        expect(summaryRoles.surface.backgroundColor).toBe("rgb(61, 46, 85)");
+        expect(summaryRoles.surface.borderTopColor).toBe("rgb(132, 101, 172)");
+        await page.goto("/pass");
+        await page.evaluate(() => document.fonts.ready);
+        const active = page.locator('article[data-promotion-phase="active"]');
+        await expect(
+            page.getByRole("heading", { name: "Promoción activa", exact: true }),
+        ).toHaveCount(1);
+        await expect(active.getByRole("heading")).toHaveText(["Recompensa de comparación"]);
+        await expect(active).toContainText("Condiciones conservadas de la recompensa.");
+        await expect(active.locator("[data-flux-badge]")).toHaveText("Activa");
+        await expect(active.locator("time")).toHaveText([
+            expectedDate(dates.minimum),
+            expectedDate(dates.futureEnd),
+        ]);
+        await page.mouse.move(0, 0);
+        const passRoles = await readActivePromotionRoles(active);
+        expect.soft(passRoles).toEqual(summaryRoles);
+        await active.getByRole("button", { name: "Ver detalle" }).click();
+        const detail = page.locator('dialog[data-modal="promotion-detail"]');
+        await expect(
+            detail.getByRole("heading", { name: "Recompensa de comparación", exact: true }),
+        ).toBeVisible();
+        await expect(detail.locator("dd").first()).toHaveText("8 puntos");
+        await page.keyboard.press("Escape");
+        await expect(active.getByRole("button", { name: "Ver detalle" })).toBeFocused();
+    });
+}
+
+/** Measures equivalent public content roles without depending on class names or a new wrapper.
+ * @param {import('@playwright/test').Locator} card Summary section or saved Pass article.
+ * @returns {Promise<object>} Computed surface, reward, gift, facts, badge and action roles.
+ */
+async function readActivePromotionRoles(card) {
+    return card.evaluate((root) => {
+        /** Reads comparable typography and palette roles, reporting absent content explicitly.
+         * @param {Element|null} element Existing role element, if rendered.
+         * @returns {object|null} Computed role values or an absent-role marker.
+         */
+        const styleFor = (element) => {
+            if (!element) return null;
+            const style = getComputedStyle(element);
+            return Object.fromEntries(
+                [
+                    "backgroundColor",
+                    "borderTopColor",
+                    "borderTopWidth",
+                    "color",
+                    "fontSize",
+                    "lineHeight",
+                    "fontWeight",
+                ].map((property) => [property, style[property]]),
+            );
+        };
+        const reward = Array.from(root.querySelectorAll("h3, h4")).find(
+            (element) => element.textContent.trim() === "Recompensa de comparación",
+        );
+        const description = Array.from(root.querySelectorAll("p")).find(
+            (element) => element.textContent.trim() === "Condiciones conservadas de la recompensa.",
+        );
+        const gift = root.querySelector('span[aria-hidden="true"] > svg[data-flux-icon]');
+        const facts = Array.from(root.querySelectorAll("dl > div")).map((row) => ({
+            label: row.querySelector("dt")?.textContent.trim(),
+            value: row.querySelector("dd")?.textContent.trim().replace(/\s+/g, " "),
+            labelStyle: styleFor(row.querySelector("dt")),
+            valueStyle: styleFor(row.querySelector("dd")),
+            icon: row.querySelector("svg path")?.getAttribute("d"),
+        }));
+
+        return {
+            surface: {
+                backgroundColor: getComputedStyle(root).backgroundColor,
+                borderTopColor: getComputedStyle(root).borderTopColor,
+            },
+            reward: styleFor(reward),
+            description: styleFor(description),
+            gift: gift
+                ? {
+                      path: gift.querySelector("path").getAttribute("d"),
+                      width: getComputedStyle(gift).width,
+                      surface: styleFor(gift.parentElement),
+                  }
+                : null,
+            facts,
+            badge: styleFor(root.querySelector("[data-flux-badge]")),
+            action: styleFor(root.querySelector("button[data-flux-button]")),
+        };
+    });
+}
+
+/** Checks one real action while its native request is held before reaching the backend.
+ * @param {import('@playwright/test').Page} page Authenticated isolated page.
+ * @param {import('@playwright/test').Locator} scope Related workspace controls.
+ * @param {import('@playwright/test').Locator} button Initiating action.
+ * @param {string} method Expected Livewire action.
+ * @returns {Promise<void>} Verifies blocking, sole spinner, dismissal protection and recovery.
+ */
+async function expectInventoryPending(page, scope, button, method) {
+    const controls = scope.locator("button:visible:not([data-flux-pagination] button)");
+    const enabledBefore = await Promise.all(
+        (await controls.all()).map((control) => control.isEnabled()),
+    );
+    const startingUrl = page.url();
+    let release;
+    let finish;
+    const finished = new Promise((resolve) => {
+        finish = resolve;
+    });
+    let intercepted = 0;
+    const calls = [];
+    const gate = new Promise((resolve) => {
+        release = resolve;
+    });
+    const handler = async (route) => {
+        const actions =
+            route
+                .request()
+                .postDataJSON()
+                ?.components?.flatMap((component) => component.calls ?? []) ?? [];
+        calls.push(...actions.map((call) => call.method));
+        if (!actions.some((call) => call.method === method)) return route.continue();
+        intercepted++;
+        await gate;
+        try {
+            await route.abort("failed");
+        } finally {
+            finish();
+        }
+    };
+    await page.route(LIVEWIRE_UPDATE_PATH, handler);
+    try {
+        await button.click();
+        await expect.poll(() => intercepted).toBe(1);
+        await expect(button.locator(":scope > [data-flux-loading-indicator]")).toHaveCSS(
+            "opacity",
+            "1",
+        );
+        for (const control of await controls.all()) {
+            await expect(control).toBeDisabled();
+            if (
+                !(await control.evaluate(
+                    (element, active) => element === active,
+                    await button.elementHandle(),
+                ))
+            ) {
+                const indicator = control.locator(":scope > [data-flux-loading-indicator]");
+                if (await indicator.count()) await expect(indicator).toHaveCSS("opacity", "0");
+            }
+        }
+        for (const link of await scope.locator("a[data-flux-button]:visible").all()) {
+            await expect
+                .poll(() => link.evaluate((element) => Boolean(element.closest("[inert]"))))
+                .toBe(true);
+        }
+        const dialog = scope.locator("dialog[open]");
+        if (await dialog.count()) {
+            await page.keyboard.press("Escape");
+            await expect(dialog).toBeVisible();
+            await page.mouse.click(1, 1);
+            await expect(dialog).toBeVisible();
+        }
+        expect(calls).toEqual([method]);
+    } finally {
+        release();
+        if (intercepted) await finished;
+        await page.unroute(LIVEWIRE_UPDATE_PATH, handler);
+    }
+    await expect(page).toHaveURL(startingUrl);
+    for (const [index, control] of (await controls.all()).entries()) {
+        if (enabledBefore[index]) await expect(control).toBeEnabled();
+        else await expect(control).toBeDisabled();
+    }
+    await expect(button.locator(":scope > [data-flux-loading-indicator]")).toHaveCSS(
+        "opacity",
+        "0",
+    );
+}
+
+test("UI inventory: Pass blocks related action buttons", async ({ page }) => {
+    test.skip(!process.env.PLAYWRIGHT_PROMOTION_FIXTURE, "Requires the isolated Promotion runner");
+    const fixture = JSON.parse(process.env.PLAYWRIGHT_PROMOTION_FIXTURE);
+    await page.goto("/login");
+    await page.locator('input[name="email"]').fill(fixture.email);
+    await page.locator('input[name="password"]').fill(PASSWORD);
+    await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/pass");
+    const documentOrigin = await page.evaluate(() => performance.timeOrigin);
+    await page.locator('a[href$="/promotions/create"]').click();
+    await expect(page).toHaveURL(/\/promotions\/create$/);
+    expect(await page.evaluate(() => performance.timeOrigin)).toBe(documentOrigin);
+
+    await page.goto("/pass/appearance");
+    const scope = page.locator("main.app-pass-page");
+    await expectInventoryPending(page, scope, scope.locator('button[type="submit"]'), "save");
+    await page.goto("/pass");
+    await scope.locator(`#promotion-detail-trigger-${fixture.promotions.Activa}`).click();
+    const dialog = page.locator('dialog[data-modal="promotion-detail"]');
+    await expect(dialog).toBeVisible();
+    await expectInventoryPending(
+        page,
+        scope,
+        dialog.getByRole("button", { name: "Cancelar promoción", exact: true }),
+        "requestPromotionCancellation",
+    );
+    await expect(dialog.locator("[data-promotion-detail-phase]")).toHaveAttribute(
+        "data-promotion-detail-phase",
+        "active",
+    );
+});
+
 test("isolated owner inspects frozen Promotions, history and safe cancellation", async ({
     page,
 }) => {

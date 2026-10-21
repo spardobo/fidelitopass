@@ -1,5 +1,5 @@
 <x-layouts::auth :title="__('Register')">
-    <div class="flex flex-col gap-6">
+    <div x-data="{ pending: false }" x-on:pageshow.window="pending = false" class="flex flex-col gap-6">
         <div class="flex w-full flex-col text-center">
             <flux:heading size="xl" level="1" class="app-heading">
                 {{ __('Create an account') }}
@@ -12,7 +12,7 @@
         <!-- session status -->
         <x-auth-session-status class="app-status-success text-center" :status="session('status')" />
 
-        <form method="POST" action="{{ route('register.store') }}" class="flex flex-col gap-6">
+        <form method="POST" action="{{ route('register.store') }}" x-on:submit="if (pending) { $event.preventDefault() } else { pending = true }" class="flex flex-col gap-6">
             @csrf
             <!-- name -->
             <flux:input
@@ -151,7 +151,7 @@
             </flux:input>
 
             <div class="flex items-center justify-end">
-                <flux:button type="submit" variant="primary" class="app-button-primary w-full" data-test="register-user-button">
+                <flux:button type="submit" variant="primary" x-bind:disabled="pending" x-bind:aria-busy="pending" class="app-button-primary w-full" data-test="register-user-button">
                     {{ __('Create account') }}
                 </flux:button>
             </div>

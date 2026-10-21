@@ -1,5 +1,5 @@
-<flux:dropdown position="bottom" align="end">
-    <flux:button variant="ghost" aria-label="{{ __('desktop-user-menu.open_account_menu') }}" data-test="sidebar-menu-button" class="app-button size-11! p-0! rounded-full! cursor-pointer">
+<flux:dropdown position="bottom" align="end" x-data="{ pending: false }" x-on:pageshow.window="pending = false">
+    <flux:button variant="ghost" x-bind:disabled="pending" aria-label="{{ __('desktop-user-menu.open_account_menu') }}" data-test="sidebar-menu-button" class="app-button size-11! p-0! rounded-full! cursor-pointer">
         <flux:avatar :name="auth()->user()->name" circle aria-hidden="true" class="size-11 bg-app-emphasis! text-app-accent-text!" />
     </flux:button>
 
@@ -32,9 +32,15 @@
         @endforeach
 
         <flux:menu.separator />
-        <form method="POST" action="{{ route('logout') }}" class="w-full">
+        <form
+            method="POST"
+            action="{{ route('logout') }}"
+            x-on:submit="if (pending) { $event.preventDefault() } else { pending = true }"
+            class="w-full"
+        >
             @csrf
-            <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" icon:variant="outline" data-test="logout-button" class="app-button w-full cursor-pointer text-app-ink!">
+            <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" icon:variant="outline" x-bind:disabled="pending" x-bind:aria-busy="pending" keep-open data-test="logout-button" class="app-button w-full cursor-pointer text-app-ink!">
+                <flux:icon.loading x-show="pending" x-cloak variant="micro" aria-hidden="true" data-pending-spinner />
                 {{ __('desktop-user-menu.log_out') }}
             </flux:menu.item>
         </form>

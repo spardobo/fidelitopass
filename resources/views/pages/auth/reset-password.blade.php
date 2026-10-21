@@ -1,5 +1,5 @@
 <x-layouts::auth :title="__('Reset password')">
-    <div class="flex flex-col gap-6">
+    <div x-data="{ pending: false }" x-on:pageshow.window="pending = false" class="flex flex-col gap-6">
         <div class="flex w-full flex-col text-center">
             <flux:heading size="xl" level="1" class="app-heading">
                 {{ __('Reset password') }}
@@ -12,7 +12,7 @@
         <!-- session status -->
         <x-auth-session-status class="app-status-success text-center" :status="session('status')" />
 
-        <form method="POST" action="{{ route('password.update') }}" class="flex flex-col gap-6">
+        <form method="POST" action="{{ route('password.update') }}" x-on:submit="if (pending) { $event.preventDefault() } else { pending = true }" class="flex flex-col gap-6">
             @csrf
             <!-- token -->
             <input type="hidden" name="token" value="{{ request()->route('token') }}">
@@ -67,7 +67,7 @@
             </flux:input>
 
             <div class="flex items-center justify-end">
-                <flux:button type="submit" variant="primary" class="app-button-primary w-full" data-test="reset-password-button">
+                <flux:button type="submit" variant="primary" x-bind:disabled="pending" x-bind:aria-busy="pending" class="app-button-primary w-full" data-test="reset-password-button">
                     {{ __('Reset password') }}
                 </flux:button>
             </div>

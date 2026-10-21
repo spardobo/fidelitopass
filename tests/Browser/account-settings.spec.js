@@ -95,6 +95,50 @@ async function registerAccount(page, request) {
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
 }
 
+test("Business save blocks only its return button while pending and recovers after validation", async ({
+    page,
+    request,
+}) => {
+    await registerAccount(page, request);
+    await page.goto("/business/profile");
+    const name = page.getByLabel("Nombre del negocio", { exact: true });
+    const save = page.getByRole("button", { name: "Guardar negocio", exact: true });
+    const back = page.getByRole("link", {
+        name: "Volver al resumen",
+        exact: true,
+        includeHidden: true,
+    });
+    await name.fill("");
+    let release;
+    const held = new Promise((resolve) => {
+        release = resolve;
+    });
+    await page.route("**/livewire*/update", async (route) => {
+        await held;
+        await route.continue();
+    });
+    const requested = page.waitForRequest(
+        (request) => request.method() === "POST" && /\/livewire[^/]*\/update/.test(request.url()),
+    );
+
+    try {
+        await save.click();
+        await requested;
+        await expect(save).toBeDisabled();
+        await expect(save.locator("[data-flux-loading-indicator]")).toHaveCSS("opacity", "1");
+        await expect.poll(() => back.evaluate((element) => element.inert)).toBe(true);
+        await expect(name).toBeEnabled();
+    } finally {
+        release();
+    }
+
+    await expect(
+        page.locator('[data-flux-toast-dialog][data-variant="danger"]').last(),
+    ).toContainText("Revisa los campos indicados");
+    await expect(save).toBeEnabled();
+    await expect.poll(() => back.evaluate((element) => element.inert)).toBe(false);
+});
+
 for (const width of [375, 1280]) {
     test(`active account destinations retain canonical roles and safe interactions at ${width}px`, async ({
         page,
@@ -216,7 +260,7 @@ for (const width of [375, 1280]) {
                         Boolean(element.nextElementSibling?.matches('button[type="submit"]')),
                     ),
                 ).toBe(true);
-                await expect(save.locator("..")).toHaveCSS("justify-content", "flex-end");
+                await expect(save.locator("..")).toHaveCSS("justify-content", "space-between");
                 const primaryBounds = await save.boundingBox();
                 const secondaryBounds = await back.boundingBox();
                 expect(primaryBounds.x + primaryBounds.width).toBeGreaterThanOrEqual(
@@ -339,10 +383,7 @@ for (const width of [375, 1280]) {
                     fullPage: true,
                 });
                 const cancel = dialog.getByRole("button", { name: "Cancelar", exact: true });
-                await expect(cancel).toHaveCSS("background-color", "rgb(46, 46, 46)");
-                await expect(cancel).toHaveCSS("border-color", "rgb(122, 122, 122)");
-                await expect(cancel).toHaveCSS("border-width", "1px");
-                await expect(cancel).toHaveCSS("border-style", "solid");
+                await expect(cancel).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
                 await expect
                     .poll(() =>
                         dialog.evaluate(

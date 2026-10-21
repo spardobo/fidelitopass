@@ -1,9 +1,11 @@
 @props(['detail', 'closeLabel', 'focusFallback', 'focusOriginPrefix' => 'promotion-detail-trigger-'])
 
+<fieldset wire:loading.attr="disabled" data-pending-buttons="promotion-detail" class="contents">
 <flux:modal
     {{ $attributes }}
     name="promotion-detail"
     scroll="body"
+    x-on:cancel="if ($el.closest('fieldset')?.disabled) $event.preventDefault()"
     x-on:close="
         const originId = $el.querySelector('[data-focus-origin]').dataset.focusOrigin;
         $wire.dismissPromotionDetail().then(() => {
@@ -50,9 +52,9 @@
                 {{ $feedback ?? '' }}
             </div>
 
-            <footer class="flex shrink-0 flex-col-reverse justify-end gap-3 pt-3 sm:flex-row">
+            <footer class="flex shrink-0 flex-col gap-3 pt-3 sm:flex-row sm:justify-between">
                 <flux:modal.close class="w-full sm:w-auto">
-                    <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">
+                    <flux:button type="button" variant="ghost" class="app-button min-h-11 w-full sm:w-auto">
                         {{ $closeLabel }}
                     </flux:button>
                 </flux:modal.close>
@@ -61,3 +63,4 @@
         </div>
     @endif
 </flux:modal>
+</fieldset>

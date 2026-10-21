@@ -1,4 +1,9 @@
+@php
+    $pendingTargets = 'selectColor,save,cancel,showPromotionDetail,dismissPromotionDetail,requestPromotionCancellation,confirmPromotionCancellation';
+@endphp
+
 <main class="app-theme app-workspace app-pass-page @container/pass-workspace">
+
     @if ($draftSavedNoticePending)
         <span
             class="hidden"
@@ -20,16 +25,29 @@
             <div class="flex min-h-11 items-center">
                 @if ($this->isDirty)
                     <flux:modal.trigger name="discard-pass-appearance">
-                        <button type="button" class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline">
-                            <flux:icon.arrow-left variant="outline" class="size-4" />
-                            {{ __('business.pass.back_to_pass') }}
-                        </button>
+                        <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                            <button type="button" class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline">
+                                <flux:icon.arrow-left variant="outline" class="size-4" />
+                                {{ __('business.pass.back_to_pass') }}
+                            </button>
+                        </fieldset>
                     </flux:modal.trigger>
                 @else
-                    <a href="{{ route('business.pass') }}" wire:click.prevent="cancel" class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline">
-                        <flux:icon.arrow-left variant="outline" class="size-4" />
-                        {{ __('business.pass.back_to_pass') }}
-                    </a>
+                    <span wire:loading.attr="inert" wire:target="{{ $pendingTargets }}" class="contents">
+                    <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                        <flux:button
+                            href="{{ route('business.pass') }}"
+                            wire:click.prevent="cancel"
+                            wire:target="cancel"
+                            variant="ghost"
+                            icon:leading="arrow-left"
+                            icon:variant="outline"
+                            class="app-button min-h-11 gap-2 p-0! text-app-accent! hover:underline"
+                        >
+                            {{ __('business.pass.back_to_pass') }}
+                        </flux:button>
+                    </fieldset>
+                    </span>
                 @endif
             </div>
 
@@ -93,7 +111,7 @@
 
                     <fieldset class="app-pass-color-control-row flex min-w-0 flex-wrap items-end gap-2">
                         <legend class="sr-only">{{ __('business.pass.presets_label') }}</legend>
-                        <div class="app-pass-color-preset-list flex min-w-0 flex-wrap gap-1">
+                        <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="app-pass-color-preset-list flex min-w-0 flex-wrap gap-1">
                             @foreach ($this->colorPresets as $index => $color)
                                 <flux:button
                                     type="button"
@@ -113,7 +131,7 @@
                                     </span>
                                 </flux:button>
                             @endforeach
-                        </div>
+                        </fieldset>
 
                         <label for="pass-background-color" class="sr-only">
                             {{ __('business.pass.color_picker_label') }}
@@ -155,38 +173,42 @@
 
                     <flux:error name="appearance" class="app-error" />
 
-                    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="min-w-0 flex flex-col gap-3 sm:flex-row sm:justify-between">
                         @if ($this->isDirty)
                             <flux:modal.trigger name="discard-pass-appearance">
-                                <flux:button type="button" class="app-button-secondary min-h-11">
+                                <flux:button type="button" variant="ghost" class="app-button min-h-11">
                                     {{ __('business.pass.cancel') }}
                                 </flux:button>
                             </flux:modal.trigger>
                         @else
-                            <flux:button type="button" wire:click="cancel" class="app-button-secondary min-h-11">
+                            <flux:button type="button" wire:click="cancel" variant="ghost" class="app-button min-h-11">
                                 {{ __('business.pass.cancel') }}
                             </flux:button>
                         @endif
                         <flux:button type="submit" variant="primary" class="app-button-primary min-h-11">
                             {{ __('business.pass.save') }}
                         </flux:button>
-                    </div>
+                    </fieldset>
                 </form>
 
-                <flux:modal name="discard-pass-appearance" class="app-theme space-y-6">
-                    <div class="space-y-2">
-                        <flux:heading size="lg" class="app-role-section! text-app-ink!">{{ __('business.pass.discard_title') }}</flux:heading>
-                        <flux:text size="base" class="app-role-support!">{{ __('business.pass.discard_confirmation') }}</flux:text>
-                    </div>
-                    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                        <flux:modal.close class="w-full sm:w-auto">
-                            <flux:button type="button" class="app-button-secondary min-h-11 w-full sm:w-auto">{{ __('business.pass.continue_editing') }}</flux:button>
-                        </flux:modal.close>
-                        <flux:button type="button" wire:click="cancel" variant="primary" class="app-button-primary min-h-11 w-full sm:w-auto">
-                            {{ __('business.pass.discard_changes') }}
-                        </flux:button>
-                    </div>
-                </flux:modal>
+                <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                    <flux:modal name="discard-pass-appearance" x-on:cancel="if ($el.closest('fieldset')?.disabled) $event.preventDefault()" class="app-theme space-y-6">
+                        <div class="space-y-2">
+                            <flux:heading size="lg" class="app-role-section! text-app-ink!">{{ __('business.pass.discard_title') }}</flux:heading>
+                            <flux:text size="base" class="app-role-support!">{{ __('business.pass.discard_confirmation') }}</flux:text>
+                        </div>
+                        <div class="flex flex-col gap-3 sm:flex-row sm:justify-between">
+                            <flux:modal.close class="w-full sm:w-auto">
+                                <flux:button type="button" variant="ghost" class="app-button min-h-11 w-full sm:w-auto">
+                                    {{ __('business.pass.continue_editing') }}
+                                </flux:button>
+                            </flux:modal.close>
+                            <flux:button type="button" wire:click="cancel" variant="primary" class="app-button-primary min-h-11 w-full sm:w-auto">
+                                {{ __('business.pass.discard_changes') }}
+                            </flux:button>
+                        </div>
+                    </flux:modal>
+                </fieldset>
             </div>
         </section>
 
@@ -240,13 +262,17 @@
                         <flux:text size="lg" class="app-role-body!">{{ __('business.pass.saved_description', ['business' => $this->business->name]) }}</flux:text>
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
-                        <flux:button href="{{ route('business.pass.appearance') }}" variant="filled" class="app-button-secondary min-h-11">
-                            {{ __('business.pass.edit_appearance') }}
-                        </flux:button>
-                        <flux:button href="{{ route('business.invite') }}" variant="ghost" class="app-role-action! min-h-11">
-                            {{ __('business.pass.invite_customers') }}
-                            <flux:icon.arrow-right variant="outline" class="ms-2 size-4" />
-                        </flux:button>
+                        <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                            <flux:button href="{{ route('business.pass.appearance') }}" wire:navigate wire:loading.attr="inert" wire:target="{{ $pendingTargets }}" variant="filled" class="app-button-secondary min-h-11">
+                                {{ __('business.pass.edit_appearance') }}
+                            </flux:button>
+                        </fieldset>
+                        <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                            <flux:button href="{{ route('business.invite') }}" wire:navigate wire:loading.attr="inert" wire:target="{{ $pendingTargets }}" variant="ghost" class="app-role-action! min-h-11">
+                                {{ __('business.pass.invite_customers') }}
+                                <flux:icon.arrow-right variant="outline" class="ms-2 size-4" />
+                            </flux:button>
+                        </fieldset>
                     </div>
                     <div class="app-note-with-icon text-app-ink-help">
                         <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
@@ -264,9 +290,11 @@
                         </flux:heading>
                         <flux:text size="lg" class="app-role-body!">{{ __('business.pass.unsaved_description') }}</flux:text>
                     </div>
-                    <flux:button href="{{ route('business.pass.appearance') }}" variant="primary" class="app-button-primary min-h-11">
-                        {{ __('business.pass.prepare') }}
-                    </flux:button>
+                    <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                        <flux:button href="{{ route('business.pass.appearance') }}" wire:navigate wire:loading.attr="inert" wire:target="{{ $pendingTargets }}" variant="primary" class="app-button-primary min-h-11">
+                            {{ __('business.pass.prepare') }}
+                        </flux:button>
+                    </fieldset>
                 @endif
             </div>
         </section>
@@ -293,10 +321,12 @@
                 </div>
 
                 @if ($hasPromotions && $this->business->pass_background_color)
-                    <flux:button href="{{ route('business.promotions.create') }}" variant="primary" class="app-button-primary min-h-11 w-full shrink-0 sm:w-auto">
-                        <flux:icon.plus variant="outline" class="me-2 size-4" />
-                        {{ __('business.pass.new_promotion') }}
-                    </flux:button>
+                    <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                        <flux:button href="{{ route('business.promotions.create') }}" wire:navigate wire:loading.attr="inert" wire:target="{{ $pendingTargets }}" variant="primary" class="app-button-primary min-h-11 w-full shrink-0 sm:w-auto">
+                            <flux:icon.plus variant="outline" class="me-2 size-4" />
+                            {{ __('business.pass.new_promotion') }}
+                        </flux:button>
+                    </fieldset>
                 @endif
             </div>
 
@@ -310,10 +340,12 @@
                             <flux:heading level="3" size="base" class="app-role-card! text-app-ink!">{{ __('business.pass.promotions_prerequisite_heading') }}</flux:heading>
                             <flux:text size="lg" class="app-role-body!">{{ __('business.pass.create_promotion_description') }}</flux:text>
                         </div>
-                        <flux:button href="{{ route('business.promotions.create') }}" variant="primary" class="app-button-primary min-h-11 w-full self-start sm:w-auto">
-                            <flux:icon.plus variant="outline" class="me-2 size-4" />
-                            {{ __('business.pass.create_first_promotion') }}
-                        </flux:button>
+                        <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                            <flux:button href="{{ route('business.promotions.create') }}" wire:navigate wire:loading.attr="inert" wire:target="{{ $pendingTargets }}" variant="primary" class="app-button-primary min-h-11 w-full self-start sm:w-auto">
+                                <flux:icon.plus variant="outline" class="me-2 size-4" />
+                                {{ __('business.pass.create_first_promotion') }}
+                            </flux:button>
+                        </fieldset>
                     </div>
                 </article>
             @elseif (! $hasPromotions)
@@ -345,40 +377,63 @@
                     <article
                         data-promotion-phase="active"
                         data-promotion-public-id="{{ $activePromotion['promotion']->public_id }}"
-                        class="min-w-0 space-y-3 rounded-2xl border border-app-accent/60 bg-app-surface p-4 sm:p-6"
+                        class="min-w-0 space-y-4 rounded-[20px] border border-app-priority-border bg-app-emphasis p-4 sm:p-6"
                     >
-                        <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div class="min-w-0 space-y-1">
-                                <flux:heading level="4" size="base" class="app-role-card! text-app-ink!">
-                                    {{ $activePromotion['promotion']->reward_title }}
-                                </flux:heading>
-                                @if ($activePromotion['promotion']->reward_description !== '')
-                                    <flux:text class="app-role-support! text-app-ink-secondary!">
-                                        {{ $activePromotion['promotion']->reward_description }}
-                                    </flux:text>
-                                @endif
-                            </div>
+                        <div class="flex flex-wrap items-center gap-3">
                             <flux:badge color="green" class="app-role-support! font-medium!">
                                 {{ __('business.pass.promotion_active_status') }}
                             </flux:badge>
                         </div>
-                        <flux:text class="app-role-support! text-app-ink-secondary!">
-                            {{ __('business.promotion.review_validity') }}:
-                            <time datetime="{{ $activePromotion['period']['start'] }}">{{ $activePromotion['period']['start_label'] }}</time> – <time datetime="{{ $activePromotion['period']['end'] }}">{{ $activePromotion['period']['end_label'] }}</time>
-                            ·
-                            {{ __('business.pass.promotion_published_target', ['points' => $activePromotion['promotion']->target_points]) }}
-                        </flux:text>
-                        <flux:button
-                            id="promotion-detail-trigger-{{ $activePromotion['promotion']->public_id }}"
-                            type="button"
-                            wire:click="showPromotionDetail('{{ $activePromotion['promotion']->public_id }}')"
-                            wire:loading.attr="disabled"
-                            wire:target="showPromotionDetail"
-                            variant="filled"
-                            class="app-button-secondary min-h-11 w-full sm:w-auto"
-                        >
-                            {{ __('business.pass.view_promotion_detail') }}
-                        </flux:button>
+                        <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
+                            <span aria-hidden="true" class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-priority-border bg-app-scheduled-surface text-app-ink-priority">
+                                <flux:icon.gift variant="outline" class="size-6" />
+                            </span>
+                            <div class="flex min-w-0 flex-col gap-1">
+                                <flux:heading level="4" size="base" class="app-role-card! text-app-ink!">
+                                    {{ $activePromotion['promotion']->reward_title }}
+                                </flux:heading>
+                                @if ($activePromotion['promotion']->reward_description !== '')
+                                    <flux:text class="app-role-support! break-words text-app-ink-secondary!">
+                                        {{ $activePromotion['promotion']->reward_description }}
+                                    </flux:text>
+                                @endif
+                            </div>
+                            <dl class="col-start-2 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-x-8">
+                                <div class="min-w-0 space-y-1">
+                                    <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
+                                        <flux:icon.trophy variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
+                                        {{ __('business.promotion.review_goal') }}
+                                    </dt>
+                                    <dd class="app-role-body! break-words font-semibold! text-app-ink">
+                                        {{ __('business.promotion.points', ['points' => $activePromotion['promotion']->target_points]) }}
+                                    </dd>
+                                </div>
+                                <div class="min-w-0 space-y-1">
+                                    <dt class="app-role-support! flex items-center gap-2 font-medium! text-app-ink-secondary">
+                                        <flux:icon.calendar-days variant="outline" aria-hidden="true" class="size-5 shrink-0 text-app-accent" />
+                                        {{ __('business.promotion.review_validity') }}
+                                    </dt>
+                                    <dd class="app-role-body! break-words font-semibold! text-app-ink">
+                                        <time datetime="{{ $activePromotion['period']['start'] }}">{{ $activePromotion['period']['start_label'] }}</time> – <time datetime="{{ $activePromotion['period']['end'] }}">{{ $activePromotion['period']['end_label'] }}</time>
+                                    </dd>
+                                </div>
+                            </dl>
+                            <div class="col-start-2">
+                                <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                                    <flux:button
+                                        id="promotion-detail-trigger-{{ $activePromotion['promotion']->public_id }}"
+                                        type="button"
+                                        wire:click="showPromotionDetail('{{ $activePromotion['promotion']->public_id }}')"
+                                        wire:loading.attr="disabled"
+                                        wire:target="showPromotionDetail('{{ $activePromotion['promotion']->public_id }}')"
+                                        variant="outline"
+                                        class="app-button-secondary-on-emphasis w-full sm:w-auto"
+                                    >
+                                        {{ __('business.pass.view_promotion_detail') }}
+                                    </flux:button>
+                                </fieldset>
+                            </div>
+                        </div>
                     </article>
                 </div>
             @endif
@@ -420,17 +475,19 @@
                                         {{ __('business.pass.promotion_published_target', ['points' => $scheduledPromotion['promotion']->target_points]) }}
                                     </flux:text>
                                 </div>
-                                <flux:button
-                                    id="promotion-detail-trigger-{{ $scheduledPromotion['promotion']->public_id }}"
-                                    type="button"
-                                    wire:click="showPromotionDetail('{{ $scheduledPromotion['promotion']->public_id }}')"
-                                    wire:loading.attr="disabled"
-                                    wire:target="showPromotionDetail"
-                                    variant="filled"
-                                    class="app-button-secondary min-h-11 w-full sm:w-auto"
-                                >
-                                    {{ __('business.pass.view_promotion_detail') }}
-                                </flux:button>
+                                <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                                    <flux:button
+                                        id="promotion-detail-trigger-{{ $scheduledPromotion['promotion']->public_id }}"
+                                        type="button"
+                                        wire:click="showPromotionDetail('{{ $scheduledPromotion['promotion']->public_id }}')"
+                                        wire:loading.attr="disabled"
+                                        wire:target="showPromotionDetail('{{ $scheduledPromotion['promotion']->public_id }}')"
+                                        variant="filled"
+                                        class="app-button-secondary min-h-11 w-full sm:w-auto"
+                                    >
+                                        {{ __('business.pass.view_promotion_detail') }}
+                                    </flux:button>
+                                </fieldset>
                             </li>
                         @endforeach
                     </ul>
@@ -474,13 +531,17 @@
                                             {{ __('business.pass.promotion_draft_target', ['points' => $promotion->target_points]) }}
                                         </flux:text>
                                     </div>
-                                    <flux:button
-                                        href="{{ route('business.promotions.edit', ['promotion' => $promotion->public_id]) }}"
-                                        variant="filled"
-                                        class="app-button-secondary min-h-11 w-full shrink-0 sm:w-auto"
-                                    >
-                                        {{ __('business.pass.edit_promotion_draft') }}
-                                    </flux:button>
+                                    <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
+                                        <flux:button
+                                            href="{{ route('business.promotions.edit', ['promotion' => $promotion->public_id]) }}"
+                                            wire:loading.attr="inert"
+                                            wire:target="{{ $pendingTargets }}"
+                                            variant="filled"
+                                            class="app-button-secondary min-h-11 w-full shrink-0 sm:w-auto"
+                                        >
+                                            {{ __('business.pass.edit_promotion_draft') }}
+                                        </flux:button>
+                                    </fieldset>
                                 </li>
                             @endforeach
                         </ul>

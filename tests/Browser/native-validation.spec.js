@@ -82,6 +82,45 @@ async function expectBrowserLocale(page) {
     expect(await page.evaluate(() => navigator.language)).toBe("en-US");
 }
 
+test("native login pending feedback starts only after validation and recovers on pageshow", async ({
+    page,
+}) => {
+    await page.goto("/login");
+    const submit = page.getByRole("button", { name: "Iniciar sesión", exact: true });
+    const email = page.locator('input[name="email"]');
+    const password = page.locator('input[name="password"]');
+
+    await submit.click();
+    await expect(submit).toBeEnabled();
+    await expect(submit.locator("[data-pending-spinner]")).toBeHidden();
+    await email.fill(VALID_EMAIL);
+    await password.fill(PASSWORD);
+    await page.locator('form[action$="/login"]').evaluate((form) => {
+        // retain native validation and the real submit event without sending credentials
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            form.dataset.submittedEmail = new FormData(form).get("email");
+        });
+    });
+
+    await submit.click();
+    await expect(submit).toBeDisabled();
+    await expect(submit.locator("[data-pending-spinner]")).toBeVisible();
+    await expect(email).toBeEnabled();
+    await expect(password).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Mostrar u ocultar contraseña" })).toBeEnabled();
+    await expect(page.locator('form[action$="/login"]')).toHaveAttribute(
+        "data-submitted-email",
+        VALID_EMAIL,
+    );
+
+    await page.evaluate(() =>
+        window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })),
+    );
+    await expect(submit).toBeEnabled();
+    await expect(submit.locator("[data-pending-spinner]")).toBeHidden();
+});
+
 test("Laravel active-locale payload is independent of browser language", async ({ page }) => {
     await page.goto("/login");
 

@@ -19,6 +19,33 @@ use Tests\Support\GoogleWalletHttpFake;
 
 uses(RefreshDatabase::class);
 
+it('groups pass buttons without adding pending locks to inputs', function (bool $editing) {
+    $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
+    $response = $this->actingAs($business->user)->get(route($editing ? 'business.pass.appearance' : 'business.pass'))->assertOk();
+    $html = $response->getContent();
+    $document = new DOMDocument;
+    $document->loadHTML($html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+    $xpath = new DOMXPath($document);
+    $scope = '//main[contains(@class, "app-pass-page")]';
+    $buttons = $xpath->query($scope.'//button');
+
+    expect($buttons->length)->toBeGreaterThan(0);
+    foreach ($buttons as $button) {
+        if ($xpath->query('ancestor::*[@data-flux-pagination]', $button)->length > 0) {
+            continue;
+        }
+        expect($xpath->query('ancestor::fieldset[@data-pending-buttons]', $button)->length)->toBeGreaterThan(0);
+    }
+    if (! $editing) {
+        foreach (['business.pass.appearance', 'business.invite'] as $route) {
+            expect($xpath->query($scope.'//a[@href="'.route($route).'"]/@*[name()="wire:navigate"]')->length)->toBe(1);
+        }
+    }
+    expect($xpath->query($scope.'//input[ancestor::fieldset[@data-pending-buttons]] | '.$scope.'//select[ancestor::fieldset[@data-pending-buttons]] | '.$scope.'//textarea[ancestor::fieldset[@data-pending-buttons]]')->length)->toBe(0)
+        ->and($xpath->query($scope.'//fieldset[@data-pending-buttons]/@disabled')->length)->toBe(0)
+        ->and($xpath->query($scope.'//button[@type="submit"]/@*[name()="wire:loading.attr"]')->length)->toBe(0);
+})->with(['overview' => false, 'appearance' => true]);
+
 it('distinguishes the personal page title from the business card name', function () {
     $business = Business::factory()->create(['name' => 'Jaqaku']);
 
