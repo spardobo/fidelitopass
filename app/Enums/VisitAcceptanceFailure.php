@@ -14,6 +14,7 @@ enum VisitAcceptanceFailure: string
     case PromotionUnavailable = 'promotion_unavailable';
     case PromotionChanged = 'promotion_changed';
     case PromotionCompleted = 'promotion_completed';
+    case RewardNotEarned = 'reward_not_earned';
     case SaveRejected = 'save_rejected';
     case DatabaseFailed = 'database_failed';
     case UnexpectedFailure = 'unexpected_failure';

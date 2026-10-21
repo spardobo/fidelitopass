@@ -8,6 +8,7 @@ use App\Models\CustomerPass;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Support\DatabaseClock;
+use App\Support\RewardRedemptionReceipt;
 use App\Support\VisitReceipt;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
@@ -316,6 +317,62 @@ it('sanitizes native receipt query failures once without changing known committe
     expect(RateLimiter::attempts('pass-lookup:'.$actor->id))->toBe(0);
     expect($this->http->history)->toBeEmpty();
 });
+
+it('reads only the original Reward entitlement with current credential authority after replacement', function (bool $redeemed) {
+    [$business, $pass, $promotion] = receiptFixture(2);
+    $rewardId = DB::table('reward_entitlements')->insertGetId([
+        'business_id' => $business->id, 'customer_pass_id' => $pass->id, 'promotion_id' => $promotion->id,
+        'unlocked_at' => '2030-01-02 12:00:00+00',
+        'redeemed_at' => $redeemed ? '2030-01-02 13:00:00.123456+00' : null,
+        'redeemed_by_user_id' => $redeemed ? $business->user_id : null,
+    ]);
+    $promotion->forceFill(['status' => 'cancelled', 'cancelled_at' => '2030-01-03 00:00:00+00'])->save();
+    $replacement = $business->promotions()->make();
+    $replacement->forceFill([
+        'status' => 'published', 'target_points' => 50, 'reward_title' => 'Replacement', 'timezone_snapshot' => 'UTC',
+        'starts_at' => '2030-01-03 00:00:00+00', 'ends_at' => '2099-01-01 00:00:00+00',
+    ])->save();
+    $before = receiptStoredFacts();
+    $reader = app(RewardRedemptionReceipt::class);
+
+    $receipt = $reader->find($business->user, 'manual', ' 00007 ', $promotion->id, $rewardId);
+    $wrongTarget = $reader->find($business->user, 'token', str_repeat('a', 64), $replacement->id, $rewardId);
+
+    expect($receipt)->toBe([
+        'reward_entitlement_id' => $rewardId, 'customer_pass_id' => $pass->id, 'promotion_id' => $promotion->id,
+        'redeemed_at' => $redeemed ? '2030-01-02T13:00:00.123456Z' : null,
+        'redeemed_by_user_id' => $redeemed ? $business->user_id : null,
+        'can_redeem_reward' => false,
+        'promotion' => ['reward_title' => 'Pan artesanal', 'reward_description' => 'Una pieza a elección', 'earned_points' => 4, 'target_points' => 4, 'deadline' => '30/01/2030'],
+    ]);
+    expect($wrongTarget)->toBeNull();
+    expect(receiptStoredFacts())->toBe($before);
+    expect($this->http->history)->toBeEmpty();
+    Log::shouldNotHaveReceived('log');
+    Log::shouldNotHaveReceived('info');
+})->with([false, true]);
+
+it('does not return a Reward receipt through a foreign owner or retired token', function (bool $foreign) {
+    [$business, $pass, $promotion] = receiptFixture(2);
+    $rewardId = DB::table('reward_entitlements')->insertGetId([
+        'business_id' => $business->id, 'customer_pass_id' => $pass->id, 'promotion_id' => $promotion->id,
+        'unlocked_at' => '2030-01-02 12:00:00+00',
+        'redeemed_at' => '2030-01-02 13:00:00+00', 'redeemed_by_user_id' => $business->user_id,
+    ]);
+    $actor = $foreign ? Business::factory()->create()->user : $business->user;
+    if (! $foreign) {
+        $pass->update(['validation_token_hash' => hash('sha256', str_repeat('b', 64))]);
+    }
+    $before = receiptStoredFacts();
+
+    expect(fn () => app(RewardRedemptionReceipt::class)->find($actor, 'token', str_repeat('a', 64), $promotion->id, $rewardId))
+        ->toThrow(CustomerPassFindingException::class, 'invalid_credential');
+
+    expect(receiptStoredFacts())->toBe($before);
+    expect($this->http->history)->toBeEmpty();
+    Log::shouldHaveReceived('log')->once();
+    Log::shouldNotHaveReceived('info');
+})->with([false, true]);
 
 /**
  * Stores an original committed prefix without invoking acceptance or Google.

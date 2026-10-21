@@ -24,4 +24,7 @@ return [
     'step_3_heading' => 'Confirma cada visita',
     'step_3_description' => 'Durante una promoción activa, identifica la tarjeta del cliente y confirma cada visita antes de sumar puntos.',
     'public_private_note' => 'El QR público será solo para guardar la tarjeta, no autoriza visitas ni canjes.',
+    'print_example_heading' => 'Una idea para tu mostrador',
+    'print_example_description' => 'Puedes presentar el QR en un soporte de sobremesa como este. Para imprimir, usa siempre el QR de tu negocio.',
+    'print_example_alt' => 'Ejemplo de un cartel de sobremesa con el QR del negocio',
 ];

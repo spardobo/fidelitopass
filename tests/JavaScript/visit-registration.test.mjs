@@ -19,6 +19,7 @@ afterEach(() => {
     active?.destroy();
     mock.restoreAll();
     delete globalThis.window;
+    delete globalThis.Alpine;
 });
 
 /** Creates a controlled asynchronous boundary.
@@ -127,7 +128,14 @@ function setup(responses = {}) {
     };
     globalThis.window = native;
     const interceptors = new Set();
-    const state = { stage: "identify", preview: null, facts: null, details: null, errorCode: "" };
+    const state = {
+        stage: "identify",
+        preview: null,
+        facts: null,
+        details: null,
+        combinedConfirmed: false,
+        errorCode: "",
+    };
     const wire = {
         ...state,
         logCameraFatalError: async () => {},
@@ -141,6 +149,15 @@ function setup(responses = {}) {
         findPass: async () => identified(),
         acceptVisit: async () => confirmed(),
         findVisitReceipt: async () => receipt(),
+        redeemReward: async () => ({
+            outcome: "confirmed",
+            redemption: {
+                reward_entitlement_id: 9,
+                promotion_id: 7,
+                redeemed_at: "2030-01-02T12:00:00Z",
+            },
+        }),
+        findRewardReceipt: async () => null,
         resetIdentification: async () => null,
         ...responses,
     };
@@ -150,6 +167,7 @@ function setup(responses = {}) {
             let cancelled = false;
             const finish = [],
                 errors = [],
+                failures = [],
                 cancels = [];
             const action = {
                 name,
@@ -166,6 +184,7 @@ function setup(responses = {}) {
                     action,
                     onCancel: (callback) => cancels.push(callback),
                     onError: (callback) => errors.push(callback),
+                    onFailure: (callback) => failures.push(callback),
                     onFinish: (callback) => finish.push(callback),
                 });
             }
@@ -184,9 +203,22 @@ function setup(responses = {}) {
                             if (result.outcome === "confirmed") {
                                 wire.preview = null;
                                 wire.facts = result.facts;
+                                wire.combinedConfirmed = result.combinedConfirmed ?? false;
                                 wire.stage = "result";
                             }
                             pending.resolve(result.outcome);
+                        } else if (name === "redeemReward") {
+                            if (result.outcome === "confirmed") {
+                                wire.redemption = result.redemption;
+                                wire.stage = "result";
+                            }
+                            pending.resolve(result.outcome);
+                        } else if (name === "findRewardReceipt") {
+                            if (args[4] !== false && result?.redemption) {
+                                wire.redemption = result.redemption;
+                                wire.stage = "result";
+                            }
+                            pending.resolve(Boolean(result?.redemption));
                         } else if (name === "findVisitReceipt") {
                             if (args[3] !== false) {
                                 if (result?.facts) {
@@ -207,7 +239,15 @@ function setup(responses = {}) {
                     (error) => {
                         if (cancelled) return;
                         const preventDefault = () => {};
-                        errors.forEach((callback) => callback({ preventDefault }));
+                        if (error.status === null)
+                            failures.forEach((callback) => callback({ error }));
+                        else
+                            errors.forEach((callback) =>
+                                callback({
+                                    preventDefault,
+                                    response: { status: error.status ?? 500 },
+                                }),
+                            );
                         pending.reject(error);
                         finish.forEach((callback) => callback());
                     },
@@ -223,6 +263,10 @@ function setup(responses = {}) {
                 message: "Registered; details unavailable",
                 notice: "Registered; review the message",
             },
+            reward_details_unavailable: {
+                message: "Redeemed; details unavailable",
+                notice: "Redeemed; review the message",
+            },
             invalid_credential: { message: "Check the code", notice: "Action needs attention" },
             network_error: { message: "Check connection", notice: "Action needs attention" },
             denied: { message: "Camera denied", notice: "Action needs attention" },
@@ -236,6 +280,7 @@ function setup(responses = {}) {
             read: "read_unavailable",
             unknown: "unknown",
             details: "details_unavailable",
+            rewardDetails: "reward_details_unavailable",
         },
     });
     const cameraRoot = new EventTarget();
@@ -255,6 +300,15 @@ function setup(responses = {}) {
                     return wire.stage === "identify" ? cameraRoot : null;
                 if (selector === "#visit-manual-code")
                     return wire.stage === "identify" ? refs.manual : null;
+                if (selector === "[data-reward-redeem]")
+                    return wire.stage === "confirm" &&
+                        (wire.reward?.can_redeem_reward ||
+                            (wire.preview?.can_accept_visit &&
+                                wire.preview.promotion.target_points <=
+                                    wire.preview.promotion.earned_points +
+                                        wire.preview.promotion.visit_points))
+                        ? { focus: () => focus.push("reward-button") }
+                        : null;
                 if (selector === "[data-visit-confirm]")
                     return wire.stage === "confirm"
                         ? { focus: () => focus.push("confirm-button") }
@@ -288,6 +342,7 @@ function setup(responses = {}) {
     camera.$dispatch = context.$dispatch;
     cameraRoot.addEventListener("qr-camera-start", () => void camera.startCamera());
     cameraRoot.addEventListener("qr-camera-stop", () => camera.stopCamera());
+    globalThis.Alpine = { $data: () => camera, bind: () => () => {} };
     context.init();
     active = {
         destroy: () => {
@@ -330,6 +385,242 @@ async function identify(context) {
     context.handleModalShow();
     await context.findPassManually();
 }
+
+for (const status of [503, null]) {
+    test(`direct Reward failure retains confirmation and pairs safe feedback (${status})`, async () => {
+        const { context, wire, toasts } = setup({
+            redeemReward: async () => {
+                throw { status };
+            },
+        });
+        await identify(context);
+        wire.preview.can_accept_visit = false;
+        wire.reward = { reward_entitlement_id: 9, promotion_id: 7, can_redeem_reward: true };
+
+        await context.redeemReward();
+
+        assert.equal(context.busy, false);
+        assert.equal(context.visitPhase, "unknown");
+        assert.equal(context.clientErrorCode, status === null ? "network_error" : "unknown");
+        assert.equal(toasts.length, 1);
+        assert.equal(wire.stage, "confirm");
+        assert.equal(wire.facts, null);
+    });
+}
+
+test("keyboard traverses confirmation, Result back and manual entry even with a coarse pointer", async () => {
+    const { context, document, native, focus } = setup();
+    native.matchMedia = () => ({ matches: false });
+    document.dispatchEvent(new Event("pointerdown"));
+    context.handleModalShow();
+    await settle();
+    assert.equal(focus.at(-1), "close-button");
+    document.dispatchEvent(new Event("keydown"));
+    await context.findPassManually();
+    assert.equal(focus.at(-1), "confirm-button");
+    await context.acceptVisit(7);
+    assert.equal(focus.at(-1), "back-button");
+    await context.reset();
+    assert.equal(focus.at(-1), "manual");
+});
+
+test("one direct compound command submits the original private Visit once", async () => {
+    const calls = [];
+    const { context, wire, renders } = setup({
+        acceptVisit: async (...args) => {
+            calls.push(args);
+            return { ...confirmed(), combinedConfirmed: true };
+        },
+    });
+    await identify(context);
+    wire.preview.promotion.target_points = 5;
+    assert.deepEqual(renders, ["findPass"]);
+    assert.deepEqual(calls, []);
+    await context.acceptVisit(7, true);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].slice(0, 2), ["manual", "00007"]);
+    assert.deepEqual(calls[0].slice(3), [7, true]);
+    assert.equal(wire.stage, "result");
+    await context.acceptVisit(7, true);
+    assert.equal(calls.length, 1);
+});
+
+test("unknown compound confirmation keeps its intent and reconciles read-only before a fresh lookup", async () => {
+    const calls = [];
+    const { context, wire } = setup({
+        acceptVisit: async (...args) => {
+            calls.push(["mutate", ...args]);
+            throw { status: 503 };
+        },
+        findVisitReceipt: async (...args) => {
+            calls.push(["receipt", ...args]);
+            return null;
+        },
+    });
+    await identify(context);
+    wire.preview.promotion.target_points = 5;
+    await context.acceptVisit(7, true);
+    assert.equal(context.visitPhase, "unknown");
+    await context.acceptVisit(7, true);
+    assert.deepEqual(calls[1], ["receipt", ...calls[0].slice(1, 4), true, true]);
+    context.handleModalClose();
+    context.handleModalShow();
+    await settle();
+    await context.findPass("manual", "22222");
+    assert.deepEqual(calls[2], ["receipt", ...calls[0].slice(1, 4), false, true]);
+    assert.equal(calls.filter(([kind]) => kind === "mutate").length, 1);
+    assert.equal(wire.stage, "identify");
+});
+
+test("unknown compound outcome cannot settle from Visit facts without an established redemption postcondition", async () => {
+    const { context, wire } = setup({
+        acceptVisit: async () => ({ outcome: "unknown" }),
+        findVisitReceipt: async () => receipt(),
+    });
+    await identify(context);
+    wire.preview.promotion.target_points = 5;
+    await context.acceptVisit(7, true);
+    await context.acceptVisit(7, true);
+    assert.ok(wire.facts);
+    assert.equal(context.visitPhase, "unknown");
+    assert.equal(context.hasCommittedOperation, false);
+});
+
+test("camera permission startup guards dismissal and competing reads but remains cancellable", async () => {
+    const permission = deferred();
+    const { context, camera, dialog, renders, native, controls } = setup();
+    native.isSecureContext = true;
+    BrowserQRCodeReader.prototype.decodeFromConstraints.mock.mockImplementation(
+        () => permission.promise,
+    );
+    context.handleModalShow();
+    context.requestCameraStart();
+    await settle();
+    assert.equal(camera.starting, true);
+    const cancel = new Event("cancel", { cancelable: true });
+    dialog.dispatchEvent(cancel);
+    assert.equal(cancel.defaultPrevented, true);
+    await context.findPassManually();
+    await context.reset();
+    assert.deepEqual(renders, []);
+    await context.reset(true);
+    assert.equal(camera.starting, false);
+    assert.deepEqual(renders, ["resetIdentification"]);
+    permission.resolve(controls);
+    await settle();
+    assert.equal(camera.active, false);
+});
+
+test("an unknown Reward submission reconciles only its original target and retains it on missing receipt", async () => {
+    const calls = [];
+    const { context, wire } = setup({
+        redeemReward: async (...args) => {
+            calls.push(["redeem", ...args]);
+            throw { status: 503 };
+        },
+        findRewardReceipt: async (...args) => {
+            calls.push(["receipt", ...args]);
+            return null;
+        },
+    });
+    await identify(context);
+    wire.preview.can_accept_visit = false;
+    wire.reward = { reward_entitlement_id: 9, promotion_id: 7, can_redeem_reward: true };
+    await context.redeemReward();
+    assert.equal(context.visitPhase, "unknown");
+    await context.redeemReward();
+    assert.equal(context.visitPhase, "unknown");
+    assert.deepEqual(
+        calls.map((call) => call[0]),
+        ["redeem", "receipt"],
+    );
+    assert.deepEqual(calls[0].slice(1), ["manual", "00007", 9, 7]);
+    assert.deepEqual(calls[1].slice(1), ["manual", "00007", 9, 7, true]);
+});
+
+test("final Reward confirmation submits once, preserves Visit facts, and keeps known redemption when details fail", async () => {
+    const pending = deferred();
+    const calls = [];
+    const { context, wire, toasts } = setup({
+        redeemReward: async (...args) => {
+            calls.push(args);
+            return pending.promise;
+        },
+        findRewardReceipt: async () => {
+            throw { status: 503 };
+        },
+    });
+    await identify(context);
+    wire.preview.can_accept_visit = false;
+    const visit = wire.facts;
+    wire.reward = { reward_entitlement_id: 9, promotion_id: 7, can_redeem_reward: true };
+    const submit = context.redeemReward();
+    await context.redeemReward();
+    await settle();
+    assert.equal(context.busy, true);
+    assert.equal(wire.stage, "confirm");
+    assert.equal(wire.facts, visit);
+    assert.equal(calls.length, 1);
+    pending.resolve({
+        outcome: "confirmed",
+        redemption: { reward_entitlement_id: 9, redeemed_at: "2030-01-02T12:00:00Z" },
+    });
+    await submit;
+    assert.equal(context.visitPhase, "settled");
+    assert.equal(wire.redemption.reward_entitlement_id, 9);
+    assert.equal(wire.facts, visit);
+    assert.equal(context.clientErrorCode, "reward_details_unavailable");
+    assert.equal(toasts.length, 1);
+    assert.equal(toasts[0].text, "Redeemed; review the message");
+});
+
+test("offline final Reward confirmation sends zero requests or telemetry and pairs one error with one toast", async () => {
+    const calls = [];
+    const { context, wire, native, toasts } = setup({
+        redeemReward: async () => {
+            calls.push("redeem");
+        },
+    });
+    await identify(context);
+    wire.reward = { reward_entitlement_id: 9, promotion_id: 7, can_redeem_reward: true };
+    native.navigator.onLine = false;
+    await context.redeemReward();
+    assert.deepEqual(calls, []);
+    assert.equal(context.clientErrorCode, "network_error");
+    assert.equal(toasts.length, 1);
+    assert.equal(context.visitPhase, "ready");
+});
+
+test("lost Reward response cannot use old Visit facts as proof and fresh lookup reconciles the original target", async () => {
+    const calls = [];
+    const { context, wire, refs } = setup({
+        redeemReward: async () => {
+            calls.push("redeem");
+            throw { status: 503 };
+        },
+        findRewardReceipt: async (...args) => {
+            calls.push(args);
+            return null;
+        },
+    });
+    await identify(context);
+    wire.preview.can_accept_visit = false;
+    wire.facts = confirmed().facts;
+    wire.reward = { reward_entitlement_id: 9, promotion_id: 7, can_redeem_reward: true };
+    await context.redeemReward();
+    assert.equal(context.visitPhase, "unknown");
+    assert.ok(wire.facts);
+    context.handleDialogClose();
+    await settle();
+    context.handleModalShow();
+    await settle();
+    refs.manual.value = "99999";
+    await context.findPassManually();
+    assert.deepEqual(calls, ["redeem", ["manual", "00007", 9, 7, false]]);
+    assert.equal(wire.stage, "identify");
+    assert.equal(wire.redemption, undefined);
+    assert.equal(context.visitPhase, "idle");
+});
 
 for (const fails of [false, true]) {
     test(`morphed action origin still ${fails ? "reports optional receipt failure" : "loads original progress"} through its owning component`, async () => {
@@ -444,7 +735,7 @@ test("late permission after close releases returned camera controls without publ
     assert.equal(wire.preview, null);
 });
 
-test("late SDK startup cannot restart capture after manual identification begins", async () => {
+test("late SDK startup cannot restart capture after deactivation and manual identification", async () => {
     const starting = deferred();
     const { context, camera, native, controls, stopped } = setup();
     native.isSecureContext = true;
@@ -454,6 +745,7 @@ test("late SDK startup cannot restart capture after manual identification begins
     context.handleModalShow();
     context.requestCameraStart();
     await settle();
+    await context.reset(true);
     context.manualChanged();
     const finding = context.findPassManually();
     starting.resolve(controls);
@@ -1546,30 +1838,32 @@ test("successful acceptance focuses Close only after its initial receipt work se
     assert.equal(focus.at(-1), "close-button");
 });
 
-test("button indicator modality is scoped to the open modal or its trigger and releases listeners", async () => {
-    const { context, document } = setup();
+test("trigger keyboard entry overrides coarse capability while pointer reopening avoids text entry", async () => {
+    const { context, document, native, focus } = setup();
+    native.matchMedia = () => ({ matches: false });
     const trigger = { closest: (selector) => (selector === "#register-visit-trigger" ? {} : null) };
     const send = (type, target = null) => {
         const event = new Event(type);
         Object.defineProperty(event, "target", { value: target });
         document.dispatchEvent(event);
     };
-    assert.equal(context.focusModality, "keyboard");
-    send("pointerdown");
-    assert.equal(context.focusModality, "keyboard");
-    send("pointerdown", trigger);
-    assert.equal(context.focusModality, "pointer");
-    context.handleModalShow();
-    send("keydown");
-    assert.equal(context.focusModality, "keyboard");
-    send("pointerdown");
-    assert.equal(context.focusModality, "pointer");
-    context.handleModalClose();
-    send("keydown");
-    assert.equal(context.focusModality, "pointer");
-    context.destroy();
     send("keydown", trigger);
-    assert.equal(context.focusModality, "pointer");
+    context.handleModalShow();
+    await settle();
+    assert.equal(focus.at(-1), "manual");
+    context.handleDialogClose();
+    await settle();
+    send("pointerdown", trigger);
+    send("keydown");
+    context.handleModalShow();
+    await settle();
+    assert.equal(focus.at(-1), "close-button");
+    context.destroy();
+    const before = [...focus];
+    send("keydown", trigger);
+    context.handleModalShow();
+    await settle();
+    assert.deepEqual(focus, before);
 });
 
 test("pending SVG dismissal click is intercepted before the native close wrapper", async () => {
@@ -1691,7 +1985,7 @@ test("failed fresh preparation never makes an old result available again", async
     assert.equal(wire.stage, "result");
     assert.equal(context.presentationReady, false);
     assert.equal(context.busy, false);
-    assert.equal(focus.at(-1), "restart-button");
+    assert.equal(focus.at(-1), "close-button");
     context.requestCameraStart();
     await settle();
     assert.equal(startup.length, 0);
