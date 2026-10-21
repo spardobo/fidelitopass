@@ -7,6 +7,9 @@ use App\Enums\VisitAcceptanceFailure;
 use App\Exceptions\GoogleWalletSynchronizationException;
 use App\Exceptions\VisitAcceptanceException;
 use App\Integrations\GoogleWallet\GoogleWalletPassUpdater;
+use App\Models\Business;
+use App\Models\CustomerPass;
+use App\Models\Promotion;
 use App\Models\RewardEntitlement;
 use App\Models\User;
 use App\Models\Visit;
@@ -20,7 +23,7 @@ use LogicException;
 use SensitiveParameter;
 use Throwable;
 
-/** Owns one authorized, retry-safe Visit and atomic Reward unlock, including synchronous Wallet confirmation. */
+/** Owns one authorized Visit, atomic Reward unlock and optional redemption with synchronous Wallet confirmation. */
 class AcceptVisit
 {
     private const int MAX_CREDENTIAL_LENGTH = 256;
@@ -50,6 +53,7 @@ class AcceptVisit
      * @param  string  $credential  Private issued token or Business-scoped manual code.
      * @param  string  $operationId  Global UUID identifying one intentional validation operation.
      * @param  int|null  $expectedPromotionId  Optional comparison with the selected offer, never mutation authority.
+     * @param  bool  $redeemReward  Explicit compound intent; success additionally proves the original entitlement is redeemed.
      * @return array{visit_id: int, operation_id: string, customer_pass_id: int, promotion_id: int, points_awarded: int, confirmed_at: string} Immutable committed Visit facts.
      *
      * @throws VisitAcceptanceException If authorization, input, eligibility or local persistence fails.
@@ -62,6 +66,7 @@ class AcceptVisit
         #[SensitiveParameter] string $credential,
         string $operationId,
         ?int $expectedPromotionId = null,
+        bool $redeemReward = false,
     ): array {
         $businessId = null;
         $normalized = null;
@@ -114,6 +119,7 @@ class AcceptVisit
                 $normalized,
                 $safeOperationId,
                 $expectedPromotionId,
+                $redeemReward,
                 &$businessId,
                 &$providerConfirmed,
             ): array {
@@ -123,6 +129,7 @@ class AcceptVisit
                     $normalized,
                     $safeOperationId,
                     $expectedPromotionId,
+                    $redeemReward,
                     $businessId,
                     $providerConfirmed,
                 );
@@ -176,12 +183,13 @@ class AcceptVisit
      * @param  string  $normalized  Private canonical manual code or token hash used only for scoped lookup.
      * @param  string  $operationId  Validated operation UUID.
      * @param  int|null  $expectedPromotionId  Selected offer compared only for a new operation after authorized replay.
+     * @param  bool  $redeemReward  Requires a redeemed original entitlement without upgrading an existing Visit.
      * @param  int|null  $businessId  Owning Business identity returned by reference for outcome correlation.
      * @param  bool  $providerConfirmed  Provider confirmation returned by reference independently of local commit.
      *
      * @param-out int $businessId Owning Business identity established before a successful return.
      *
-     * @return array{visit: Visit, replayed: bool, unlocked: bool} Tentative facts requiring commit.
+     * @return array{visit: Visit, replayed: bool, unlocked: bool, redeemed: bool} Tentative facts requiring commit.
      *
      * @throws VisitAcceptanceException If authorization or persistence fails.
      * @throws GoogleWalletSynchronizationException If provider sync fails.
@@ -192,6 +200,7 @@ class AcceptVisit
         #[SensitiveParameter] string $normalized,
         string $operationId,
         ?int $expectedPromotionId,
+        bool $redeemReward,
         ?int &$businessId,
         bool &$providerConfirmed,
     ): array {
@@ -213,23 +222,79 @@ class AcceptVisit
             throw new VisitAcceptanceException(VisitAcceptanceFailure::InvalidCredential);
         }
 
-        // return existing facts immediately if the operation was already committed
+        // an authorized replay returns its original facts before current promotion checks
         $existingVisit = Visit::query()->where('operation_id', $operationId)->first();
         if ($existingVisit !== null) {
-            if (
-                $existingVisit->business_id !== $business->id
-                || $existingVisit->customer_pass_id !== $pass->id
-            ) {
-                throw new VisitAcceptanceException(VisitAcceptanceFailure::OperationConflict);
-            }
-
-            return ['visit' => $existingVisit, 'replayed' => true, 'unlocked' => false];
+            return $this->replayVisit($existingVisit, $business, $pass, $redeemReward);
         }
 
-        // capture one authoritative instant for all domain decisions and writes
+        // evaluate one new Visit using the authoritative post-lock instant
         $operationAt = $this->clock->capture($business->timezone)->instant;
+        $promotion = $this->requireActivePromotion($business, $operationAt, $expectedPromotionId);
+        $evaluation = $this->evaluateVisit($business, $pass, $promotion, $operationAt, $redeemReward);
 
-        // find the currently active promotion
+        // persist the Visit and optional entitlement as one tentative domain operation
+        $visit = $this->storeVisit($business, $pass, $promotion, $actor, $operationId, $operationAt, $evaluation['points']);
+
+        if ($evaluation['unlocked']) {
+            $this->unlockReward($business, $pass, $promotion, $actor, $operationAt, $redeemReward);
+        }
+
+        // synchronize the presentation with Google before local commit
+        $this->wallet->update($business, $pass, $operationAt);
+        $providerConfirmed = true;
+
+        return ['visit' => $visit, 'replayed' => false, 'unlocked' => $evaluation['unlocked'], 'redeemed' => $redeemReward];
+    }
+
+    /**
+     * Replays only the original authorized operation, optionally requiring its original redemption.
+     *
+     * @param  Visit  $visit  Previously committed operation with immutable facts.
+     * @param  Business  $business  Locked owning Business.
+     * @param  CustomerPass  $pass  Locked credential-matched pass.
+     * @param  bool  $redeemReward  Whether the original compound operation must already be redeemed.
+     * @return array{visit: Visit, replayed: bool, unlocked: bool, redeemed: bool} Original replay facts without new domain effects.
+     *
+     * @throws VisitAcceptanceException When the operation belongs elsewhere or redemption is absent.
+     */
+    private function replayVisit(Visit $visit, Business $business, CustomerPass $pass, bool $redeemReward): array
+    {
+        if (
+            $visit->business_id !== $business->id
+            || $visit->customer_pass_id !== $pass->id
+        ) {
+            throw new VisitAcceptanceException(VisitAcceptanceFailure::OperationConflict);
+        }
+
+        if ($redeemReward) {
+            $originalReward = RewardEntitlement::query()
+                ->where('business_id', $business->id)
+                ->where('customer_pass_id', $pass->id)
+                ->where('promotion_id', $visit->promotion_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($originalReward === null || $originalReward->redeemed_at === null) {
+                throw new VisitAcceptanceException(VisitAcceptanceFailure::RewardNotEarned);
+            }
+        }
+
+        return ['visit' => $visit, 'replayed' => true, 'unlocked' => false, 'redeemed' => false];
+    }
+
+    /**
+     * Selects the published active Promotion and checks the caller's expected identity.
+     *
+     * @param  Business  $business  Locked owner that serializes publication with acceptance.
+     * @param  string  $operationAt  Post-lock PostgreSQL instant for inclusive start and exclusive end.
+     * @param  int|null  $expectedPromotionId  Non-authoritative comparison against the selected Promotion.
+     * @return Promotion Original active published Promotion.
+     *
+     * @throws VisitAcceptanceException When no Promotion is active or the selection changed.
+     */
+    private function requireActivePromotion(Business $business, string $operationAt, ?int $expectedPromotionId): Promotion
+    {
         $promotion = $business->promotions()
             ->where('status', PromotionStatus::Published)
             ->whereNull('cancelled_at')
@@ -240,14 +305,33 @@ class AcceptVisit
             throw new VisitAcceptanceException(VisitAcceptanceFailure::PromotionUnavailable);
         }
 
-        if (
-            $expectedPromotionId !== null
-            && $promotion->id !== $expectedPromotionId
-        ) {
+        if ($expectedPromotionId !== null && $promotion->id !== $expectedPromotionId) {
             throw new VisitAcceptanceException(VisitAcceptanceFailure::PromotionChanged);
         }
 
-        // calculate current progress and assert the promotion is still open
+        return $promotion;
+    }
+
+    /**
+     * Evaluates existing progress, completion and the applicable frozen point multiplier for one new Visit.
+     *
+     * @param  Business  $business  Locked owning Business.
+     * @param  CustomerPass  $pass  Locked customer pass.
+     * @param  Promotion  $promotion  Active published Promotion with frozen point rules.
+     * @param  string  $operationAt  Shared post-lock PostgreSQL instant for the multiplier window.
+     * @param  bool  $redeemReward  Whether this Visit must also reach the reward target.
+     * @return array{points: int, unlocked: bool} New awarded points and whether this Visit unlocks the reward.
+     *
+     * @throws VisitAcceptanceException When the Promotion is complete or redemption cannot yet be earned.
+     */
+    private function evaluateVisit(
+        Business $business,
+        CustomerPass $pass,
+        Promotion $promotion,
+        string $operationAt,
+        bool $redeemReward,
+    ): array {
+        // reject already completed terms using immutable Visit totals and the persisted entitlement
         $earnedPoints = (int) Visit::query()
             ->where('business_id', $business->id)
             ->where('customer_pass_id', $pass->id)
@@ -260,14 +344,11 @@ class AcceptVisit
             ->where('promotion_id', $promotion->id)
             ->exists();
 
-        if (
-            $earnedPoints >= $promotion->target_points
-            || $hasReward
-        ) {
+        if ($earnedPoints >= $promotion->target_points || $hasReward) {
             throw new VisitAcceptanceException(VisitAcceptanceFailure::PromotionCompleted);
         }
 
-        // resolve the points multiplier for the current day and time
+        // resolve exactly one frozen multiplier window at the shared operation instant
         $window = $promotion->extraPoints()
             ->whereRaw('weekday = EXTRACT(ISODOW FROM (?::timestamptz AT TIME ZONE ?))', [$operationAt, $promotion->timezone_snapshot])
             ->where(function ($query) use ($operationAt, $promotion): void {
@@ -280,8 +361,38 @@ class AcceptVisit
             ->first();
 
         $points = $window->multiplier ?? 1;
+        $unlocked = $earnedPoints + $points >= $promotion->target_points;
 
-        // save the new immutable visit
+        if ($redeemReward && ! $unlocked) {
+            throw new VisitAcceptanceException(VisitAcceptanceFailure::RewardNotEarned);
+        }
+
+        return ['points' => $points, 'unlocked' => $unlocked];
+    }
+
+    /**
+     * Records the accepted Visit with its stable operation identity and post-lock PostgreSQL timestamps.
+     *
+     * @param  Business  $business  Locked owner of the accepted Visit.
+     * @param  CustomerPass  $pass  Locked pass receiving points.
+     * @param  Promotion  $promotion  Active Promotion awarding the points.
+     * @param  User  $actor  Verified owner confirming the Visit.
+     * @param  string  $operationId  Validated immutable operation UUID.
+     * @param  string  $operationAt  Authoritative operation timestamp.
+     * @param  int  $points  Awarded points from the original multiplier evaluation.
+     * @return Visit Tentatively saved immutable Visit.
+     *
+     * @throws VisitAcceptanceException When the Visit cannot be persisted.
+     */
+    private function storeVisit(
+        Business $business,
+        CustomerPass $pass,
+        Promotion $promotion,
+        User $actor,
+        string $operationId,
+        string $operationAt,
+        int $points,
+    ): Visit {
         $visit = new Visit;
         $visit->business()->associate($business);
         $visit->customerPass()->associate($pass);
@@ -297,28 +408,46 @@ class AcceptVisit
             throw new VisitAcceptanceException(VisitAcceptanceFailure::SaveRejected);
         }
 
-        // create the reward entitlement if this visit completes the target
-        $unlocked = $earnedPoints + $points >= $promotion->target_points;
+        return $visit;
+    }
 
-        if ($unlocked) {
-            $reward = new RewardEntitlement;
-            $reward->business()->associate($business);
-            $reward->customerPass()->associate($pass);
-            $reward->promotion()->associate($promotion);
-            $reward->setAttribute('unlocked_at', $operationAt);
-            $reward->setCreatedAt($operationAt);
-            $reward->setUpdatedAt($operationAt);
+    /**
+     * Creates the entitlement unlocked by this Visit and optionally redeems it atomically.
+     *
+     * @param  Business  $business  Locked owner of this Visit.
+     * @param  CustomerPass  $pass  Locked customer identity.
+     * @param  Promotion  $promotion  Published offer that has just met its target.
+     * @param  User  $actor  Owner confirming the Visit and optional redemption.
+     * @param  string  $operationAt  Shared post-lock PostgreSQL instant.
+     * @param  bool  $redeemReward  Whether redemption was explicitly confirmed with the Visit.
+     *
+     * @throws VisitAcceptanceException When saving the entitlement is rejected.
+     */
+    private function unlockReward(
+        Business $business,
+        CustomerPass $pass,
+        Promotion $promotion,
+        User $actor,
+        string $operationAt,
+        bool $redeemReward,
+    ): void {
+        $reward = new RewardEntitlement;
+        $reward->business()->associate($business);
+        $reward->customerPass()->associate($pass);
+        $reward->promotion()->associate($promotion);
+        $reward->setAttribute('unlocked_at', $operationAt);
 
-            if (! $reward->save()) {
-                throw new VisitAcceptanceException(VisitAcceptanceFailure::SaveRejected);
-            }
+        if ($redeemReward) {
+            $reward->setAttribute('redeemed_at', $operationAt);
+            $reward->redeemedBy()->associate($actor);
         }
 
-        // synchronize the presentation with Google before local commit
-        $this->wallet->update($business, $pass, $operationAt);
-        $providerConfirmed = true;
+        $reward->setCreatedAt($operationAt);
+        $reward->setUpdatedAt($operationAt);
 
-        return ['visit' => $visit, 'replayed' => false, 'unlocked' => $unlocked];
+        if (! $reward->save()) {
+            throw new VisitAcceptanceException(VisitAcceptanceFailure::SaveRejected);
+        }
     }
 
     /**
@@ -364,7 +493,7 @@ class AcceptVisit
     /**
      * Emits the success events for the committed operation.
      *
-     * @param  array{visit: Visit, replayed: bool, unlocked: bool}  $accepted  Committed facts and replay/unlock outcomes.
+     * @param  array{visit: Visit, replayed: bool, unlocked: bool, redeemed: bool}  $accepted  Committed facts and new effects.
      * @param  User  $actor  Server-authenticated owner whose command completed.
      * @param  int|null  $businessId  Owning Business identity captured inside the transaction.
      */
@@ -385,9 +514,11 @@ class AcceptVisit
         Log::info($accepted['replayed'] ? 'visit.replayed' : 'visit.accepted', $context);
 
         if ($accepted['unlocked']) {
-
             Log::info('reward.unlocked', [...$context, 'outcome' => 'unlocked']);
+        }
 
+        if ($accepted['redeemed']) {
+            Log::info('reward.redeemed', [...$context, 'outcome' => 'redeemed']);
         }
     }
 
