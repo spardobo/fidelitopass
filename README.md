@@ -235,7 +235,7 @@ El directorio [`docs/`](docs/README.md) es la referencia técnica detallada. Est
 
 7. Abrir **http://localhost:8000**. La primera cuenta de negocio puede crearse desde la interfaz de registro. Para completar la verificación por correo en el entorno local, revisar los mensajes en **http://localhost:8025** (Mailpit).
 
-Para utilizar la emisión y las actualizaciones reales de Google Wallet en visitas y canjes, se necesita un emisor existente y autorizado, credenciales de cuenta de servicio legibles desde el contenedor y una URL pública HTTPS para el logo, incluso si la aplicación se abre en `localhost`. Estos valores se configuran mediante `GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_CREDENTIALS_PATH` y `GOOGLE_WALLET_LOGO_BLACK_URL` (con `GOOGLE_WALLET_LOGO_URL` como alternativa si el anterior no está definido). Los detalles técnicos y los límites de esa integración se describen en la [arquitectura de Wallet](docs/architecture/overview.md#google-wallet-model).
+Para utilizar la emisión y las actualizaciones reales de Google Wallet en visitas y canjes, se necesita un emisor existente y autorizado, credenciales de cuenta de servicio legibles desde el contenedor y una URL pública HTTPS para el logo, incluso si la aplicación se abre en `localhost`. El emisor y las credenciales se configuran mediante `GOOGLE_WALLET_ISSUER_ID` y `GOOGLE_WALLET_CREDENTIALS_PATH`. Configurar obligatoriamente `GOOGLE_WALLET_LOGO_URL` con la URL completa, pública y HTTPS del logo que aparecerá en la tarjeta. Los detalles técnicos y los límites de esa integración se describen en la [arquitectura de Wallet](docs/architecture/overview.md#google-wallet-model).
 
 ### Verificación local
 
