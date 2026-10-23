@@ -40,6 +40,10 @@ Internal foreign keys continue to use bigint IDs.
 
 Google Wallet object/class identifiers remain integration fields. They never replace domain primary/public IDs.
 
+## Column order
+
+For fresh domain tables, declare internal and public identity first, then ownership foreign keys, domain data and lifecycle state or instants, and conventional `created_at` and `updated_at` last. This order does not require extra columns or redesign framework-managed tables. Do not rebuild shared or production tables solely to change physical column order.
+
 ## Timestamps and timezone model
 
 ### General rule
