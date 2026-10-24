@@ -265,12 +265,12 @@ jobs:
 
           while ((SECONDS < deadline)); do
             api_request GET "$service_url/$NORTHFLANK_SERVICE_ID"
-            if ! jq -e '.data | (.status.deployment | type == "string") and
+            if ! jq -e '.data | (.status.deployment.status | type == "string") and
               (.deployment.external.imagePath | type == "string")' <<< "$response" >/dev/null 2>&1; then
               echo '::error::Unknown external service deployment response; no deployment confirmation.'
               exit 1
             fi
-            if jq -e --arg image "$IMAGE" '.data | .status.deployment == "COMPLETED" and .deployment.external.imagePath == $image' \
+            if jq -e --arg image "$IMAGE" '.data | .status.deployment.status == "COMPLETED" and .deployment.external.imagePath == $image' \
               <<< "$response" >/dev/null 2>&1; then
               {
                 echo '## Northflank deployment confirmed'
@@ -279,7 +279,7 @@ jobs:
               } >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-            if jq -e '.data.status.deployment == "FAILED" or .data.status.deployment == "ERROR"' \
+            if jq -e '.data.status.deployment.status == "FAILED" or .data.status.deployment.status == "ERROR"' \
               <<< "$response" >/dev/null 2>&1; then
               echo '::error::Northflank deployment failed; no automatic retry.'
               exit 1
