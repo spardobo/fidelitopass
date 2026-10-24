@@ -6,7 +6,6 @@ use App\Models\Business;
 use App\Models\CustomerPass;
 use App\Models\Promotion;
 use App\Models\User;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -778,8 +777,7 @@ class DashboardTest extends TestCase
         $component = Livewire::actingAs($business->user)->test('pages::business.summary');
         $business->forceFill(['user_id' => User::factory()->create()->id])->save();
 
-        $this->expectException(ModelNotFoundException::class);
-        $component->call('$refresh');
+        $component->call('$refresh')->assertNotFound();
     }
 
     public function test_refresh_rejects_an_unverified_actor(): void

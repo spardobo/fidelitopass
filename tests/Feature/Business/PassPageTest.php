@@ -5,7 +5,6 @@ use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Models\Business;
 use App\Models\User;
 use App\Support\CustomerPassCredentials;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -731,7 +730,7 @@ it('rechecks business ownership before saving an appearance', function () {
 
     $business->newQuery()->whereKey($business->getKey())->update(['user_id' => $newOwner->id]);
 
-    expect(fn () => $component->call('save'))->toThrow(ModelNotFoundException::class);
+    $component->call('save')->assertNotFound();
     expect($business->fresh()->pass_background_color)->toBeNull();
 });
 
@@ -837,7 +836,6 @@ it('rechecks business ownership before adjusting an appearance color', function 
 
     $business->newQuery()->whereKey($business->getKey())->update(['user_id' => $newOwner->id]);
 
-    expect(fn () => $component->call('selectColor', '#123456'))
-        ->toThrow(ModelNotFoundException::class);
+    $component->call('selectColor', '#123456')->assertNotFound();
     expect($business->fresh()->pass_background_color)->toBeNull();
 });
