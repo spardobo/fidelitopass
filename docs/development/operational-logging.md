@@ -26,6 +26,14 @@ Object binding conflicts retain an application-authored field and mismatch categ
 
 Handled application failures retain one reporting owner before safe feedback is presented. Ordinary missing optional data remains absence, not a manufactured exception. Diagnostic handling must not retain secret-bearing causes or create a second outcome record. Credential-retirement guarantees remain with their security and persistence owners.
 
+## Container process streams
+
+Nginx writes access records to stdout without request paths or query strings. It owns HTTP access logging; duplicate FPM access logging is disabled. Nginx diagnostics and PHP-FPM master/worker diagnostics use stderr. The stream is not the record severity: normal FPM startup notices on stderr do not indicate an application failure.
+
+The production pool replaces the inherited root-oriented template. It does not declare a pool user or group because the container already runs as the web-service identity. Keep useful startup notices, slow-request diagnostics and capacity warnings. The single ondemand worker remains within the free runtime budget; a `max_children` warning reports saturation, not proof of a failed request or a reason to increase workers without resource evidence.
+
+These process records are not Laravel JSON events and do not use the application envelope.
+
 ## Collection and failures
 
 - Production defaults to stderr and development to rotating files through a native stack. Explicit deployment channels and severity thresholds remain authoritative. An error threshold intentionally drops warnings.

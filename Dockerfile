@@ -90,7 +90,8 @@ COPY --from=frontend --chown=root:root /app/public/build ./public/build
 # install the versioned web, PHP, and process-manager configuration
 COPY docker/production/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/production/nginx/default.conf /etc/nginx/http.d/default.conf
-COPY docker/production/php-fpm/php-fpm.conf /usr/local/etc/php-fpm.d/zz-app.conf
+# replace the inherited root-oriented pool instead of layering over its directives
+COPY docker/production/php-fpm/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/production/php-fpm/production.ini /usr/local/etc/php/conf.d/zz-production.ini
 COPY docker/production/php-fpm/opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
 COPY docker/production/supervisor/supervisord.conf /etc/supervisord.conf
@@ -119,8 +120,6 @@ RUN --mount=from=composer-bin,source=/usr/bin/composer,target=/usr/local/bin/com
     && php artisan package:discover --no-ansi \
     && COMPOSER_ALLOW_SUPERUSER=1 composer check-platform-reqs --no-dev \
     && php -r 'require "vendor/autoload.php"; exit(class_exists("App\\Providers\\AppServiceProvider") && class_exists("Faker\\Factory") ? 0 : 1);' \
-    && php-fpm -t \
-    && nginx -t \
     && chown -R www-data:www-data \
         /run/php-fpm \
         /var/lib/nginx \
@@ -129,6 +128,9 @@ RUN --mount=from=composer-bin,source=/usr/bin/composer,target=/usr/local/bin/com
 
 # run the web server, PHP workers, and process manager as the runtime user
 USER www-data
+
+# validate service configuration under the actual runtime identity
+RUN php-fpm -t && nginx -e /dev/stderr -t
 
 # receive private HTTP traffic from the TLS-terminating deployment edge
 EXPOSE 8080
