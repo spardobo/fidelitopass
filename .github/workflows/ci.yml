@@ -14,7 +14,51 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deployment-configuration:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Validate operational access before quality services
+        env:
+          NORTHFLANK_API_KEY: ${{ secrets.NORTHFLANK_API_KEY }}
+          NORTHFLANK_PROJECT_ID: ${{ vars.NORTHFLANK_PROJECT_ID }}
+          NORTHFLANK_SERVICE_ID: ${{ vars.NORTHFLANK_SERVICE_ID }}
+          NORTHFLANK_MIGRATION_JOB_ID: ${{ vars.NORTHFLANK_MIGRATION_JOB_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${NORTHFLANK_API_KEY:?NORTHFLANK_API_KEY is required}"
+          : "${NORTHFLANK_PROJECT_ID:?NORTHFLANK_PROJECT_ID is required}"
+          for name in NORTHFLANK_PROJECT_ID NORTHFLANK_SERVICE_ID NORTHFLANK_MIGRATION_JOB_ID; do
+            value="${!name}"
+            if [ -n "$value" ] && ! [[ "$value" =~ ^[A-Za-z][A-Za-z0-9-]{2,38}$ ]]; then
+              echo "::error::$name must be a Northflank resource ID."
+              exit 1
+            fi
+          done
+          if { [ -n "$NORTHFLANK_SERVICE_ID" ] && [ -z "$NORTHFLANK_MIGRATION_JOB_ID" ]; } ||
+             { [ -z "$NORTHFLANK_SERVICE_ID" ] && [ -n "$NORTHFLANK_MIGRATION_JOB_ID" ]; }; then
+            echo '::error::Set both service and migration Job IDs, or leave both empty for image-only bootstrap.'
+            exit 1
+          fi
+
+          project_url="https://api.northflank.com/v1/projects/$NORTHFLANK_PROJECT_ID"
+          urls=("$project_url")
+          if [ -n "$NORTHFLANK_SERVICE_ID" ]; then
+            urls+=("$project_url/services/$NORTHFLANK_SERVICE_ID" "$project_url/jobs/$NORTHFLANK_MIGRATION_JOB_ID")
+          fi
+          for url in "${urls[@]}"; do
+            curl --fail --silent --show-error --connect-timeout 5 --max-time 20 \
+              --header @- "$url" >/dev/null <<< "Authorization: Bearer $NORTHFLANK_API_KEY"
+          done
+          echo 'Northflank operational inputs and read access verified; private application values stay in Northflank.'
+
   quality:
+    needs: deployment-configuration
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name == 'pull_request' || needs.deployment-configuration.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -26,6 +70,7 @@ jobs:
       HUSKY: "0"
       CACHE_STORE: array
       DB_CONNECTION: pgsql
+      DB_SSLMODE: prefer
       DB_HOST: 127.0.0.1
       DB_PORT: 5432
       DB_DATABASE: testing

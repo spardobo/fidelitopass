@@ -217,7 +217,7 @@ function visitWorker(int $actorId, string $operationId, string $tokenByte = 'a')
                 'client_email' => 'wallet@platform.iam.gserviceaccount.com', 'private_key' => $pem,
             ],
             'origin' => 'https://passes.example.test',
-            'logos' => ['black' => 'https://passes.example.test/logo.png'],
+            'logo_url' => 'https://passes.example.test/logo.png',
             'connect_timeout' => 3, 'timeout' => 10,
         ]);
         app()->instance(App\Integrations\GoogleWallet\GoogleWalletConfiguration::class, $configuration);

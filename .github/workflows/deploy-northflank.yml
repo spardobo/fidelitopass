@@ -1,0 +1,290 @@
+name: Deploy Northflank
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-northflank-production
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # deploy only successful push builds from the default repository branch
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}:${{ github.event.workflow_run.head_sha }}
+      GIT_SHA: ${{ github.event.workflow_run.head_sha }}
+      NORTHFLANK_PROJECT_ID: ${{ vars.NORTHFLANK_PROJECT_ID }}
+      NORTHFLANK_SERVICE_ID: ${{ vars.NORTHFLANK_SERVICE_ID }}
+      NORTHFLANK_MIGRATION_JOB_ID: ${{ vars.NORTHFLANK_MIGRATION_JOB_ID }}
+
+    steps:
+      - name: Check out the tested commit
+        timeout-minutes: 2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Check whether this is still the latest commit
+        id: latest
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GIT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          latest_sha="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          if [ "$GIT_SHA" = "$latest_sha" ]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo 'Newer main commit detected; skipping this release.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Validate release configuration
+        if: steps.latest.outputs.current == 'true'
+        id: configuration
+        timeout-minutes: 1
+        env:
+          NORTHFLANK_API_KEY: ${{ secrets.NORTHFLANK_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${NORTHFLANK_API_KEY:?NORTHFLANK_API_KEY is required}"
+          : "${NORTHFLANK_PROJECT_ID:?NORTHFLANK_PROJECT_ID is required}"
+          for name in NORTHFLANK_PROJECT_ID NORTHFLANK_SERVICE_ID NORTHFLANK_MIGRATION_JOB_ID; do
+            value="${!name}"
+            if [ -n "$value" ] && ! [[ "$value" =~ ^[A-Za-z][A-Za-z0-9-]{2,38}$ ]]; then
+              echo "::error::$name must be a Northflank resource ID."
+              exit 1
+            fi
+          done
+          if { [ -n "$NORTHFLANK_SERVICE_ID" ] && [ -z "$NORTHFLANK_MIGRATION_JOB_ID" ]; } ||
+             { [ -z "$NORTHFLANK_SERVICE_ID" ] && [ -n "$NORTHFLANK_MIGRATION_JOB_ID" ]; }; then
+            echo '::error::Set both service and migration Job IDs, or leave both empty for image-only bootstrap.'
+            exit 1
+          fi
+          echo "IMAGE=${IMAGE,,}" >> "$GITHUB_ENV"
+          if [ -z "$NORTHFLANK_SERVICE_ID" ]; then
+            echo 'mode=bootstrap' >> "$GITHUB_OUTPUT"
+          else
+            echo 'mode=release' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.latest.outputs.current == 'true'
+        timeout-minutes: 2
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Authenticate with GitHub Container Registry
+        if: steps.latest.outputs.current == 'true'
+        timeout-minutes: 2
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish the immutable image
+        if: steps.latest.outputs.current == 'true'
+        timeout-minutes: 15
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check the packaged application and server configurations
+        if: steps.latest.outputs.current == 'true'
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
+          docker run --rm --entrypoint php "$IMAGE" -r 'require "vendor/autoload.php"; exit(class_exists("App\\Providers\\AppServiceProvider") ? 0 : 1);'
+          docker run --rm --entrypoint php-fpm "$IMAGE" -t
+          docker run --rm --entrypoint nginx "$IMAGE" -t
+
+      - name: Report bootstrap image
+        if: steps.latest.outputs.current == 'true' && steps.configuration.outputs.mode == 'bootstrap'
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          {
+            echo '## BOOTSTRAP IMAGE ONLY'
+            printf 'Published image: `%s`\n\n' "$IMAGE"
+            echo 'No Northflank operations were attempted; the application was not deployed.'
+            echo 'GHCR initially creates private packages. The owner must switch this package to Public before Northflank pulls it (recommended free path).'
+            echo 'After free-plan/operator approval, configure both service and manual migration Job IDs to enable releases.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Confirm the commit is still current before database preparation
+        if: steps.latest.outputs.current == 'true' && steps.configuration.outputs.mode == 'release'
+        id: deploy_check
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_sha="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          if [ "$GIT_SHA" = "$latest_sha" ]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo 'Newer main commit detected; image published but database preparation and deployment skipped.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Prepare the private database with the tested image
+        if: steps.deploy_check.outputs.current == 'true'
+        id: preparation
+        timeout-minutes: 15
+        env:
+          NORTHFLANK_API_KEY: ${{ secrets.NORTHFLANK_API_KEY }}
+          # manual Job: inherited runtime secrets, no source-triggered runs and backoffLimit 0
+          # quoted command variables expand inside Northflank, never on the GitHub runner
+          PREPARE_COMMAND: >-
+            -ec 'exec >/dev/null 2>&1; test -n "${APP_KEY:-}" || exit 1; php artisan migrate --force --no-interaction && php artisan db:seed --class=TfmDemoSeeder --force --no-interaction'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 840))
+          job_url="https://api.northflank.com/v1/projects/${NORTHFLANK_PROJECT_ID}/jobs/${NORTHFLANK_MIGRATION_JOB_ID}"
+
+          # capture responses in memory and report only transport codes, never provider bodies
+          api_request() {
+            local method="$1" url="$2" payload="${3:-}" remaining max_time code
+            local -a data=()
+            remaining=$((deadline - SECONDS))
+            if ((remaining <= 0)); then
+              echo '::error::Northflank preparation deadline exceeded; no automatic retry.'
+              exit 1
+            fi
+            max_time=$((remaining < 60 ? remaining : 60))
+            if [ -n "$payload" ]; then data=(--data "$payload"); fi
+            if response="$(curl --fail --silent --connect-timeout 10 --max-time "$max_time" \
+              --request "$method" --header @- \
+              --header 'Content-Type: application/json' "${data[@]}" "$url" \
+              <<< "Authorization: Bearer $NORTHFLANK_API_KEY" 2>/dev/null)"; then
+              return 0
+            else
+              code=$?
+              printf '::error::Northflank request failed (curl exit %s); outcome unknown, no automatic retry.\n' "$code"
+              exit 1
+            fi
+          }
+
+          payload="$(jq -cn --arg image "$IMAGE" --arg command "$PREPARE_COMMAND" \
+            '{deployment: {external: {imagePath: $image},
+              docker: {configType: "customEntrypointCustomCommand", customEntrypoint: "/bin/sh", customCommand: $command}}}')"
+          api_request POST "$job_url/runs" "$payload"
+          run_id="$(jq -er '.data.id | select(type == "string") | select(test("^[A-Za-z0-9_-]+$"))' <<< "$response" 2>/dev/null)" || {
+            echo '::error::Job start outcome unknown: invalid run ID response; do not resubmit automatically.'
+            exit 1
+          }
+          printf 'Northflank preparation run: %s\n' "$run_id"
+
+          while ((SECONDS < deadline)); do
+            api_request GET "$job_url/runs/$run_id"
+            if ! jq -e --arg id "$run_id" '.data | .id == $id and
+              (.status == "SUCCESS" or .status == "RUNNING" or .status == "FAILED") and
+              (.concluded | type == "boolean") and
+              (.succeeded == 0 or .succeeded == 1) and (.failed == 0 or .failed == 1)' \
+              <<< "$response" >/dev/null 2>&1; then
+              echo '::error::Unknown preparation result; deployment blocked.'
+              exit 1
+            fi
+            if jq -e '.data | .status == "SUCCESS" and .concluded == true and .succeeded == 1 and .failed == 0' \
+              <<< "$response" >/dev/null 2>&1; then
+              echo 'Northflank preparation status: SUCCESS'
+              exit 0
+            fi
+            if ! jq -e '.data | .status == "RUNNING" and .concluded == false and .succeeded == 0 and .failed == 0' \
+              <<< "$response" >/dev/null 2>&1; then
+              echo '::error::Preparation failed or returned an inconsistent result; deployment blocked.'
+              exit 1
+            fi
+            sleep 10
+          done
+          echo '::error::Preparation timed out; deployment blocked, no automatic retry.'
+          exit 1
+
+      - name: Deploy the prepared image and wait for Northflank
+        if: steps.deploy_check.outputs.current == 'true' && steps.preparation.outcome == 'success'
+        timeout-minutes: 15
+        env:
+          NORTHFLANK_API_KEY: ${{ secrets.NORTHFLANK_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # finish this release after database success; release concurrency serializes later commits
+          deadline=$((SECONDS + 840))
+          service_url="https://api.northflank.com/v1/projects/${NORTHFLANK_PROJECT_ID}/services"
+
+          # capture responses in memory and report only transport codes, never provider bodies
+          api_request() {
+            local method="$1" url="$2" payload="${3:-}" remaining max_time code
+            local -a data=()
+            remaining=$((deadline - SECONDS))
+            if ((remaining <= 0)); then
+              echo '::error::Northflank deployment deadline exceeded; no automatic retry.'
+              exit 1
+            fi
+            max_time=$((remaining < 60 ? remaining : 60))
+            if [ -n "$payload" ]; then data=(--data "$payload"); fi
+            if response="$(curl --fail --silent --connect-timeout 10 --max-time "$max_time" \
+              --request "$method" --header @- \
+              --header 'Content-Type: application/json' "${data[@]}" "$url" \
+              <<< "Authorization: Bearer $NORTHFLANK_API_KEY" 2>/dev/null)"; then
+              return 0
+            else
+              code=$?
+              printf '::error::Northflank request failed (curl exit %s); outcome unknown, no automatic retry.\n' "$code"
+              exit 1
+            fi
+          }
+
+          # update the existing service to the public image prepared by the private Job
+          payload="$(jq -cn --arg image "$IMAGE" '{deployment: {external: {imagePath: $image}}}')"
+          api_request PATCH "$service_url/deployment/$NORTHFLANK_SERVICE_ID" "$payload"
+
+          while ((SECONDS < deadline)); do
+            api_request GET "$service_url/$NORTHFLANK_SERVICE_ID"
+            if ! jq -e '.data | (.status.deployment | type == "string") and
+              (.deployment.external.imagePath | type == "string")' <<< "$response" >/dev/null 2>&1; then
+              echo '::error::Unknown external service deployment response; no deployment confirmation.'
+              exit 1
+            fi
+            if jq -e --arg image "$IMAGE" '.data | .status.deployment == "COMPLETED" and .deployment.external.imagePath == $image' \
+              <<< "$response" >/dev/null 2>&1; then
+              {
+                echo '## Northflank deployment confirmed'
+                printf 'Northflank reports COMPLETED for `%s` after successful database preparation.\n\n' "$IMAGE"
+                echo 'Public HTTPS, application health and reviewer/Wallet checks remain pending with the operator.'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if jq -e '.data.status.deployment == "FAILED" or .data.status.deployment == "ERROR"' \
+              <<< "$response" >/dev/null 2>&1; then
+              echo '::error::Northflank deployment failed; no automatic retry.'
+              exit 1
+            fi
+            sleep 10
+          done
+          echo '::error::Northflank deployment timed out; completion not confirmed, no automatic retry.'
+          exit 1

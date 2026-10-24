@@ -26,7 +26,7 @@ return [
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', env('APP_ENV') === 'production' ? 'warning' : 'debug'),
             'replace_placeholders' => false,
             'tap' => [JsonLoggingTap::class],
         ],
@@ -34,7 +34,7 @@ return [
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', env('APP_ENV') === 'production' ? 'warning' : 'debug'),
             'max_files' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => false,
             'tap' => [JsonLoggingTap::class],
@@ -43,7 +43,7 @@ return [
         'monthly' => [
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', env('APP_ENV') === 'production' ? 'warning' : 'debug'),
             'max_files' => 3,
             'replace_placeholders' => false,
             'tap' => [JsonLoggingTap::class],
@@ -63,7 +63,7 @@ return [
 
         'papertrail' => [
             'driver' => 'monolog',
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', env('APP_ENV') === 'production' ? 'warning' : 'debug'),
             'handler' => env('LOG_PAPERTRAIL_HANDLER', SyslogUdpHandler::class),
             'handler_with' => [
                 'host' => env('PAPERTRAIL_URL'),
@@ -76,7 +76,7 @@ return [
 
         'stderr' => [
             'driver' => 'monolog',
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', env('APP_ENV') === 'production' ? 'warning' : 'debug'),
             'handler' => StreamHandler::class,
             'handler_with' => [
                 'stream' => 'php://stderr',
@@ -87,7 +87,7 @@ return [
 
         'syslog' => [
             'driver' => 'syslog',
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', env('APP_ENV') === 'production' ? 'warning' : 'debug'),
             'facility' => env('LOG_SYSLOG_FACILITY', LOG_USER),
             'replace_placeholders' => false,
             'tap' => [JsonLoggingTap::class],
@@ -96,7 +96,7 @@ return [
         'errorlog' => [
             'driver' => 'monolog',
             'handler' => ErrorLogHandler::class,
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', env('APP_ENV') === 'production' ? 'warning' : 'debug'),
             'replace_placeholders' => false,
             'tap' => [JsonLoggingTap::class],
         ],
@@ -107,7 +107,7 @@ return [
         ],
 
         'emergency' => [
-            'path' => storage_path('logs/laravel.log'),
+            'path' => 'php://stderr',
         ],
 
     ],

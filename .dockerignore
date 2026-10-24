@@ -22,18 +22,33 @@
 .devin/
 .fleet/
 .gentle-ai/
+.pi/
+.engram/
+.mcp/
 .idea/
 .nova/
 .tabnine/
 .vscode/
 .zed/
 openspec/
+odd/
 
 .aider*
 .copilot-instructions.md
 .cursorignore
 .cursorrules
 .windsurfrules
+.mcp.json
+.mcp*.json
+.npmrc
+.netrc
+.composer/
+.ssh/
+boost.json
+chisel.php
+chisel-paths.php
+skills/
+scripts/
 *.swp
 *.swo
 
@@ -45,7 +60,17 @@ openspec/
 **/.env
 **/.env.*
 **/secrets/
+**/keys/
+**/backups/
+**/.aws/
+**/.ssh/
 auth.json
+**/auth.json
+**/*service-account*.json
+**/*service_account*.json
+**/*credential*.json
+**/id_rsa*
+**/id_ed25519*
 
 *.cer
 *.crt
@@ -53,6 +78,16 @@ auth.json
 *.p12
 *.pem
 *.pfx
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
+*.sql
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+*.dump.gz
 
 ##############################################################################
 # installed dependencies and local frontend output
@@ -68,6 +103,8 @@ public/storage
 ##############################################################################
 bootstrap/cache/*
 storage/debugbar/
+storage/app/public/*
+storage/app/private/*
 storage/framework/cache/data/
 storage/framework/sessions/
 storage/framework/testing/
@@ -96,6 +133,7 @@ LICENSE*
 phpstan.neon
 phpunit.xml
 pint.json
+playwright.config.js
 
 ##############################################################################
 # Docker, Compose, CI, and packaging metadata

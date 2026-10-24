@@ -11,6 +11,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -22,6 +23,25 @@ beforeEach(function () {
     ]);
     $this->instance(DatabaseClock::class, $clock);
 });
+
+it('groups promotion buttons without adding pending locks to inputs', function (string $mode) {
+    $business = Business::factory()->create();
+    $component = Livewire::actingAs($business->user)->test('pages::business.promotion')->set('draftMode', $mode);
+    $html = $component->html();
+    $document = new DOMDocument;
+    $document->loadHTML($html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+    $xpath = new DOMXPath($document);
+    $scope = '//main[contains(@class, "app-promotion-page")]';
+    $buttons = $xpath->query($scope.'//button');
+
+    expect($buttons->length)->toBeGreaterThan(0);
+    foreach ($buttons as $button) {
+        expect($xpath->query('ancestor::fieldset[@data-pending-buttons]', $button)->length)->toBeGreaterThan(0);
+    }
+    expect($xpath->query($scope.'//input[ancestor::fieldset[@data-pending-buttons]] | '.$scope.'//select[ancestor::fieldset[@data-pending-buttons]] | '.$scope.'//textarea[ancestor::fieldset[@data-pending-buttons]]')->length)->toBe(0)
+        ->and($xpath->query($scope.'//fieldset[@data-pending-buttons]/@disabled')->length)->toBe(0)
+        ->and($xpath->query($scope.'//button[@type="submit"]/@*[name()="wire:loading.attr"]')->length)->toBe(0);
+})->with(['all day' => 'all_day', 'timed' => 'timed']);
 
 it('rejects a past Business-local start date before creating any records', function () {
     $owner = User::factory()->create();

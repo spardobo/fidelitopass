@@ -16,11 +16,14 @@ use Firebase\JWT\JWT;
 use Google\Model as GoogleModel;
 use Google\Service\Exception as GoogleServiceException;
 use Google\Service\Walletobjects;
+use Google\Service\Walletobjects\ClassTemplateInfo;
+use Google\Service\Walletobjects\ListTemplateOverride;
 use Google\Service\Walletobjects\LoyaltyClass;
 use Google\Service\Walletobjects\LoyaltyObject;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use PDOException;
+use ReflectionMethod;
 use SensitiveParameter;
 use Throwable;
 
@@ -84,7 +87,7 @@ class GoogleWalletPassCreator
         $classId = $settings['issuer_id'].'.business_'.$business->public_id;
         $objectId = $settings['issuer_id'].'.pass_'.$credentials->publicPassId;
         $saveUrl = $this->signSaveUrl($settings, $classId, $objectId);
-        $class = $this->buildClass($business, $classId, $settings['logos']['black']);
+        $class = $this->buildClass($business, $classId, $settings['logo_url']);
         $object = $this->buildObject($business, $credentials, $classId, $objectId);
 
         // authenticate, reconcile the business class, and confirm exactly one object
@@ -152,9 +155,9 @@ class GoogleWalletPassCreator
      * Each card role occupies one centered row. Each detail position selects its first available
      * role; barcode progress reads only the body. Google owns final geometry and truncation.
      *
-     * @param  Business  $business  Source of program name and background color.
+     * @param  Business  $business  Source of customer-visible issuer identity and background color.
      * @param  string  $classId  Deterministic provider Class ID.
-     * @param  string  $logoUrl  Validated black logo for the native white holder.
+     * @param  string  $logoUrl  Validated native brand asset or deployment override; Google owns the holder.
      * @return LoyaltyClass Owned appearance; provider operations set the review request.
      */
     private function buildClass(Business $business, string $classId, string $logoUrl): LoyaltyClass
@@ -206,7 +209,7 @@ class GoogleWalletPassCreator
         // apply owned appearance without moving credentials into the Class
         $class = new LoyaltyClass([
             'id' => $classId,
-            'issuerName' => 'FidelitoPass',
+            'issuerName' => "\u{200B}",
             'programName' => $business->name,
             'programLogo' => [
                 'sourceUri' => ['uri' => $logoUrl],
@@ -224,6 +227,20 @@ class GoogleWalletPassCreator
                     ],
                 ],
                 'detailsTemplateOverride' => ['detailsItemInfos' => $details],
+                'listTemplateOverride' => [
+                    'firstRowOption' => [
+                        'fieldOption' => [
+                            'fields' => [
+                                ['fieldPath' => 'class.programName'],
+                            ],
+                        ],
+                    ],
+                    'secondRowOption' => [
+                        'fields' => [
+                            ['fieldPath' => 'object.accountId'],
+                        ],
+                    ],
+                ],
             ],
         ]);
 
@@ -278,7 +295,7 @@ class GoogleWalletPassCreator
     }
 
     /**
-     * Finds or creates the business class, then reconciles only its owned appearance.
+     * Finds or creates the Business Class and reconciles its owned appearance.
      *
      * @param  Walletobjects  $wallet  Authenticated native SDK resources.
      * @param  LoyaltyClass  $expected  Deterministic identity and current appearance.
@@ -287,53 +304,22 @@ class GoogleWalletPassCreator
      */
     private function createOrUpdateClass(Walletobjects $wallet, LoyaltyClass $expected): void
     {
-        // discover the class; only a confirmed 404 permits insertion
         $method = 'GET';
         $context = [];
         $classId = $expected->getId();
 
         try {
-            try {
-                $actual = $wallet->loyaltyclass->get($classId);
-            } catch (GoogleServiceException $exception) {
-                if ($exception->getCode() !== 404) {
-                    throw $exception;
-                }
-
-                // reconcile a concurrent creator with a read, not a second insertion
-                $method = 'POST';
-                $newClass = clone $expected;
-                $newClass->setReviewStatus('UNDER_REVIEW');
-
-                try {
-                    $actual = $wallet->loyaltyclass->insert($newClass);
-                } catch (GoogleServiceException $exception) {
-                    if ($exception->getCode() !== 409) {
-                        throw $exception;
-                    }
-
-                    $method = 'GET';
-                    $context = [
-                        'provider_attempt' => [
-                            'http_method' => 'POST',
-                            'http_status' => 409,
-                        ],
-                        'confirmation_read' => true,
-                    ];
-                    $actual = $wallet->loyaltyclass->get($classId);
-                }
-            }
-
-            // submit owned appearance for review; only Google can approve the update
+            // find or create the class without repeating a concurrent insertion
+            $actual = $this->findOrCreateClass($wallet, $expected, $method, $context);
             $this->requireApprovedClass($actual, $classId, $method);
 
             if ($this->selectAppearance($actual) === $this->selectAppearance($expected)) {
                 return;
             }
 
+            // submit only the owned appearance and require provider approval
             $method = 'PATCH';
-            $update = clone $expected;
-            $update->setReviewStatus('UNDER_REVIEW');
+            $update = $this->buildAppearanceUpdate($actual, $expected);
             $actual = $wallet->loyaltyclass->patch($classId, $update);
             $this->requireApprovedClass($actual, $classId, $method);
         } catch (CustomerPassCreationException $exception) {
@@ -343,6 +329,109 @@ class GoogleWalletPassCreator
                 $exception, PassCreationStage::Provider, GoogleWalletStage::ClassDefinition, $method, $context,
             );
         }
+    }
+
+    /**
+     * Reads the existing Class or inserts it once after a confirmed 404.
+     *
+     * A concurrent insertion (409) is reconciled by reading the same Class ID.
+     * The last HTTP method and safe attempt context remain available if a request fails.
+     *
+     * @param  Walletobjects  $wallet  Authenticated native SDK resources.
+     * @param  LoyaltyClass  $expected  Class to insert if absent.
+     * @param  string  $method  Last attempted HTTP method, updated for failure classification.
+     * @param  array<string, mixed>  $context  Safe preceding request evidence.
+     * @return LoyaltyClass Existing or newly inserted provider Class.
+     *
+     * @throws GoogleServiceException If a request fails outside the expected 404/409 cases.
+     */
+    private function findOrCreateClass(
+        Walletobjects $wallet,
+        LoyaltyClass $expected,
+        string &$method,
+        array &$context,
+    ): LoyaltyClass {
+        $classId = $expected->getId();
+
+        try {
+            return $wallet->loyaltyclass->get($classId);
+        } catch (GoogleServiceException $exception) {
+            if ($exception->getCode() !== 404) {
+                throw $exception;
+            }
+        }
+
+        // create once; never treat a conflict as permission to insert again
+        $method = 'POST';
+        $newClass = clone $expected;
+        $newClass->setReviewStatus('UNDER_REVIEW');
+
+        try {
+            return $wallet->loyaltyclass->insert($newClass);
+        } catch (GoogleServiceException $exception) {
+            if ($exception->getCode() !== 409) {
+                throw $exception;
+            }
+        }
+
+        // a concurrent creator won; verify the existing Class instead
+        $method = 'GET';
+        $context = [
+            'provider_attempt' => [
+                'http_method' => 'POST',
+                'http_status' => 409,
+            ],
+            'confirmation_read' => true,
+        ];
+
+        return $wallet->loyaltyclass->get($classId);
+    }
+
+    /**
+     * Reconciles owned Class template slots without losing unrelated provider fields.
+     *
+     * Preserves the existing native null-sentinel writes for localized names.
+     *
+     * @param  LoyaltyClass  $actual  Provider Class containing other fields to preserve.
+     * @param  LoyaltyClass  $expected  Authoritative Business appearance.
+     * @return LoyaltyClass Patch payload with owned appearance and review request.
+     *
+     * @throws \JsonException If provider template data cannot be serialized.
+     * @throws \ReflectionException If the native model field setter is unavailable.
+     */
+    private function buildAppearanceUpdate(LoyaltyClass $actual, LoyaltyClass $expected): LoyaltyClass
+    {
+        $update = clone $expected;
+        $actualData = $actual->toSimpleObject();
+        $ownedTemplate = $expected->getClassTemplateInfo();
+
+        // replace owned slots without dropping unrelated template fields
+        $actualTemplate = json_decode(
+            json_encode(data_get($actualData, 'classTemplateInfo', []), JSON_THROW_ON_ERROR),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $template = new ClassTemplateInfo($actualTemplate);
+        $list = new ListTemplateOverride($actualTemplate['listTemplateOverride'] ?? []);
+        $list->setFirstRowOption($ownedTemplate->getListTemplateOverride()->getFirstRowOption());
+        $list->setSecondRowOption($ownedTemplate->getListTemplateOverride()->getSecondRowOption());
+        $template->setListTemplateOverride($list);
+        $template->setCardTemplateOverride($ownedTemplate->getCardTemplateOverride());
+        $template->setDetailsTemplateOverride($ownedTemplate->getDetailsTemplateOverride());
+        $template->setCardBarcodeSectionDetails($ownedTemplate->getCardBarcodeSectionDetails());
+        $update->setClassTemplateInfo($template);
+
+        // constructors lose typed null sentinels; bypass Collection's extra writes
+        $setModelField = new ReflectionMethod(GoogleModel::class, 'offsetSet');
+        foreach (['localizedIssuerName', 'localizedProgramName'] as $field) {
+            if ((array) data_get($actualData, $field, []) !== []) {
+                $setModelField->invoke($update, $field, GoogleModel::NULL_VALUE);
+            }
+        }
+
+        $update->setReviewStatus('UNDER_REVIEW');
+
+        return $update;
     }
 
     /**
@@ -416,6 +505,16 @@ class GoogleWalletPassCreator
         return [
             'issuerName' => $class->getIssuerName(),
             'programName' => $class->getProgramName(),
+            'localizedIssuerName' => (array) data_get($appearance, 'localizedIssuerName', []) !== [],
+            'localizedProgramName' => (array) data_get($appearance, 'localizedProgramName', []) !== [],
+            'listFirstFields' => array_map(
+                static fn ($field) => data_get($field, 'fieldPath'),
+                data_get($appearance, 'classTemplateInfo.listTemplateOverride.firstRowOption.fieldOption.fields', []),
+            ),
+            'listSecondFields' => array_map(
+                static fn ($field) => data_get($field, 'fieldPath'),
+                data_get($appearance, 'classTemplateInfo.listTemplateOverride.secondRowOption.fields', []),
+            ),
             'programLogo' => data_get($appearance, 'programLogo.sourceUri.uri'),
             'hexBackgroundColor' => $color,
             'fieldPaths' => $fieldPaths,

@@ -59,8 +59,8 @@
                 </flux:description>
             </flux:field>
 
-            <div class="flex flex-wrap items-center justify-end gap-3">
-                <flux:button :href="route('dashboard')" wire:navigate class="app-button-secondary">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <flux:button variant="ghost" :href="route('dashboard')" wire:navigate wire:loading.attr="inert" wire:target="save" class="app-button">
                     {{ __('business.profile.back_to_dashboard') }}
                 </flux:button>
                 <flux:button type="submit" variant="primary" class="app-button-primary">

@@ -61,6 +61,18 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
 
     public string $draftEndTime = '';
 
+    protected DatabaseClock $databaseClock;
+
+    /**
+     * Resolves the clock for both initial mounting and subsequent hydrated requests.
+     *
+     * @param  DatabaseClock  $databaseClock  Authoritative clock reused by editor operations.
+     */
+    public function boot(DatabaseClock $databaseClock): void
+    {
+        $this->databaseClock = $databaseClock;
+    }
+
     /**
      * Initializes the editor from the route-bound public Promotion ID and current Business timezone.
      * Authorize its context, set the local minimum date, and copy an existing draft into form state.
@@ -78,7 +90,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
         }
 
         $currentPromotion = $this->authorizeEditor();
-        $this->minimumStartDate = app(DatabaseClock::class)
+        $this->minimumStartDate = $this->databaseClock
             ->captureForBusinessTimezone($this->business()->timezone)['business_date'];
 
         if ($currentPromotion !== null) {
@@ -90,12 +102,14 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
      * Validates the rule-builder entry and append it without persisting the draft.
      * On success, sort the accepted list and reset the builder.
      *
+     * @param  PromotionDraftValidator  $promotionDraftValidator  Validator for the combined multiplier windows.
+     *
      * @throws AuthorizationException When the actor is not authorized to add a rule in this editor.
      * @throws ModelNotFoundException When the actor has no Business or the Promotion is not owned by them.
      * @throws HttpException When the selected Promotion is no longer a draft.
      * @throws ValidationException When the entry is invalid or conflicts with an accepted window.
      */
-    public function addExtraPoint(): void
+    public function addExtraPoint(PromotionDraftValidator $promotionDraftValidator): void
     {
         $this->authorizeEditor();
         $this->resetValidation([
@@ -132,7 +146,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
                 'multiplier' => (int) $validated['draftMultiplier'],
             ];
 
-            app(PromotionDraftValidator::class)->validateExtraPointWindows([
+            $promotionDraftValidator->validateExtraPointWindows([
                 ...$this->normalizedExtraPoints(),
                 $rule,
             ]);
@@ -229,12 +243,14 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
     /**
      * Validates the complete unsaved aggregate and show its read-only publication review.
      *
+     * @param  PromotionDraftValidator  $promotionDraftValidator  Validator for the submitted Promotion aggregate.
+     *
      * @throws AuthorizationException When the actor cannot create or edit the Promotion.
      * @throws ModelNotFoundException When the Business or selected Promotion is unavailable.
      * @throws HttpException When the selected Promotion is no longer a draft.
      * @throws ValidationException When submitted terms or multiplier windows are invalid.
      */
-    public function reviewPublication(): void
+    public function reviewPublication(PromotionDraftValidator $promotionDraftValidator): void
     {
         $this->authorizeEditor();
         $this->resetValidation();
@@ -247,14 +263,14 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
         }
 
         try {
-            $validated = app(PromotionDraftValidator::class)->validateInput($this->submittedInput());
+            $validated = $promotionDraftValidator->validateInput($this->submittedInput());
         } catch (ValidationException $exception) {
             $this->throwActionValidationException($exception);
         }
 
         $this->applyValidatedInput($validated);
         $business = $this->business();
-        $this->minimumStartDate = app(DatabaseClock::class)
+        $this->minimumStartDate = $this->databaseClock
             ->captureForBusinessTimezone($business->timezone)['business_date'];
         $this->reviewedTimezone = $business->timezone;
         $this->reviewingPublication = true;
@@ -326,7 +342,7 @@ new #[Layout('layouts::app'), Title('business.promotion.title')] class extends C
             $messages = $exception->errors();
             if (($messages['promotion'][0] ?? null) === __('business.promotion.timezone_changed_since_review')) {
                 $business = $this->business();
-                $this->minimumStartDate = app(DatabaseClock::class)
+                $this->minimumStartDate = $this->databaseClock
                     ->captureForBusinessTimezone($business->timezone)['business_date'];
                 Flux::toast(__('business.promotion.timezone_review_refreshed'), null, 5000, 'danger');
                 $this->closePublicationReview();

@@ -74,7 +74,7 @@ beforeEach(function () {
             'private_key' => $pem,
         ],
         'origin' => 'https://passes.example.test',
-        'logos' => ['black' => 'https://passes.example.test/logo.png'],
+        'logo_url' => 'https://passes.example.test/logo.png',
         'connect_timeout' => 3,
         'timeout' => 10,
     ]);

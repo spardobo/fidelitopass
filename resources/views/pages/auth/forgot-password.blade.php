@@ -1,5 +1,5 @@
 <x-layouts::auth :title="__('Forgot password')">
-    <div class="flex flex-col gap-6">
+    <div x-data="{ pending: false }" x-on:pageshow.window="pending = false" class="flex flex-col gap-6">
         <div class="flex w-full flex-col text-center">
             <flux:heading size="xl" level="1" class="app-heading">
                 {{ __('Forgot password') }}
@@ -12,7 +12,7 @@
         <!-- session status -->
         <x-auth-session-status class="app-status-success text-center" :status="session('status')" />
 
-        <form method="POST" action="{{ route('password.email') }}" class="flex flex-col gap-6">
+        <form method="POST" action="{{ route('password.email') }}" x-on:submit="if (pending) { $event.preventDefault() } else { pending = true }" class="flex flex-col gap-6">
             @csrf
 
             <!-- email address -->
@@ -28,7 +28,7 @@
                 error:class="app-error"
             />
 
-            <flux:button variant="primary" type="submit" class="app-button-primary w-full" data-test="email-password-reset-link-button">
+            <flux:button variant="primary" type="submit" x-bind:disabled="pending" x-bind:aria-busy="pending" class="app-button-primary w-full" data-test="email-password-reset-link-button">
                 {{ __('Email password reset link') }}
             </flux:button>
         </form>

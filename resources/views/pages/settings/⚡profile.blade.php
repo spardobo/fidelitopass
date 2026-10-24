@@ -164,9 +164,11 @@ new #[Title('Profile settings')] class extends Component
                             <span>
                                 {{ __('Your email address is unverified.') }}
 
-                                <flux:button variant="ghost" wire:click.prevent="resendVerificationNotification" class="app-button text-app-accent-text! underline underline-offset-4">
-                                    {{ __('Click here to re-send the verification email.') }}
-                                </flux:button>
+                                <span wire:loading.attr="inert" wire:target="updateProfileInformation,resendVerificationNotification">
+                                    <flux:button variant="ghost" wire:click.prevent="resendVerificationNotification" class="app-button text-app-accent-text! underline underline-offset-4">
+                                        {{ __('Click here to re-send the verification email.') }}
+                                    </flux:button>
+                                </span>
                             </span>
                         </flux:text>
 
@@ -175,7 +177,7 @@ new #[Title('Profile settings')] class extends Component
                 {{-- @end-chisel-email-verification --}}
             </div>
 
-            <div class="flex items-center justify-end gap-4">
+            <div wire:loading.attr="inert" wire:target="resendVerificationNotification" class="flex items-center justify-end gap-4">
                 <flux:button variant="primary" type="submit" data-test="update-profile-button" class="app-button-primary">
                     {{ __('Save') }}
                 </flux:button>

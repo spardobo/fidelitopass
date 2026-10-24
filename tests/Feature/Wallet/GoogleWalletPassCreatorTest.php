@@ -66,10 +66,10 @@ beforeEach(function () {
 
     $this->class = [
         'id' => $this->classId,
-        'issuerName' => 'FidelitoPass',
+        'issuerName' => "\u{200B}",
         'programName' => $this->business->name,
         'programLogo' => [
-            'sourceUri' => ['uri' => 'https://passes.example.test/logo.png'],
+            'sourceUri' => ['uri' => 'https://passes.example.test/icon-logo-wallet.png'],
         ],
         'hexBackgroundColor' => '#123456',
         'classTemplateInfo' => [
@@ -125,6 +125,10 @@ beforeEach(function () {
                     [['fieldPath' => "object.textModulesData['details_secondary_date']"]],
                     [['fieldPath' => "object.textModulesData['details_history']"]],
                 ]),
+            ],
+            'listTemplateOverride' => [
+                'firstRowOption' => ['fieldOption' => ['fields' => [['fieldPath' => 'class.programName']]]],
+                'secondRowOption' => ['fields' => [['fieldPath' => 'object.accountId']]],
             ],
         ],
         'reviewStatus' => 'approved',
@@ -219,6 +223,88 @@ it('preserves a leading-zero manual code through SDK payload and exact confirmat
     $this->assertDatabaseCount('customer_passes', 0);
 })->with(['exact' => false, 'manual-style separator rejected' => true]);
 
+it('clears shadowing localized names with real nulls without changing unrelated translations', function (bool $newClass) {
+    $localized = ['defaultValue' => ['language' => 'es', 'value' => 'Nombre anterior']];
+    $actual = [
+        ...$this->class,
+        'localizedIssuerName' => $localized,
+        'localizedProgramName' => $localized,
+        'localizedRewardsTier' => $localized,
+    ];
+    $responses = walletResponses($this->class, $this->object);
+    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
+        $newClass ? GoogleWalletHttpFake::json([], 404) : GoogleWalletHttpFake::json($actual),
+        GoogleWalletHttpFake::json($this->class),
+    ]);
+    $responses[$this->classUrl] = GoogleWalletHttpFake::json($actual, 201);
+    $this->http->respondWith($responses);
+
+    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
+
+    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
+    expect($patches)->toHaveCount(1);
+    $wire = $patches[0][0];
+    expect($wire->body())->toContain('"localizedIssuerName":null', '"localizedProgramName":null');
+    expect(json_decode($wire->body(), true))
+        ->toHaveKey('localizedIssuerName', null)
+        ->toHaveKey('localizedProgramName', null)
+        ->not->toHaveKeys(['localizedRewardsTier', 'valueAddedModuleData']);
+    expect(bin2hex($wire['issuerName']))->toBe('e2808b');
+    expect($wire['programName'])->toBe('Panadería real');
+})->with(['existing overrides' => false, 'initial response overrides' => true]);
+
+it('repairs legacy names or list-only differences without resetting Objects or unowned template fields', function (string $difference) {
+    $actual = $this->class;
+    if ($difference === 'legacy') {
+        $actual['issuerName'] = $this->business->name;
+        $actual['programName'] = 'Tarjeta de Puntos';
+    } elseif ($difference === 'missing list') {
+        unset($actual['classTemplateInfo']['listTemplateOverride']);
+    } else {
+        $actual['classTemplateInfo']['listTemplateOverride']['secondRowOption'] = [
+            'fieldOption' => ['fields' => [['fieldPath' => 'object.accountId']]],
+        ];
+    }
+    $actual['homepageUri'] = ['uri' => 'https://unrelated.example.test'];
+    $actual['classTemplateInfo']['futureTemplate'] = ['keep' => true];
+    $actual['classTemplateInfo']['listTemplateOverride']['thirdRowOption'] = [
+        'fields' => [['fieldPath' => 'object.accountName']],
+    ];
+    $responses = walletResponses($this->class, $this->object);
+    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
+        GoogleWalletHttpFake::json($actual),
+        // Google, not the submitted UNDER_REVIEW payload, owns the approval response
+        GoogleWalletHttpFake::json($this->class),
+    ]);
+    $responses[$this->objectUrl] = GoogleWalletHttpFake::json([], 409);
+    $responses[$this->objectUrl.'/'.$this->objectId] = GoogleWalletHttpFake::json([
+        ...$this->object,
+        'textModulesData' => [['id' => 'barcode_top', 'body' => '5 / 7 puntos']],
+    ]);
+    $this->http->respondWith($responses);
+
+    $result = app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
+
+    expect($result['confirmed_by_readback'])->toBeTrue();
+    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
+    expect($patches)->toHaveCount(1);
+    expect($patches[0][0]->url())->toBe($this->classUrl.'/'.$this->classId);
+    $wire = $patches[0][0]->data();
+    expect($wire)->not->toHaveKeys(['homepageUri', 'accountId', 'barcode', 'textModulesData', 'loyaltyPoints', 'valueAddedModuleData']);
+    expect($wire['classTemplateInfo']['futureTemplate'])->toBe(['keep' => true]);
+    expect($wire['classTemplateInfo']['listTemplateOverride'])->toEqual([
+        ...$this->class['classTemplateInfo']['listTemplateOverride'],
+        'thirdRowOption' => $actual['classTemplateInfo']['listTemplateOverride']['thirdRowOption'],
+    ]);
+    foreach (['cardTemplateOverride', 'detailsTemplateOverride', 'cardBarcodeSectionDetails'] as $field) {
+        expect($wire['classTemplateInfo'][$field])->toBe($this->class['classTemplateInfo'][$field]);
+    }
+    $objectWrites = $this->http->requests(fn (Request $request) => $request->url() === $this->objectUrl);
+    expect($objectWrites)->toHaveCount(1);
+    expect($objectWrites[0][0]['barcode'])->toBe($this->object['barcode']);
+    expect($objectWrites[0][0]['accountId'])->toBe($this->credentials->manualCode);
+})->with(['legacy', 'missing list', 'nested second row']);
+
 it('authenticates with a verifiable scoped OAuth assertion and form body', function () {
     $this->http->respondWith(walletResponses($this->class, $this->object));
 
@@ -244,6 +330,11 @@ it('authenticates with a verifiable scoped OAuth assertion and form body', funct
 });
 
 it('sends an authenticated empty class GET and a private JSON object POST', function () {
+    $this->class['classTemplateInfo']['listTemplateOverride']['thirdRowOption'] = [
+        'fields' => [['fieldPath' => 'object.accountName']],
+    ];
+    $this->class['localizedIssuerName'] = null;
+    $this->class['localizedProgramName'] = null;
     $this->http->respondWith(walletResponses($this->class, $this->object));
 
     app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
@@ -280,6 +371,36 @@ it('sends an authenticated empty class GET and a private JSON object POST', func
     }
 
     expect($this->http->requests())->toHaveCount(3);
+    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'))->toBeEmpty();
+});
+
+it('serves an opaque native Wallet PNG on the original canvas in the approved brand colors', function () {
+    $path = public_path('icon-logo-wallet.png');
+    $originalPath = public_path('icon-logo-black.png');
+    expect(is_file($path))->toBeTrue();
+    expect(is_file($originalPath))->toBeTrue();
+    $size = getimagesize($path);
+    $originalSize = getimagesize($originalPath);
+    expect([$size[0], $size[1], $size['mime']])->toBe([$originalSize[0], $originalSize[1], 'image/png']);
+
+    if (function_exists('imagecreatefrompng')) {
+        $image = imagecreatefrompng($path);
+        $opaque = true;
+        $hasAccent = false;
+
+        for ($y = 0; $y < $size[1]; $y++) {
+            for ($x = 0; $x < $size[0]; $x++) {
+                $pixel = imagecolorat($image, $x, $y);
+                $opaque = $opaque && ($pixel & 0x7F000000) === 0;
+                $color = $pixel & 0xFFFFFF;
+                $hasAccent = $hasAccent || $color === 0xA77BFF;
+            }
+        }
+
+        expect($opaque)->toBeTrue();
+        expect($hasAccent)->toBeTrue();
+        expect(imagecolorat($image, 0, 0))->toBe(0x1C1C1C);
+    }
 });
 
 it('creates a missing deterministic class once with the shared layout before the object', function () {
@@ -292,17 +413,27 @@ it('creates a missing deterministic class once with the shared layout before the
 
     expect($this->http->requests(fn (Request $request) => str_ends_with($request->url(), '/loyaltyClass')
         && $request['id'] === $this->classId
-        && $request['programName'] === 'Panadería real'
+        && $request['issuerName'] === "\u{200B}"
+        && $request['programName'] === $this->business->name
+        && $request['programLogo']['sourceUri']['uri'] === 'https://passes.example.test/icon-logo-wallet.png'
         && $request['reviewStatus'] === 'UNDER_REVIEW'
         && $request['classTemplateInfo'] === $this->class['classTemplateInfo']))->not->toBeEmpty();
+    $wire = $this->http->requests(fn (Request $request) => $request->url() === $this->classUrl)[0][0];
+    expect(bin2hex($wire['issuerName']))->toBe('e2808b');
+    expect($wire['classTemplateInfo']['listTemplateOverride'])->toBe([
+        'firstRowOption' => ['fieldOption' => ['fields' => [['fieldPath' => 'class.programName']]]],
+        'secondRowOption' => ['fields' => [['fieldPath' => 'object.accountId']]],
+    ]);
+    expect($wire->data())->not->toHaveKeys(['wideProgramLogo', 'localizedIssuerName', 'localizedProgramName']);
     $requests = $this->http->requests()->map(fn ($pair) => $pair[0]->url())->all();
+    expect($requests)->toHaveCount(4);
     expect(array_search($this->classUrl, $requests))
         ->toBeLessThan(array_search($this->objectUrl, $requests));
 });
 
-it('uses the configured black logo in the native holder regardless of card background', function (string $background) {
+it('uses the single configured logo in the native holder regardless of card background', function (string $background) {
     config([
-        'services.google_wallet.logo_black_url' => 'https://assets.example.test/black.png',
+        'services.google_wallet.logo_url' => 'https://assets.example.test/black.png',
     ]);
     $this->business->update(['pass_background_color' => $background]);
     $class = $this->class;
@@ -330,14 +461,12 @@ it('uses the configured black logo in the native holder regardless of card backg
     'lavender background' => ['#A77BFF'],
 ]);
 
-it('replaces a native white logo with black without resetting a matching object', function () {
-    config([
-        'services.google_wallet.logo_black_url' => 'https://assets.example.test/black.png',
-    ]);
+it('reconciles legacy native names and logo without resetting a matching object', function () {
     $class = $this->class;
-    $class['programLogo']['sourceUri']['uri'] = 'https://assets.example.test/black.png';
     $previousClass = $this->class;
-    $previousClass['programLogo']['sourceUri']['uri'] = 'https://assets.example.test/white.png';
+    $previousClass['issuerName'] = 'FidelitoPass';
+    $previousClass['programName'] = $this->business->name;
+    $previousClass['programLogo']['sourceUri']['uri'] = 'https://passes.example.test/logo.png';
     $responses = walletResponses($class, $this->object);
     $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
         GoogleWalletHttpFake::json([
@@ -353,28 +482,48 @@ it('replaces a native white logo with black without resetting a matching object'
             'loyaltyPoints' => [
                 'balance' => ['int' => 5],
             ],
+            'textModulesData' => [
+                ['id' => 'barcode_top', 'body' => '5 / 7 puntos'],
+                ['id' => 'details_primary', 'body' => 'Recompensa existente'],
+            ],
         ]);
     $this->http->respondWith($responses);
 
-    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
+    $result = app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
 
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'
-        && str_contains($request->url(), '/loyaltyClass/')
-        && $request['programLogo']['sourceUri']['uri'] === 'https://assets.example.test/black.png'
-        && ! array_key_exists('homepageUri', $request->data())))->not->toBeEmpty();
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'
-        && str_contains($request->url(), '/loyaltyObject/')))->toBeEmpty();
+    expect($result['object_id'])->toBe($this->objectId);
+    expect($result['confirmed_by_readback'])->toBeTrue();
+    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
+    expect($patches)->toHaveCount(1);
+    expect($patches[0][0]->url())->toBe($this->classUrl.'/'.$this->classId);
+    expect($patches[0][0]->data())->toMatchArray([
+        'id' => $this->classId,
+        'issuerName' => "\u{200B}",
+        'programName' => $this->business->name,
+        'programLogo' => ['sourceUri' => ['uri' => 'https://passes.example.test/icon-logo-wallet.png']],
+        'reviewStatus' => 'UNDER_REVIEW',
+    ])->not->toHaveKeys(['homepageUri', 'barcode', 'accountId', 'textModulesData', 'loyaltyPoints']);
+    expect($this->http->requests()->map(fn ($pair) => [$pair[0]->method(), $pair[0]->url()])->all())->toBe([
+        ['POST', 'https://oauth2.googleapis.com/token'],
+        ['GET', $this->classUrl.'/'.$this->classId],
+        ['PATCH', $this->classUrl.'/'.$this->classId],
+        ['POST', $this->objectUrl],
+        ['GET', $this->objectUrl.'/'.$this->objectId],
+    ]);
+    $this->assertDatabaseCount('customer_passes', 0);
 });
 
-it('ignores unused white logo configuration when selecting the black logo or its fallback', function (
-    ?string $blackLogo,
-    ?string $fallbackLogo,
+it('selects one native logo URL by environment and optional override', function (
+    string $environment,
+    ?string $logoUrl,
     string $expectedLogo,
 ) {
+    app()->instance('env', $environment);
     config([
-        'services.google_wallet.logo_black_url' => $blackLogo,
-        'services.google_wallet.logo_url' => $fallbackLogo,
-        'services.google_wallet.logo_white_url' => 'http://unused.example.test/white.png',
+        'app.url' => 'https://PASSES.example.test:443/',
+        'services.google_wallet.logo_url' => $logoUrl,
+        'services.google_wallet.logo_black_url' => 'http://retired.example.test/black.png',
+        'services.google_wallet.logo_white_url' => 'http://retired.example.test/white.png',
     ]);
     $class = $this->class;
     $class['programLogo']['sourceUri']['uri'] = $expectedLogo;
@@ -393,28 +542,23 @@ it('ignores unused white logo configuration when selecting the black logo or its
         && str_ends_with($request->url(), '/loyaltyObject')))->toHaveCount(1);
     expect(CustomerPass::count())->toBe(0);
 })->with([
-    'black override' => [
-        'https://assets.example.test/black.png',
-        'http://unused.example.test/fallback.png',
-        'https://assets.example.test/black.png',
-    ],
-    'configured fallback' => [
-        null,
-        'https://assets.example.test/platform.png',
-        'https://assets.example.test/platform.png',
-    ],
-    'origin fallback' => [null, null, 'https://passes.example.test/logo.png'],
+    'local unset' => ['local', null, 'https://passes.example.test/icon-logo-wallet.png'],
+    'local empty' => ['local', '', 'https://passes.example.test/icon-logo-wallet.png'],
+    'production unset' => ['production', null, 'https://passes.example.test/icon-logo-wallet.png'],
+    'production empty' => ['production', '', 'https://passes.example.test/icon-logo-wallet.png'],
+    'local override' => ['local', 'https://cjmsliamizbxzuyntoud.supabase.co/storage/v1/object/public/wallet-branding/icon-logo-wallet.png', 'https://cjmsliamizbxzuyntoud.supabase.co/storage/v1/object/public/wallet-branding/icon-logo-wallet.png'],
+    'production override' => ['production', 'https://assets.example.test/platform.png', 'https://assets.example.test/platform.png'],
 ]);
 
-it('rejects an unsafe selected black logo before credential loading or HTTP', function (mixed $invalid) {
+it('rejects an unsafe selected logo before credential loading or HTTP', function (mixed $invalid) {
     config([
-        'services.google_wallet.logo_black_url' => $invalid,
+        'services.google_wallet.logo_url' => $invalid,
         'services.google_wallet.credentials_path' => '/nonexistent/unsafe-logo-marker',
     ]);
 
     try {
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-        test()->fail('An unsafe selected black logo must stop issuance.');
+        test()->fail('An unsafe selected logo must stop issuance.');
     } catch (CustomerPassCreationException $exception) {
         expect($exception->providerStage->value)->toBe('configuration');
         expect($exception->isRetryable())->toBeTrue();
@@ -425,7 +569,7 @@ it('rejects an unsafe selected black logo before credential loading or HTTP', fu
 
     expect($this->http->requests())->toBeEmpty();
 })->with([
-    'empty black' => [''],
+    'relative path' => ['/icon-logo-wallet.png'],
     'wrong type' => [['unsafe-logo-marker']],
     'HTTP black' => ['http://assets.example.test/black.png'],
     'local black' => ['https://localhost/black.png'],
@@ -719,6 +863,10 @@ it('reuses a business class for different private objects and isolates another b
     $googlePassCreator->create($otherBusiness, CustomerPassCredentials::prepare($otherBusiness));
 
     expect($seenClasses)->toHaveCount(2);
+    expect($seenClasses[$this->classId]['issuerName'])->toBe("\u{200B}");
+    expect($seenClasses[$this->classId]['programName'])->toBe('Panadería real');
+    expect($seenClasses['123456.business_'.$otherBusiness->public_id]['programName'])->toBe($otherBusiness->name);
+    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'))->toBeEmpty();
     expect($seenObjects)->toHaveCount(3);
     expect($seenObjects[0]['classId'])->toBe($seenObjects[1]['classId']);
     expect($seenObjects[2]['classId'])->not->toBe($seenObjects[0]['classId']);
@@ -774,7 +922,8 @@ it('patches only application-owned class appearance and preserves unrelated fiel
 
         expect($request->hasHeader('Content-Type', 'application/json'))->toBeTrue();
         expect(json_decode($request->body(), true))->toMatchArray([
-            'programName' => 'Panadería real',
+            'issuerName' => "\u{200B}",
+            'programName' => $this->business->name,
             'reviewStatus' => 'UNDER_REVIEW',
         ])->not->toHaveKey('homepageUri');
 
@@ -1176,7 +1325,7 @@ it('requires a public HTTPS logo independently of the permitted local origin', f
 
     try {
         app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-        test()->fail('A local app must not send a local or missing program logo.');
+        test()->fail('A local app must not send an unsafe program logo.');
     } catch (CustomerPassCreationException $exception) {
         expect($exception->providerStage->value)->toBe('configuration');
         expect($exception->failure)->toBe(CustomerPassCreationFailure::LogoUrlInvalid);
@@ -1185,8 +1334,8 @@ it('requires a public HTTPS logo independently of the permitted local origin', f
 
     expect($this->http->requests())->toBeEmpty();
 })->with([
-    null,
-    '',
+    '/icon-logo-wallet.png',
+    '@public/icon-logo-wallet.png',
     'http://localhost/logo.png',
     'https://localhost/logo.png',
     'https://127.0.0.1/logo.png',
@@ -1197,7 +1346,7 @@ it('requires a public HTTPS logo independently of the permitted local origin', f
 it('preserves nondefault HTTPS production ports and the public logo fallback', function () {
     config(['app.url' => 'https://passes.example.test:8443/']);
     $class = $this->class;
-    $class['programLogo']['sourceUri']['uri'] = 'https://passes.example.test:8443/logo.png';
+    $class['programLogo']['sourceUri']['uri'] = 'https://passes.example.test:8443/icon-logo-wallet.png';
     $this->http->respondWith(walletResponses($class, $this->object));
 
     $result = app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
@@ -1665,6 +1814,7 @@ it('submits owned appearance without requiring a complete visual echo in the PAT
     $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
     expect($patches)->toHaveCount(1);
     expect($patches[0][0]->data())->toMatchArray([
+        'issuerName' => "\u{200B}",
         'programName' => $this->business->name,
         'programLogo' => $this->class['programLogo'],
         'classTemplateInfo' => $this->class['classTemplateInfo'],

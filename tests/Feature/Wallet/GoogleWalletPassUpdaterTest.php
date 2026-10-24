@@ -736,7 +736,7 @@ it('classifies shared configuration at its original flow boundary without leakin
 })->with([
     ['services.google_wallet.issuer_id', '', GoogleWalletSynchronizationFailure::ConfigurationInvalid, CustomerPassCreationFailure::ConfigurationInvalid],
     ['app.url', 'http://private.invalid', GoogleWalletSynchronizationFailure::OriginInvalid, CustomerPassCreationFailure::OriginInvalid],
-    ['services.google_wallet.logo_black_url', '', GoogleWalletSynchronizationFailure::LogoUrlInvalid, CustomerPassCreationFailure::LogoUrlInvalid],
+    'unsafe logo' => ['services.google_wallet.logo_url', 'http://unsafe.example.test/icon-logo-wallet.png', GoogleWalletSynchronizationFailure::LogoUrlInvalid, CustomerPassCreationFailure::LogoUrlInvalid],
     ['services.google_wallet.credentials_path', null, GoogleWalletSynchronizationFailure::CredentialsInvalid, CustomerPassCreationFailure::CredentialsInvalid],
     ['services.google_wallet.credentials_path', '/nonexistent/test-only', GoogleWalletSynchronizationFailure::CredentialsInvalid, CustomerPassCreationFailure::CredentialsInvalid],
 ]);

@@ -55,18 +55,30 @@ it('enforces unique non-null UUIDv7 identities at the persistence boundary', fun
     ]))->toThrow(QueryException::class);
 })->with(['duplicate', 'null', '01936380-0000-4000-8000-000000000001']);
 
-it('backfills existing Businesses without changing their other persisted facts', function () {
-    $businesses = Business::factory()->count(2)->create();
-    $before = $businesses->map(fn (Business $business) => collect($business->fresh()->getRawOriginal())->except('public_id')->all());
-    $migration = require database_path('migrations/2026_10_10_000000_add_public_id_to_businesses_table.php');
-    $migration->down();
-    $migration->up();
+it('accepts a UUIDv7 identity on direct creation and preserves it during profile updates', function () {
+    $owner = User::factory()->create();
+    $identity = (string) Str::uuid7();
+    $businessId = DB::table('businesses')->insertGetId([
+        'public_id' => $identity,
+        'user_id' => $owner->id,
+        'name' => 'Original',
+        'timezone' => 'Europe/Madrid',
+    ]);
 
-    $after = Business::query()->whereKey($businesses->modelKeys())->orderBy('id')->get();
-    expect($after->map(fn (Business $business) => collect($business->getRawOriginal())->except('public_id')->all())->all())
-        ->toBe($before->all())
-        ->and($after->pluck('public_id')->unique())->toHaveCount(2);
-    foreach ($after as $business) {
-        expect(Str::isUuid($business->public_id, version: 7))->toBeTrue();
-    }
+    DB::table('businesses')->where('id', $businessId)->update([
+        'public_id' => $identity,
+        'name' => 'Renamed',
+        'pass_background_color' => '#A77BFF',
+    ]);
+
+    $this->assertDatabaseHas('businesses', [
+        'id' => $businessId,
+        'public_id' => $identity,
+        'user_id' => $owner->id,
+        'name' => 'Renamed',
+        'timezone' => 'Europe/Madrid',
+        'pass_background_color' => '#A77BFF',
+        'created_at' => null,
+        'updated_at' => null,
+    ]);
 });

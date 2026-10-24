@@ -16,7 +16,7 @@ use App\Exceptions\GoogleWalletSynchronizationException;
  *     issuer_id: string,
  *     account: array{type: string, client_id: string, client_email: string, private_key: string},
  *     origin: string,
- *     logos: array{black: string},
+ *     logo_url: string,
  *     connect_timeout: int,
  *     timeout: int
  * }
@@ -77,39 +77,37 @@ class GoogleWalletConfiguration
         }
 
         $origin = $this->normalizeOrigin($origin, $synchronizing);
-        $logoUrls = $this->loadLogoUrls($origin, $synchronizing);
+        $logoUrl = $this->loadLogoUrl($origin, $synchronizing);
         $account = $this->loadServiceAccount($synchronizing);
 
         return [
             'issuer_id' => $issuerId,
             'account' => $account,
             'origin' => $origin,
-            'logos' => $logoUrls,
+            'logo_url' => $logoUrl,
             'connect_timeout' => $connectTimeout,
             'timeout' => $timeout,
         ];
     }
 
     /**
-     * Loads the selected black logo URL, preserving the original single-logo fallback.
+     * Selects one public native logo URL with an application-origin default.
      *
      * @param  string  $origin  Validated application origin used for the default logo path.
      * @param  bool  $synchronizing  Invocation-local exception ownership.
-     * @return array{black: string} Private configuration map.
+     * @return string Validated absolute HTTPS URL independent of the card background.
      *
      * @throws CustomerPassCreationException If the selected issuance logo URL is invalid.
      * @throws GoogleWalletSynchronizationException If the selected synchronization logo URL is invalid.
      */
-    private function loadLogoUrls(string $origin, bool $synchronizing): array
+    private function loadLogoUrl(string $origin, bool $synchronizing): string
     {
-        $blackUrl = config('services.google_wallet.logo_black_url');
-        if ($blackUrl === null) {
-            $fallbackUrl = config('services.google_wallet.logo_url');
-            $fallbackUrl = $fallbackUrl === null || $fallbackUrl === '' ? $origin.'/logo.png' : $fallbackUrl;
-            $blackUrl = $fallbackUrl;
+        $logoUrl = config('services.google_wallet.logo_url');
+        if ($logoUrl === null || $logoUrl === '') {
+            $logoUrl = $origin.'/icon-logo-wallet.png';
         }
 
-        if (! is_string($blackUrl) || ! $this->hasPublicHttpsFormat($blackUrl)) {
+        if (! is_string($logoUrl) || ! $this->hasPublicHttpsFormat($logoUrl)) {
             throw $synchronizing
                 ? new GoogleWalletSynchronizationException(
                     GoogleWalletSynchronizationFailure::LogoUrlInvalid,
@@ -122,7 +120,7 @@ class GoogleWalletConfiguration
                 );
         }
 
-        return ['black' => $blackUrl];
+        return $logoUrl;
     }
 
     /**

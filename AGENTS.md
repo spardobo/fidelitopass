@@ -28,6 +28,7 @@ Load the implementation skills matching the affected responsibilities. Mixed Liv
 | Implement JavaScript/Alpine, component-local browser behavior or JS tests/scripts                            | `skills/fidelitopass-javascript-alpine-implementation/SKILL.md` |
 | Integrate a page, layout or navigation into the Livewire starter                                             | `skills/laravel-livewire-starter-integration/SKILL.md`          |
 | Select or scope delivery work, change board state, or establish completion                                   | `skills/fidelitopass-delivery-planning/SKILL.md`                |
+| Deploy, manage or automate Northflank infrastructure, or use its API, CLI or JavaScript client                | `.agents/skills/northflank/SKILL.md`                                  |
 
 Implementation skills own coding HOW; architecture owns design principles and their shared coding-standards reference owns cross-language readability conventions. They do not redefine product or risk policy. Select outcome/contract documents through the routing table below; `docs/README.md` explains the design order and each owner's role.
 
