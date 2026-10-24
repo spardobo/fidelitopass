@@ -872,7 +872,12 @@ test("UI inventory: Pass blocks related action buttons", async ({ page }) => {
 
     await page.goto("/pass/appearance");
     const scope = page.locator("main.app-pass-page");
+    const back = scope.getByRole("link", { name: "Volver a tu tarjeta", exact: true });
+    await expect(back).toBeVisible();
+    await expect(back.locator("[data-flux-loading-indicator]")).toHaveCount(0);
     await expectInventoryPending(page, scope, scope.locator('button[type="submit"]'), "save");
+    await back.click();
+    await expect(page).toHaveURL(/\/pass$/);
     await page.goto("/pass");
     await scope.locator(`#promotion-detail-trigger-${fixture.promotions.Activa}`).click();
     const dialog = page.locator('dialog[data-modal="promotion-detail"]');

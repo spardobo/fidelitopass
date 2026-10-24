@@ -39,6 +39,7 @@
                             href="{{ route('business.pass') }}"
                             wire:click.prevent="cancel"
                             wire:target="cancel"
+                            :loading="false"
                             variant="ghost"
                             icon:leading="arrow-left"
                             icon:variant="outline"
