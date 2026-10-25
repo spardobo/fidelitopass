@@ -768,6 +768,41 @@ async function readActivePromotionRoles(card) {
     });
 }
 
+/** Reads the rendered Back control's typography, spacing, surface and icon geometry.
+ * @param {import('@playwright/test').Locator} control Visible editor Back link or button.
+ * @returns {Promise<object>} Comparable computed styles and dimensions at the current interaction state.
+ */
+async function readBackControlAppearance(control) {
+    return control.evaluate((element) => {
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        const icon = element.querySelector("svg").getBoundingClientRect();
+
+        return {
+            styles: Object.fromEntries(
+                [
+                    "fontFamily",
+                    "fontSize",
+                    "lineHeight",
+                    "fontWeight",
+                    "color",
+                    "backgroundColor",
+                    "paddingInlineStart",
+                    "paddingInlineEnd",
+                    "paddingBlockStart",
+                    "paddingBlockEnd",
+                    "columnGap",
+                    "justifyContent",
+                    "textDecorationLine",
+                ].map((property) => [property, style[property]]),
+            ),
+            width: bounds.width,
+            height: bounds.height,
+            icon: { width: icon.width, height: icon.height },
+        };
+    });
+}
+
 /** Checks one real action while its native request is held before reaching the backend.
  * @param {import('@playwright/test').Page} page Authenticated isolated page.
  * @param {import('@playwright/test').Locator} scope Related workspace controls.
@@ -781,6 +816,8 @@ async function expectInventoryPending(page, scope, button, method) {
         (await controls.all()).map((control) => control.isEnabled()),
     );
     const startingUrl = page.url();
+    const back = scope.getByRole("link", { name: "Volver a tu tarjeta", exact: true });
+    const hasCleanBack = (await back.count()) > 0;
     let release;
     let finish;
     const finished = new Promise((resolve) => {
@@ -827,10 +864,17 @@ async function expectInventoryPending(page, scope, button, method) {
                 if (await indicator.count()) await expect(indicator).toHaveCSS("opacity", "0");
             }
         }
-        for (const link of await scope.locator("a[data-flux-button]:visible").all()) {
+        for (const link of await scope.locator("a[href]:visible").all()) {
             await expect
                 .poll(() => link.evaluate((element) => Boolean(element.closest("[inert]"))))
                 .toBe(true);
+        }
+        if (hasCleanBack) {
+            await expect(back).toHaveAttribute("inert");
+            await expect(back).toHaveCSS("opacity", "0.6");
+            const bounds = await back.boundingBox();
+            await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+            await expect(page).toHaveURL(startingUrl);
         }
         const dialog = scope.locator("dialog[open]");
         if (await dialog.count()) {
@@ -846,6 +890,10 @@ async function expectInventoryPending(page, scope, button, method) {
         await page.unroute(LIVEWIRE_UPDATE_PATH, handler);
     }
     await expect(page).toHaveURL(startingUrl);
+    if (hasCleanBack) {
+        await expect(back).not.toHaveAttribute("inert");
+        await expect(back).toHaveCSS("opacity", "1");
+    }
     for (const [index, control] of (await controls.all()).entries()) {
         if (enabledBefore[index]) await expect(control).toBeEnabled();
         else await expect(control).toBeDisabled();
@@ -869,13 +917,45 @@ test("UI inventory: Pass blocks related action buttons", async ({ page }) => {
     await page.locator('a[href$="/promotions/create"]').click();
     await expect(page).toHaveURL(/\/promotions\/create$/);
     expect(await page.evaluate(() => performance.timeOrigin)).toBe(documentOrigin);
+    const promotionBack = page.getByRole("link", { name: "Volver a tu tarjeta", exact: true });
+    await expect(promotionBack).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await page.mouse.move(0, 0);
+    const referenceAppearance = await readBackControlAppearance(promotionBack);
+    await promotionBack.hover();
+    const referenceHover = await readBackControlAppearance(promotionBack);
 
     await page.goto("/pass/appearance");
     const scope = page.locator("main.app-pass-page");
     const back = scope.getByRole("link", { name: "Volver a tu tarjeta", exact: true });
     await expect(back).toBeVisible();
     await expect(back.locator("[data-flux-loading-indicator]")).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    await page.mouse.move(0, 0);
+    expect.soft(await readBackControlAppearance(back)).toEqual(referenceAppearance);
+    await back.hover();
+    expect.soft(await readBackControlAppearance(back)).toEqual(referenceHover);
+    await expectInventoryPending(
+        page,
+        scope,
+        scope.getByRole("button", { name: "Usar el color Rojo (#E53935)", exact: true }),
+        "selectColor",
+    );
+
+    const hex = page.getByLabel("Código hexadecimal");
+    const savedColor = await hex.inputValue();
+    const draftColor = savedColor === "#E53935" ? "#1E88E5" : "#E53935";
+    await hex.fill(draftColor);
+    const dirtyBack = scope.getByRole("button", { name: "Volver a tu tarjeta", exact: true });
+    await expect(dirtyBack).toBeVisible();
+    await page.mouse.move(0, 0);
+    expect.soft(await readBackControlAppearance(dirtyBack)).toEqual(referenceAppearance);
+    await dirtyBack.hover();
+    expect.soft(await readBackControlAppearance(dirtyBack)).toEqual(referenceHover);
     await expectInventoryPending(page, scope, scope.locator('button[type="submit"]'), "save");
+    await expect(hex).toHaveValue(draftColor);
+    await hex.fill(savedColor);
+    await expect(back).toBeVisible();
     await back.click();
     await expect(page).toHaveURL(/\/pass$/);
     await page.goto("/pass");

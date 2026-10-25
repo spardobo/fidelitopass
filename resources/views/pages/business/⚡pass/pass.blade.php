@@ -26,29 +26,29 @@
                 @if ($this->isDirty)
                     <flux:modal.trigger name="discard-pass-appearance">
                         <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
-                            <button type="button" class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline">
+                            <button
+                                type="button"
+                                wire:loading.attr="disabled"
+                                wire:target="{{ $pendingTargets }}"
+                                class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline"
+                            >
                                 <flux:icon.arrow-left variant="outline" class="size-4" />
                                 {{ __('business.pass.back_to_pass') }}
                             </button>
                         </fieldset>
                     </flux:modal.trigger>
                 @else
-                    <span wire:loading.attr="inert" wire:target="{{ $pendingTargets }}" class="contents">
-                    <fieldset wire:loading.attr="disabled" wire:target="{{ $pendingTargets }}" data-pending-buttons="pass" class="contents">
-                        <flux:button
-                            href="{{ route('business.pass') }}"
-                            wire:click.prevent="cancel"
-                            wire:target="cancel"
-                            :loading="false"
-                            variant="ghost"
-                            icon:leading="arrow-left"
-                            icon:variant="outline"
-                            class="app-button min-h-11 gap-2 p-0! text-app-accent! hover:underline"
-                        >
-                            {{ __('business.pass.back_to_pass') }}
-                        </flux:button>
-                    </fieldset>
-                    </span>
+                    <a
+                        href="{{ route('business.pass') }}"
+                        wire:navigate
+                        wire:loading.attr="inert"
+                        wire:loading.class="opacity-60"
+                        wire:target="{{ $pendingTargets }}"
+                        class="app-button inline-flex min-h-11 items-center gap-2 text-sm font-medium text-app-accent hover:underline"
+                    >
+                        <flux:icon.arrow-left variant="outline" class="size-4" />
+                        {{ __('business.pass.back_to_pass') }}
+                    </a>
                 @endif
             </div>
 
