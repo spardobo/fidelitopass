@@ -55,6 +55,10 @@ function bindVisitRegistrationModal(root, screen) {
      */
     function onShow(event) {
         if (event.detail.name === "visit-registration") {
+            root.querySelector("dialog").setAttribute(
+                "aria-labelledby",
+                "visit-registration-title",
+            );
             screen.handleModalShow();
         }
     }
@@ -382,6 +386,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             }
 
             this.opened = true;
+            this.cameraFeedbackReady = false;
 
             // a closed-cycle reset cannot publish feedback into this new opening
             if (activeRead?.name === "resetIdentification") {
@@ -435,6 +440,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
          */
         handleModalClose() {
             this.opened = false;
+            this.cameraFeedbackReady = false;
             this.cancelRead();
             this.stopCamera();
             if (this.visitPhase !== VISIT_PHASE.PENDING) {
@@ -535,6 +541,16 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             root.querySelector("[data-qr-camera]")?.dispatchEvent(new Event("qr-camera-stop"));
         },
 
+        /**
+         * Closes failed capture while retaining its feedback origin for recovery focus and placement.
+         *
+         * @returns {void}
+         */
+        closeFailedCamera() {
+            this.cameraFeedbackReady = true;
+            this.stopCamera();
+        },
+
         // -----------------------------------------------------------------------------
         // identification flow
         // -----------------------------------------------------------------------------
@@ -583,8 +599,12 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             }
 
             this.clientErrorCode = "";
+            this.cameraFeedbackReady = false;
             this.stopCamera(method === "token");
             if (window.navigator.onLine === false) {
+                if (method === "token") {
+                    this.closeFailedCamera();
+                }
                 this.announceFailure(codes.network);
                 this.focusStage();
                 return;
@@ -606,10 +626,6 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                         return;
                     }
 
-                    if (method === "token") {
-                        this.cameraFeedbackReady = true;
-                    }
-
                     if (!found) {
                         return;
                     }
@@ -622,10 +638,6 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                 const operationId = await wire.findPass(method, credential);
                 if (isDisposed || activeRead !== read) {
                     return;
-                }
-
-                if (method === "token") {
-                    this.cameraFeedbackReady = true;
                 }
 
                 if (operationId) {
@@ -645,6 +657,9 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                 if (activeRead === read) {
                     activeRead = null;
                     this.busy = false;
+                    if (method === "token" && wire.stage === "identify" && !read.cancelled) {
+                        this.closeFailedCamera();
+                    }
                     this.focusStage();
                 }
             }
@@ -667,6 +682,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
             }
 
             this.clientErrorCode = "";
+            this.cameraFeedbackReady = false;
             const read = { name: "resetIdentification", cancel: null };
             activeRead = read;
             selectedOperation = null;
@@ -1095,7 +1111,6 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                 return;
             }
 
-            this.cameraFeedbackReady = true;
             this.clientErrorCode = code;
             this.$flux.toast({ variant: "danger", text: errors[code].notice });
         },
@@ -1146,6 +1161,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
                 return;
             }
 
+            this.closeFailedCamera();
             this.announceFailure(code);
             this.focusStage();
             if (window.navigator.onLine === false) {
@@ -1224,7 +1240,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
 
             switch (wire.stage) {
                 case "identify":
-                    if (this.cameraEnabled) {
+                    if (this.cameraEnabled || this.cameraFeedbackReady) {
                         return "[data-visit-camera-control]";
                     }
 
