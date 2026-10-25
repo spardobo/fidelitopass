@@ -47,8 +47,7 @@ async function expectReadableCard(card) {
             business: "h2",
             label: "h3",
             reward: ".app-role-marketing-pass-reward, .app-role-pass-preview-reward",
-            description: ".app-pass-preview-details > p:nth-of-type(2)",
-            earningTerms: ".app-pass-preview-details > p:nth-of-type(3)",
+            description: ".app-pass-preview-details > .app-role-pass-preview-compact",
             progress: ".app-role-marketing-pass-metric, .app-role-pass-preview-metric",
             extra: ".app-pass-preview-extra-points p",
             deadline: ".app-pass-preview-validity p, .app-pass-preview-reward > p",
@@ -84,7 +83,6 @@ async function expectReadableCard(card) {
         label: [14, 1.35, 500],
         reward: [wide ? 24 : 22, 1.25, 600],
         description: [16, 1.45, 400],
-        earningTerms: [16, 1.45, 400],
         progress: [wide ? 28 : 26, 1.15, 700],
         extra: [14, 1.35, 400],
         deadline: [14, 1.35, 400],
@@ -97,6 +95,7 @@ async function expectReadableCard(card) {
         );
         expect(typography.roles[role].weight, `${role} weight`).toBe(weight);
     }
+    await expect(card).not.toContainText(/Consigue \d+ puntos hasta/);
     await expect(card.locator('svg path[d^="M21 11.25v8.25"]')).toHaveCount(0);
     const details = await card.evaluate((element) => {
         const scale =
@@ -164,7 +163,7 @@ async function expectReadableCard(card) {
 
 for (const width of [320, 1280]) {
     for (const state of ["active", "scheduled", "waiting"]) {
-        test(`persisted ${state} case keeps the public example readable at ${width}px`, async ({
+        test(`persisted ${state} case keeps acquisition focused and readable at ${width}px`, async ({
             browser,
         }, testInfo) => {
             const context = await browser.newContext({
@@ -183,173 +182,113 @@ for (const width of [320, 1280]) {
                 await page.evaluate(() => document.fonts.ready);
 
                 const main = page.getByRole("main");
-                const card = main.getByRole("article", {
-                    name: "Promoción de ejemplo del negocio",
+                const heading = main.getByRole("heading", {
+                    level: 1,
+                    name: business.name,
+                    exact: true,
                 });
-                const fontMatrix = await expectReadableCard(card);
-                console.log(JSON.stringify({ state, viewport: width, fontMatrix }));
-                const logo = page.getByRole("banner").getByRole("img", { name: "FidelitoPass" });
-                await expect(logo).toBeVisible();
-                await expect(logo).toHaveAttribute("src", /\/logo-header\.webp$/);
-                await expect(logo).toHaveAttribute("width", "480");
-                await expect(logo).toHaveAttribute("height", "105");
-                expect(
-                    await logo.evaluate((image) => image.complete && image.naturalWidth === 480),
-                ).toBe(true);
-                const logoBounds = await logo.boundingBox();
-                const cardBounds = await card.boundingBox();
-                const rowGeometry = await card.evaluate((element) => {
-                    const scale = element.getBoundingClientRect().width / element.offsetWidth;
-                    const shell = element.closest("[data-thumbnail]");
-                    const header = element.querySelector(".app-pass-preview-header");
-                    const body = element.querySelector(".app-pass-preview-content");
-                    const footer = element.querySelector(".app-pass-preview-reward");
-                    return {
-                        sourceWidth: element.offsetWidth,
-                        sourceHeight: element.offsetHeight,
-                        shellHeight: shell.getBoundingClientRect().height,
-                        scale,
-                        header: header.getBoundingClientRect().height / scale,
-                        body: body.getBoundingClientRect().height / scale,
-                        footer: footer.getBoundingClientRect().height / scale,
-                        contentFits: [header, body, footer].every(
-                            (row) => row.scrollHeight <= row.clientHeight + 1,
-                        ),
-                    };
-                });
-                expect(rowGeometry.sourceWidth).toBeCloseTo(cardBounds.width, 0);
-                expect(rowGeometry.scale).toBeCloseTo(1, 2);
-                if (width >= 448) expect(rowGeometry.sourceHeight).toBeGreaterThanOrEqual(384);
-                expect(rowGeometry.header).toBeLessThan(160);
-                expect(rowGeometry.shellHeight).toBeCloseTo(cardBounds.height, 0);
-                expect(rowGeometry.contentFits).toBe(true);
-                expect(
-                    Math.abs(cardBounds.x + cardBounds.width / 2 - width / 2),
-                ).toBeLessThanOrEqual(1);
-                expect(logoBounds.width).toBe(width < 640 ? 160 : 192);
-                expect(
-                    Math.abs(logoBounds.x + logoBounds.width / 2 - width / 2),
-                ).toBeLessThanOrEqual(1);
-                expect(logoBounds.y + logoBounds.height).toBeLessThan(cardBounds.y);
-                await expect(main.getByRole("heading", { name: business.name })).toBeVisible();
-                await expect(main.getByRole("heading", { level: 1 })).toHaveCSS("width", "1px");
-                await expect(card.getByRole("heading", { name: business.name })).toHaveCSS(
-                    "font-size",
-                    width === 320 ? "24px" : "28px",
-                );
+                await expect(heading).toBeVisible();
+                await expect(main.getByRole("heading", { level: 1 })).toHaveCount(1);
+                await expect(heading).toHaveCSS("text-align", "center");
+                await expect(main).toContainText("¡Tu tarjeta de puntos te está esperando!");
+                await expect(main.getByRole("article")).toHaveCount(0);
+                await expect(page.getByRole("banner")).toHaveCount(0);
                 await expect(
-                    main.getByRole("button", { name: "Unirme y añadir a Google Wallet" }),
-                ).toBeEnabled();
-                await expect(main.locator("input:not([type=hidden]), canvas")).toHaveCount(0);
-                await expect(card.locator(".app-pass-preview-qr img")).toHaveAttribute(
-                    "src",
-                    /preview-pass-qr\.svg$/,
-                );
-                await expect(card.locator(".app-pass-preview-manual-code")).toContainText("48273");
-                await expect(card.locator(".app-pass-preview-header svg")).toBeVisible();
-                await expect(main).toContainText("Promoción de ejemplo.");
-                const caption = main.locator(".app-note-with-icon");
-                await expect(caption).toHaveText("Promoción de ejemplo.");
-                await expect(caption).toHaveClass(/text-app-ink-help/);
-                await expect(caption).toHaveCSS("gap", "8px");
-                await expect(caption.locator("p")).toHaveCSS("font-size", "14px");
-                await expect(caption.locator("p")).toHaveCSS("line-height", "20px");
-                const informationIcon = caption.locator("svg");
-                await expect(informationIcon).toHaveAttribute("aria-hidden", "true");
-                await expect(informationIcon).toHaveAttribute("viewBox", "0 0 24 24");
-                await expect(informationIcon).toHaveCSS("width", "16px");
-                await expect(informationIcon).toHaveCSS("height", "16px");
-                const iconBox = await informationIcon.boundingBox();
-                const captionBox = await caption.locator("p").boundingBox();
-                expect(Math.abs(iconBox.y + iconBox.height / 2 - captionBox.y - 10)).toBeLessThan(
-                    0.1,
-                );
-                await expect(main).toContainText(
-                    "No sirven para validar visitas. No es una tarjeta emitida.",
-                );
-                await expect(main).not.toContainText(
-                    /9 \/ 15|Tu tarjeta ya está lista|Promoción actual|Próxima promoción|Todavía no está activa/,
-                );
-                await expect(card).not.toContainText(/Capuchino|desayuno artesanal|09:00|×3/);
-                await expect(card).not.toContainText(/Consigue \d+ puntos hasta/);
-                await expect(card.locator(".app-pass-preview-extra-points")).toHaveText(
-                    "Ahora tu visita vale 2 puntos.",
-                );
-                const content = await card.innerText();
-                const terms = [
-                    business.name,
-                    "PROMOCIÓN",
-                    "Un beneficio especial",
-                    "Accede a un beneficio exclusivo al completar tu meta.",
-                    "3 / 10 puntos",
-                    "Ahora tu visita vale 2 puntos.",
-                    "Válido hasta el 15 de octubre de 2026",
-                ];
-                let previous = -1;
-                for (const term of terms) {
-                    const position = content.indexOf(term);
-                    expect(position).toBeGreaterThan(previous);
-                    previous = position;
+                    page.getByRole("link", { name: "Inicio de FidelitoPass" }),
+                ).toHaveCount(0);
+                await expect(
+                    page.locator('img[src$="logo-header.webp"], img[src$="logo_icon.svg"]'),
+                ).toHaveCount(0);
+                const headingBounds = await heading.boundingBox();
+                expect(
+                    Math.abs(headingBounds.x + headingBounds.width / 2 - width / 2),
+                ).toBeLessThanOrEqual(1);
+                await expect(heading).toHaveCSS("font-size", width === 320 ? "24px" : "30px");
+                const save = main.getByRole("button", { name: "Obtener mi tarjeta" });
+                if (state === "waiting") {
+                    await expect(save).toHaveCount(0);
+                    await expect(main).toContainText(
+                        "Este negocio todavía no ha preparado su tarjeta.",
+                    );
+                } else {
+                    await expect(save).toBeEnabled();
+                    const instructions = main.getByRole("region", {
+                        name: "¿Cómo funciona tu tarjeta?",
+                    });
+                    await expect(instructions).toBeVisible();
+                    await expect(instructions).toHaveCSS("background-color", "rgb(61, 46, 85)");
+                    await expect(instructions).toHaveCSS("border-top-color", "rgb(132, 101, 172)");
+                    await expect(instructions).toHaveCSS("color", "rgb(228, 214, 250)");
+                    await expect(instructions.getByRole("listitem")).toHaveCount(3);
+                    await expect(instructions.locator("li > span")).toHaveText(["1", "2", "3"]);
+                    await expect(instructions.locator("h3 svg")).toHaveCount(2);
+                    const walletIcon = instructions.locator("h3 img");
+                    await expect(walletIcon).toHaveAttribute(
+                        "src",
+                        /\/images\/google-wallet\/wallet-icon\.png$/,
+                    );
+                    await expect(walletIcon).toHaveAttribute("alt", "");
+                    expect(
+                        await walletIcon.evaluate(
+                            (image) => image.complete && image.naturalWidth > 0,
+                        ),
+                    ).toBe(true);
+                    await expect(instructions).toContainText("Obtén tu tarjeta");
+                    await expect(instructions).toContainText("Guárdala en Google Wallet");
+                    await expect(instructions).toContainText("Suma puntos y gana recompensas");
+                    await expect(instructions).toContainText(
+                        "Muéstrala en el mostrador cada vez que nos visites.",
+                    );
+                    await expect(
+                        main.getByRole("heading", { name: "¡Solo faltan 3 pasos!" }),
+                    ).toBeHidden();
+                    await expect(main.locator("strong")).toBeHidden();
+                    await expect(
+                        main.getByRole("link", {
+                            name: "Agregar a la Billetera de Google (nueva pestaña)",
+                        }),
+                    ).toBeHidden();
+                    const target = await save.boundingBox();
+                    expect(target.height).toBeGreaterThanOrEqual(44);
                 }
+                await expect(main.locator("input:not([type=hidden]), canvas")).toHaveCount(0);
+                await expect(main.locator('img[src$="preview-pass-qr.svg"]')).toHaveCount(0);
+                await expect(main).not.toContainText(
+                    /48273|Promoción de ejemplo|3 \/ 10|Válido hasta|Capuchino|desayuno artesanal|09:00|×3|Si no tienes la app|Tu tarjeta ya está lista|Promoción actual|Próxima promoción/,
+                );
 
                 await expect(page.locator("html")).toHaveClass(/dark/);
                 await expect(page.locator("body")).toHaveCSS("background-color", "rgb(36, 36, 36)");
-                await expect(card).toHaveCSS(
-                    "background-color",
-                    {
-                        active: "rgb(167, 123, 255)",
-                        scheduled: "rgb(0, 0, 0)",
-                        waiting: "rgb(46, 46, 46)",
-                    }[state],
-                );
-                const presentation = await card.evaluate((element) => {
+                const presentation = await heading.evaluate((element) => {
                     const style = getComputedStyle(element);
 
                     return {
                         ink: style.color,
-                        background: style.backgroundColor,
+                        background: getComputedStyle(element.closest("main").parentElement)
+                            .backgroundColor,
                         font: style.fontFamily,
-                        radius: style.borderTopLeftRadius,
-                        gradient: style.backgroundImage,
-                        sheen: style.getPropertyValue("--pass-sheen-rgb").trim(),
                         fontLoaded: document.fonts.check('400 16px "Onest Variable"'),
                         overflow: document.documentElement.scrollWidth > innerWidth,
                     };
                 });
-                expect(presentation.gradient).toContain("linear-gradient");
-                if (state === "scheduled") {
-                    expect(presentation.sheen).toBe("0 0 0");
-                    expect(presentation.gradient).toContain("rgba(0, 0, 0, 0.24)");
-                }
                 expect(presentation.font).toContain("Onest Variable");
                 expect(presentation.fontLoaded).toBe(true);
-                expect(presentation.radius).toBe("16px");
                 expect(presentation.overflow).toBe(false);
                 expect(
                     contrastRatio(presentation.ink, presentation.background),
                 ).toBeGreaterThanOrEqual(4.5);
 
-                const about = page
-                    .getByRole("banner")
-                    .getByRole("link", { name: "Inicio de FidelitoPass" });
                 await expect(page.locator("footer")).toHaveCount(0);
-                await expect(about).toHaveCSS("cursor", "pointer");
-                await page.keyboard.press("Tab");
-                await expect(about).toBeFocused();
-                await expect(about).toHaveCSS("outline-width", "2px");
-                await expect(about).toHaveCSS("outline-color", "rgb(205, 176, 255)");
-                const target = await about.boundingBox();
-                expect(target.height).toBeGreaterThanOrEqual(44);
-                expect(target.width).toBeGreaterThanOrEqual(44);
+                if (state !== "waiting") {
+                    await page.keyboard.press("Tab");
+                    await expect(save).toBeFocused();
+                    await expect(save).toHaveCSS("outline-width", "2px");
+                }
                 await page.screenshot({
                     path: testInfo.outputPath(`${state}-${width}.png`),
                     fullPage: true,
                 });
-                if (width === 320) {
-                    await about.tap();
-                } else {
-                    await page.keyboard.press("Enter");
-                }
+                await page.goto("/");
                 await expect(page).toHaveURL(/\/$/);
                 const landingFonts = await expectReadableCard(page.locator("[data-pass]"));
                 console.log(JSON.stringify({ state, viewport: width, landingFonts }));
@@ -367,8 +306,7 @@ for (const width of [320, 1280]) {
                     JSON.stringify({
                         state,
                         viewport: width,
-                        card: cardBounds,
-                        rowGeometry,
+                        heading: headingBounds,
                         landing: landingGeometry,
                     }),
                 );
@@ -389,17 +327,22 @@ test("public information remains readable without JavaScript", async ({ browser 
     try {
         const page = await context.newPage();
         await page.goto(`/join/${fixture.businesses.active.publicId}`);
-        await expect(page.getByRole("heading", { name: "PROMOCIÓN", exact: true })).toBeVisible();
-        await expect(page.getByRole("main")).toContainText("Un beneficio especial");
-        await expect(page.locator(".app-pass-preview-qr")).toBeHidden();
-        await expect(page.locator(".app-pass-preview-manual-code")).toBeHidden();
-        await expect(page.getByRole("main")).toContainText("No sirven para validar visitas.");
+        await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+            fixture.businesses.active.name,
+        );
         await expect(
-            page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }),
-        ).toBeDisabled();
-        await expect(
-            page.getByText("Activa JavaScript para solicitar tu tarjeta.", { exact: false }),
+            page.getByRole("region", { name: "¿Cómo funciona tu tarjeta?" }),
         ).toBeVisible();
+        await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(3);
+        await expect(page.getByRole("article")).toHaveCount(0);
+        await expect(page.getByRole("heading", { name: "¡Solo faltan 3 pasos!" })).toBeHidden();
+        await expect(page.getByRole("main").locator("strong")).toBeHidden();
+        await expect(page.getByRole("button", { name: "Obtener mi tarjeta" })).toBeDisabled();
+        const fallback = page.locator("noscript p");
+        await expect(fallback).toHaveText(
+            "Activa JavaScript para solicitar tu tarjeta. Abrir esta página no crea una tarjeta.",
+        );
+        await expect(fallback).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
             true,
         );
@@ -408,9 +351,9 @@ test("public information remains readable without JavaScript", async ({ browser 
     }
 });
 
-test("public card shares bounded mouse tilt sheen and returns to rest", async ({ page }) => {
-    await page.goto(`/join/${fixture.businesses.active.publicId}`);
-    const card = page.getByRole("article");
+test("landing card shares bounded mouse tilt sheen and returns to rest", async ({ page }) => {
+    await page.goto("/");
+    const card = page.locator("[data-pass]");
     const bounds = await card.boundingBox();
     await page.mouse.move(bounds.x + bounds.width * 0.9, bounds.y + bounds.height * 0.2);
     await expect
@@ -434,12 +377,12 @@ test("public card shares bounded mouse tilt sheen and returns to rest", async ({
     expect(await card.evaluate((el) => el.style.getPropertyValue("--sheen-x"))).toBe("");
 });
 
-test("public card stays static for touch and changing reduced motion preferences", async ({
+test("landing card stays static for touch and changing reduced motion preferences", async ({
     page,
 }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto(`/join/${fixture.businesses.active.publicId}`);
-    const card = page.getByRole("article");
+    await page.goto("/");
+    const card = page.locator("[data-pass]");
     const bounds = await card.boundingBox();
     const point = { clientX: bounds.x + bounds.width, clientY: bounds.y };
     await card.dispatchEvent("pointermove", { pointerType: "mouse", ...point });
@@ -458,11 +401,11 @@ test("public card stays static for touch and changing reduced motion preferences
     await expect(card).toHaveCSS("transform", "none");
 });
 
-test("replacing the interactive root cancels stale frames and initializes its successor", async ({
+test("replacing the landing interactive root cancels stale frames and initializes its successor", async ({
     page,
 }) => {
-    await page.goto(`/join/${fixture.businesses.active.publicId}`);
-    const card = page.getByRole("article");
+    await page.goto("/");
+    const card = page.locator("[data-pass]");
     const staleAppearance = await card.evaluate(async (element) => {
         const root = element.closest("[data-thumbnail]");
         const replacement = root.cloneNode(true);
@@ -582,8 +525,8 @@ test("card container owns the 448px role boundary and wrapped icons keep first-l
     page,
 }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto(`/join/${fixture.businesses.active.publicId}`);
-    const card = page.getByRole("article", { name: "Promoción de ejemplo del negocio" });
+    await page.goto("/");
+    const card = page.locator("[data-pass]");
     for (const width of [447, 447.5, 448]) {
         await page
             .locator("[data-thumbnail]")
@@ -634,10 +577,37 @@ test("explicit saving guards duplicates and reopens only the confirmed private h
     await context.route("https://pay.google.com/**", (route) =>
         route.fulfill({ body: "Wallet handoff stub" }),
     );
+    await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(`/join/${publicId}`);
-    const save = page.getByRole("button", { name: "Unirme y añadir a Google Wallet" });
+    const save = page.getByRole("button", { name: "Obtener mi tarjeta" });
+    const initial = page.getByRole("region", { name: "¿Cómo funciona tu tarjeta?" });
+    const ready = page.getByRole("region", { name: "¡Solo faltan 3 pasos!" });
+    const readyHeading = page.getByRole("heading", {
+        level: 1,
+        name: `¡Tu tarjeta de ${fixture.businesses.active.name} está lista!`,
+        exact: true,
+    });
+    const initialHero = page
+        .getByRole("heading", {
+            level: 1,
+            name: fixture.businesses.active.name,
+            exact: true,
+        })
+        .locator("..")
+        .locator("..");
+    await expect(initialHero).toHaveCSS("gap", "16px");
+    await expect(initialHero.locator(":scope > span")).toHaveCSS("width", "64px");
+    await expect(initialHero.locator(":scope > span")).toHaveCSS("height", "64px");
+    await expect(initialHero.locator(":scope > span svg")).toHaveCSS("width", "36px");
+    await expect(initialHero.locator(":scope > span svg")).toHaveCSS("height", "36px");
+    await expect(initial.getByRole("listitem")).toHaveCount(3);
+    await expect(ready).toBeHidden();
+    await expect(readyHeading).toBeHidden();
+    await expect(page.getByText("00007", { exact: true })).toHaveCount(0);
+    expect(requests).toBe(0);
 
-    await save.click();
+    await save.focus();
+    await save.press("Enter");
     await expect(save).toBeDisabled();
     await expect(save).toHaveText("", { useInnerText: true });
     await expect(save.locator("svg")).toBeVisible();
@@ -647,10 +617,56 @@ test("explicit saving guards duplicates and reopens only the confirmed private h
     );
     await page.locator("[data-customer-pass-acquisition]").dispatchEvent("submit");
     expect(requests).toBe(1);
+    expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
     release();
 
     await expect(page.locator("[data-customer-pass-acquisition]").getByRole("status")).toHaveCount(
         0,
+    );
+    await expect(initial).toBeHidden();
+    await expect(save).toBeHidden();
+    await expect(ready).toBeVisible();
+    await expect(readyHeading).toBeFocused();
+    await expect(readyHeading).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+    await expect(page.getByRole("banner")).toHaveCount(0);
+    const readyHero = readyHeading.locator("..").locator("..");
+    await expect(readyHero).toHaveCSS("gap", "16px");
+    await expect(readyHero.locator(":scope > span")).toHaveCSS("width", "64px");
+    await expect(readyHero.locator(":scope > span")).toHaveCSS("height", "64px");
+    await expect(readyHero.locator(":scope > span svg")).toHaveCSS("width", "36px");
+    await expect(readyHero.locator(":scope > span svg")).toHaveCSS("height", "36px");
+    await expect(
+        page.getByText("¡Ya casi terminamos! Guárdala para tenerla siempre contigo.", {
+            exact: true,
+        }),
+    ).toBeVisible();
+    await expect(ready).toHaveCSS("background-color", "rgb(61, 46, 85)");
+    await expect(ready).toHaveCSS("border-top-color", "rgb(132, 101, 172)");
+    await expect(ready).toHaveCSS("color", "rgb(228, 214, 250)");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(ready.getByRole("listitem")).toHaveCount(3);
+    await expect(ready.locator("li > span")).toHaveText(["1", "2", "3"]);
+    await expect(ready.locator("h3 svg")).toHaveCount(2);
+    await expect(ready.locator("h3 img")).toHaveAttribute(
+        "src",
+        /\/images\/google-wallet\/wallet-icon\.png$/,
+    );
+    await expect(ready).toContainText("Toca el botón de Google");
+    await expect(ready).toContainText("Google te ayudará a guardar tu tarjeta.");
+    await expect(ready).toContainText("Inicia sesión si te lo pide");
+    await expect(ready).toContainText("Confirma y ¡listo!");
+    await expect(page.getByRole("main")).not.toContainText(
+        /Tu tarjeta ya está lista|Si no tienes la app/,
+    );
+    await expect(
+        page.getByText(
+            "Disfruta de tu tarjeta desde la web o en la aplicación de Google Wallet para Android. Recuerda usar la misma cuenta de Google con la que la guardaste.",
+            { exact: true },
+        ),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
     );
     const manualCode = page.getByText("00007", { exact: true });
     await expect(manualCode).toBeVisible();
@@ -661,7 +677,18 @@ test("explicit saving guards duplicates and reopens only the confirmed private h
         name: "Agregar a la Billetera de Google (nueva pestaña)",
     });
     await expect(handoff).toHaveAttribute("href", saveUrl);
+    await expect(handoff).toBeEnabled();
+    await expect(handoff.locator("svg")).toHaveCount(0);
+    const headerBounds = await readyHeading.boundingBox();
+    const handoffBounds = await handoff.boundingBox();
+    const codeBounds = await manualCode.boundingBox();
+    const instructionsBounds = await ready.boundingBox();
+    expect(headerBounds.y + headerBounds.height).toBeLessThan(handoffBounds.y);
+    expect(handoffBounds.y + handoffBounds.height).toBeLessThan(codeBounds.y);
+    expect(codeBounds.y + codeBounds.height).toBeLessThan(instructionsBounds.y);
+    await page.keyboard.press("Tab");
     await expect(handoff).toBeFocused();
+    await expect(handoff).toHaveCSS("outline-width", "2px");
     await expect(handoff).toHaveAttribute("target", "_blank");
     await expect(handoff).toHaveAttribute("rel", "noopener noreferrer");
     await expect(handoff.locator("img")).toHaveAttribute(
@@ -694,10 +721,13 @@ test("explicit saving guards duplicates and reopens only the confirmed private h
     await expect(page.locator("ui-toast")).toHaveAttribute("position", "bottom end");
     for (let opening = 0; opening < 2; opening++) {
         const popupReady = page.waitForEvent("popup");
-        await handoff.click();
+        if (opening === 0) await handoff.press("Enter");
+        else await handoff.click();
         const popup = await popupReady;
         await popup.waitForURL(saveUrl);
         await popup.close();
+        await expect(handoff).toBeEnabled();
+        await expect(handoff.locator("svg")).toHaveCount(0);
     }
     expect(requests).toBe(1);
     const feedback = await page.evaluate(() => window.walletFeedback);
@@ -706,8 +736,8 @@ test("explicit saving guards duplicates and reopens only the confirmed private h
     expect(feedback[0].dataset).not.toHaveProperty("position");
     expect(JSON.stringify(feedback)).not.toContain(saveUrl);
     expect(JSON.stringify(feedback)).not.toContain("00007");
-    await expect(page.getByRole("article")).toContainText("3 / 10 puntos");
-    await expect(page.getByRole("article")).not.toContainText("00007");
+    await expect(page.getByRole("article")).toHaveCount(0);
+    await expect(manualCode).toHaveText("00007");
 });
 
 for (const [outcome, retryAllowed] of [
@@ -731,7 +761,7 @@ for (const [outcome, retryAllowed] of [
             });
         });
         await page.goto(`/join/${publicId}`);
-        const save = page.getByRole("button", { name: "Unirme y añadir a Google Wallet" });
+        const save = page.getByRole("button", { name: "Obtener mi tarjeta" });
         await page.evaluate(() =>
             window.Flux.toast({
                 text: "Tu tarjeta fue creada.",
@@ -742,6 +772,17 @@ for (const [outcome, retryAllowed] of [
         await page.evaluate(() => (window.walletFeedback = []));
 
         await save.click();
+        await expect(
+            page.getByRole("region", { name: "¿Cómo funciona tu tarjeta?" }),
+        ).toBeVisible();
+        await expect(page.getByRole("region", { name: "¡Solo faltan 3 pasos!" })).toBeHidden();
+        await expect(
+            page.getByRole("heading", {
+                name: `¡Tu tarjeta de ${fixture.businesses.active.name} está lista!`,
+                exact: true,
+            }),
+        ).toBeHidden();
+        await expect(page.getByRole("main").locator("strong")).toBeHidden();
         const error = page
             .locator("[data-customer-pass-acquisition]")
             .getByRole("alert")
@@ -786,13 +827,14 @@ test("unconfigured join stays public without an issuance action", async ({ page 
         return route.abort();
     });
     await page.goto(`/join/${publicId}`);
-    await expect(page.getByRole("article")).toContainText("Un beneficio especial");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+        fixture.businesses.waiting.name,
+    );
+    await expect(page.getByRole("article")).toHaveCount(0);
     await expect(page.getByRole("main")).toContainText(
         "Este negocio todavía no ha preparado su tarjeta. Consulta al negocio para saber cuándo estará disponible.",
     );
-    await expect(page.getByRole("button", { name: "Unirme y añadir a Google Wallet" })).toHaveCount(
-        0,
-    );
+    await expect(page.getByRole("button", { name: "Obtener mi tarjeta" })).toHaveCount(0);
     await expect(page.locator("[data-customer-pass-acquisition]")).toHaveCount(0);
     expect(requests).toBe(0);
 });
@@ -817,13 +859,11 @@ test("appearance reset after page load explains the prerequisite without a retry
     });
     await page.goto(`/join/${publicId}`);
     const form = page.locator("[data-customer-pass-acquisition]");
-    await page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }).click();
+    await page.getByRole("button", { name: "Obtener mi tarjeta" }).click();
     await expect(form.getByRole("alert").filter({ visible: true })).toContainText(
         "Este negocio todavía no ha preparado su tarjeta.",
     );
-    await expect(
-        page.getByRole("button", { name: "Unirme y añadir a Google Wallet" }),
-    ).toBeHidden();
+    await expect(page.getByRole("button", { name: "Obtener mi tarjeta" })).toBeHidden();
     await expect(
         page.getByRole("link", { name: "Agregar a la Billetera de Google (nueva pestaña)" }),
     ).toBeHidden();

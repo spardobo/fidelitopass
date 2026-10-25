@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
 import { BrowserQRCodeReader } from "@zxing/browser";
-import { NotFoundException } from "@zxing/library";
+import { ChecksumException, FormatException, NotFoundException } from "@zxing/library";
 import { qrCameraScanner } from "../../resources/js/qr-camera-scanner.js";
 
 let factory;
@@ -96,12 +96,14 @@ function setup(responses = {}) {
         startup = [],
         cancellations = [],
         renders = [],
-        toasts = [];
+        toasts = [],
+        cameraEvents = [];
     document.getElementById = () => ({
         getClientRects: () => [1],
         focus: () => focus.push("trigger"),
     });
     const dialog = new EventTarget();
+    dialog.setAttribute = mock.fn();
     const root = new EventTarget();
     const nativeDispatch = dialog.dispatchEvent.bind(dialog);
     dialog.dispatchEvent = (event) => {
@@ -340,8 +342,14 @@ function setup(responses = {}) {
     });
     camera.$el = cameraRoot;
     camera.$dispatch = context.$dispatch;
-    cameraRoot.addEventListener("qr-camera-start", () => void camera.startCamera());
-    cameraRoot.addEventListener("qr-camera-stop", () => camera.stopCamera());
+    cameraRoot.addEventListener("qr-camera-start", () => {
+        cameraEvents.push("start");
+        void camera.startCamera();
+    });
+    cameraRoot.addEventListener("qr-camera-stop", () => {
+        cameraEvents.push("stop");
+        camera.stopCamera();
+    });
     globalThis.Alpine = { $data: () => camera, bind: () => () => {} };
     context.init();
     active = {
@@ -366,6 +374,7 @@ function setup(responses = {}) {
         cancellations,
         renders,
         toasts,
+        cameraEvents,
         interceptors,
     };
 }
@@ -388,7 +397,7 @@ async function identify(context) {
 
 for (const status of [503, null]) {
     test(`direct Reward failure retains confirmation and pairs safe feedback (${status})`, async () => {
-        const { context, wire, toasts } = setup({
+        const { context, wire, toasts, focus, cameraEvents } = setup({
             redeemReward: async () => {
                 throw { status };
             },
@@ -396,8 +405,10 @@ for (const status of [503, null]) {
         await identify(context);
         wire.preview.can_accept_visit = false;
         wire.reward = { reward_entitlement_id: 9, promotion_id: 7, can_redeem_reward: true };
+        const captureEvents = [...cameraEvents];
 
         await context.redeemReward();
+        await settle();
 
         assert.equal(context.busy, false);
         assert.equal(context.visitPhase, "unknown");
@@ -405,6 +416,8 @@ for (const status of [503, null]) {
         assert.equal(toasts.length, 1);
         assert.equal(wire.stage, "confirm");
         assert.equal(wire.facts, null);
+        assert.equal(focus.at(-1), "reward-button");
+        assert.deepEqual(cameraEvents, captureEvents);
     });
 }
 
@@ -665,18 +678,27 @@ for (const fails of [false, true]) {
     });
 }
 
-test("unsupported camera keeps retry focus and an explicit clean return to manual entry", async () => {
-    const { context, camera, wire, focus, refs } = setup();
+test("unsupported camera closes capture and keeps retry focus with immediate manual recovery", async () => {
+    const { context, camera, wire, focus, refs, cameraEvents, renders, toasts } = setup();
     context.handleModalShow();
     context.requestCameraStart();
     await settle();
     assert.equal(camera.error, "unavailable");
+    assert.equal(context.cameraEnabled, false);
+    assert.equal(camera.starting, false);
+    assert.equal(refs.manual.value, "");
+    assert.ok(cameraEvents.includes("stop"));
+    assert.deepEqual(renders, []);
+    assert.equal(context.errorMessage, "Camera unavailable");
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
     assert.equal(wire.stage, "identify");
     assert.equal(focus.at(-1), "camera-control");
-    await context.reset(true);
+
     refs.manual.value = "00007";
     await context.findPassManually();
     await settle();
+    assert.equal(context.errorMessage, "");
+    assert.deepEqual(renders, ["findPass"]);
     assert.equal(wire.stage, "confirm");
     assert.equal(focus.at(-1), "confirm-button");
 });
@@ -692,9 +714,15 @@ test("camera-capable runtime without a native detector starts the complete SDK",
     assert.equal(camera.error, "");
 });
 
-test("denied permission and failed reader startup retain manual identification", async () => {
-    for (const name of ["NotAllowedError", "Error"]) {
-        const { context, camera, wire, native } = setup();
+test("permission, device and reader startup failures close capture without a server reset", async () => {
+    for (const { name, code, message } of [
+        { name: "NotAllowedError", code: "denied", message: "Camera denied" },
+        { name: "NotReadableError", code: "busy", message: "Camera busy" },
+        { name: "NotFoundError", code: "unavailable", message: "Camera unavailable" },
+        { name: "Error", code: "initialization", message: "Reader unavailable" },
+    ]) {
+        const { context, camera, wire, native, refs, focus, cameraEvents, renders, toasts } =
+            setup();
         native.isSecureContext = true;
         BrowserQRCodeReader.prototype.decodeFromConstraints.mock.mockImplementation(async () => {
             throw Object.assign(new Error("private startup details"), { name });
@@ -703,13 +731,23 @@ test("denied permission and failed reader startup retain manual identification",
         context.requestCameraStart();
         await settle();
         assert.equal(wire.stage, "identify");
-        assert.equal(camera.error, name === "NotAllowedError" ? "denied" : "initialization");
-        assert.equal(
-            context.errorMessage,
-            name === "NotAllowedError" ? "Camera denied" : "Reader unavailable",
-        );
+        assert.equal(camera.error, code);
+        assert.equal(context.errorMessage, message);
+        assert.equal(context.cameraEnabled, false);
         assert.equal(camera.active, false);
+        assert.equal(camera.starting, false);
+        assert.ok(cameraEvents.includes("stop"));
+        assert.deepEqual(renders, []);
+        assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
+        assert.equal(refs.manual.value, "");
+        assert.equal(focus.at(-1), "camera-control");
+
+        refs.manual.value = "00007";
         await context.findPassManually();
+        await settle();
+        assert.equal(context.errorMessage, "");
+        assert.equal(focus.at(-1), "confirm-button");
+        assert.deepEqual(renders, ["findPass"]);
         assert.equal(wire.stage, "confirm");
         context.destroy();
         mock.restoreAll();
@@ -783,18 +821,58 @@ test("first SDK result sends one exact read only after stopping capture", async 
     assert.equal(JSON.stringify(context).includes("private-token"), false);
 });
 
-test("unreadable SDK frames keep capture running until close releases scoped controls", async () => {
-    const { context, camera, native, controls, startup, stopped } = setup();
+test("ordinary SDK misses keep capture running but a fatal read closes only its owned capture", async () => {
+    const {
+        context,
+        camera,
+        native,
+        controls,
+        startup,
+        stopped,
+        cameraEvents,
+        refs,
+        focus,
+        renders,
+        toasts,
+    } = setup();
     native.isSecureContext = true;
     context.handleModalShow();
     context.requestCameraStart();
     await settle();
-    startup[0][2](undefined, new NotFoundException(), controls);
+    for (const error of [new NotFoundException(), new ChecksumException(), new FormatException()]) {
+        startup[0][2](undefined, error, controls);
+        assert.equal(camera.active, true);
+        assert.equal(context.cameraEnabled, true);
+        assert.deepEqual(stopped, []);
+        assert.deepEqual(toasts, []);
+    }
+
+    startup[0][2](undefined, new Error("private decoder failure"), controls);
+    await settle();
+    assert.equal(camera.active, false);
+    assert.equal(context.cameraEnabled, false);
+    assert.equal(context.errorMessage, "Reader unavailable");
+    assert.equal(refs.manual.value, "");
+    assert.equal(focus.at(-1), "camera-control");
+    assert.deepEqual(stopped, ["owned-camera"]);
+    assert.ok(cameraEvents.includes("stop"));
+    assert.deepEqual(renders, []);
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
+
+    context.requestCameraStart();
+    assert.equal(context.errorMessage, "");
+    await settle();
+    startup[0][2](undefined, new Error("obsolete decoder failure"), controls);
+    await settle();
+    assert.equal(startup.length, 2);
     assert.equal(camera.active, true);
-    assert.deepEqual(stopped, []);
+    assert.equal(context.cameraEnabled, true);
+    assert.equal(context.errorMessage, "");
+    assert.deepEqual(stopped, ["owned-camera"]);
+    assert.equal(toasts.length, 1);
     context.handleModalClose();
     assert.equal(camera.active, false);
-    assert.deepEqual(stopped, ["owned-camera"]);
+    assert.deepEqual(stopped, ["owned-camera", "owned-camera"]);
 });
 
 test("late SDK result after explicit deactivation cannot send a pass-finding request", async () => {
@@ -1419,7 +1497,7 @@ test("closing an in-flight receipt cancels its native render without clearing th
 });
 
 test("transport failure keeps a safe inline detail and uses only an attention toast", async () => {
-    const { context, wire, toasts } = setup({
+    const { context, wire, toasts, focus, refs } = setup({
         findPass: async () => {
             throw new Error("private transport payload");
         },
@@ -1431,79 +1509,164 @@ test("transport failure keeps a safe inline detail and uses only an attention to
     assert.equal(wire.preview, null);
     assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
     assert.equal(context.busy, false);
+    await settle();
+    assert.equal(focus.at(-1), "manual");
+    assert.equal(refs.manual.value, "00007");
+    assert.equal(context.cameraEnabled, false);
 });
 
-test("optional detail failure keeps the positive result and its persistent safe detail", async () => {
-    const { context, wire, toasts } = setup({
+test("optional detail failure after camera identification keeps the positive result and its persistent safe detail", async () => {
+    const { context, wire, toasts, native, startup, controls, focus, cameraEvents } = setup({
         findVisitReceipt: async () => {
             throw new Error("private provider payload");
         },
     });
-    await identify(context);
+    native.isSecureContext = true;
+    context.handleModalShow();
+    context.requestCameraStart();
+    await settle();
+    startup[0][2]({ getText: () => "private-token" }, undefined, controls);
+    await settle();
+    const captureEvents = [...cameraEvents];
+
     await context.acceptVisit(7);
+    await settle();
     assert.equal(context.errorMessage, "Registered; details unavailable");
     assert.equal(wire.stage, "result");
     assert.equal(wire.facts.points_awarded, 3);
+    assert.equal(focus.at(-1), "close-button");
+    assert.deepEqual(cameraEvents, captureEvents);
     assert.deepEqual(toasts, [{ variant: "danger", text: "Registered; review the message" }]);
 });
 
-test("camera lookup keeps manual mode hidden until explicit clean deactivation", async () => {
-    const response = deferred();
-    const calls = [];
-    const { context, refs, wire, native, camera, focus, toasts } = setup({
-        findPass: (...args) => {
+for (const failure of ["rejected", "offline", "transport", "network"]) {
+    test(`camera lookup ${failure} closes capture without resetting the server and restores origin-aware recovery`, async () => {
+        const response = deferred();
+        const calls = [],
+            observations = [];
+        const {
+            context,
+            refs,
+            wire,
+            native,
+            camera,
+            focus,
+            toasts,
+            stopped,
+            startup,
+            cameraEvents,
+        } = setup({
+            findPass: (...args) => {
+                calls.push(["findPass", ...args]);
+                return response.promise;
+            },
+            resetIdentification: async () => {
+                calls.push(["resetIdentification"]);
+                return null;
+            },
+        });
+        mock.method(wire, "logCameraFatalError", async (...args) => {
+            observations.push(["camera", ...args]);
+        });
+        mock.method(wire, "logTransportError", async (...args) => {
+            observations.push(["transport", ...args]);
+        });
+        native.isSecureContext = true;
+        context.handleModalShow();
+        wire.errorCode = "invalid_credential";
+        assert.equal(context.errorMessage, "Check the code");
+
+        context.requestCameraStart();
+        assert.equal(context.errorMessage, "");
+        assert.equal(wire.errorCode, "invalid_credential");
+        await settle();
+        assert.equal(context.errorMessage, "");
+        assert.deepEqual(calls, []);
+        assert.deepEqual(observations, []);
+        assert.deepEqual(toasts, []);
+
+        if (failure === "offline") native.navigator.onLine = false;
+        const pending = context.findPass("token", "private-credential");
+        assert.equal(camera.active, false);
+        if (failure !== "offline") {
+            assert.equal(context.cameraEnabled, true);
+            assert.equal(context.busy, true);
+        }
+        wire.errorCode = failure === "rejected" ? "invalid_credential" : "";
+        if (failure === "transport") response.reject({ status: 503 });
+        else if (failure === "network") response.reject({ status: null });
+        else response.resolve(null);
+        await pending;
+        await settle();
+
+        assert.equal(context.cameraEnabled, false);
+        assert.equal(context.busy, false);
+        assert.equal(wire.stage, "identify");
+        assert.equal(wire.preview, null);
+        assert.equal(wire.facts, null);
+        assert.equal(context.visitPhase, "idle");
+        assert.equal(refs.manual.value, "");
+        assert.equal(focus.at(-1), "camera-control");
+        assert.deepEqual(stopped, ["owned-camera"]);
+        assert.ok(cameraEvents.includes("stop"));
+        assert.deepEqual(
+            calls,
+            failure === "offline" ? [] : [["findPass", "token", "private-credential"]],
+        );
+        let expectedMessage = "Check connection";
+        if (failure === "rejected") {
+            expectedMessage = "Check the code";
+        } else if (failure === "transport") {
+            expectedMessage = "Read unavailable";
+        }
+        assert.equal(context.errorMessage, expectedMessage);
+        assert.deepEqual(
+            toasts,
+            failure === "rejected" ? [] : [{ variant: "danger", text: "Action needs attention" }],
+        );
+        let expectedObservations = [];
+        if (failure === "transport") {
+            expectedObservations = [["transport", "transport_failed", "findPass", 503, "http"]];
+        } else if (failure === "network") {
+            expectedObservations = [["transport", "network_error", "findPass", null, "network"]];
+        }
+        assert.deepEqual(observations, expectedObservations);
+
+        // server rejection notices belong to Livewire; this double observes only client notices
+        const notices = [...toasts];
+        native.navigator.onLine = true;
+        mock.method(wire, "findPass", async (...args) => {
             calls.push(["findPass", ...args]);
-            return response.promise;
-        },
-        resetIdentification: async () => {
-            calls.push(["resetIdentification"]);
+            wire.errorCode = "invalid_credential";
             return null;
-        },
-    });
-    mock.method(wire, "logCameraFatalError", async (...args) => {
-        calls.push(["logCameraFatalError", ...args]);
-    });
-    mock.method(wire, "logTransportError", async (...args) => {
-        calls.push(["logTransportError", ...args]);
-    });
-    native.isSecureContext = true;
-    context.handleModalShow();
-    wire.errorCode = "invalid_credential";
-    assert.equal(context.errorMessage, "Check the code");
+        });
+        refs.manual.value = "00007";
+        await context.findPassManually();
+        await settle();
+        assert.equal(focus.at(-1), "manual");
+        assert.equal(refs.manual.value, "00007");
+        assert.equal(context.errorMessage, "Check the code");
+        assert.deepEqual(toasts, notices);
+        assert.equal(calls.filter(([action]) => action === "resetIdentification").length, 0);
 
-    context.requestCameraStart();
-    assert.equal(context.errorMessage, "");
-    assert.equal(wire.errorCode, "invalid_credential");
-    assert.deepEqual(calls, []);
-    assert.deepEqual(toasts, []);
-    await settle();
-    assert.equal(context.errorMessage, "");
-    assert.deepEqual(calls, []);
-    assert.deepEqual(toasts, []);
-
-    const pending = context.findPass("token", "private-credential");
-    assert.equal(camera.active, false);
-    assert.equal(context.cameraEnabled, true);
-    assert.equal(context.busy, true);
-    wire.errorCode = "invalid_credential";
-    response.resolve(null);
-    await pending;
-    await settle();
-    assert.equal(context.errorMessage, "Check the code");
-    assert.deepEqual(calls, [["findPass", "token", "private-credential"]]);
-    assert.equal(context.cameraEnabled, true);
-    assert.equal(focus.at(-1), "camera-control");
-    wire.errorCode = "invalid_credential";
-    refs.manual.value = "00007";
-    await context.reset(true);
-    await settle();
-    assert.equal(context.cameraEnabled, false);
-    assert.equal(refs.manual.value, "");
-    assert.equal(wire.errorCode, "");
-    assert.equal(context.errorMessage, "");
-    assert.deepEqual(calls, [["findPass", "token", "private-credential"], ["resetIdentification"]]);
-    assert.equal(focus.at(-1), "manual");
-});
+        context.requestCameraStart();
+        assert.equal(context.errorMessage, "");
+        await settle();
+        assert.equal(startup.length, 2);
+        assert.equal(camera.active, true);
+        assert.equal(context.cameraEnabled, true);
+        assert.equal(context.errorMessage, "");
+        assert.deepEqual(toasts, notices);
+        await context.reset(true);
+        await settle();
+        assert.equal(context.cameraEnabled, false);
+        assert.equal(refs.manual.value, "");
+        assert.equal(wire.errorCode, "");
+        assert.equal(context.errorMessage, "");
+        assert.equal(calls.filter(([action]) => action === "resetIdentification").length, 1);
+        assert.equal(focus.at(-1), "manual");
+    });
+}
 
 test("failed manual identification returns focus to the editable input", async () => {
     const { context, refs, focus } = setup({ findPass: async () => null });
@@ -1739,19 +1902,31 @@ test("queued entry focus never targets a destroyed modal", async () => {
     assert.deepEqual(focus, []);
 });
 
-test("camera-origin uncertainty retains exact identity across close and ignores new intent", async () => {
+test("camera-origin uncertainty retains exact identity through failed camera prerequisites and manual recovery", async () => {
     const mutations = [],
-        reads = [];
-    const { context, native, startup, controls, refs, wire, focus } = setup({
-        acceptVisit: async (...args) => {
-            mutations.push(args);
-            return { outcome: "unknown" };
-        },
-        findVisitReceipt: async (...args) => {
-            reads.push(args);
-            return reads.length === 1 ? null : receipt();
-        },
-    });
+        reads = [],
+        lookups = [];
+    const { context, native, startup, controls, refs, wire, focus, cameraEvents, stopped, toasts } =
+        setup({
+            findPass: async (...args) => {
+                lookups.push(args);
+                return identified();
+            },
+            acceptVisit: async (...args) => {
+                mutations.push(args);
+                return { outcome: "unknown" };
+            },
+            findVisitReceipt: async (...args) => {
+                reads.push(args);
+                if (reads.length === 1) {
+                    wire.errorCode = "unknown";
+                    return null;
+                }
+                if (reads.length === 2) throw { status: 503 };
+                wire.errorCode = "";
+                return receipt();
+            },
+        });
     native.isSecureContext = true;
     context.handleModalShow();
     context.requestCameraStart();
@@ -1760,25 +1935,52 @@ test("camera-origin uncertainty retains exact identity across close and ignores 
     startup[0][2]({ getText: () => token }, undefined, controls);
     await settle();
     assert.equal(focus.at(-1), "confirm-button");
+    const captureEvents = [...cameraEvents];
     await context.acceptVisit(7);
+    await settle();
+    assert.equal(wire.stage, "confirm");
+    assert.equal(focus.at(-1), "confirm-button");
+    assert.deepEqual(cameraEvents, captureEvents);
     await context.reset(true);
     context.handleModalClose();
     context.handleModalShow();
     await settle();
+
+    for (const expectedMessage of ["Try again safely", "Read unavailable"]) {
+        context.requestCameraStart();
+        assert.equal(context.errorMessage, "");
+        await settle();
+        const current = startup.at(-1);
+        current[2]({ getText: () => "new-token" }, undefined, controls);
+        await settle();
+        assert.equal(context.cameraEnabled, false);
+        assert.equal(context.busy, false);
+        assert.equal(context.errorMessage, expectedMessage);
+        assert.equal(refs.manual.value, "");
+        assert.equal(focus.at(-1), "camera-control");
+        assert.equal(wire.stage, "identify");
+        assert.equal(wire.facts, null);
+        assert.deepEqual(lookups, [["token", token]]);
+        await context.acceptVisit(999);
+    }
+    assert.deepEqual(toasts, [{ variant: "danger", text: "Action needs attention" }]);
     refs.manual.value = "00008";
     await context.findPassManually();
-    context.requestCameraStart();
-    await context.acceptVisit(999);
-    await context.acceptVisit(999);
     await settle();
     await context.findPassManually();
-    assert.equal(startup.length, 2);
+    assert.equal(startup.length, 3);
+    assert.deepEqual(stopped, ["owned-camera", "owned-camera", "owned-camera"]);
     assert.equal(mutations.length, 1);
     assert.deepEqual(mutations[0].slice(0, 2), ["token", token]);
     assert.equal(mutations[0][3], 7);
     assert.deepEqual(reads, [
         [...mutations[0].slice(0, 3), false],
         [...mutations[0].slice(0, 3), false],
+        [...mutations[0].slice(0, 3), false],
+    ]);
+    assert.deepEqual(lookups, [
+        ["token", token],
+        ["manual", "00008"],
     ]);
     assert.equal(wire.stage, "confirm");
     assert.equal(focus.at(-1), "confirm-button");
@@ -1997,14 +2199,26 @@ test("failed fresh preparation never makes an old result available again", async
     assert.equal(wire.facts, null);
 });
 
-test("pending dismissal guard follows the current dialog after a framework replacement", async () => {
+test("native naming and pending dismissal guard follow the current dialog after a framework replacement", async () => {
     const response = deferred();
-    const { context, root, refs } = setup({ findPass: () => response.promise });
-    context.handleModalShow();
+    const { context, root, refs, document, dialog } = setup({ findPass: () => response.promise });
+    const show = new Event("modal-show");
+    show.detail = { name: "visit-registration" };
+    document.dispatchEvent(show);
+    assert.deepEqual(dialog.setAttribute.mock.calls[0].arguments, [
+        "aria-labelledby",
+        "visit-registration-title",
+    ]);
     const pending = context.findPassManually();
     await settle();
     const replacement = new EventTarget();
+    replacement.setAttribute = mock.fn();
     refs.dialog = replacement;
+    document.dispatchEvent(show);
+    assert.deepEqual(replacement.setAttribute.mock.calls[0].arguments, [
+        "aria-labelledby",
+        "visit-registration-title",
+    ]);
     const cancel = new Event("cancel", { cancelable: true });
     Object.defineProperty(cancel, "target", { value: replacement });
     root.dispatchEvent(cancel);
@@ -2095,7 +2309,7 @@ test("reopening after a failed QR read cannot inherit a closed-cycle reset failu
     await settle();
     await context.findPass("token", "a".repeat(64));
     assert.equal(context.errorMessage, "Read unavailable");
-    assert.equal(context.cameraEnabled, true);
+    assert.equal(context.cameraEnabled, false);
     const originalToasts = [...toasts];
 
     dialog.dispatchEvent(new Event("close"));

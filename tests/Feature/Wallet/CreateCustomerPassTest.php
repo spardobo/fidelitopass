@@ -63,7 +63,7 @@ afterEach(function () {
 it('returns a safe 409 before credential preparation or Google when appearance is unsaved or reset', function (bool $stalePage) {
     $business = Business::factory()->create(['pass_background_color' => $stalePage ? '#123456' : null]);
     if ($stalePage) {
-        $this->get(route('public.join', $business->public_id))->assertSee('Unirme y añadir a Google Wallet');
+        $this->get(route('public.join', $business->public_id))->assertSee(__('join.save'));
         $business->update(['pass_background_color' => null]);
     }
     $this->mock(GoogleWalletPassCreator::class)->shouldNotReceive('create');

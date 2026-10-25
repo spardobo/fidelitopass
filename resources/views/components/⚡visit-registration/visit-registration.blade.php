@@ -1,8 +1,8 @@
 <fieldset wire:loading.attr="disabled" wire:target="findPass,acceptVisit,findVisitReceipt,redeemReward,findRewardReceipt,resetIdentification" x-data="visitRegistration(@js($clientFailures))" x-on:visit-camera-enable="requestCameraStart()" x-on:visit-camera-disable="reset(true)" x-on:qr-camera-fatal-error="cameraFailed($event.detail)" x-on:livewire-transport-error="logTransportError($event.detail)" x-bind:disabled="busy" x-bind:aria-busy="busy" x-bind:data-focus-modality="focusModality" class="app-theme contents [&[data-focus-modality=pointer]_:is(button,input):focus]:outline-none! [&[data-focus-modality=pointer]_input:focus]:ring-0! [&[data-focus-modality=pointer]_input:focus]:shadow-none! [&[data-focus-modality=pointer]_input:not([data-invalid]):focus]:border-app-control-border! [&[data-focus-modality=keyboard]_button:focus]:outline-solid! [&[data-focus-modality=keyboard]_button:focus]:outline-[length:var(--app-focus-width)]! [&[data-focus-modality=keyboard]_button:focus]:outline-app-accent-text! [&[data-focus-modality=keyboard]_button:focus]:outline-offset-[var(--app-focus-offset)]!">
     <flux:modal name="visit-registration" :dismissible="false" class="app-theme flex max-h-[calc(100dvh-2rem)]! w-[calc(100vw-2rem)] min-w-0! max-w-2xl! flex-col overflow-hidden! rounded-[1.25rem]! border border-app-border bg-app-surface! p-4! sm:p-6! [&_[data-flux-modal-close]_button]:min-h-11 [&_[data-flux-modal-close]_button]:min-w-11">
         <header class="shrink-0 space-y-4 border-b border-app-line pb-4">
-            <div class="flex items-center justify-between gap-4 pr-12">
-                <flux:heading level="2" class="app-role-title! text-app-ink!">
+            <div x-bind:hidden="cameraEnabled && $wire.stage === 'identify'" class="flex items-center justify-between gap-4 pr-12">
+                <flux:heading id="visit-registration-title" level="2" class="app-role-title! text-app-ink!">
                     {{ __('visit-registration.title') }}
                 </flux:heading>
             </div>
@@ -68,22 +68,22 @@
                 <!-- identification, confirmation and receipt -->
                 @if ($stage === 'identify')
                     <section wire:key="visit-identify" class="space-y-4">
-                        <x-modal-step-heading id="visit-identify-title">
-                            <x-slot:icon>
-                                <flux:icon.qr-code variant="outline" class="size-9" />
-                            </x-slot:icon>
-                            <label for="visit-manual-code">
-                                {{ __('visit-registration.manual_label') }}
-                            </label>
-                        </x-modal-step-heading>
                         <!-- manual identification -->
-                        <form x-on:submit.prevent="findPassManually()" x-bind:hidden="cameraEnabled">
+                        <form x-on:submit.prevent="findPassManually()" x-bind:hidden="cameraEnabled" class="space-y-4">
+                            <x-modal-step-heading id="visit-identify-title">
+                                <x-slot:icon>
+                                    <flux:icon.qr-code variant="outline" class="size-9" />
+                                </x-slot:icon>
+                                <label for="visit-manual-code">
+                                    {{ __('visit-registration.manual_label') }}
+                                </label>
+                            </x-modal-step-heading>
                             <flux:field>
                                 <div class="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
                                     <div class="space-y-2">
-                                        <flux:input id="visit-manual-code" name="visit-manual-code" type="text" autocomplete="off" spellcheck="false" placeholder="{{ __('visit-registration.manual_placeholder') }}" x-on:input="manualChanged()" x-bind:autofocus="manualAutofocus" x-bind:disabled="busy || cameraStarting" maxlength="256" :aria-invalid="$errorCode !== '' ? 'true' : 'false'" aria-describedby="visit-code-help visit-manual-error visit-manual-transport-error" data-visit-focus class:input="app-input text-center tabular-nums" />
-                                        <flux:error id="visit-manual-error" :message="$errorMessage" x-show="!clientErrorCode" class="app-error" />
-                                        <flux:error id="visit-manual-transport-error" :message="__('visit-registration.read_unavailable')" :icon="false" x-show="clientErrorCode" x-text="errorMessage" x-cloak class="app-error" />
+                                        <flux:input id="visit-manual-code" name="visit-manual-code" type="text" autocomplete="off" spellcheck="false" placeholder="{{ __('visit-registration.manual_placeholder') }}" x-on:input="manualChanged()" x-bind:autofocus="manualAutofocus" x-bind:disabled="busy || cameraStarting" maxlength="256" x-bind:aria-invalid="!cameraFeedbackReady && Boolean(clientErrorCode || $wire.errorCode) ? 'true' : 'false'" aria-describedby="visit-code-help visit-manual-error visit-manual-transport-error" data-visit-focus class:input="app-input text-center tabular-nums" />
+                                        <flux:error id="visit-manual-error" :message="$errorMessage" x-show="!cameraFeedbackReady && !clientErrorCode" class="app-error" />
+                                        <flux:error id="visit-manual-transport-error" :message="__('visit-registration.read_unavailable')" :icon="false" x-show="!cameraFeedbackReady && clientErrorCode" x-text="errorMessage" x-cloak class="app-error" />
                                     </div>
                                     <flux:button type="button" variant="primary" :loading="true" wire:loading.attr="aria-busy" wire:target="findPass,findVisitReceipt,findRewardReceipt" x-on:click="findPassManually()" x-bind:data-loading="searchingPass" x-bind:disabled="busy || cameraStarting" data-visit-search class="app-button-primary w-full">
                                         {{ __('visit-registration.search') }}
@@ -105,8 +105,8 @@
                                     {{ __('visit-registration.instructions') }}
                                 </h3>
                                 {{-- reserve the proportional frame and keep the video mounted during native startup --}}
-                                <div data-visit-camera-frame class="relative mx-auto aspect-video w-full max-w-[min(320px,53.333dvh)] sm:max-w-[min(384px,53.333dvh)]">
-                                    <video muted playsinline x-bind:class="active ? 'opacity-100' : 'opacity-0'" aria-hidden="true" class="absolute inset-0 h-full w-full rounded-xl object-contain">
+                                <div data-visit-camera-frame class="relative aspect-video min-h-48 w-full">
+                                    <video muted playsinline x-bind:class="active ? 'opacity-100' : 'opacity-0'" aria-hidden="true" class="absolute inset-0 h-full w-full rounded-xl object-cover object-center">
                                     </video>
                                     <div x-show="!active" data-visit-camera-placeholder class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-app-ink-secondary">
                                         <flux:icon.camera variant="outline" class="size-9" />
@@ -114,13 +114,13 @@
                                     </div>
                                 </div>
                                 <flux:icon.loading wire:loading wire:target="findPass,findVisitReceipt,findRewardReceipt" class="mx-auto size-5" />
-                                <flux:error :message="__('visit-registration.read_unavailable')" :icon="false" x-show="errorMessage" x-text="errorMessage" x-cloak class="app-error text-start" />
                             </div>
 
-                            <flux:button id="visit-camera-toggle" type="button" :loading="true" icon="qr-code" icon:variant="outline" wire:loading.attr="aria-busy" wire:target="resetIdentification" x-on:click="$dispatch(cameraEnabled ? 'visit-camera-disable' : 'visit-camera-enable')" x-bind:data-loading="starting || resettingCamera" x-bind:class="{ 'pointer-events-auto!': starting && !busy }" x-bind:disabled="busy" x-bind:aria-busy="starting || busy" x-bind:aria-expanded="cameraEnabled" aria-controls="visit-camera-region" data-visit-camera-control class="app-button-secondary w-full">
+                            <flux:button id="visit-camera-toggle" type="button" :loading="true" icon="qr-code" icon:variant="outline" wire:loading.attr="aria-busy" wire:target="resetIdentification" x-on:click="$dispatch(cameraEnabled ? 'visit-camera-disable' : 'visit-camera-enable')" x-bind:data-loading="starting || resettingCamera" x-bind:class="{ 'pointer-events-auto!': starting && !busy }" x-bind:disabled="busy" x-bind:aria-busy="starting || busy" x-bind:aria-expanded="cameraEnabled" aria-controls="visit-camera-region" aria-describedby="visit-camera-error" data-visit-camera-control class="app-button-secondary w-full">
                                 <span x-text="cameraEnabled ? @js(__('visit-registration.camera_stop')) : @js(__('visit-registration.camera_retry'))">
                                 </span>
                             </flux:button>
+                            <flux:error id="visit-camera-error" :message="__('visit-registration.read_unavailable')" :icon="false" x-show="cameraFeedbackReady && errorMessage" x-text="errorMessage" x-cloak class="app-error text-start" />
                         </div>
                     </section>
                 @elseif ($stage === 'confirm')

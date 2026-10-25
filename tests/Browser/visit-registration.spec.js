@@ -93,6 +93,38 @@ async function openVisits(page, { manualAutofocus = true } = {}) {
     return dialog;
 }
 
+/** Checks the identification composition's painted footprint without confusing sr-only with visible space.
+ * @param {import('@playwright/test').Locator} dialog Actual open native dialog.
+ * @param {boolean} cameraActive Whether capture should replace the large identification heading.
+ * @returns {Promise<void>} Accessible dialog naming and the appropriate visual heading footprint.
+ */
+async function expectIdentificationHeading(dialog, cameraActive) {
+    await expect(dialog).toHaveAccessibleName("Registrar visita");
+    const composition = dialog.locator("[data-modal-step-heading]");
+    await expect
+        .poll(() =>
+            composition.evaluate((element) => {
+                const bounds = element.getBoundingClientRect();
+                const style = getComputedStyle(element);
+                const clipped = style.clip !== "auto" || style.clipPath !== "none";
+                return (
+                    element.getClientRects().length === 0 ||
+                    (bounds.height <= 1 &&
+                        bounds.width <= 1 &&
+                        clipped &&
+                        ["absolute", "fixed"].includes(style.position))
+                );
+            }),
+        )
+        .toBe(cameraActive);
+    if (!cameraActive) {
+        await expect(
+            dialog.getByRole("heading", { name: "Código de la Tarjeta", exact: true }),
+        ).toBeVisible();
+        expect((await composition.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    }
+}
+
 /** Uses real read-only Livewire identification, not a client stage double.
  * @param {import('@playwright/test').Locator} dialog Actual open dialog.
  * @param {string} caseName Independent seeded pass case.
@@ -261,6 +293,7 @@ async function installCanvasCamera(page, rows) {
                 visibleAtAcquisition: [],
                 events: [],
                 showQr: false,
+                qrPosition: "center",
                 previousVideo: null,
             };
             window.__visitCamera = camera;
@@ -308,18 +341,21 @@ async function installCanvasCamera(page, rows) {
                         camera.frames[capture] = 0;
                         const canvas = document.createElement("canvas");
                         canvas.width = 640;
-                        canvas.height = 480;
+                        canvas.height = 960;
                         const context = canvas.getContext("2d");
                         const stream = canvas.captureStream(20);
                         camera.streams.push(stream);
                         const draw = () => {
                             camera.frames[capture]++;
                             context.fillStyle = "white";
-                            context.fillRect(0, 0, 640, 480);
+                            context.fillRect(0, 0, canvas.width, canvas.height);
                             if (camera.showQr) {
-                                const scale = Math.floor(400 / (rows.length + 8));
-                                const left = (640 - rows.length * scale) / 2;
-                                const top = (480 - rows.length * scale) / 2;
+                                const scale = Math.floor(240 / (rows.length + 8));
+                                const left = (canvas.width - rows.length * scale) / 2;
+                                const top =
+                                    camera.qrPosition === "top"
+                                        ? 20
+                                        : (canvas.height - rows.length * scale) / 2;
                                 context.fillStyle = "black";
                                 rows.forEach((row, y) =>
                                     [...row].forEach((bit, x) => {
@@ -649,7 +685,7 @@ test("leading-zero manual identification requires explicit confirmation and comm
     await expect(input).toHaveCSS("outline-style", "solid");
 });
 
-test("camera denial, lookup and definitive provider failure retain usable origin", async ({
+test("camera denial closes capture with one error below activation; manual and provider failures retain their origin", async ({
     page,
 }) => {
     await page.addInitScript(() => {
@@ -666,6 +702,11 @@ test("camera denial, lookup and definitive provider failure retain usable origin
         });
     });
     const dialog = await openVisits(page);
+    const calls = [];
+    page.on("request", (request) => {
+        if (updatePath.test(request.url()))
+            calls.push(...actionCalls(request).map((call) => call.method));
+    });
     await dialog.getByLabel("Código de la Tarjeta", { exact: true }).fill("99999");
     await dialog.getByRole("button", { name: "Buscar tarjeta", exact: true }).click();
     await expectDangerToast(page, "No se pudo completar la acción.");
@@ -685,16 +726,38 @@ test("camera denial, lookup and definitive provider failure retain usable origin
         dialog.getByRole("button", { name: "Desactivar cámara", exact: true }),
     ).toBeEnabled();
     await page.evaluate(() => window.__visitRejectPermission());
+    await expect(cameraRegion).toBeHidden();
+    const activate = dialog.getByRole("button", { name: "Activar cámara", exact: true });
+    await expect(activate).toBeEnabled();
+    await expect(activate).toBeFocused();
     await expect(
-        dialog
-            .getByLabel("Escáner de la tarjeta del cliente", { exact: true })
-            .getByText(/No se permitió el acceso a la cámara/),
-    ).toBeVisible();
-    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeHidden();
-    await dialog.getByRole("button", { name: "Desactivar cámara", exact: true }).click();
-    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toBeFocused();
-    await expect(dialog.getByLabel("Código de la Tarjeta", { exact: true })).toHaveValue("");
+        dialog.getByRole("button", { name: "Desactivar cámara", exact: true }),
+    ).toHaveCount(0);
+    const cameraError = dialog
+        .getByRole("alert")
+        .filter({ hasText: /No se permitió el acceso a la cámara/ });
+    await expect(cameraError).toHaveCount(1);
+    await expect(cameraError).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(1);
+    await expectDangerToast(page, "No se pudo completar la acción.");
+    const errorBox = await cameraError.boundingBox();
+    const activateBox = await activate.boundingBox();
+    const dialogBox = await dialog.boundingBox();
+    const footerBox = await dialog.locator("footer").boundingBox();
+    expect(errorBox.y).toBeGreaterThanOrEqual(activateBox.y + activateBox.height);
+    expect(errorBox.y + errorBox.height).toBeLessThanOrEqual(footerBox.y);
+    expect(errorBox.x).toBeGreaterThanOrEqual(dialogBox.x);
+    expect(errorBox.x + errorBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width);
+    expect(await cameraError.evaluate((element) => Boolean(element.closest("form")))).toBe(false);
+    await expectIdentificationHeading(dialog, false);
+    const manual = dialog.getByLabel("Código de la Tarjeta", { exact: true });
+    await expect(manual).toBeVisible();
+    await expect(manual).toBeEnabled();
+    await expect(manual).toHaveValue("");
     await expect(dialog.locator("#visit-manual-error")).toBeHidden();
+    expect(calls.filter((method) => method === "resetIdentification")).toHaveLength(0);
+    expect(calls.filter((method) => method === "findPass")).toHaveLength(1);
+    expect(calls.filter((method) => method === "logCameraFatalError")).toHaveLength(1);
     await findManually(dialog, "failure");
     await dialog.getByRole("button", { name: "Confirmar visita", exact: true }).click();
     await expectDangerToast(page, "No se pudo completar la acción.");
@@ -702,6 +765,10 @@ test("camera denial, lookup and definitive provider failure retain usable origin
     await expect(dialog.locator("#visit-action-error")).toContainText(
         "No pudimos registrar la visita",
     );
+    await expect(dialog.getByRole("alert")).toHaveCount(1);
+    await expect(
+        dialog.getByRole("alert").filter({ hasText: /No se permitió el acceso a la cámara/ }),
+    ).toHaveCount(0);
     await expect(
         dialog
             .locator("section")
@@ -1130,6 +1197,7 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                     manualAutofocus: browserName !== "chromium",
                 });
                 expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(0);
+                await expectIdentificationHeading(dialog, false);
                 await dialog.getByLabel("Código de la Tarjeta", { exact: true }).fill("012");
                 await page.evaluate(() => {
                     window.__visitCamera.holdPermission = true;
@@ -1151,16 +1219,21 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                     await expect(dialog.locator("[data-qr-camera] button:visible")).toHaveCount(1);
                     await expectButtonSpinner(stop, startWidth);
                     await expect(stop).toBeEnabled();
+                    await expectIdentificationHeading(dialog, true);
                     const frame = dialog.locator("[data-visit-camera-frame]");
                     startingFrame = await frame.boundingBox();
-                    const viewport = page.viewportSize();
-                    expect(startingFrame.width).toBeLessThanOrEqual(
-                        viewport.width < 640 ? 320 : 384,
-                    );
-                    expect(startingFrame.height).toBeLessThanOrEqual(viewport.height * 0.3 + 1);
-                    expect(
-                        Math.abs(startingFrame.width / startingFrame.height - 16 / 9),
-                    ).toBeLessThan(0.01);
+                    const availableWidth = await dialog
+                        .locator("[data-qr-camera-region]")
+                        .evaluate((element) => {
+                            const style = getComputedStyle(element);
+                            return (
+                                element.clientWidth -
+                                parseFloat(style.paddingLeft) -
+                                parseFloat(style.paddingRight)
+                            );
+                        });
+                    expect(startingFrame.width).toBeCloseTo(availableWidth, 0);
+                    expect(startingFrame.height).toBeGreaterThanOrEqual(192);
                     await expect(
                         dialog.getByText("Activando cámara…", { exact: true }),
                     ).toBeVisible();
@@ -1197,6 +1270,12 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                     .toBe(true);
                 const activeFrame = await dialog.locator("[data-visit-camera-frame]").boundingBox();
                 expect(activeFrame).toEqual(startingFrame);
+                await expectIdentificationHeading(dialog, true);
+                await expect(video).toHaveCSS("object-fit", "cover");
+                await expect(video).toHaveCSS("object-position", "50% 50%");
+                const videoBox = await video.boundingBox();
+                expect(videoBox.width).toBeCloseTo(activeFrame.width, 0);
+                expect(videoBox.height).toBeGreaterThanOrEqual(192);
                 await expect(dialog.locator("[data-visit-camera-placeholder]")).toBeHidden();
                 const beforeTyping = await video.evaluate((element) => element.currentTime);
                 await expect(
@@ -1228,6 +1307,7 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                     deactivation.release();
                 }
                 await expect(video).toBeHidden();
+                await expectIdentificationHeading(dialog, false);
                 await expect(
                     dialog.getByLabel("Código de la Tarjeta", { exact: true }),
                 ).toHaveValue("");
@@ -1299,7 +1379,12 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                 await dialog.getByRole("button", { name: "Activar cámara", exact: true }).click();
                 await showQrOnCurrentVideo(dialog, testInfo);
                 expect(await page.evaluate(() => window.__visitCamera.requests)).toBe(4);
-                await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
+                const nativeClose = dialog.locator(
+                    "[data-flux-modal-close] button:not([data-visit-close])",
+                );
+                await expect(nativeClose).toBeEnabled();
+                await nativeClose.click();
+                await expect(dialog).toBeHidden();
                 await expect
                     .poll(() =>
                         page.evaluate(() =>
@@ -1319,3 +1404,84 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
         );
     });
 }
+
+test("camera decodes only the visible central crop after resize", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await installCanvasCamera(page, dummyQr.rows);
+    const dialog = await openVisits(page);
+    const before = await factsFor(page, "camera-chromium");
+    const calls = [];
+    page.on("request", (request) => {
+        if (updatePath.test(request.url()))
+            calls.push(...actionCalls(request).map((call) => call.method));
+    });
+    await page.evaluate(() => {
+        window.__visitCamera.showQr = true;
+        window.__visitCamera.qrPosition = "top";
+    });
+    await dialog.getByRole("button", { name: "Activar cámara", exact: true }).click();
+    const video = dialog.locator("video");
+    const stop = dialog.getByRole("button", { name: "Desactivar cámara", exact: true });
+    await expect.poll(() => video.evaluate((element) => element.currentTime)).toBeGreaterThan(0.5);
+    expect(calls.filter((method) => method === "findPass")).toHaveLength(0);
+    await expect(stop).toBeVisible();
+    await expectIdentificationHeading(dialog, true);
+    const nativeClose = dialog.locator("[data-flux-modal-close] button:not([data-visit-close])");
+    await expect(nativeClose).toHaveCount(1);
+    await expect(nativeClose).toHaveAccessibleName(/Cerrar/);
+    await expect(nativeClose).toBeEnabled();
+    await expect(nativeClose).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeInViewport();
+    await expect
+        .poll(() =>
+            dialog.evaluate((element) => {
+                const scrollSurfaces = [element, ...element.querySelectorAll("*")].filter(
+                    (surface) => {
+                        const style = getComputedStyle(surface);
+                        return (
+                            surface.getClientRects().length &&
+                            ["auto", "scroll"].includes(style.overflowY)
+                        );
+                    },
+                );
+                return scrollSurfaces.every(
+                    (surface) => surface.scrollHeight <= surface.clientHeight + 1,
+                );
+            }),
+        )
+        .toBe(true);
+
+    await page.setViewportSize({ width: 320, height: 480 });
+    const frame = dialog.locator("[data-visit-camera-frame]");
+    expect((await frame.boundingBox()).height).toBeGreaterThanOrEqual(192);
+    await expectIdentificationHeading(dialog, true);
+    await stop.scrollIntoViewIfNeeded();
+    await expect(stop).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeInViewport();
+    const currentTime = await video.evaluate((element) => element.currentTime);
+    await expect
+        .poll(() => video.evaluate((element) => element.currentTime))
+        .toBeGreaterThan(currentTime + 0.5);
+    expect(calls.filter((method) => method === "findPass")).toHaveLength(0);
+
+    await page.evaluate(() => {
+        window.__visitCamera.qrPosition = "center";
+    });
+    await expect(
+        dialog.getByRole("button", { name: "Confirmar visita", exact: true }),
+    ).toBeVisible();
+    expect(calls.filter((method) => method === "findPass")).toHaveLength(1);
+    const after = await factsFor(page, "camera-chromium");
+    expect(after.visits).toEqual(before.visits);
+    expect(after.effects).toEqual(before.effects);
+    await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await expect
+        .poll(() =>
+            page.evaluate(() =>
+                window.__visitCamera.streams.every((stream) =>
+                    stream.getTracks().every((track) => track.readyState === "ended"),
+                ),
+            ),
+        )
+        .toBe(true);
+});
