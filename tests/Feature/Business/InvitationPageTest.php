@@ -224,7 +224,8 @@ it('downloads exactly the displayed preparation SVG for the owner despite forged
 
     $this->get('/join/'.$business->public_id)
         ->assertSee($business->name)
-        ->assertSee('Promoción de ejemplo.');
+        ->assertSee(__('join.save'))
+        ->assertDontSee(__('join.sample_caption'));
 });
 
 it('refuses a download before appearance has been saved', function () {
