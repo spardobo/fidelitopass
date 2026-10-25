@@ -318,7 +318,8 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
          */
         get cameraStarting() {
             const camera = root.querySelector("[data-qr-camera]");
-            return camera ? Boolean(Alpine.$data(camera).starting) : false;
+            // observe parent mode before reading the later-initialized child scope
+            return this.cameraEnabled && camera ? Boolean(Alpine.$data(camera).starting) : false;
         },
 
         /**
@@ -327,7 +328,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
          * @returns {boolean} Whether this link owns the active reset.
          */
         get resettingReading() {
-            return activeRead?.name === "resetIdentification" && !this.cameraEnabled;
+            return this.busy && activeRead?.name === "resetIdentification" && !this.cameraEnabled;
         },
 
         /**
@@ -336,7 +337,7 @@ Alpine.data("visitRegistration", ({ errors, codes }) => {
          * @returns {boolean} Whether camera deactivation owns the reset.
          */
         get resettingCamera() {
-            return activeRead?.name === "resetIdentification" && this.cameraEnabled;
+            return this.busy && activeRead?.name === "resetIdentification" && this.cameraEnabled;
         },
 
         /**

@@ -45,7 +45,51 @@ export function qrCameraScanner(onResult, cameraFailures) {
         }
 
         const video = scanner.$el.querySelector("video");
-        const reader = new BrowserQRCodeReader();
+        let previewCanvas;
+
+        /** Restricts this owned reader to the same centered cover crop as its video preview. */
+        class PreviewQRCodeReader extends BrowserQRCodeReader {
+            /**
+             * Decodes the current visible area, including viewport and video orientation changes.
+             *
+             * @returns {import("@zxing/library").Result} QR result from the visible preview only.
+             * @throws {Error} Reports an unavailable canvas or a native decoding failure.
+             */
+            decodeFromCanvas() {
+                const bounds = video.getBoundingClientRect();
+                const { videoWidth, videoHeight } = video;
+                if (!bounds.width || !bounds.height || !videoWidth || !videoHeight) {
+                    throw new NotFoundException();
+                }
+
+                const scale = Math.max(bounds.width / videoWidth, bounds.height / videoHeight);
+                const width = bounds.width / scale;
+                const height = bounds.height / scale;
+                const canvas = (previewCanvas ??= video.ownerDocument.createElement("canvas"));
+                canvas.width = Math.round(width);
+                canvas.height = Math.round(height);
+                const context = canvas.getContext("2d", { willReadFrequently: true });
+                if (!context) {
+                    throw new Error("Camera preview canvas is unavailable");
+                }
+
+                context.drawImage(
+                    video,
+                    (videoWidth - width) / 2,
+                    (videoHeight - height) / 2,
+                    width,
+                    height,
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height,
+                );
+
+                return super.decodeFromCanvas(canvas);
+            }
+        }
+
+        const reader = new PreviewQRCodeReader();
 
         /**
          * Handles an owned frame while ignoring normal scan misses and obsolete callbacks.

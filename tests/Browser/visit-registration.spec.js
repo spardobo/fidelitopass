@@ -261,6 +261,7 @@ async function installCanvasCamera(page, rows) {
                 visibleAtAcquisition: [],
                 events: [],
                 showQr: false,
+                qrPosition: "center",
                 previousVideo: null,
             };
             window.__visitCamera = camera;
@@ -308,18 +309,21 @@ async function installCanvasCamera(page, rows) {
                         camera.frames[capture] = 0;
                         const canvas = document.createElement("canvas");
                         canvas.width = 640;
-                        canvas.height = 480;
+                        canvas.height = 960;
                         const context = canvas.getContext("2d");
                         const stream = canvas.captureStream(20);
                         camera.streams.push(stream);
                         const draw = () => {
                             camera.frames[capture]++;
                             context.fillStyle = "white";
-                            context.fillRect(0, 0, 640, 480);
+                            context.fillRect(0, 0, canvas.width, canvas.height);
                             if (camera.showQr) {
-                                const scale = Math.floor(400 / (rows.length + 8));
-                                const left = (640 - rows.length * scale) / 2;
-                                const top = (480 - rows.length * scale) / 2;
+                                const scale = Math.floor(240 / (rows.length + 8));
+                                const left = (canvas.width - rows.length * scale) / 2;
+                                const top =
+                                    camera.qrPosition === "top"
+                                        ? 20
+                                        : (canvas.height - rows.length * scale) / 2;
                                 context.fillStyle = "black";
                                 rows.forEach((row, y) =>
                                     [...row].forEach((bit, x) => {
@@ -1153,14 +1157,18 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
                     await expect(stop).toBeEnabled();
                     const frame = dialog.locator("[data-visit-camera-frame]");
                     startingFrame = await frame.boundingBox();
-                    const viewport = page.viewportSize();
-                    expect(startingFrame.width).toBeLessThanOrEqual(
-                        viewport.width < 640 ? 320 : 384,
-                    );
-                    expect(startingFrame.height).toBeLessThanOrEqual(viewport.height * 0.3 + 1);
-                    expect(
-                        Math.abs(startingFrame.width / startingFrame.height - 16 / 9),
-                    ).toBeLessThan(0.01);
+                    const availableWidth = await dialog
+                        .locator("[data-qr-camera-region]")
+                        .evaluate((element) => {
+                            const style = getComputedStyle(element);
+                            return (
+                                element.clientWidth -
+                                parseFloat(style.paddingLeft) -
+                                parseFloat(style.paddingRight)
+                            );
+                        });
+                    expect(startingFrame.width).toBeCloseTo(availableWidth, 0);
+                    expect(startingFrame.height).toBeGreaterThanOrEqual(192);
                     await expect(
                         dialog.getByText("Activando cámara…", { exact: true }),
                     ).toBeVisible();
@@ -1319,3 +1327,57 @@ for (const browserName of ["chromium", "firefox", "webkit"]) {
         );
     });
 }
+
+test("camera decodes only the visible central crop after resize", async ({ page }) => {
+    await installCanvasCamera(page, dummyQr.rows);
+    const dialog = await openVisits(page);
+    const before = await factsFor(page, "camera-chromium");
+    const calls = [];
+    page.on("request", (request) => {
+        if (updatePath.test(request.url()))
+            calls.push(...actionCalls(request).map((call) => call.method));
+    });
+    await page.evaluate(() => {
+        window.__visitCamera.showQr = true;
+        window.__visitCamera.qrPosition = "top";
+    });
+    await dialog.getByRole("button", { name: "Activar cámara", exact: true }).click();
+    const video = dialog.locator("video");
+    const stop = dialog.getByRole("button", { name: "Desactivar cámara", exact: true });
+    await expect.poll(() => video.evaluate((element) => element.currentTime)).toBeGreaterThan(0.5);
+    expect(calls.filter((method) => method === "findPass")).toHaveLength(0);
+    await expect(stop).toBeVisible();
+
+    await page.setViewportSize({ width: 320, height: 480 });
+    const frame = dialog.locator("[data-visit-camera-frame]");
+    expect((await frame.boundingBox()).height).toBeGreaterThanOrEqual(192);
+    await stop.scrollIntoViewIfNeeded();
+    await expect(stop).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Cerrar", exact: true })).toBeInViewport();
+    const currentTime = await video.evaluate((element) => element.currentTime);
+    await expect
+        .poll(() => video.evaluate((element) => element.currentTime))
+        .toBeGreaterThan(currentTime + 0.5);
+    expect(calls.filter((method) => method === "findPass")).toHaveLength(0);
+
+    await page.evaluate(() => {
+        window.__visitCamera.qrPosition = "center";
+    });
+    await expect(
+        dialog.getByRole("button", { name: "Confirmar visita", exact: true }),
+    ).toBeVisible();
+    expect(calls.filter((method) => method === "findPass")).toHaveLength(1);
+    const after = await factsFor(page, "camera-chromium");
+    expect(after.visits).toEqual(before.visits);
+    expect(after.effects).toEqual(before.effects);
+    await dialog.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await expect
+        .poll(() =>
+            page.evaluate(() =>
+                window.__visitCamera.streams.every((stream) =>
+                    stream.getTracks().every((track) => track.readyState === "ended"),
+                ),
+            ),
+        )
+        .toBe(true);
+});

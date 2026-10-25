@@ -105,8 +105,8 @@
                                     {{ __('visit-registration.instructions') }}
                                 </h3>
                                 {{-- reserve the proportional frame and keep the video mounted during native startup --}}
-                                <div data-visit-camera-frame class="relative mx-auto aspect-video w-full max-w-[min(320px,53.333dvh)] sm:max-w-[min(384px,53.333dvh)]">
-                                    <video muted playsinline x-bind:class="active ? 'opacity-100' : 'opacity-0'" aria-hidden="true" class="absolute inset-0 h-full w-full rounded-xl object-contain">
+                                <div data-visit-camera-frame class="relative aspect-video min-h-48 w-full">
+                                    <video muted playsinline x-bind:class="active ? 'opacity-100' : 'opacity-0'" aria-hidden="true" class="absolute inset-0 h-full w-full rounded-xl object-cover object-center">
                                     </video>
                                     <div x-show="!active" data-visit-camera-placeholder class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-app-ink-secondary">
                                         <flux:icon.camera variant="outline" class="size-9" />

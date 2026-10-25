@@ -258,19 +258,25 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
             echo json_encode($fixture, JSON_THROW_ON_ERROR).PHP_EOL;
         } elseif ($operation === 'verify') {
             $fixture = json_decode(file_get_contents(storage_path('visits.json')), true, flags: JSON_THROW_ON_ERROR);
+            $owner = User::query()->where('email', $fixture['owner']['email'])->sole();
             $expectedOauth = 0;
             foreach ($fixture['passes'] as $case => $pass) {
                 $facts = readVisitBrowserFacts($case);
-                $accepted = in_array($case, ['manual', 'lost', 'details', 'camera-chromium', 'camera-firefox', 'camera-webkit', 'unlock'], true);
-                $expectedVisits = in_array($case, ['reward', 'unlock'], true) ? 8 : (int) $accepted;
+                $accepted = in_array($case, ['manual', 'lost', 'details', 'camera-chromium', 'camera-firefox', 'camera-webkit', 'unlock', 'compound'], true);
+                $expectedVisits = in_array($case, ['reward', 'unlock', 'compound'], true) ? 8 : (int) $accepted;
                 $expectedWrites = match ($case) {
                     'reward' => 1,
                     'unlock' => 2,
                     default => (int) ($accepted || $case === 'failure'),
                 };
-                if (in_array($case, ['reward', 'unlock'], true)) {
+                if (in_array($case, ['reward', 'unlock', 'compound'], true)) {
                     $reward = DB::table('reward_entitlements')->where('customer_pass_id', $pass['id'])->sole();
-                    if ($reward->redeemed_at === null || $reward->redeemed_by_user_id === null) {
+                    if (
+                        $reward->redeemed_at === null
+                        || $reward->redeemed_by_user_id !== $owner->id
+                        || $reward->business_id !== $fixture['promotion']['business_id']
+                        || $reward->promotion_id !== $fixture['promotion']['id']
+                    ) {
                         throw new RuntimeException('Expected one final Reward redemption for '.$case.'.');
                     }
                 }
@@ -289,7 +295,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
             $promotion = Promotion::query()->findOrFail($fixture['promotion']['id']);
             if (
                 $promotion->getAttributes() !== $fixture['promotion']
-                || DB::table('reward_entitlements')->count() !== 2
+                || DB::table('reward_entitlements')->count() !== 3
                 || ! DB::table('reward_entitlements')->where('customer_pass_id', $fixture['passes']['unlock']['id'])->where('promotion_id', $promotion->id)->exists()
             ) {
                 throw new RuntimeException('Visit journeys changed frozen terms or Reward facts.');
