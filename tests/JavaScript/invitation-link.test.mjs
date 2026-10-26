@@ -57,3 +57,38 @@ test("confirms invitation copying only after the supported clipboard API complet
     assert.equal(scope.copied, true);
     assert.equal(scope.copyFailed, false);
 });
+
+for (const previous of [
+    { label: "successful", copied: true, copyFailed: false },
+    { label: "manual-copy", copied: false, copyFailed: true },
+]) {
+    test(`retains settled ${previous.label} feedback while a subsequent copy is pending`, async () => {
+        let complete;
+        const pending = new Promise((resolve) => {
+            complete = resolve;
+        });
+        const scope = createScope();
+        scope.copied = previous.copied;
+        scope.copyFailed = previous.copyFailed;
+        scope.$el = { isConnected: true };
+        scope.$refs = {
+            url: {
+                value: "https://acquire.example.test/join/public-business",
+                ownerDocument: {
+                    defaultView: { navigator: { clipboard: { writeText: () => pending } } },
+                },
+            },
+        };
+
+        const copying = scope.copy();
+
+        assert.equal(scope.copying, true);
+        assert.equal(scope.copied, previous.copied);
+        assert.equal(scope.copyFailed, previous.copyFailed);
+        complete();
+        await copying;
+        assert.equal(scope.copying, false);
+        assert.equal(scope.copied, true);
+        assert.equal(scope.copyFailed, false);
+    });
+}

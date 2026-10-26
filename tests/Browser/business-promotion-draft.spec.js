@@ -2752,3 +2752,94 @@ test.describe("mobile invitation clipboard", () => {
         await clipboard.close();
     });
 });
+
+for (const device of [
+    { label: "desktop", viewport: { width: 1440, height: 1000 }, isMobile: false, hasTouch: false },
+    { label: "mobile", viewport: devices["Pixel 7"].viewport, isMobile: true, hasTouch: true },
+]) {
+    test.describe(`invitation copy geometry on ${device.label}`, () => {
+        test.use({
+            viewport: device.viewport,
+            isMobile: device.isMobile,
+            hasTouch: device.hasTouch,
+        });
+
+        test("aligns the copy control with its readonly invitation input", async ({
+            page,
+            request,
+        }) => {
+            await registerVerifiedBusiness(page, request);
+            await page.goto("/pass/appearance");
+            await page.getByRole("button", { name: "Guardar apariencia" }).click();
+            await expect(page).toHaveURL(/\/pass$/);
+            await page.goto("/invite");
+            const input = await page.getByLabel("Enlace para invitar").boundingBox();
+            const button = await page.getByRole("button", { name: /copiar/i }).boundingBox();
+            const bounds = { input, button };
+            console.log(`Invitation ${device.label} alignment: ${JSON.stringify(bounds)}`);
+
+            expect(input).not.toBeNull();
+            expect(button).not.toBeNull();
+            expect(button.width).toBeGreaterThanOrEqual(44);
+            expect(button.height).toBeGreaterThanOrEqual(44);
+            expect(
+                Math.abs(button.y + button.height / 2 - input.y - input.height / 2),
+            ).toBeLessThanOrEqual(1);
+            expect(button.y).toBeGreaterThanOrEqual(input.y - 1);
+            expect(button.y + button.height).toBeLessThanOrEqual(input.y + input.height + 1);
+        });
+
+        test("keeps the QR card height stable throughout repeated asynchronous copying", async ({
+            page,
+            request,
+        }) => {
+            await registerVerifiedBusiness(page, request);
+            await page.goto("/pass/appearance");
+            await page.getByRole("button", { name: "Guardar apariencia" }).click();
+            await expect(page).toHaveURL(/\/pass$/);
+            await page.goto("/invite");
+            const card = page.getByRole("region", { name: "QR del negocio", exact: true });
+            const copy = page.getByRole("button", { name: /copiar/i });
+            await page.evaluate(() => {
+                Object.defineProperty(navigator, "clipboard", {
+                    configurable: true,
+                    value: {
+                        writeText: () =>
+                            new Promise((resolve) => {
+                                window.resolveInvitationCopy = resolve;
+                            }),
+                    },
+                });
+            });
+            await copy.click();
+            await expect(copy).toBeDisabled();
+            await page.waitForFunction(() => typeof window.resolveInvitationCopy === "function");
+            await page.evaluate(() => window.resolveInvitationCopy());
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+            await expect(copy).toBeEnabled();
+            const before = await card.boundingBox();
+
+            await copy.click();
+            await expect(copy).toBeDisabled();
+            const pendingHeights = await card.evaluate(async (element) => {
+                const heights = [];
+                for (let frame = 0; frame < 6; frame++) {
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                    heights.push(element.getBoundingClientRect().height);
+                }
+                return heights;
+            });
+            await page.evaluate(() => window.resolveInvitationCopy());
+            await expect(copy).toBeEnabled();
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+            const after = await card.boundingBox();
+            console.log(
+                `Invitation ${device.label} repeated copy: ${JSON.stringify({ before: before.height, pendingHeights, after: after.height })}`,
+            );
+
+            for (const height of [...pendingHeights, after.height]) {
+                expect(Math.abs(height - before.height)).toBeLessThanOrEqual(1);
+            }
+        });
+    });
+}

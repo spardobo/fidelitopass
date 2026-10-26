@@ -55,8 +55,6 @@ Alpine.data("invitationLink", () => ({
         }
 
         this.copying = true;
-        this.copied = false;
-        this.copyFailed = false;
 
         const copied = await copyInvitationUrl(this.$refs.url);
 
