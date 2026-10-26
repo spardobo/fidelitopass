@@ -34,7 +34,14 @@ jobs:
               return;
             }
 
-            const typeLabels = pullRequest.labels
+            // reruns retain the event snapshot, so validate the current PR labels
+            const { data: currentPullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullRequest.number,
+            });
+
+            const typeLabels = currentPullRequest.labels
               .map((label) => label.name)
               .filter((name) => name.startsWith('type:'));
 
