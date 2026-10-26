@@ -91,6 +91,35 @@ it('ignores forged tenant context and escapes the current Business name', functi
         ->assertDontSee($foreign->name);
 });
 
+it('renders the exact owned QR URL with an accessible readonly copy control despite forged tenant context', function () {
+    config(['app.url' => 'https://acquire.example.test/']);
+    $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
+    $foreign = Business::factory()->create(['pass_background_color' => '#A77BFF']);
+    $actor = $business->user;
+    $actor->setRelation('business', $foreign);
+    $url = 'https://acquire.example.test/join/'.$business->public_id;
+    $svg = app(BusinessAcquisitionQr::class)->svg($business);
+
+    $response = $this->actingAs($actor)
+        ->get('/invite?'.http_build_query(['business_id' => $foreign->id, 'business' => $foreign->id]))
+        ->assertSee('data:image/svg+xml;base64,'.base64_encode($svg), false)
+        ->assertDontSee($foreign->public_id);
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $card = '//section[@aria-labelledby="invitation-qr-heading"]';
+    $input = $xpath->query($card.'//input[@readonly and not(@disabled)]');
+
+    expect($input->length)->toBe(1)
+        ->and($input->item(0)?->getAttribute('value'))->toBe($url)
+        ->and(explode(' ', $input->item(0)->getAttribute('class')))->toContain('app-input');
+    expect($xpath->query($card.'//ui-field[.//input[@readonly]]/ui-label')->item(0)?->textContent)
+        ->toContain('Enlace para invitar');
+    expect($xpath->query($card.'//*[@data-flux-input]//button[@aria-label="Copiar al portapapeles" and not(@disabled)]')->length)
+        ->toBe(1);
+});
+
 it('reloads current owned appearance on subsequent Livewire requests', function () {
     $business = Business::factory()->create();
     $page = Livewire::actingAs($business->user)
@@ -156,7 +185,8 @@ it('reserves the QR area with one contextual appearance or download action', fun
     expect($xpath->query('//main//canvas | //main//a[@download] | //main//*[@data-flux-badge]')->length)->toBe(0)
         ->and($xpath->query('//main//img[starts-with(@src,"data:image/svg+xml;base64,")]')->length)->toBe($color === null ? 0 : 1)
         ->and($xpath->query('//main//*[@role="group" and @aria-label="Vista del QR del negocio"]')->length)->toBe(1)
-        ->and($xpath->query('//main//button')->length)->toBe($color === null ? 0 : 1)
+        ->and($xpath->query('//main//button')->length)->toBe($color === null ? 0 : 2)
+        ->and($xpath->query('//main//input[@readonly]')->length)->toBe($color === null ? 0 : 1)
         ->and($xpath->query('//main//button[@disabled and @aria-describedby="invitation-action-help"]')->length)->toBe(0)
         ->and($xpath->query('//*[@id="invitation-action-help"]//svg[@aria-hidden="true"]')->length)->toBe(1)
         ->and($xpath->query('//*[@id="invitation-action-help"]//p')->length)->toBe(1)

@@ -90,8 +90,9 @@ COPY --from=frontend --chown=root:root /app/public/build ./public/build
 # install the versioned web, PHP, and process-manager configuration
 COPY docker/production/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/production/nginx/default.conf /etc/nginx/http.d/default.conf
-# replace the inherited root-oriented pool instead of layering over its directives
-COPY docker/production/php-fpm/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
+# own the global include and replace the inherited root-oriented pool
+COPY docker/production/php-fpm/php-fpm.conf /usr/local/etc/php-fpm.conf
+COPY docker/production/php-fpm/www.conf /usr/local/etc/php-fpm.d/www.conf
 COPY docker/production/php-fpm/production.ini /usr/local/etc/php/conf.d/zz-production.ini
 COPY docker/production/php-fpm/opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
 COPY docker/production/supervisor/supervisord.conf /etc/supervisord.conf

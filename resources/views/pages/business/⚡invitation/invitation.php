@@ -31,6 +31,7 @@ new #[Layout('layouts::app'), Title('invitation.title')] class extends Component
             'business' => $business,
             'appearanceSaved' => $business->pass_background_color !== null,
             'qrSvg' => $svg,
+            'qrUrl' => $svg !== null ? app(BusinessAcquisitionQr::class)->url($business) : null,
         ]);
     }
 
