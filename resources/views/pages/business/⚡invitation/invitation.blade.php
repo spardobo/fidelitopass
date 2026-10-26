@@ -139,7 +139,11 @@
                         </span>
                         <div class="min-w-0 space-y-2">
                             <flux:heading level="3" class="app-role-card! flex items-start gap-2 text-app-ink!">
-                                <flux:icon :name="$icon" variant="outline" class="mt-1 size-5 text-app-accent-text" />
+                                @if ($index === 1)
+                                    <img src="{{ asset('images/google-wallet/wallet-icon.png') }}" alt="" width="20" height="20" class="mt-1 size-5 shrink-0 object-contain">
+                                @else
+                                    <flux:icon :name="$icon" variant="outline" class="mt-1 size-5 text-app-accent-text" />
+                                @endif
                                 <span>
                                     {{ __('invitation.step_'.($index + 1).'_heading') }}
                                 </span>

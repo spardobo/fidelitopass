@@ -2867,4 +2867,76 @@ for (const device of [
             }
         });
     });
+
+    test.describe(`business first-use guidance on ${device.label}`, () => {
+        test.use({
+            viewport: device.viewport,
+            isMobile: device.isMobile,
+            hasTouch: device.hasTouch,
+        });
+
+        test("guides preparation without hiding the original Pass workspace", async ({
+            page,
+            request,
+        }, testInfo) => {
+            await registerVerifiedBusiness(page, request);
+            const main = page.locator("main.app-workspace");
+            const preparation = page.getByRole("region", { name: "Preparación del negocio" });
+            await expect(
+                preparation.getByRole("button", { name: "Crear primera promoción", exact: true }),
+            ).toBeDisabled();
+            await expect(
+                preparation.getByRole("link", { name: "Preparar tu tarjeta", exact: true }),
+            ).toHaveAttribute("href", /\/pass\/appearance$/);
+            await expect(main.locator('[aria-labelledby="activity-title"]')).toHaveCount(0);
+            await expect(
+                page.getByRole("link", { name: "Crear primera promoción", exact: true }),
+            ).toHaveCount(0);
+            await main.screenshot({ path: testInfo.outputPath("summary-initial.png") });
+
+            await page.goto("/pass");
+            await expect(
+                page.getByRole("heading", { name: "Promociones", exact: true }),
+            ).toBeVisible();
+            await expect(
+                page.getByText("Aquí vivirán tus promociones", { exact: true }),
+            ).toBeVisible();
+            await main.screenshot({ path: testInfo.outputPath("pass-original-unsaved.png") });
+            await page.getByRole("link", { name: "Preparar tu tarjeta", exact: true }).click();
+            await expect(page).toHaveURL(/\/pass\/appearance$/);
+            await page.getByRole("button", { name: "Guardar apariencia", exact: true }).click();
+            await expect(page).toHaveURL(/\/pass$/);
+            await expect(
+                page.getByRole("heading", { name: "Promociones", exact: true }),
+            ).toBeVisible();
+            await expect(
+                page.getByText("Todavía no hay promociones para mostrar.", { exact: true }),
+            ).toBeVisible();
+            await expect(
+                page.getByRole("link", { name: "Crear primera promoción", exact: true }),
+            ).toBeVisible();
+            await main.screenshot({ path: testInfo.outputPath("pass-original-saved.png") });
+
+            await page.goto("/dashboard");
+            await expect(
+                preparation.getByText("1 de 2 completados", { exact: true }),
+            ).toBeVisible();
+            await expect(
+                preparation.getByRole("link", { name: "Preparar tu tarjeta", exact: true }),
+            ).toHaveCount(0);
+            const createPromotion = preparation.getByRole("link", {
+                name: "Crear primera promoción",
+                exact: true,
+            });
+            await expect(createPromotion).toHaveAttribute("href", /\/promotions\/create$/);
+            expect(
+                await page.evaluate(
+                    () => document.documentElement.scrollWidth <= window.innerWidth,
+                ),
+            ).toBe(true);
+            await main.screenshot({ path: testInfo.outputPath("summary-after-appearance.png") });
+            await createPromotion.click();
+            await expect(page).toHaveURL(/\/promotions\/create$/);
+        });
+    });
 }
