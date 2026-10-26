@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 import crypto from "node:crypto";
 
 const USER_NAME = "Promotion Owner";
@@ -2667,4 +2667,88 @@ test("keeps an overlapping publication in the editor with its review closed", as
     await expect(page.getByLabel("Fecha de inicio")).toHaveValue(expectedDate(dates.futureStart));
     await expect(page.getByLabel("Fecha de fin")).toHaveValue(expectedDate(dates.futureEnd));
     expect(await page.evaluate(() => window.scrollY)).toBe(scrollTop);
+});
+
+test.describe("mobile invitation clipboard", () => {
+    const mobile = devices["Pixel 7"];
+    test.use({
+        viewport: mobile.viewport,
+        userAgent: mobile.userAgent,
+        deviceScaleFactor: mobile.deviceScaleFactor,
+        isMobile: true,
+        hasTouch: true,
+    });
+
+    test("copies the invitation URL on mobile without or with a denied clipboard API", async ({
+        page,
+        context,
+        request,
+    }) => {
+        await registerVerifiedBusiness(page, request);
+        await page.goto("/pass/appearance");
+        await page.getByRole("button", { name: "Guardar apariencia" }).click();
+        await expect(page).toHaveURL(/\/pass$/);
+        await page.goto("/invite");
+
+        const input = page.getByLabel("Enlace para invitar");
+        const url = await input.inputValue();
+        const copy = page.getByRole("button", { name: /copiar/i });
+        expect(await page.evaluate(() => Boolean(navigator.clipboard))).toBe(false);
+
+        // this intercepted trusted origin reads the real disposable browser clipboard
+        const clipboard = await context.newPage();
+        const probeUrl = "http://localhost/clipboard-probe";
+        await clipboard.route(probeUrl, (route) =>
+            route.fulfill({ contentType: "text/html", body: "<title>Clipboard probe</title>" }),
+        );
+        await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+            origin: "http://localhost",
+        });
+        await clipboard.goto(probeUrl);
+        await clipboard.evaluate(() => navigator.clipboard.writeText("unchanged clipboard"));
+
+        await page.bringToFront();
+        await copy.tap();
+        await clipboard.bringToFront();
+        expect(await clipboard.evaluate(() => navigator.clipboard.readText())).toBe(url);
+
+        await clipboard.evaluate(() => navigator.clipboard.writeText("denied clipboard"));
+        await page.evaluate(() => {
+            Object.defineProperty(navigator, "clipboard", {
+                configurable: true,
+                value: {
+                    writeText: () =>
+                        Promise.reject(new DOMException("Clipboard denied", "NotAllowedError")),
+                },
+            });
+        });
+        await page.bringToFront();
+        await copy.tap();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+        await clipboard.bringToFront();
+        expect(await clipboard.evaluate(() => navigator.clipboard.readText())).toBe(url);
+
+        await clipboard.evaluate(() => navigator.clipboard.writeText("manual copy required"));
+        await page.evaluate(() => {
+            document.execCommand = () => false;
+        });
+        await page.bringToFront();
+        await copy.tap();
+        await expect(
+            page.getByText("No pudimos copiar el enlace. Selecciónalo y cópialo manualmente.", {
+                exact: true,
+            }),
+        ).toBeVisible();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).not.toBeVisible();
+        expect(
+            await input.evaluate((element) =>
+                element.value.slice(element.selectionStart, element.selectionEnd),
+            ),
+        ).toBe(url);
+        await clipboard.bringToFront();
+        expect(await clipboard.evaluate(() => navigator.clipboard.readText())).toBe(
+            "manual copy required",
+        );
+        await clipboard.close();
+    });
 });

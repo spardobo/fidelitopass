@@ -49,13 +49,37 @@
             </div>
 
             @if ($qrUrl !== null)
-                <flux:input
-                    :label="__('invitation.url_label')"
-                    :value="$qrUrl"
-                    copyable
-                    readonly
-                    class:input="app-input"
-                />
+                <div x-data="invitationLink" class="space-y-2">
+                    <flux:input
+                        :label="__('invitation.url_label')"
+                        :value="$qrUrl"
+                        x-ref="url"
+                        readonly
+                        class:input="app-input pe-14!"
+                    >
+                        <x-slot name="iconTrailing">
+                            <flux:button
+                                type="button"
+                                variant="subtle"
+                                size="sm"
+                                square
+                                x-on:click="copy"
+                                x-bind:disabled="copying"
+                                x-bind:data-copyable-copied="copied"
+                                aria-label="{{ __('Copy to clipboard') }}"
+                                class="app-button-secondary-on-emphasis -me-1 min-w-app-control"
+                            >
+                                <flux:icon.clipboard-document-check variant="outline" class="hidden size-4 [[data-copyable-copied]>&]:block" />
+                                <flux:icon.clipboard-document variant="outline" class="block size-4 [[data-copyable-copied]>&]:hidden" />
+                            </flux:button>
+                        </x-slot>
+                    </flux:input>
+
+                    <flux:text x-cloak x-show="copied || copyFailed" role="status" class="app-role-support! text-app-ink-help">
+                        <span x-show="copied">{{ __('invitation.copied') }}</span>
+                        <span x-show="copyFailed">{{ __('invitation.copy_failed') }}</span>
+                    </flux:text>
+                </div>
             @endif
 
             @if ($appearanceSaved)

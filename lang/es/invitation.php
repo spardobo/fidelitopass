@@ -10,6 +10,8 @@ return [
     'qr_preview_label' => 'Vista del QR del negocio',
     'qr_alt' => 'QR público permanente del negocio',
     'url_label' => 'Enlace para invitar',
+    'copied' => 'Enlace copiado.',
+    'copy_failed' => 'No pudimos copiar el enlace. Selecciónalo y cópialo manualmente.',
     'generation_failed' => 'No pudimos generar el QR. Inténtalo de nuevo.',
     'retry' => 'Reintentar',
     'download' => 'Descargar QR',
