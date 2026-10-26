@@ -9,6 +9,7 @@ return [
     'appearance_saved' => 'Tus clientes escanean este QR y guardan su tarjeta en Google Wallet.',
     'qr_preview_label' => 'Vista del QR del negocio',
     'qr_alt' => 'QR público permanente del negocio',
+    'url_label' => 'Enlace para invitar',
     'generation_failed' => 'No pudimos generar el QR. Inténtalo de nuevo.',
     'retry' => 'Reintentar',
     'download' => 'Descargar QR',

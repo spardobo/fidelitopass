@@ -48,6 +48,16 @@
                 @endif
             </div>
 
+            @if ($qrUrl !== null)
+                <flux:input
+                    :label="__('invitation.url_label')"
+                    :value="$qrUrl"
+                    copyable
+                    readonly
+                    class:input="app-input"
+                />
+            @endif
+
             @if ($appearanceSaved)
                 <flux:button
                     type="button"

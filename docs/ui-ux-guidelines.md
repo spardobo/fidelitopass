@@ -364,6 +364,7 @@ Business view:
 - QR-generation failures remain recoverable without changing the permanent public identity.
 - Short copy explaining what customers do.
 - Download/print action.
+- In the same QR card, show the exact public QR URL as a labelled read-only field with a copy action after appearance is saved and QR generation succeeds.
 
 Customer join view:
 
