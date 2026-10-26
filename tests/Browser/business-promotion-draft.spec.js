@@ -2767,7 +2767,7 @@ for (const device of [
         test("aligns the copy control with its readonly invitation input", async ({
             page,
             request,
-        }) => {
+        }, testInfo) => {
             await registerVerifiedBusiness(page, request);
             await page.goto("/pass/appearance");
             await page.getByRole("button", { name: "Guardar apariencia" }).click();
@@ -2787,6 +2787,31 @@ for (const device of [
             ).toBeLessThanOrEqual(1);
             expect(button.y).toBeGreaterThanOrEqual(input.y - 1);
             expect(button.y + button.height).toBeLessThanOrEqual(input.y + input.height + 1);
+            expect(button.x).toBeGreaterThanOrEqual(input.x - 1);
+            expect(Math.abs(button.x + button.width - input.x - input.width)).toBeLessThanOrEqual(
+                1,
+            );
+            const copyControl = page.getByRole("button", { name: /copiar/i });
+            for (const hovered of [false, true]) {
+                if (hovered) await copyControl.hover();
+                const appearance = await copyControl.evaluate((element) => {
+                    const style = getComputedStyle(element);
+                    return {
+                        background: style.backgroundColor,
+                        borderWidths: [
+                            style.borderTopWidth,
+                            style.borderRightWidth,
+                            style.borderBottomWidth,
+                            style.borderLeftWidth,
+                        ],
+                    };
+                });
+                expect(appearance.background).toBe("rgba(0, 0, 0, 0)");
+                expect(appearance.borderWidths).toEqual(["0px", "0px", "0px", "0px"]);
+            }
+            await page.getByRole("region", { name: "QR del negocio" }).screenshot({
+                path: testInfo.outputPath("invitation-card.png"),
+            });
         });
 
         test("keeps the QR card height stable throughout repeated asynchronous copying", async ({

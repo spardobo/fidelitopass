@@ -50,30 +50,32 @@
 
             @if ($qrUrl !== null)
                 <div x-data="invitationLink" class="space-y-2">
-                    <flux:input
-                        :label="__('invitation.url_label')"
-                        :value="$qrUrl"
-                        x-ref="url"
-                        readonly
-                        class:input="app-input pe-14!"
-                    >
-                        <x-slot name="iconTrailing">
+                    <flux:field>
+                        <flux:label for="invitation-url">{{ __('invitation.url_label') }}</flux:label>
+
+                        <div class="relative">
+                            <flux:input
+                                id="invitation-url"
+                                :value="$qrUrl"
+                                x-ref="url"
+                                readonly
+                                class:input="app-input pe-app-control!"
+                            />
                             <flux:button
                                 type="button"
                                 variant="subtle"
-                                size="sm"
                                 square
                                 x-on:click="copy"
                                 x-bind:disabled="copying"
                                 x-bind:data-copyable-copied="copied"
                                 aria-label="{{ __('Copy to clipboard') }}"
-                                class="app-button -me-1 min-w-app-control text-app-ink-priority! hover:bg-app-ink-priority/10! active:bg-app-ink-priority/15!"
+                                class="app-button absolute! inset-y-0 end-0 min-w-app-control border-0! bg-transparent! text-app-ink-priority! hover:bg-transparent! active:bg-transparent!"
                             >
                                 <flux:icon.clipboard-document-check variant="outline" class="hidden size-4 [[data-copyable-copied]>&]:block" />
                                 <flux:icon.clipboard-document variant="outline" class="block size-4 [[data-copyable-copied]>&]:hidden" />
                             </flux:button>
-                        </x-slot>
-                    </flux:input>
+                        </div>
+                    </flux:field>
 
                     <flux:text role="status" class="app-role-support! text-app-ink-help min-h-[1lh]">
                         <span x-cloak x-show="copied">{{ __('invitation.copied') }}</span>

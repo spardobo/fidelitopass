@@ -116,7 +116,7 @@ it('renders the exact owned QR URL with an accessible readonly copy control desp
         ->and(explode(' ', $input->item(0)->getAttribute('class')))->toContain('app-input');
     expect($xpath->query($card.'//ui-field[.//input[@readonly]]/ui-label')->item(0)?->textContent)
         ->toContain('Enlace para invitar');
-    expect($xpath->query($card.'//*[@data-flux-input]//button[@aria-label="Copiar al portapapeles" and not(@disabled)]')->length)
+    expect($xpath->query($card.'//ui-field[.//input[@readonly]]//button[@aria-label="Copiar al portapapeles" and not(@disabled)]')->length)
         ->toBe(1);
 });
 
