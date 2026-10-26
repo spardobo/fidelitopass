@@ -81,7 +81,7 @@
                         </div>
                         @if ($step === 'appearance' && ! $complete)
                             <flux:button :href="route('business.pass.appearance')" variant="primary" wire:navigate class="app-button-primary">
-                                {{ __('summary.choose_color') }}
+                                {{ __('summary.prepare_pass') }}
                             </flux:button>
                         @elseif ($step === 'promotion')
                             <flux:button

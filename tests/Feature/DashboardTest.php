@@ -47,7 +47,7 @@ class DashboardTest extends TestCase
             ->assertSee('Café Sur')
             ->assertSee('Tu negocio, de un vistazo')
             ->assertSee('Consulta tu tarjeta, tus promociones y las recompensas de tus clientes.')
-            ->assertSee('Elegir color')
+            ->assertSee('Preparar tu tarjeta')
             ->assertSee(route('business.pass.appearance'));
     }
 
@@ -75,7 +75,7 @@ class DashboardTest extends TestCase
             ->assertSee('0 de 2 completados')
             ->assertDontSee('Preparación pendiente')->assertDontSee('Completado')
             ->assertDontSee('Prepara tu tarjeta y tu primera promoción desde Tu Tarjeta.')
-            ->assertSee('Elige un color para tu tarjeta. Tus clientes la guardarán en Google Wallet.')
+            ->assertSee('Dale a tu tarjeta el estilo de tu negocio.')
             ->assertSee('Elige una recompensa, los puntos necesarios y las fechas de tu promoción.')
             ->assertDontSee('No hay una promoción activa ni programada')
             ->assertDontSee('Puntos de esta promoción')
@@ -131,7 +131,7 @@ class DashboardTest extends TestCase
             ->assertDontSee('Borrador')
             ->assertSee('Crear primera promoción')
             ->assertSee(route('business.promotions.create'))
-            ->assertDontSee('Elegir color')
+            ->assertDontSee('Preparar tu tarjeta')
             ->assertDontSee('Actividad de esta promoción');
     }
 
@@ -145,7 +145,7 @@ class DashboardTest extends TestCase
 
         $response = $this->actingAs($business->user)->get(route('dashboard'));
 
-        $response->assertSee('1. Prepara tu tarjeta')->assertSee('Elegir color')
+        $response->assertSee('1. Prepara tu tarjeta')->assertSee('Preparar tu tarjeta')
             ->assertSee('Tu promoción está guardada como borrador. Publícala cuando esté lista.')
             ->assertSee('2. Crea tu primera promoción')->assertDontSee('Borrador privado')
             ->assertSee('0 de 2 completados')->assertSee('Editar borrador')
@@ -392,7 +392,7 @@ class DashboardTest extends TestCase
             $this->assertStringNotContainsString('text-app-ink-secondary', $badge->getAttribute('class'));
         }
         $this->assertSame(1, $xpath->query('//section[@aria-labelledby="preparation-title"]//a')->length);
-        $this->assertSame(1, $xpath->query('//main//a[@href="'.route('business.pass.appearance').'" and contains(@class,"app-button-primary") and normalize-space(.)="Elegir color"]')->length);
+        $this->assertSame(1, $xpath->query('//main//a[@href="'.route('business.pass.appearance').'" and contains(@class,"app-button-primary") and normalize-space(.)="Preparar tu tarjeta"]')->length);
         $this->assertSame(1, $xpath->query('//article[@aria-labelledby="preparation-promotion"]//button[@disabled and not(@href) and normalize-space(.)="Crear primera promoción"]')->length);
         $this->assertSame(0, $xpath->query('//main/header//a')->length);
         $this->assertSame([], $this->metricValues($response->getContent()));
@@ -779,11 +779,11 @@ class DashboardTest extends TestCase
     {
         $business = Business::factory()->create();
         $component = Livewire::actingAs($business->user)->test('pages::business.summary')
-            ->assertSee('0 de 2 completados')->assertSee('Elegir color');
+            ->assertSee('0 de 2 completados')->assertSee('Preparar tu tarjeta');
         $business->update(['pass_background_color' => '#A77BFF']);
 
         $component->call('$refresh')->assertSee('1 de 2 completados')
-            ->assertSee('Crear primera promoción')->assertDontSee('Elegir color');
+            ->assertSee('Crear primera promoción')->assertDontSee('Preparar tu tarjeta');
         $draft = $business->promotions()->create([
             'local_start_date' => '2098-01-01', 'local_end_date' => '2098-01-31',
             'target_points' => 8, 'reward_title' => 'Borrador guardado',
