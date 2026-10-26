@@ -391,9 +391,9 @@ class DashboardTest extends TestCase
             $this->assertStringNotContainsString('bg-app-surface', $badge->getAttribute('class'));
             $this->assertStringNotContainsString('text-app-ink-secondary', $badge->getAttribute('class'));
         }
-        $this->assertSame(2, $xpath->query('//section[@aria-labelledby="preparation-title"]//a')->length);
+        $this->assertSame(1, $xpath->query('//section[@aria-labelledby="preparation-title"]//a')->length);
         $this->assertSame(1, $xpath->query('//main//a[@href="'.route('business.pass.appearance').'" and contains(@class,"app-button-primary") and normalize-space(.)="Elegir color"]')->length);
-        $this->assertSame(1, $xpath->query('//main//a[@href="'.route('business.promotions.create').'" and contains(@class,"app-button-secondary") and normalize-space(.)="Crear primera promoción"]')->length);
+        $this->assertSame(1, $xpath->query('//article[@aria-labelledby="preparation-promotion"]//button[@disabled and not(@href) and normalize-space(.)="Crear primera promoción"]')->length);
         $this->assertSame(0, $xpath->query('//main/header//a')->length);
         $this->assertSame([], $this->metricValues($response->getContent()));
     }
@@ -797,6 +797,34 @@ class DashboardTest extends TestCase
             ->assertSee('Aún no admite visitas ni canjes.')->assertSee('Actividad de esta promoción');
         $this->assertDatabaseCount('promotions', 2);
         $this->assertDatabaseHas('promotions', ['id' => $draft->id, 'status' => 'draft', 'reward_title' => 'Borrador guardado']);
+    }
+
+    public function test_promotion_preparation_unlocks_only_after_appearance_is_saved(): void
+    {
+        foreach ([false, true] as $hasDraft) {
+            $business = Business::factory()->create();
+            $draft = $hasDraft ? $business->promotions()->create([
+                'local_start_date' => '2098-01-01', 'local_end_date' => '2098-01-31',
+                'target_points' => 8, 'reward_title' => 'Borrador guardado',
+            ]) : null;
+            $destination = $draft === null ? route('business.promotions.create') : route('business.promotions.edit', ['promotion' => $draft->public_id]);
+            $component = Livewire::actingAs($business->user)->test('pages::business.summary');
+            $document = new \DOMDocument;
+            $document->loadHTML('<?xml encoding="UTF-8">'.$component->html(), LIBXML_NOERROR | LIBXML_NOWARNING);
+            $xpath = new \DOMXPath($document);
+            $action = '//article[@aria-labelledby="preparation-promotion"]';
+
+            $this->assertSame(1, $xpath->query($action.'//button[@disabled and not(@href)]')->length);
+            $this->assertSame(0, $xpath->query($action.'//a')->length);
+            $component->assertDontSee('href="'.$destination.'"', false);
+            $business->update(['pass_background_color' => '#A77BFF']);
+
+            $component->call('$refresh')->assertSee('1 de 2 completados');
+            $document->loadHTML('<?xml encoding="UTF-8">'.$component->html(), LIBXML_NOERROR | LIBXML_NOWARNING);
+            $xpath = new \DOMXPath($document);
+            $this->assertSame(1, $xpath->query($action.'//a[@href="'.$destination.'" and not(@disabled) and contains(@class,"app-button-primary")]')->length);
+            $this->assertSame(0, $xpath->query($action.'//button[@disabled]')->length);
+        }
     }
 
     public function test_refresh_rechecks_persisted_ownership(): void

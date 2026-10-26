@@ -85,7 +85,8 @@
                             </flux:button>
                         @elseif ($step === 'promotion')
                             <flux:button
-                                :href="$hasPromotionDraft ? route('business.promotions.edit', ['promotion' => $draftPromotion->public_id]) : route('business.promotions.create')"
+                                :href="$appearancePrepared ? ($hasPromotionDraft ? route('business.promotions.edit', ['promotion' => $draftPromotion->public_id]) : route('business.promotions.create')) : null"
+                                :disabled="! $appearancePrepared"
                                 :variant="$appearancePrepared ? 'primary' : 'outline'"
                                 wire:navigate
                                 :class="$appearancePrepared ? 'app-button-primary' : 'app-button-secondary'"
