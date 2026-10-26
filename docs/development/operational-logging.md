@@ -30,7 +30,9 @@ Handled application failures retain one reporting owner before safe feedback is 
 
 Nginx writes access records to stdout without request paths or query strings. It owns HTTP access logging; duplicate FPM access logging is disabled. Nginx diagnostics and PHP-FPM master/worker diagnostics use stderr. The stream is not the record severity: normal FPM startup notices on stderr do not indicate an application failure.
 
-The production pool replaces the inherited root-oriented template. It does not declare a pool user or group because the container already runs as the web-service identity. Keep useful startup notices, slow-request diagnostics and capacity warnings. The single ondemand worker remains within the free runtime budget; a `max_children` warning reports saturation, not proof of a failed request or a reason to increase workers without resource evidence.
+The owned FPM global configuration includes only the owned pool, which replaces the inherited root-oriented template. It preserves the inherited 8192-character diagnostic line limit. The pool does not declare a user or group because the container already runs as the web-service identity. Keep useful startup notices, slow-request diagnostics and capacity warnings.
+
+The runtime uses two ondemand PHP workers and one Nginx worker under the existing 0.1 CPU / 256 MiB plan. Check real Laravel requests and container peak memory when changing capacity. The 128 MiB PHP request limit is not a per-worker reservation or a guarantee that two worst-case requests fit alongside the 64 MiB shared OPcache and other processes. A `max_children` warning still reports finite-capacity saturation, not proof of a failed request. Do not hide it or increase workers without resource evidence.
 
 These process records are not Laravel JSON events and do not use the application envelope.
 
