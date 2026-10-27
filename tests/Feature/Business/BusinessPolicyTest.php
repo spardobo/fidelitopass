@@ -18,16 +18,47 @@ it('denies another owner and an unverified owner from updating', function () {
         ->and($business->user->can('update', $business))->toBeTrue();
 });
 
+it('denies a signed profile refresh after the owners verification is revoked', function (array $updates) {
+    $business = Business::factory()->create(['name' => 'Verified profile', 'timezone' => 'UTC']);
+    $user = $business->user;
+    $page = $this->actingAs($user)->get(route('business.edit'))->assertOk();
+    $document = new DOMDocument;
+    $document->loadHTML($page->getContent(), LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+    $xpath = new DOMXPath($document);
+    $snapshot = null;
+    foreach ($xpath->query('//*[@*[name()="wire:snapshot"]]') as $element) {
+        $candidate = json_decode($element->getAttribute('wire:snapshot'), true, flags: JSON_THROW_ON_ERROR);
+        if (($candidate['memo']['name'] ?? null) === 'pages::business.profile') {
+            $snapshot = $element->getAttribute('wire:snapshot');
+            break;
+        }
+    }
+    expect($snapshot)->not->toBeNull();
+    $user->forceFill(['email_verified_at' => null])->save();
+    $business->update(['name' => 'Private name after verification revocation']);
+
+    $this->postJson(Livewire::getUpdateUri(), [
+        'components' => [[
+            'snapshot' => $snapshot,
+            'updates' => $updates,
+            'calls' => [['path' => '', 'method' => '$refresh', 'params' => []]],
+        ]],
+    ], ['X-Livewire' => 'true'])
+        ->assertDontSee('Private name after verification revocation')
+        ->assertForbidden();
+    $this->assertDatabaseHas('businesses', ['id' => $business->id, 'name' => 'Private name after verification revocation', 'timezone' => 'UTC']);
+})->with(['refresh only' => [[]], 'property update' => [['name' => 'Unverified edit']]]);
+
 it('denies direct Livewire save after the owners verification is revoked', function () {
     $business = Business::factory()->create(['name' => 'Original', 'timezone' => 'UTC']);
     $user = $business->user;
     $this->actingAs($user);
-    $form = Livewire::test('pages::business.profile');
+    $form = Livewire::test('pages::business.profile')
+        ->set('name', 'Negocio no verificado')
+        ->set('timezone', 'Europe/Madrid');
     $user->forceFill(['email_verified_at' => null])->save();
 
-    $form->set('name', 'Negocio no verificado')
-        ->set('timezone', 'Europe/Madrid')
-        ->call('save')
+    $form->call('save')
         ->assertForbidden();
 
     expect($business->fresh()->name)->toBe('Original')

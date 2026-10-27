@@ -68,8 +68,8 @@ it('uses personal navigation to the owner card without changing destinations', f
 
     $this->get(route('dashboard'))
         ->assertOk()
-        ->assertSeeText('Ir a tu tarjeta')
-        ->assertSee(route('business.pass'), false);
+        ->assertSeeText('Preparar tu tarjeta')
+        ->assertSee(route('business.pass.appearance'), false);
 
     $this->get(route('business.pass.appearance'))
         ->assertOk()

@@ -11,16 +11,11 @@
                 {{ __('summary.description') }}
             </flux:text>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
-            @if ($preparationCompleted < 2)
-                <flux:badge color="amber" class="app-role-support! font-medium!">
-                    {{ __('summary.preparation_pending') }}
-                </flux:badge>
-            @endif
+        @unless ($showPreparation)
             <flux:button :href="route('business.pass')" icon:trailing="arrow-right" icon:variant="outline" wire:navigate variant="primary" class="app-button-primary shrink-0">
                 {{ __('summary.go_to_pass') }}
             </flux:button>
-        </div>
+        @endunless
     </header>
 
     @if ($statistics === 'unavailable')
@@ -50,6 +45,66 @@
         </div>
     @endif
 
+    @if ($showPreparation)
+        <section aria-labelledby="preparation-title" class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <flux:heading level="2" id="preparation-title" class="app-role-section! text-app-ink!">
+                    {{ __('summary.preparation') }}
+                </flux:heading>
+                <flux:badge :color="$preparationCompleted === 1 ? 'amber' : null" class="app-role-support! font-medium!">
+                    {{ __('summary.completed_count', ['count' => $preparationCompleted]) }}
+                </flux:badge>
+            </div>
+            <div class="grid gap-6 [@media(width>48rem)]:grid-cols-2">
+                @foreach ($preparation as $step => $complete)
+                    <article wire:key="preparation-{{ $step }}" aria-labelledby="preparation-{{ $step }}" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-4 sm:p-6">
+                        <div class="flex flex-wrap items-center justify-between gap-4">
+                            <div class="flex min-w-0 items-center gap-4">
+                                <span aria-hidden="true" class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-border text-app-ink-secondary">
+                                    <flux:icon :name="$step === 'appearance' ? 'credit-card' : 'gift'" variant="outline" class="size-6" />
+                                </span>
+                                <flux:heading level="3" :id="'preparation-'.$step" class="app-role-card! min-w-0 text-app-ink!">
+                                    {{ __('summary.'.$step.'_title') }}
+                                </flux:heading>
+                            </div>
+                            <flux:badge :color="$complete ? 'green' : null" class="app-role-support! font-medium!">
+                                {{ __('summary.'.($complete ? 'complete' : 'pending')) }}
+                            </flux:badge>
+                        </div>
+                        <div class="app-note-with-icon text-app-ink-help">
+                            <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
+                                <flux:icon.information-circle variant="outline" class="size-4" />
+                            </span>
+                            <p class="app-role-support">
+                                @if ($step === 'promotion' && $hasPromotionDraft)
+                                    {{ trans_choice('summary.promotion_draft', $draftCount) }}
+                                @else
+                                    {{ __('summary.'.$step.($complete ? '_complete' : '_pending')) }}
+                                @endif
+                            </p>
+                        </div>
+                        @if ($step === 'appearance' && ! $complete)
+                            <flux:button :href="route('business.pass.appearance')" variant="primary" wire:navigate class="app-button-primary">
+                                {{ __('summary.prepare_pass') }}
+                            </flux:button>
+                        @elseif ($step === 'promotion')
+                            <flux:button
+                                :href="$appearancePrepared ? ($hasPromotionDraft ? route('business.pass').'#promotion-drafts' : route('business.promotions.create')) : null"
+                                :disabled="! $appearancePrepared"
+                                :variant="$appearancePrepared ? 'primary' : 'outline'"
+                                wire:navigate
+                                :class="$appearancePrepared ? 'app-button-primary' : 'app-button-secondary'"
+                            >
+                                {{ __('summary.'.($hasPromotionDraft ? 'view_drafts' : 'create_first_promotion')) }}
+                            </flux:button>
+                        @endif
+                    </article>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
+    @unless ($showPreparation)
     <section
         aria-labelledby="promotion-title"
         @if (! $primaryPromotion || $primaryPromotion->reward_description) aria-describedby="promotion-description" @endif
@@ -202,46 +257,6 @@
         @endforeach
     </div>
 
-    @if ($preparationCompleted < 2)
-        <section aria-labelledby="preparation-title" class="space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <flux:heading level="2" id="preparation-title" class="app-role-section! text-app-ink!">
-                    {{ __('summary.preparation') }}
-                </flux:heading>
-                <flux:badge :color="$preparationCompleted === 1 ? 'amber' : null" class="app-role-support! font-medium!">
-                    {{ __('summary.completed_count', ['count' => $preparationCompleted]) }}
-                </flux:badge>
-            </div>
-            <div class="grid gap-6 [@media(width>48rem)]:grid-cols-2">
-                @foreach ($preparation as $step => $complete)
-                    <article wire:key="preparation-{{ $step }}" aria-labelledby="preparation-{{ $step }}" class="min-w-0 space-y-4 rounded-[20px] border border-app-border bg-app-surface p-4 sm:p-6">
-                        <div class="flex flex-wrap items-center justify-between gap-4">
-                            <div class="flex min-w-0 items-center gap-4">
-                                <span aria-hidden="true" class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-app-border text-app-ink-secondary">
-                                    <flux:icon :name="$step === 'appearance' ? 'credit-card' : 'gift'" variant="outline" class="size-6" />
-                                </span>
-                                <flux:heading level="3" :id="'preparation-'.$step" class="app-role-card! min-w-0 text-app-ink!">
-                                    {{ __('summary.'.$step.'_title') }}
-                                </flux:heading>
-                            </div>
-                            <flux:badge :color="$complete ? 'green' : null" class="app-role-support! font-medium!">
-                                {{ __('summary.'.($complete ? 'complete' : 'pending')) }}
-                            </flux:badge>
-                        </div>
-                        <div class="app-note-with-icon text-app-ink-help">
-                            <span aria-hidden="true" class="inline-flex h-5 w-4 shrink-0 items-center justify-center">
-                                <flux:icon.information-circle variant="outline" class="size-4" />
-                            </span>
-                            <p class="app-role-support">
-                                {{ __('summary.'.($step === 'promotion' && $complete && ! $promotionPrepared ? 'promotion_draft' : $step.($complete ? '_complete' : '_pending'))) }}
-                            </p>
-                        </div>
-                    </article>
-                @endforeach
-            </div>
-        </section>
-    @endif
-
     <section aria-labelledby="promotion-history-heading" class="space-y-4">
         <flux:heading level="2" id="promotion-history-heading" class="app-role-section! text-app-ink!">
             {{ __('summary.history_heading', ['count' => $historyPromotions->total()]) }}
@@ -295,6 +310,8 @@
             </div>
         @endif
     </section>
+
+    @endunless
 
     <x-promotion-detail
         :detail="$this->promotionDetail"

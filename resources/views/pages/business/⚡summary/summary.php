@@ -51,7 +51,7 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
         $phase = $primary?->phase ?? 'none';
         $preparation = [
             'appearance' => $summary['appearancePrepared'],
-            'promotion' => $summary['promotionPrepared'] || $summary['hasPromotionDraft'],
+            'promotion' => $summary['promotionPrepared'],
         ];
         if ($summary['statistics'] === 'unavailable') {
             Flux::toast(__('summary.load_error'), null, 5000, 'danger');
@@ -65,6 +65,7 @@ new #[Layout('layouts::app'), Title('summary.title')] class extends Component
             'scheduledWaitingLabel' => $primary === null || $phase !== 'scheduled' ? null : __('summary.scheduled_waiting', [
                 'date' => RegionalDate::format($primary->starts_at->setTimezone($primary->timezone_snapshot)),
             ]),
+            'showPreparation' => ! $summary['promotionPrepared'],
             'preparation' => $preparation,
             'preparationCompleted' => count(array_filter($preparation)),
             'historyPromotions' => $this->historyPromotions($summary['business'], $summary['asOf']),

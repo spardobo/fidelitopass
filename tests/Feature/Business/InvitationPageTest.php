@@ -116,7 +116,7 @@ it('renders the exact owned QR URL with an accessible readonly copy control desp
         ->and(explode(' ', $input->item(0)->getAttribute('class')))->toContain('app-input');
     expect($xpath->query($card.'//ui-field[.//input[@readonly]]/ui-label')->item(0)?->textContent)
         ->toContain('Enlace para invitar');
-    expect($xpath->query($card.'//*[@data-flux-input]//button[@aria-label="Copiar al portapapeles" and not(@disabled)]')->length)
+    expect($xpath->query($card.'//ui-field[.//input[@readonly]]//button[@aria-label="Copiar al portapapeles" and not(@disabled)]')->length)
         ->toBe(1);
 });
 
@@ -196,7 +196,9 @@ it('reserves the QR area with one contextual appearance or download action', fun
         ->and($xpath->query('//section[@aria-labelledby="invitation-instructions-heading"]/figure/preceding-sibling::ol')->length)->toBe(1)
         ->and($xpath->query('//section[@aria-labelledby="invitation-instructions-heading"]/figure/figcaption')->item(0)?->textContent)->toContain('Para imprimir, usa siempre el QR de tu negocio.')
         ->and($xpath->query('//main//ol/li')->length)->toBe(3)
-        ->and($xpath->query('//main//ol/li//svg[@aria-hidden="true"]')->length)->toBe(3)
+        ->and($xpath->query('//main//ol/li[position() != 2]//svg[@aria-hidden="true"]')->length)->toBe(2)
+        ->and($xpath->query('//main//ol/li[2]//h3/svg')->length)->toBe(0)
+        ->and($xpath->query('//main//ol/li[2]//h3/img[@src="'.asset('images/google-wallet/wallet-icon.png').'" and @alt="" and @width="20" and @height="20"]')->length)->toBe(1)
         ->and($xpath->query('//main//a')->length)->toBe($recoveryLinks);
     if ($color === null) {
         expect($xpath->query('//main//a[@aria-describedby="invitation-action-help"]')->item(0)->getAttribute('href'))

@@ -397,7 +397,8 @@ it('keeps visible Summary history last and independently paginated through modal
     freezePassPromotionDatabaseClock('2026-10-07 12:00:00+00');
 
     $component = Livewire::actingAs($owner)->test('pages::business.summary')
-        ->assertSeeHtmlInOrder(['id="preparation-title"', 'id="promotion-history-heading"', 'History 6', 'History 5', 'History 4'])
+        ->assertSeeHtmlInOrder(['id="promotion-title"', 'id="activity-title"', 'id="points-title"', 'id="next-promotion-title"', 'id="promotion-history-heading"', 'History 6', 'History 5', 'History 4'])
+        ->assertDontSee('id="preparation-title"', false)
         ->assertDontSee('History 3')->assertDontSee('Private draft')
         ->assertSee('id="summary-history-detail-trigger-'.$history[5]->public_id.'"', false);
     $document = new DOMDocument;
@@ -420,7 +421,8 @@ it('keeps visible Summary history last and independently paginated through modal
         ->call('dismissPromotionDetail')
         ->assertSet('selectedPromotionId', null)
         ->assertSet('paginators.historyPage', 2)
-        ->assertSet('paginators.page', 2);
+        ->assertSet('paginators.page', 2)
+        ->assertDontSee('id="preparation-title"', false);
 });
 
 it('keeps an explanatory Summary history section when empty and refreshes its database boundary', function () {

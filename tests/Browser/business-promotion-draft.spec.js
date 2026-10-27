@@ -2709,6 +2709,10 @@ test.describe("mobile invitation clipboard", () => {
 
         await page.bringToFront();
         await copy.tap();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden({
+            timeout: 3500,
+        });
         await clipboard.bringToFront();
         expect(await clipboard.evaluate(() => navigator.clipboard.readText())).toBe(url);
 
@@ -2725,6 +2729,9 @@ test.describe("mobile invitation clipboard", () => {
         await page.bringToFront();
         await copy.tap();
         await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden({
+            timeout: 3500,
+        });
         await clipboard.bringToFront();
         expect(await clipboard.evaluate(() => navigator.clipboard.readText())).toBe(url);
 
@@ -2739,7 +2746,7 @@ test.describe("mobile invitation clipboard", () => {
                 exact: true,
             }),
         ).toBeVisible();
-        await expect(page.getByText("Enlace copiado.", { exact: true })).not.toBeVisible();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden();
         expect(
             await input.evaluate((element) =>
                 element.value.slice(element.selectionStart, element.selectionEnd),
@@ -2752,3 +2759,256 @@ test.describe("mobile invitation clipboard", () => {
         await clipboard.close();
     });
 });
+
+for (const device of [
+    { label: "desktop", viewport: { width: 1440, height: 1000 }, isMobile: false, hasTouch: false },
+    { label: "mobile", viewport: devices["Pixel 7"].viewport, isMobile: true, hasTouch: true },
+]) {
+    test.describe(`invitation copy geometry on ${device.label}`, () => {
+        test.use({
+            viewport: device.viewport,
+            isMobile: device.isMobile,
+            hasTouch: device.hasTouch,
+        });
+
+        test("aligns the copy control with its readonly invitation input", async ({
+            page,
+            request,
+        }, testInfo) => {
+            await registerVerifiedBusiness(page, request);
+            await page.goto("/pass/appearance");
+            await page.getByRole("button", { name: "Guardar apariencia" }).click();
+            await expect(page).toHaveURL(/\/pass$/);
+            await page.goto("/invite");
+            const input = await page.getByLabel("Enlace para invitar").boundingBox();
+            const button = await page.getByRole("button", { name: /copiar/i }).boundingBox();
+            const bounds = { input, button };
+            console.log(`Invitation ${device.label} alignment: ${JSON.stringify(bounds)}`);
+
+            expect(input).not.toBeNull();
+            expect(button).not.toBeNull();
+            expect(button.width).toBeGreaterThanOrEqual(44);
+            expect(button.height).toBeGreaterThanOrEqual(44);
+            expect(
+                Math.abs(button.y + button.height / 2 - input.y - input.height / 2),
+            ).toBeLessThanOrEqual(1);
+            expect(button.y).toBeGreaterThanOrEqual(input.y - 1);
+            expect(button.y + button.height).toBeLessThanOrEqual(input.y + input.height + 1);
+            expect(button.x).toBeGreaterThanOrEqual(input.x - 1);
+            expect(Math.abs(button.x + button.width - input.x - input.width)).toBeLessThanOrEqual(
+                1,
+            );
+            const copyControl = page.getByRole("button", { name: /copiar/i });
+            for (const hovered of [false, true]) {
+                if (hovered) await copyControl.hover();
+                const appearance = await copyControl.evaluate((element) => {
+                    const style = getComputedStyle(element);
+                    return {
+                        background: style.backgroundColor,
+                        borderWidths: [
+                            style.borderTopWidth,
+                            style.borderRightWidth,
+                            style.borderBottomWidth,
+                            style.borderLeftWidth,
+                        ],
+                    };
+                });
+                expect(appearance.background).toBe("rgba(0, 0, 0, 0)");
+                expect(appearance.borderWidths).toEqual(["0px", "0px", "0px", "0px"]);
+            }
+            await page.getByRole("region", { name: "QR del negocio" }).screenshot({
+                path: testInfo.outputPath("invitation-card.png"),
+            });
+        });
+
+        test("keeps the QR card height stable throughout repeated asynchronous copying", async ({
+            page,
+            request,
+        }, testInfo) => {
+            await registerVerifiedBusiness(page, request);
+            await page.goto("/pass/appearance");
+            await page.getByRole("button", { name: "Guardar apariencia" }).click();
+            await expect(page).toHaveURL(/\/pass$/);
+            await page.goto("/invite");
+            const card = page.getByRole("region", { name: "QR del negocio", exact: true });
+            const copy = page.getByRole("button", { name: /copiar/i });
+            const pressCopy = async () => {
+                await copy.hover();
+                await page.mouse.down();
+                await expect(copy).toHaveCSS("opacity", "0.6");
+                await page.mouse.up();
+                // Native toast hover pauses dismissal; do not leave a synthetic pointer beneath it.
+                await page.mouse.move(0, 0);
+            };
+            await page.evaluate(() => {
+                Object.defineProperty(navigator, "clipboard", {
+                    configurable: true,
+                    value: {
+                        writeText: () =>
+                            new Promise((resolve) => {
+                                window.resolveInvitationCopy = resolve;
+                            }),
+                    },
+                });
+            });
+            await pressCopy();
+            await expect(copy).toBeDisabled();
+            await page.waitForFunction(() => typeof window.resolveInvitationCopy === "function");
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden();
+            await page.evaluate(() => window.resolveInvitationCopy());
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+            await expect(card.getByText("Enlace copiado.", { exact: true })).toHaveCount(0);
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden({
+                timeout: 3500,
+            });
+            await expect(copy).toBeEnabled();
+            const before = await card.boundingBox();
+
+            await pressCopy();
+            await expect(copy).toBeDisabled();
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden();
+            const pendingHeights = await card.evaluate(async (element) => {
+                const heights = [];
+                for (let frame = 0; frame < 6; frame++) {
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                    heights.push(element.getBoundingClientRect().height);
+                }
+                return heights;
+            });
+            await page.evaluate(() => window.resolveInvitationCopy());
+            await expect(copy).toBeEnabled();
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+            await page.screenshot({ path: testInfo.outputPath("invitation-copy-toast.png") });
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden({
+                timeout: 3500,
+            });
+            const after = await card.boundingBox();
+            console.log(
+                `Invitation ${device.label} repeated copy: ${JSON.stringify({ before: before.height, pendingHeights, after: after.height })}`,
+            );
+
+            for (const height of [...pendingHeights, after.height]) {
+                expect(Math.abs(height - before.height)).toBeLessThanOrEqual(1);
+            }
+        });
+    });
+
+    test.describe(`business first-use guidance on ${device.label}`, () => {
+        test.use({
+            viewport: device.viewport,
+            isMobile: device.isMobile,
+            hasTouch: device.hasTouch,
+        });
+
+        test("guides preparation without hiding the original Pass workspace", async ({
+            page,
+            request,
+        }, testInfo) => {
+            await registerVerifiedBusiness(page, request);
+            const main = page.locator("main.app-workspace");
+            const preparation = page.getByRole("region", { name: "Preparación del negocio" });
+            await expect(
+                preparation.getByRole("button", { name: "Crear primera promoción", exact: true }),
+            ).toBeDisabled();
+            await expect(
+                preparation.getByRole("link", { name: "Preparar tu tarjeta", exact: true }),
+            ).toHaveAttribute("href", /\/pass\/appearance$/);
+            await expect(main.locator('[aria-labelledby="activity-title"]')).toHaveCount(0);
+            await expect(
+                page.getByRole("link", { name: "Crear primera promoción", exact: true }),
+            ).toHaveCount(0);
+            await main.screenshot({ path: testInfo.outputPath("summary-initial.png") });
+
+            await page.goto("/pass");
+            await expect(
+                page.getByRole("heading", { name: "Promociones", exact: true }),
+            ).toBeVisible();
+            await expect(
+                page.getByText("Aquí vivirán tus promociones", { exact: true }),
+            ).toBeVisible();
+            await main.screenshot({ path: testInfo.outputPath("pass-original-unsaved.png") });
+            await page.getByRole("link", { name: "Preparar tu tarjeta", exact: true }).click();
+            await expect(page).toHaveURL(/\/pass\/appearance$/);
+            await page.getByRole("button", { name: "Guardar apariencia", exact: true }).click();
+            await expect(page).toHaveURL(/\/pass$/);
+            await expect(
+                page.getByRole("heading", { name: "Promociones", exact: true }),
+            ).toBeVisible();
+            await expect(
+                page.getByText("Todavía no hay promociones para mostrar.", { exact: true }),
+            ).toBeVisible();
+            await expect(
+                page.getByRole("link", { name: "Crear primera promoción", exact: true }),
+            ).toBeVisible();
+            await main.screenshot({ path: testInfo.outputPath("pass-original-saved.png") });
+
+            await page.goto("/dashboard");
+            await expect(
+                preparation.getByText("1 de 2 completados", { exact: true }),
+            ).toBeVisible();
+            await expect(
+                preparation.getByRole("link", { name: "Preparar tu tarjeta", exact: true }),
+            ).toHaveCount(0);
+            const createPromotion = preparation.getByRole("link", {
+                name: "Crear primera promoción",
+                exact: true,
+            });
+            await expect(createPromotion).toHaveAttribute("href", /\/promotions\/create$/);
+            expect(
+                await page.evaluate(
+                    () => document.documentElement.scrollWidth <= window.innerWidth,
+                ),
+            ).toBe(true);
+            await main.screenshot({ path: testInfo.outputPath("summary-after-appearance.png") });
+            await createPromotion.click();
+            await expect(page).toHaveURL(/\/promotions\/create$/);
+
+            for (const [index, reward] of ["Primer borrador", "Segundo borrador"].entries()) {
+                await page
+                    .getByRole("textbox", { name: /Qué recompensa recibirá tu cliente/ })
+                    .fill(reward);
+                await page.getByRole("spinbutton", { name: /Cuántos puntos necesita/ }).fill("8");
+                const dates = await promotionDateCases(page);
+                await selectPicker(page, "Fecha de inicio", dates.minimum);
+                await selectPicker(page, "Fecha de fin", dates.futureEnd);
+                await page.getByRole("button", { name: "Guardar borrador", exact: true }).click();
+                await expect(page).toHaveURL(/\/pass$/);
+                await page.goto("/dashboard");
+                const message =
+                    index === 0
+                        ? "Tienes un borrador. Revísalo y publícalo cuando esté listo."
+                        : "Tienes 2 borradores. Revísalos y publícalos cuando estén listos.";
+                await expect(preparation.getByText(message, { exact: true })).toBeVisible();
+                await main.screenshot({
+                    path: testInfo.outputPath(`summary-drafts-${index + 1}.png`),
+                });
+                const reviewDrafts = preparation.getByRole("link", {
+                    name: "Ver borradores",
+                    exact: true,
+                });
+                await expect(reviewDrafts).toHaveAttribute("href", /\/pass#promotion-drafts$/);
+                await reviewDrafts.click();
+                await expect(page).toHaveURL(/\/pass#promotion-drafts$/);
+                const drafts = page.locator("#promotion-drafts");
+                await expect(drafts).toBeInViewport();
+                await expect(drafts).toHaveAttribute("open", "");
+                await expect(
+                    drafts.getByRole("heading", { name: `Borradores (${index + 1})`, exact: true }),
+                ).toBeVisible();
+                const canScroll = await page.evaluate(
+                    () => document.documentElement.scrollHeight > window.innerHeight,
+                );
+                if (canScroll) {
+                    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+                }
+                await page.screenshot({
+                    path: testInfo.outputPath(`pass-drafts-scroll-${index + 1}.png`),
+                });
+                if (index === 0) {
+                    await page.getByRole("link", { name: "Nueva promoción", exact: true }).click();
+                    await expect(page).toHaveURL(/\/promotions\/create$/);
+                }
+            }
+        });
+    });
+}

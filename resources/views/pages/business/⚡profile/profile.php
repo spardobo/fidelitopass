@@ -38,14 +38,20 @@ new #[Layout('layouts::app'), Title('business.profile_title')] class extends Com
     }
 
     /**
-     * Returns the persisted Business name without reading editable form state.
+     * Returns the freshly authorized Business name without reading editable form state.
      *
-     * @return string|null Saved Business name, or null when the account has no Business.
+     * @return string Saved name from the current authorized Business.
+     *
+     * @throws ModelNotFoundException When the account no longer owns a Business.
+     * @throws AuthorizationException When verification or authorization no longer permits access.
      */
     #[Computed]
     public function businessName(): ?string
     {
-        return Auth::user()->business()->value('name');
+        $business = Auth::user()->business()->firstOrFail();
+        Gate::authorize('update', $business);
+
+        return $business->name;
     }
 
     /**

@@ -19,7 +19,7 @@ use stdClass;
  * Reads owner-scoped Summary facts without authorizing or executing Visit/Reward operations.
  *
  * @phpstan-type Metrics array{active_passes: int, returning_passes: int, unlocked_rewards: int, redeemed_rewards: int}
- * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, draftPromotion: Promotion|null, lastPromotion: Promotion|null, primaryPromotion: Promotion|null, upcomingPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, hasPromotionDraft: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
+ * @phpstan-type Summary array{business: Business, asOf: CarbonImmutable, currentPromotion: Promotion|null, nextScheduled: Promotion|null, draftCount: int, lastPromotion: Promotion|null, primaryPromotion: Promotion|null, upcomingPromotion: Promotion|null, appearancePrepared: bool, promotionPrepared: bool, hasPromotionDraft: bool, statistics: 'waiting'|'available'|'unavailable', metrics: Metrics|null}
  */
 class BusinessSummary
 {
@@ -69,7 +69,7 @@ class BusinessSummary
         Gate::forUser($actor)->authorize('update', $business);
         $currentPromotion = $this->promotion($snapshot->current_promotion);
         $nextScheduled = $this->promotion($snapshot->next_scheduled);
-        $draftPromotion = $this->promotion($snapshot->draft_promotion);
+        $draftCount = (int) $snapshot->draft_count;
         $lastPromotion = $this->promotion($snapshot->last_promotion);
         $primaryPromotion = $currentPromotion ?? $nextScheduled;
         $upcomingPromotion = $this->promotion($snapshot->upcoming_promotion);
@@ -91,13 +91,13 @@ class BusinessSummary
             'asOf' => CarbonImmutable::parse($snapshot->as_of),
             'currentPromotion' => $currentPromotion,
             'nextScheduled' => $nextScheduled,
-            'draftPromotion' => $draftPromotion,
+            'draftCount' => $draftCount,
             'lastPromotion' => $lastPromotion,
             'primaryPromotion' => $primaryPromotion,
             'upcomingPromotion' => $upcomingPromotion,
             'appearancePrepared' => $business->pass_background_color !== null,
             'promotionPrepared' => (bool) $snapshot->promotion_prepared,
-            'hasPromotionDraft' => (bool) $snapshot->has_promotion_draft,
+            'hasPromotionDraft' => $draftCount > 0,
             'statistics' => $currentPromotion === null ? 'waiting' : ($statisticsUnavailable ? 'unavailable' : 'available'),
             'metrics' => $snapshot->metrics === null ? null : json_decode($snapshot->metrics, true, flags: JSON_THROW_ON_ERROR),
         ];
@@ -143,10 +143,6 @@ class BusinessSummary
             ),
             active_promotion AS (SELECT * FROM phases WHERE phase = 'active' ORDER BY starts_at, id LIMIT 1),
             next_scheduled_promotion AS (SELECT * FROM phases WHERE phase = 'scheduled' ORDER BY starts_at, id LIMIT 1),
-            draft_promotion AS (
-                SELECT p.*, 'draft'::text AS phase FROM promotions p JOIN owned_business b ON b.id = p.business_id
-                WHERE p.status = 'draft' ORDER BY p.updated_at DESC, p.id DESC LIMIT 1
-            ),
             last_promotion AS (
                 SELECT * FROM phases WHERE phase IN ('ended', 'cancelled')
                 ORDER BY LEAST(ends_at, cancelled_at) DESC, id DESC LIMIT 1
@@ -161,11 +157,10 @@ class BusinessSummary
             )
             SELECT row_to_json(b)::text AS business, c.instant AS as_of,
                 EXISTS(SELECT 1 FROM phases) AS promotion_prepared,
-                EXISTS(SELECT 1 FROM promotions p WHERE p.business_id = b.id AND p.status = 'draft') AS has_promotion_draft,
+                (SELECT COUNT(*) FROM promotions p WHERE p.business_id = b.id AND p.status = 'draft') AS draft_count,
                 (SELECT row_to_json(p)::text FROM active_promotion p) AS current_promotion,
                 (SELECT row_to_json(p)::text FROM next_scheduled_promotion p) AS next_scheduled,
                 (SELECT row_to_json(p)::text FROM upcoming_promotion p) AS upcoming_promotion,
-                (SELECT row_to_json(p)::text FROM draft_promotion p) AS draft_promotion,
                 (SELECT row_to_json(p)::text FROM last_promotion p) AS last_promotion,
                 (SELECT COALESCE(json_agg(w ORDER BY w.weekday, w.start_time, w.id), '[]'::json)::text
                     FROM promotion_multiplier_windows w JOIN primary_promotion p ON p.id = w.promotion_id) AS extra_points,

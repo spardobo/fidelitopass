@@ -49,35 +49,34 @@
             </div>
 
             @if ($qrUrl !== null)
-                <div x-data="invitationLink" class="space-y-2">
-                    <flux:input
-                        :label="__('invitation.url_label')"
-                        :value="$qrUrl"
-                        x-ref="url"
-                        readonly
-                        class:input="app-input pe-14!"
-                    >
-                        <x-slot name="iconTrailing">
+                <div x-data="invitationLink" data-copied-message="{{ __('invitation.copied') }}" class="space-y-2">
+                    <flux:field>
+                        <flux:label for="invitation-url">{{ __('invitation.url_label') }}</flux:label>
+
+                        <div class="relative">
+                            <flux:input
+                                id="invitation-url"
+                                :value="$qrUrl"
+                                x-ref="url"
+                                readonly
+                                class:input="app-input pe-app-control!"
+                            />
                             <flux:button
                                 type="button"
                                 variant="subtle"
-                                size="sm"
                                 square
                                 x-on:click="copy"
                                 x-bind:disabled="copying"
-                                x-bind:data-copyable-copied="copied"
                                 aria-label="{{ __('Copy to clipboard') }}"
-                                class="app-button-secondary-on-emphasis -me-1 min-w-app-control"
+                                class="app-button absolute! inset-y-0 end-0 min-w-app-control border-0! bg-transparent! text-app-ink-priority! hover:bg-transparent! active:bg-transparent! active:opacity-60!"
                             >
-                                <flux:icon.clipboard-document-check variant="outline" class="hidden size-4 [[data-copyable-copied]>&]:block" />
-                                <flux:icon.clipboard-document variant="outline" class="block size-4 [[data-copyable-copied]>&]:hidden" />
+                                <flux:icon.clipboard-document variant="outline" class="size-4" />
                             </flux:button>
-                        </x-slot>
-                    </flux:input>
+                        </div>
+                    </flux:field>
 
-                    <flux:text x-cloak x-show="copied || copyFailed" role="status" class="app-role-support! text-app-ink-help">
-                        <span x-show="copied">{{ __('invitation.copied') }}</span>
-                        <span x-show="copyFailed">{{ __('invitation.copy_failed') }}</span>
+                    <flux:text x-cloak x-show="copyFailed" role="status" class="app-role-support! text-app-ink-help">
+                        {{ __('invitation.copy_failed') }}
                     </flux:text>
                 </div>
             @endif
@@ -137,7 +136,11 @@
                         </span>
                         <div class="min-w-0 space-y-2">
                             <flux:heading level="3" class="app-role-card! flex items-start gap-2 text-app-ink!">
-                                <flux:icon :name="$icon" variant="outline" class="mt-1 size-5 text-app-accent-text" />
+                                @if ($index === 1)
+                                    <img src="{{ asset('images/google-wallet/wallet-icon.png') }}" alt="" width="20" height="20" class="mt-1 size-5 shrink-0 object-contain">
+                                @else
+                                    <flux:icon :name="$icon" variant="outline" class="mt-1 size-5 text-app-accent-text" />
+                                @endif
                                 <span>
                                     {{ __('invitation.step_'.($index + 1).'_heading') }}
                                 </span>
