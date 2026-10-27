@@ -76,7 +76,11 @@
                                 <flux:icon.information-circle variant="outline" class="size-4" />
                             </span>
                             <p class="app-role-support">
-                                {{ __('summary.'.($step === 'promotion' && $hasPromotionDraft ? 'promotion_draft' : $step.($complete ? '_complete' : '_pending'))) }}
+                                @if ($step === 'promotion' && $hasPromotionDraft)
+                                    {{ trans_choice('summary.promotion_draft', $draftCount) }}
+                                @else
+                                    {{ __('summary.'.$step.($complete ? '_complete' : '_pending')) }}
+                                @endif
                             </p>
                         </div>
                         @if ($step === 'appearance' && ! $complete)
@@ -85,13 +89,13 @@
                             </flux:button>
                         @elseif ($step === 'promotion')
                             <flux:button
-                                :href="$appearancePrepared ? ($hasPromotionDraft ? route('business.promotions.edit', ['promotion' => $draftPromotion->public_id]) : route('business.promotions.create')) : null"
+                                :href="$appearancePrepared ? ($hasPromotionDraft ? route('business.pass').'#promotion-drafts' : route('business.promotions.create')) : null"
                                 :disabled="! $appearancePrepared"
                                 :variant="$appearancePrepared ? 'primary' : 'outline'"
                                 wire:navigate
                                 :class="$appearancePrepared ? 'app-button-primary' : 'app-button-secondary'"
                             >
-                                {{ __('summary.'.($hasPromotionDraft ? 'edit_draft' : 'create_first_promotion')) }}
+                                {{ __('summary.'.($hasPromotionDraft ? 'view_drafts' : 'create_first_promotion')) }}
                             </flux:button>
                         @endif
                     </article>

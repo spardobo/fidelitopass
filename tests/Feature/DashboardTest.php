@@ -6,8 +6,6 @@ use App\Models\Business;
 use App\Models\CustomerPass;
 use App\Models\Promotion;
 use App\Models\User;
-use App\Support\DatabaseClock;
-use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -108,9 +106,10 @@ class DashboardTest extends TestCase
         $this->actingAs($business->user)->get(route('dashboard'))
             ->assertSee('Preparación del negocio')
             ->assertSee('1 de 2 completados')
-            ->assertSee('Tu promoción está guardada como borrador. Publícala cuando esté lista.')
-            ->assertSee('Editar borrador')
-            ->assertSee(route('business.promotions.edit', ['promotion' => $draft->public_id]))
+            ->assertSee('Tienes 2 borradores. Revísalos y publícalos cuando estén listos.')
+            ->assertSee('Ver borradores')
+            ->assertSee(route('business.pass').'#promotion-drafts')
+            ->assertDontSee(route('business.promotions.edit', ['promotion' => $draft->public_id]))
             ->assertDontSee(route('business.promotions.edit', ['promotion' => $foreign->public_id]))
             ->assertDontSee(route('business.promotions.create'))
             ->assertDontSee('Tu primera promoción ya está publicada.');
@@ -121,67 +120,36 @@ class DashboardTest extends TestCase
         $this->assertDatabaseCount('promotions', 3);
     }
 
-    public function test_draft_resume_prioritizes_today_then_the_nearest_upcoming_start_in_the_business_timezone(): void
+    public function test_prepared_summary_counts_owned_drafts_and_links_to_the_list_without_selecting_an_editor(): void
     {
-        foreach (['Pacific/Kiritimati', 'Pacific/Honolulu'] as $timezone) {
-            $business = Business::factory()->create(['pass_background_color' => '#A77BFF', 'timezone' => $timezone]);
-            $today = CarbonImmutable::parse(app(DatabaseClock::class)->captureForBusinessTimezone($timezone)['business_date'], $timezone);
+        foreach ([1, 3] as $count) {
+            $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
             $drafts = [];
-            foreach ([0, 1, 7, -1] as $offset) {
-                $start = $today->addDays($offset);
+            foreach (array_slice(['2000-01-01', '2098-01-01', '2099-01-01'], 0, $count) as $start) {
                 $drafts[] = $business->promotions()->create([
-                    'local_start_date' => $start->toDateString(), 'local_end_date' => $start->addDays(14)->toDateString(),
-                    'target_points' => 8, 'reward_title' => 'Borrador propio '.$offset,
+                    'local_start_date' => $start, 'local_end_date' => substr($start, 0, 7).'-31',
+                    'target_points' => 8, 'reward_title' => 'Borrador privado',
                 ]);
             }
             $foreign = Business::factory()->create()->promotions()->create([
-                'local_start_date' => $today->toDateString(), 'local_end_date' => $today->addDays(14)->toDateString(),
+                'local_start_date' => '2098-01-01', 'local_end_date' => '2098-01-31',
                 'target_points' => 9, 'reward_title' => 'Borrador ajeno',
             ]);
-            $count = Promotion::count();
+            $before = Promotion::count();
+            $message = $count === 1 ? 'Tienes un borrador. Revísalo y publícalo cuando esté listo.'
+                : 'Tienes 3 borradores. Revísalos y publícalos cuando estén listos.';
 
-            $this->actingAs($business->user)->get(route('dashboard'))
-                ->assertSee(route('business.promotions.edit', ['promotion' => $drafts[0]->public_id]))
-                ->assertDontSee(route('business.promotions.edit', ['promotion' => $drafts[3]->public_id]))
+            $response = $this->actingAs($business->user)->get(route('dashboard'))
+                ->assertOk()->assertSee($message)->assertSee('1 de 2 completados')
+                ->assertSee('Ver borradores')->assertSee(route('business.pass').'#promotion-drafts')
+                ->assertDontSee(route('business.promotions.create'))
                 ->assertDontSee(route('business.promotions.edit', ['promotion' => $foreign->public_id]));
-            $this->assertDatabaseCount('promotions', $count);
-            $this->assertDatabaseHas('promotions', ['id' => $drafts[0]->id, 'local_start_date' => $today->toDateString(), 'target_points' => 8]);
-
-            $drafts[0]->update(['local_start_date' => $today->addDays(10)->toDateString(), 'local_end_date' => $today->addDays(24)->toDateString()]);
-            $this->get(route('dashboard'))
-                ->assertSee(route('business.promotions.edit', ['promotion' => $drafts[1]->public_id]))
-                ->assertDontSee(route('business.promotions.edit', ['promotion' => $drafts[0]->public_id]));
-            $this->assertDatabaseCount('promotions', $count);
-
-            $sameStart = $business->promotions()->create([
-                'local_start_date' => $today->addDay()->toDateString(), 'local_end_date' => $today->addDays(15)->toDateString(),
-                'target_points' => 10, 'reward_title' => 'Otro borrador próximo',
-            ]);
-            $this->get(route('dashboard'))
-                ->assertSee(route('business.promotions.edit', ['promotion' => $sameStart->public_id]))
-                ->assertDontSee(route('business.promotions.edit', ['promotion' => $drafts[1]->public_id]));
-            $this->assertDatabaseCount('promotions', $count + 1);
+            foreach ($drafts as $draft) {
+                $response->assertDontSee(route('business.promotions.edit', ['promotion' => $draft->public_id]));
+                $this->assertDatabaseHas('promotions', ['id' => $draft->id, 'status' => 'draft', 'target_points' => 8]);
+            }
+            $this->assertDatabaseCount('promotions', $before);
         }
-    }
-
-    public function test_draft_resume_uses_the_nearest_past_start_only_without_upcoming_drafts(): void
-    {
-        $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
-        $today = CarbonImmutable::parse(app(DatabaseClock::class)->captureForBusinessTimezone($business->timezone)['business_date'], $business->timezone);
-        $drafts = [];
-        foreach ([-1, -10, -3] as $offset) {
-            $start = $today->addDays($offset);
-            $drafts[] = $business->promotions()->create([
-                'local_start_date' => $start->toDateString(), 'local_end_date' => $start->addDays(14)->toDateString(),
-                'target_points' => 8, 'reward_title' => 'Borrador anterior '.$offset,
-            ]);
-        }
-
-        $this->actingAs($business->user)->get(route('dashboard'))
-            ->assertSee(route('business.promotions.edit', ['promotion' => $drafts[0]->public_id]))
-            ->assertDontSee(route('business.promotions.edit', ['promotion' => $drafts[2]->public_id]));
-        $this->assertDatabaseCount('promotions', 3);
-        $this->assertDatabaseHas('promotions', ['id' => $drafts[0]->id, 'local_start_date' => $today->subDay()->toDateString(), 'status' => 'draft']);
     }
 
     public function test_saved_appearance_without_a_draft_keeps_promotion_preparation_pending(): void
@@ -211,9 +179,9 @@ class DashboardTest extends TestCase
         $response = $this->actingAs($business->user)->get(route('dashboard'));
 
         $response->assertSee('1. Prepara tu tarjeta')->assertSee('Preparar tu tarjeta')
-            ->assertSee('Tu promoción está guardada como borrador. Publícala cuando esté lista.')
+            ->assertSee('Tienes un borrador. Revísalo y publícalo cuando esté listo.')
             ->assertSee('2. Crea tu primera promoción')->assertDontSee('Borrador privado')
-            ->assertSee('0 de 2 completados')->assertSee('Editar borrador')
+            ->assertSee('0 de 2 completados')->assertSee('Ver borradores')
             ->assertDontSee('No hay una promoción activa ni programada');
         $document = new \DOMDocument;
         $document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
@@ -854,8 +822,8 @@ class DashboardTest extends TestCase
             'target_points' => 8, 'reward_title' => 'Borrador guardado',
         ]);
 
-        $component->call('$refresh')->assertSee('1 de 2 completados')->assertSee('Editar borrador')
-            ->assertSee(route('business.promotions.edit', ['promotion' => $draft->public_id]));
+        $component->call('$refresh')->assertSee('1 de 2 completados')->assertSee('Ver borradores')
+            ->assertSee(route('business.pass').'#promotion-drafts');
         $this->promotion($business, 'published', '2098-10-01 04:00:00+00', '2098-11-01 04:00:00+00');
 
         $component->call('$refresh')->assertDontSee('Preparación del negocio')
@@ -872,7 +840,7 @@ class DashboardTest extends TestCase
                 'local_start_date' => '2098-01-01', 'local_end_date' => '2098-01-31',
                 'target_points' => 8, 'reward_title' => 'Borrador guardado',
             ]) : null;
-            $destination = $draft === null ? route('business.promotions.create') : route('business.promotions.edit', ['promotion' => $draft->public_id]);
+            $destination = $draft === null ? route('business.promotions.create') : route('business.pass').'#promotion-drafts';
             $component = Livewire::actingAs($business->user)->test('pages::business.summary');
             $document = new \DOMDocument;
             $document->loadHTML('<?xml encoding="UTF-8">'.$component->html(), LIBXML_NOERROR | LIBXML_NOWARNING);

@@ -499,7 +499,7 @@
             @endif
 
             @if ($this->draftPromotions->total() > 0)
-                <details wire:key="promotion-drafts-disclosure" wire:ignore.self open class="group space-y-3">
+                <details id="promotion-drafts" wire:key="promotion-drafts-disclosure" wire:ignore.self open class="group space-y-3">
                     <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 app-focus">
                         <span role="heading" aria-level="3" class="app-role-card! text-app-ink!">
                             {{ __('business.pass.drafts_heading', ['count' => $this->draftPromotions->total()]) }}

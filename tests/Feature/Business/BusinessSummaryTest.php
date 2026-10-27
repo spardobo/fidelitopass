@@ -92,25 +92,20 @@ it('ignores drafts for preparation and picks the earliest scheduled and latest t
     expect($summary['hasPromotionDraft'])->toBeTrue();
 });
 
-it('keeps the latest owned draft metadata outside published cards without completing publication', function () {
+it('counts owned drafts in one snapshot without selecting an editor or completing publication', function () {
     summaryDatabaseTime();
     $business = Business::factory()->create();
     $attributes = ['local_start_date' => '2030-02-01', 'local_end_date' => '2030-02-28', 'target_points' => 12, 'reward_title' => 'Draft reward', 'reward_description' => 'Draft description'];
-    $business->promotions()->create($attributes)->forceFill(['updated_at' => '2030-01-01 00:00:00'])->save();
-    $draft = $business->promotions()->create($attributes);
-    $draft->forceFill(['updated_at' => '2030-01-02 00:00:00'])->save();
-    $latest = $business->promotions()->create($attributes);
-    $latest->forceFill(['updated_at' => '2030-01-02 00:00:00'])->save();
+    for ($index = 0; $index < 3; $index++) {
+        $business->promotions()->create($attributes);
+    }
     Business::factory()->create()->promotions()->create($attributes);
     $owner = $business->user;
     DB::connection()->enableQueryLog();
 
     $summary = (new BusinessSummary)->read($owner);
 
-    expect($summary['draftPromotion']->id)->toBe($latest->id);
-    expect($summary['draftPromotion']->phase)->toBe('draft');
-    expect($summary['draftPromotion']->reward_description)->toBe('Draft description');
-    expect($summary['draftPromotion']->local_start_date->format('Y-m-d'))->toBe('2030-02-01');
+    expect($summary['draftCount'] ?? null)->toBe(3);
     expect($summary['primaryPromotion'])->toBeNull();
     expect($summary['upcomingPromotion'])->toBeNull();
     expect($summary['hasPromotionDraft'])->toBeTrue();

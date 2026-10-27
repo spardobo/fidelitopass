@@ -2962,6 +2962,53 @@ for (const device of [
             await main.screenshot({ path: testInfo.outputPath("summary-after-appearance.png") });
             await createPromotion.click();
             await expect(page).toHaveURL(/\/promotions\/create$/);
+
+            for (const [index, reward] of ["Primer borrador", "Segundo borrador"].entries()) {
+                await page
+                    .getByRole("textbox", { name: /Qué recompensa recibirá tu cliente/ })
+                    .fill(reward);
+                await page.getByRole("spinbutton", { name: /Cuántos puntos necesita/ }).fill("8");
+                const dates = await promotionDateCases(page);
+                await selectPicker(page, "Fecha de inicio", dates.minimum);
+                await selectPicker(page, "Fecha de fin", dates.futureEnd);
+                await page.getByRole("button", { name: "Guardar borrador", exact: true }).click();
+                await expect(page).toHaveURL(/\/pass$/);
+                await page.goto("/dashboard");
+                const message =
+                    index === 0
+                        ? "Tienes un borrador. Revísalo y publícalo cuando esté listo."
+                        : "Tienes 2 borradores. Revísalos y publícalos cuando estén listos.";
+                await expect(preparation.getByText(message, { exact: true })).toBeVisible();
+                await main.screenshot({
+                    path: testInfo.outputPath(`summary-drafts-${index + 1}.png`),
+                });
+                const reviewDrafts = preparation.getByRole("link", {
+                    name: "Ver borradores",
+                    exact: true,
+                });
+                await expect(reviewDrafts).toHaveAttribute("href", /\/pass#promotion-drafts$/);
+                await reviewDrafts.click();
+                await expect(page).toHaveURL(/\/pass#promotion-drafts$/);
+                const drafts = page.locator("#promotion-drafts");
+                await expect(drafts).toBeInViewport();
+                await expect(drafts).toHaveAttribute("open", "");
+                await expect(
+                    drafts.getByRole("heading", { name: `Borradores (${index + 1})`, exact: true }),
+                ).toBeVisible();
+                const canScroll = await page.evaluate(
+                    () => document.documentElement.scrollHeight > window.innerHeight,
+                );
+                if (canScroll) {
+                    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+                }
+                await page.screenshot({
+                    path: testInfo.outputPath(`pass-drafts-scroll-${index + 1}.png`),
+                });
+                if (index === 0) {
+                    await page.getByRole("link", { name: "Nueva promoción", exact: true }).click();
+                    await expect(page).toHaveURL(/\/promotions\/create$/);
+                }
+            }
         });
     });
 }
