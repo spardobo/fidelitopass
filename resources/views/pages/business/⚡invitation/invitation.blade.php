@@ -67,19 +67,16 @@
                                 square
                                 x-on:click="copy"
                                 x-bind:disabled="copying"
-                                x-bind:data-copyable-copied="copied"
                                 aria-label="{{ __('Copy to clipboard') }}"
-                                class="app-button absolute! inset-y-0 end-0 min-w-app-control border-0! bg-transparent! text-app-ink-priority! hover:bg-transparent! active:bg-transparent!"
+                                class="app-button absolute! inset-y-0 end-0 min-w-app-control border-0! bg-transparent! text-app-ink-priority! hover:bg-transparent! active:bg-transparent! active:opacity-60!"
                             >
-                                <flux:icon.clipboard-document-check variant="outline" class="hidden size-4 [[data-copyable-copied]>&]:block" />
-                                <flux:icon.clipboard-document variant="outline" class="block size-4 [[data-copyable-copied]>&]:hidden" />
+                                <flux:icon.clipboard-document variant="outline" class="size-4" />
                             </flux:button>
                         </div>
                     </flux:field>
 
-                    <flux:text role="status" class="app-role-support! text-app-ink-help min-h-[1lh]">
-                        <span x-cloak x-show="copied">{{ __('invitation.copied') }}</span>
-                        <span x-cloak x-show="copyFailed">{{ __('invitation.copy_failed') }}</span>
+                    <flux:text x-cloak x-show="copyFailed" role="status" class="app-role-support! text-app-ink-help">
+                        {{ __('invitation.copy_failed') }}
                     </flux:text>
                 </div>
             @endif

@@ -41,11 +41,10 @@ async function copyInvitationUrl(input) {
 
 Alpine.data("invitationLink", () => ({
     copying: false,
-    copied: false,
     copyFailed: false,
 
     /**
-     * Publishes copy feedback only for this connected invitation control.
+     * Reports manual-copy failure only for this connected invitation control.
      *
      * @returns {Promise<void>} Settles one user-activated copy without a server request.
      */
@@ -62,7 +61,6 @@ Alpine.data("invitationLink", () => ({
             return;
         }
 
-        this.copied = copied;
         this.copyFailed = !copied;
         this.copying = false;
     },
