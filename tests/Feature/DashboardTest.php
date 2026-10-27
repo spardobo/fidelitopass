@@ -6,6 +6,8 @@ use App\Models\Business;
 use App\Models\CustomerPass;
 use App\Models\Promotion;
 use App\Models\User;
+use App\Support\DatabaseClock;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -91,7 +93,7 @@ class DashboardTest extends TestCase
 
         $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
         $business->promotions()->create([
-            'local_start_date' => '2097-01-01', 'local_end_date' => '2097-01-31',
+            'local_start_date' => '2099-01-01', 'local_end_date' => '2099-01-31',
             'target_points' => 5, 'reward_title' => 'Borrador anterior', 'updated_at' => '2025-01-01',
         ]);
         $draft = $business->promotions()->create([
@@ -117,6 +119,69 @@ class DashboardTest extends TestCase
             'reward_title' => 'Borrador privado', 'local_start_date' => '2098-01-01', 'local_end_date' => '2098-01-31',
         ]);
         $this->assertDatabaseCount('promotions', 3);
+    }
+
+    public function test_draft_resume_prioritizes_today_then_the_nearest_upcoming_start_in_the_business_timezone(): void
+    {
+        foreach (['Pacific/Kiritimati', 'Pacific/Honolulu'] as $timezone) {
+            $business = Business::factory()->create(['pass_background_color' => '#A77BFF', 'timezone' => $timezone]);
+            $today = CarbonImmutable::parse(app(DatabaseClock::class)->captureForBusinessTimezone($timezone)['business_date'], $timezone);
+            $drafts = [];
+            foreach ([0, 1, 7, -1] as $offset) {
+                $start = $today->addDays($offset);
+                $drafts[] = $business->promotions()->create([
+                    'local_start_date' => $start->toDateString(), 'local_end_date' => $start->addDays(14)->toDateString(),
+                    'target_points' => 8, 'reward_title' => 'Borrador propio '.$offset,
+                ]);
+            }
+            $foreign = Business::factory()->create()->promotions()->create([
+                'local_start_date' => $today->toDateString(), 'local_end_date' => $today->addDays(14)->toDateString(),
+                'target_points' => 9, 'reward_title' => 'Borrador ajeno',
+            ]);
+            $count = Promotion::count();
+
+            $this->actingAs($business->user)->get(route('dashboard'))
+                ->assertSee(route('business.promotions.edit', ['promotion' => $drafts[0]->public_id]))
+                ->assertDontSee(route('business.promotions.edit', ['promotion' => $drafts[3]->public_id]))
+                ->assertDontSee(route('business.promotions.edit', ['promotion' => $foreign->public_id]));
+            $this->assertDatabaseCount('promotions', $count);
+            $this->assertDatabaseHas('promotions', ['id' => $drafts[0]->id, 'local_start_date' => $today->toDateString(), 'target_points' => 8]);
+
+            $drafts[0]->update(['local_start_date' => $today->addDays(10)->toDateString(), 'local_end_date' => $today->addDays(24)->toDateString()]);
+            $this->get(route('dashboard'))
+                ->assertSee(route('business.promotions.edit', ['promotion' => $drafts[1]->public_id]))
+                ->assertDontSee(route('business.promotions.edit', ['promotion' => $drafts[0]->public_id]));
+            $this->assertDatabaseCount('promotions', $count);
+
+            $sameStart = $business->promotions()->create([
+                'local_start_date' => $today->addDay()->toDateString(), 'local_end_date' => $today->addDays(15)->toDateString(),
+                'target_points' => 10, 'reward_title' => 'Otro borrador próximo',
+            ]);
+            $this->get(route('dashboard'))
+                ->assertSee(route('business.promotions.edit', ['promotion' => $sameStart->public_id]))
+                ->assertDontSee(route('business.promotions.edit', ['promotion' => $drafts[1]->public_id]));
+            $this->assertDatabaseCount('promotions', $count + 1);
+        }
+    }
+
+    public function test_draft_resume_uses_the_nearest_past_start_only_without_upcoming_drafts(): void
+    {
+        $business = Business::factory()->create(['pass_background_color' => '#A77BFF']);
+        $today = CarbonImmutable::parse(app(DatabaseClock::class)->captureForBusinessTimezone($business->timezone)['business_date'], $business->timezone);
+        $drafts = [];
+        foreach ([-1, -10, -3] as $offset) {
+            $start = $today->addDays($offset);
+            $drafts[] = $business->promotions()->create([
+                'local_start_date' => $start->toDateString(), 'local_end_date' => $start->addDays(14)->toDateString(),
+                'target_points' => 8, 'reward_title' => 'Borrador anterior '.$offset,
+            ]);
+        }
+
+        $this->actingAs($business->user)->get(route('dashboard'))
+            ->assertSee(route('business.promotions.edit', ['promotion' => $drafts[0]->public_id]))
+            ->assertDontSee(route('business.promotions.edit', ['promotion' => $drafts[2]->public_id]));
+        $this->assertDatabaseCount('promotions', 3);
+        $this->assertDatabaseHas('promotions', ['id' => $drafts[0]->id, 'local_start_date' => $today->subDay()->toDateString(), 'status' => 'draft']);
     }
 
     public function test_saved_appearance_without_a_draft_keeps_promotion_preparation_pending(): void

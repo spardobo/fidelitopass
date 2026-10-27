@@ -144,8 +144,13 @@ class BusinessSummary
             active_promotion AS (SELECT * FROM phases WHERE phase = 'active' ORDER BY starts_at, id LIMIT 1),
             next_scheduled_promotion AS (SELECT * FROM phases WHERE phase = 'scheduled' ORDER BY starts_at, id LIMIT 1),
             draft_promotion AS (
-                SELECT p.*, 'draft'::text AS phase FROM promotions p JOIN owned_business b ON b.id = p.business_id
-                WHERE p.status = 'draft' ORDER BY p.updated_at DESC, p.id DESC LIMIT 1
+                SELECT p.*, 'draft'::text AS phase
+                FROM promotions p JOIN owned_business b ON b.id = p.business_id CROSS JOIN summary_clock c
+                WHERE p.status = 'draft'
+                ORDER BY p.local_start_date < (c.instant AT TIME ZONE b.timezone)::date NULLS LAST,
+                         ABS(p.local_start_date - (c.instant AT TIME ZONE b.timezone)::date) NULLS LAST,
+                         p.updated_at DESC, p.id DESC
+                LIMIT 1
             ),
             last_promotion AS (
                 SELECT * FROM phases WHERE phase IN ('ended', 'cancelled')
