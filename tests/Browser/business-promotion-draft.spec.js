@@ -2709,6 +2709,10 @@ test.describe("mobile invitation clipboard", () => {
 
         await page.bringToFront();
         await copy.tap();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden({
+            timeout: 3500,
+        });
         await clipboard.bringToFront();
         expect(await clipboard.evaluate(() => navigator.clipboard.readText())).toBe(url);
 
@@ -2724,7 +2728,10 @@ test.describe("mobile invitation clipboard", () => {
         });
         await page.bringToFront();
         await copy.tap();
-        await expect(page.getByText("Enlace copiado.", { exact: true })).toHaveCount(0);
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden({
+            timeout: 3500,
+        });
         await clipboard.bringToFront();
         expect(await clipboard.evaluate(() => navigator.clipboard.readText())).toBe(url);
 
@@ -2739,7 +2746,7 @@ test.describe("mobile invitation clipboard", () => {
                 exact: true,
             }),
         ).toBeVisible();
-        await expect(page.getByText("Enlace copiado.", { exact: true })).toHaveCount(0);
+        await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden();
         expect(
             await input.evaluate((element) =>
                 element.value.slice(element.selectionStart, element.selectionEnd),
@@ -2817,7 +2824,7 @@ for (const device of [
         test("keeps the QR card height stable throughout repeated asynchronous copying", async ({
             page,
             request,
-        }) => {
+        }, testInfo) => {
             await registerVerifiedBusiness(page, request);
             await page.goto("/pass/appearance");
             await page.getByRole("button", { name: "Guardar apariencia" }).click();
@@ -2830,6 +2837,8 @@ for (const device of [
                 await page.mouse.down();
                 await expect(copy).toHaveCSS("opacity", "0.6");
                 await page.mouse.up();
+                // Native toast hover pauses dismissal; do not leave a synthetic pointer beneath it.
+                await page.mouse.move(0, 0);
             };
             await page.evaluate(() => {
                 Object.defineProperty(navigator, "clipboard", {
@@ -2845,13 +2854,19 @@ for (const device of [
             await pressCopy();
             await expect(copy).toBeDisabled();
             await page.waitForFunction(() => typeof window.resolveInvitationCopy === "function");
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden();
             await page.evaluate(() => window.resolveInvitationCopy());
-            await expect(page.getByText("Enlace copiado.", { exact: true })).toHaveCount(0);
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+            await expect(card.getByText("Enlace copiado.", { exact: true })).toHaveCount(0);
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden({
+                timeout: 3500,
+            });
             await expect(copy).toBeEnabled();
             const before = await card.boundingBox();
 
             await pressCopy();
             await expect(copy).toBeDisabled();
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden();
             const pendingHeights = await card.evaluate(async (element) => {
                 const heights = [];
                 for (let frame = 0; frame < 6; frame++) {
@@ -2862,7 +2877,11 @@ for (const device of [
             });
             await page.evaluate(() => window.resolveInvitationCopy());
             await expect(copy).toBeEnabled();
-            await expect(page.getByText("Enlace copiado.", { exact: true })).toHaveCount(0);
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeVisible();
+            await page.screenshot({ path: testInfo.outputPath("invitation-copy-toast.png") });
+            await expect(page.getByText("Enlace copiado.", { exact: true })).toBeHidden({
+                timeout: 3500,
+            });
             const after = await card.boundingBox();
             console.log(
                 `Invitation ${device.label} repeated copy: ${JSON.stringify({ before: before.height, pendingHeights, after: after.height })}`,

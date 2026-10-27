@@ -49,7 +49,7 @@
             </div>
 
             @if ($qrUrl !== null)
-                <div x-data="invitationLink" class="space-y-2">
+                <div x-data="invitationLink" data-copied-message="{{ __('invitation.copied') }}" class="space-y-2">
                     <flux:field>
                         <flux:label for="invitation-url">{{ __('invitation.url_label') }}</flux:label>
 

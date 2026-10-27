@@ -364,7 +364,7 @@ Business view:
 - QR-generation failures remain recoverable without changing the permanent public identity.
 - Short copy explaining what customers do.
 - Download/print action.
-- In the same QR card, show the exact public QR URL as a labelled read-only field with a copy action after appearance is saved and QR generation succeeds. Give momentary pressed feedback on each activation, without a persistent success icon or success message. Keep the awaited browser copy and selection fallback; if both fail, retain text selection and clear manual-copy guidance.
+- In the same QR card, show the exact public QR URL as a labelled read-only field with a copy action after appearance is saved and QR generation succeeds. Give momentary pressed feedback on each activation and a short success toast after each confirmed copy, without a persistent success icon or inline success message. Keep the awaited browser copy and selection fallback; if both fail, retain text selection and clear manual-copy guidance.
 
 Customer join view:
 

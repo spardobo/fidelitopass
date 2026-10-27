@@ -44,7 +44,7 @@ Alpine.data("invitationLink", () => ({
     copyFailed: false,
 
     /**
-     * Reports manual-copy failure only for this connected invitation control.
+     * Confirms successful copies briefly and retains manual guidance on failure.
      *
      * @returns {Promise<void>} Settles one user-activated copy without a server request.
      */
@@ -63,5 +63,12 @@ Alpine.data("invitationLink", () => ({
 
         this.copyFailed = !copied;
         this.copying = false;
+
+        if (copied) {
+            this.$flux.toast(this.$root.dataset.copiedMessage, {
+                variant: "success",
+                duration: 2000,
+            });
+        }
     },
 }));
