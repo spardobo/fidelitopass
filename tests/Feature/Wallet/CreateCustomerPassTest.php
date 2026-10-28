@@ -1,6 +1,9 @@
 <?php
 
 use App\Actions\CustomerPasses\CreateCustomerPass;
+use App\Actions\Rewards\RedeemReward;
+use App\Actions\Visits\AcceptVisit;
+use App\Data\Time\DatabaseTime;
 use App\Enums\CustomerPassCreationFailure;
 use App\Enums\FailureOutcome;
 use App\Enums\PassCreationStage;
@@ -9,6 +12,9 @@ use App\Integrations\GoogleWallet\GoogleWalletClient;
 use App\Integrations\GoogleWallet\GoogleWalletPassCreator;
 use App\Models\Business;
 use App\Models\CustomerPass;
+use App\Models\RewardEntitlement;
+use App\Support\DatabaseClock;
+use Carbon\CarbonImmutable;
 use Google\Service\Exception as GoogleServiceException;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Request as PsrRequest;
@@ -19,6 +25,7 @@ use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Tests\Support\GoogleWalletHttpFake;
 use Tests\Support\PostgresDatabaseTruncation;
@@ -912,3 +919,86 @@ it('preserves the acquisition JavaScript failure contract independently of cause
     'unknown local' => ['database_failed', PassCreationStage::Local, FailureOutcome::Unknown, 503, false],
     'definitive nonretryable' => ['transaction_active', PassCreationStage::Preparation, FailureOutcome::Definitive, 503, false],
 ]);
+
+it('keeps the issued Wallet credential permanent while private reads follow committed Visits and redemption without Google', function () {
+    app()->setLocale('es');
+    $business = Business::factory()->create(['pass_background_color' => '#123456', 'timezone' => 'America/La_Paz']);
+    $promotion = $business->promotions()->make(['reward_title' => 'Fresh bread', 'target_points' => 2]);
+    $promotion->forceFill(['status' => 'published', 'timezone_snapshot' => $business->timezone,
+        'starts_at' => '2030-01-01 04:00:00+00', 'ends_at' => '2030-02-01 04:00:00+00'])->save();
+    $this->mock(DatabaseClock::class)->shouldReceive('capture')->with($business->timezone)
+        ->andReturn(new DatabaseTime('2030-01-02 12:00:00+00', '2030-01-02'));
+    fakeAcquisitionProvider($business);
+
+    $this->postJson(route('public.join.save', $business->public_id))->assertCreated();
+
+    $object = acquisitionObjectRequest();
+    $personalPageUrl = $object['linksModuleData']['uris'][0]['uri'];
+    $customerPass = CustomerPass::query()->sole();
+    $credentialsBefore = $customerPass->getRawOriginal();
+    $requestsAfterIssuance = $this->http->requests()->count();
+    $this->http->respondWith(fn () => throw new LogicException('Google must not be called after issuance.'));
+    $this->get($personalPageUrl)->assertOk()->assertSee('Llevas 0 de 2 puntos.')
+        ->assertHeader('Referrer-Policy', 'no-referrer');
+
+    app(AcceptVisit::class)->handle($business->user, 'manual', $customerPass->manual_code, (string) Str::uuid(), $promotion->id);
+    $progressResponse = $this->get($personalPageUrl)->assertOk()->assertSee('Llevas 1 de 2 puntos.');
+    expect($progressResponse->headers->get('Cache-Control'))->toContain('no-store', 'private');
+    app(AcceptVisit::class)->handle($business->user, 'manual', $customerPass->manual_code, (string) Str::uuid(), $promotion->id);
+    $this->get($personalPageUrl)->assertOk()->assertSee('¡Tu recompensa te está esperando!');
+    $reward = RewardEntitlement::query()->sole();
+    app(RedeemReward::class)->handle($business->user, 'manual', $customerPass->manual_code, $reward->id, $promotion->id);
+
+    $response = $this->get($personalPageUrl)->assertOk()->assertSee('¡Ya canjeaste tu recompensa!')
+        ->assertDontSee($customerPass->manual_code)->assertDontSee($object['barcode']['value'])
+        ->assertHeader('Referrer-Policy', 'no-referrer');
+    expect($response->headers->get('Cache-Control'))->toContain('no-store', 'private');
+    expect($reward->fresh()->redeemed_at)->not->toBeNull();
+    expect($customerPass->fresh()->getRawOriginal())->toBe($credentialsBefore);
+    expect($this->http->requests())->toHaveCount($requestsAfterIssuance);
+    $this->assertDatabaseCount('customer_passes', 1);
+    $this->assertDatabaseCount('visits', 2);
+    $this->assertDatabaseCount('reward_entitlements', 1);
+    $this->assertDatabaseCount('promotion_participations', 0);
+});
+
+it('keeps an issued private link current across scheduled active cancelled and ended facts without another provider call', function () {
+    app()->setLocale('es');
+    $business = Business::factory()->create(['pass_background_color' => '#123456', 'timezone' => 'America/La_Paz']);
+    $promotion = $business->promotions()->make(['reward_title' => 'Fresh bread', 'target_points' => 2]);
+    $promotion->forceFill(['status' => 'published', 'timezone_snapshot' => $business->timezone,
+        'starts_at' => '2030-01-03 04:00:00+00', 'ends_at' => '2030-01-04 04:00:00+00'])->save();
+    $capturedAt = '2030-01-02 12:00:00+00';
+    $this->mock(DatabaseClock::class)->shouldReceive('capture')->with($business->timezone)
+        ->andReturnUsing(function () use (&$capturedAt, $business): DatabaseTime {
+            $localDate = CarbonImmutable::parse($capturedAt)->setTimezone($business->timezone)->toDateString();
+
+            return new DatabaseTime($capturedAt, $localDate);
+        });
+    fakeAcquisitionProvider($business);
+    $this->postJson(route('public.join.save', $business->public_id))->assertCreated();
+    $object = acquisitionObjectRequest();
+    $personalPageUrl = $object['linksModuleData']['uris'][0]['uri'];
+    $customerPass = CustomerPass::query()->sole();
+    $requestsAfterIssuance = $this->http->requests()->count();
+    $this->http->respondWith(fn () => throw new LogicException('Google must not be called after issuance.'));
+
+    $this->get($personalPageUrl)->assertOk()->assertSee('Tu promoción empieza el');
+    $capturedAt = '2030-01-03 04:00:00+00';
+    $this->get($personalPageUrl)->assertOk()->assertSee('Llevas 0 de 2 puntos.');
+    $capturedAt = '2030-01-04 04:00:00+00';
+    $this->get($personalPageUrl)->assertOk()->assertSee('Esta promoción ya terminó.');
+    $promotion->forceFill(['status' => 'cancelled', 'cancelled_at' => '2030-01-03 16:00:00+00'])->save();
+    $this->get($personalPageUrl)->assertOk()->assertSee('El negocio canceló esta promoción.');
+    $this->get($personalPageUrl.'&unexpected=changed')->assertNotFound()->assertDontSee($business->name);
+    $foreignBusiness = Business::factory()->create();
+    $foreignPath = URL::signedRoute('public.pass', [
+        'businessPublicId' => $foreignBusiness->public_id,
+        'passPublicId' => $customerPass->public_id,
+    ], absolute: false);
+    $this->get($foreignPath)->assertNotFound()->assertDontSee($business->name)->assertDontSee($foreignBusiness->name);
+
+    expect($this->http->requests())->toHaveCount($requestsAfterIssuance);
+    $this->assertDatabaseCount('visits', 0);
+    $this->assertDatabaseCount('reward_entitlements', 0);
+});

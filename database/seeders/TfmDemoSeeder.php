@@ -212,13 +212,6 @@ class TfmDemoSeeder extends Seeder
         if ($promotion->cancelled_at !== null) {
             $cutoff = $cutoff->min($promotion->cancelled_at);
         }
-        DB::table('promotion_participations')->insert([
-            'business_id' => $business->id,
-            'customer_pass_id' => $pass->id,
-            'promotion_id' => $promotion->id,
-            'created_at' => $firstVisit->utc()->format('Y-m-d H:i:s.uP'),
-            'updated_at' => $firstVisit->utc()->format('Y-m-d H:i:s.uP'),
-        ]);
 
         $progress = 0;
         $visitCount = 0;
