@@ -46,4 +46,27 @@ final class RegionalDate
 
         return $formatted;
     }
+
+    /**
+     * Presents a localized medium-length calendar date, such as 28 oct 2026.
+     *
+     * @param  DateTimeInterface  $date  Already interpreted date in its intended presentation timezone.
+     * @return string Localized medium-length date without time.
+     *
+     * @throws IntlException When ICU cannot format the date.
+     */
+    public static function formatMedium(DateTimeInterface $date): string
+    {
+        $formatted = IntlDateFormatter::formatObject(
+            $date,
+            [IntlDateFormatter::MEDIUM, IntlDateFormatter::NONE],
+            app()->getLocale(),
+        );
+
+        if ($formatted === false) {
+            throw new IntlException('Date formatting failed.');
+        }
+
+        return $formatted;
+    }
 }

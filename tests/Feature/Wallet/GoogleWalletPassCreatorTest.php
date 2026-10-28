@@ -15,11 +15,30 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\Psr7\Request as PsrRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 use Tests\Support\GoogleWalletHttpFake;
 
-uses(RefreshDatabase::class);
+/** Guards native test cleanup before any isolated PostgreSQL reset. */
+trait GuardsPermanentWalletCreationDatabase
+{
+    use RefreshDatabase;
+
+    /** Refuses configured or actual databases outside the testing runtime. */
+    protected function beforeRefreshingDatabase(): void
+    {
+        if (! app()->environment('testing')
+            || DB::connection()->getDriverName() !== 'pgsql'
+            || DB::connection()->getDatabaseName() !== 'testing'
+            || DB::scalar('SELECT current_database()') !== 'testing') {
+            throw new LogicException('Refusing to reset a non-testing database.');
+        }
+    }
+}
+
+uses(GuardsPermanentWalletCreationDatabase::class);
 
 beforeEach(function () {
     app()->setLocale('es');
@@ -73,59 +92,9 @@ beforeEach(function () {
         ],
         'hexBackgroundColor' => '#123456',
         'classTemplateInfo' => [
-            'cardTemplateOverride' => [
-                'cardRowTemplateInfos' => [
-                    [
-                        'oneItem' => [
-                            'item' => [
-                                'firstValue' => [
-                                    'fields' => [
-                                        ['fieldPath' => "object.textModulesData['card_primary']"],
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                    [
-                        'oneItem' => ['item' => ['firstValue' => ['fields' => [
-                            ['fieldPath' => "object.textModulesData['card_secondary']"],
-                        ]]]],
-                    ],
-                ],
-            ],
-            'cardBarcodeSectionDetails' => [
-                'firstBottomDetail' => null,
-                'firstTopDetail' => [
-                    'fieldSelector' => [
-                        'fields' => [
-                            ['fieldPath' => "object.textModulesData['barcode_top'].body"],
-                        ],
-                    ],
-                ],
-            ],
-            'detailsTemplateOverride' => [
-                'detailsItemInfos' => array_map(static fn (array $fields): array => [
-                    'item' => ['firstValue' => ['fields' => $fields]],
-                ], [
-                    [
-                        ['fieldPath' => "object.textModulesData['barcode_top']"],
-                    ],
-                    [
-                        ['fieldPath' => "object.textModulesData['details_code']"],
-                    ],
-                    [
-                        ['fieldPath' => "object.textModulesData['details_primary']"],
-                        ['fieldPath' => "object.textModulesData['card_primary']"],
-                    ],
-                    [['fieldPath' => "object.textModulesData['details_primary_description']"]],
-                    [['fieldPath' => "object.textModulesData['details_primary_date']"]],
-                    [['fieldPath' => "object.textModulesData['details_context']"]],
-                    [['fieldPath' => "object.textModulesData['details_secondary']"], ['fieldPath' => "object.textModulesData['card_secondary']"]],
-                    [['fieldPath' => "object.textModulesData['details_secondary_description']"]],
-                    [['fieldPath' => "object.textModulesData['details_secondary_date']"]],
-                    [['fieldPath' => "object.textModulesData['details_history']"]],
-                ]),
-            ],
+            'cardTemplateOverride' => null,
+            'cardBarcodeSectionDetails' => ['firstTopDetail' => null, 'firstBottomDetail' => null],
+            'detailsTemplateOverride' => null,
             'listTemplateOverride' => [
                 'firstRowOption' => ['fieldOption' => ['fields' => [['fieldPath' => 'class.programName']]]],
                 'secondRowOption' => ['fields' => [['fieldPath' => 'object.accountId']]],
@@ -219,7 +188,6 @@ it('preserves a leading-zero manual code through SDK payload and exact confirmat
     expect($requests)->toHaveCount(1);
     expect($requests[0][0]['accountId'])->toBe('05130');
     expect($requests[0][0]['barcode']['alternateText'])->toBe('Código manual: 05130');
-    expect(collect($requests[0][0]['textModulesData'])->firstWhere('id', 'details_code')['body'])->toBe('05130');
     $this->assertDatabaseCount('customer_passes', 0);
 })->with(['exact' => false, 'manual-style separator rejected' => true]);
 
@@ -417,7 +385,7 @@ it('creates a missing deterministic class once with the shared layout before the
         && $request['programName'] === $this->business->name
         && $request['programLogo']['sourceUri']['uri'] === 'https://passes.example.test/icon-logo-wallet.png'
         && $request['reviewStatus'] === 'UNDER_REVIEW'
-        && $request['classTemplateInfo'] === $this->class['classTemplateInfo']))->not->toBeEmpty();
+        && $request['classTemplateInfo'] == $this->class['classTemplateInfo']))->not->toBeEmpty();
     $wire = $this->http->requests(fn (Request $request) => $request->url() === $this->classUrl)[0][0];
     expect(bin2hex($wire['issuerName']))->toBe('e2808b');
     expect($wire['classTemplateInfo']['listTemplateOverride'])->toBe([
@@ -580,115 +548,10 @@ it('rejects an unsafe selected logo before credential loading or HTTP', function
     'fragment-bearing black' => ['https://assets.example.test/black.png#unsafe-logo-marker'],
 ]);
 
-it('maps real current promotion content and zero new-pass progress into the provider object', function () {
-    $this->business->promotions()
-        ->make()
-        ->forceFill([
-            'status' => 'published',
-            'target_points' => 7,
-            'reward_title' => 'Una hogaza artesanal',
-            'reward_description' => 'Pan integral de masa madre.',
-            'timezone_snapshot' => 'America/La_Paz',
-            'starts_at' => '2020-01-01 04:00:00+00',
-            'ends_at' => '2099-01-01 04:00:00+00',
-        ])
-        ->save();
-    $this->http->respondWith(walletResponses($this->class, $this->object));
-
-    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    expect($this->http->requests(function (Request $request) {
-        if (! str_ends_with($request->url(), '/loyaltyObject')) {
-            return false;
-        }
-
-        expect($request->data())->not->toHaveKey('loyaltyPoints');
-        expect(collect($request['textModulesData'])->firstWhere('id', 'barcode_top'))->toBe([
-            'body' => '0 / 7 puntos',
-            'header' => 'TU PROGRESO',
-            'id' => 'barcode_top',
-        ]);
-        expect(collect($request['textModulesData'])->firstWhere('id', 'details_primary')['body'])->toBe('Una hogaza artesanal');
-        expect(collect($request['textModulesData'])->firstWhere('id', 'details_primary_description')['body'])->toBe('Pan integral de masa madre.');
-        expect(collect($request['textModulesData'])->firstWhere('id', 'details_context'))->toBe([
-            'body' => 'Tu visita ahora vale 1 punto.', 'header' => '', 'id' => 'details_context',
-        ]);
-        expect(collect($request['textModulesData'])->firstWhere('id', 'card_primary'))->toBe([
-            'body' => "Una hogaza artesanal\nTienes hasta el 31 dic 2098.\n\nTu visita ahora vale 1 punto.",
-            'header' => 'TU PRÓXIMA RECOMPENSA',
-            'id' => 'card_primary',
-        ]);
-        expect(collect($request['textModulesData'])->firstWhere('id', 'promotion'))->toBeNull();
-        expect(json_encode($request->data(), JSON_UNESCAPED_UNICODE))->not->toContain('Consigue', '"Puntos"');
-        expect(collect($request['textModulesData'])->firstWhere('id', 'details_primary_date')['body'])
-            ->toBe('Tienes hasta el 31 dic 2098.');
-        expect(collect($request['textModulesData'])->firstWhere('id', 'details_code'))
-            ->toHaveCount(3)
-            ->toMatchArray([
-                'id' => 'details_code',
-                'header' => 'CÓDIGO MANUAL',
-                'body' => $this->credentials->manualCode,
-            ]);
-
-        return true;
-    }))->not->toBeEmpty();
-});
-
-it('places progress above the barcode and compact content below it with separate full details', function () {
-    $responses = walletResponses($this->class, $this->object);
-    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
-        GoogleWalletHttpFake::json([], 404),
-        GoogleWalletHttpFake::json($this->class),
-    ]);
-    $responses[$this->classUrl] = GoogleWalletHttpFake::json($this->class, 201);
-    $this->http->respondWith($responses);
-
-    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'POST'
-        && $request->url() === $this->classUrl);
-    expect($writes)->toHaveCount(1);
-    $template = $writes[0][0]['classTemplateInfo'];
-    expect(array_map(
-        fn (array $row) => array_column($row['oneItem']['item']['firstValue']['fields'], 'fieldPath'),
-        $template['cardTemplateOverride']['cardRowTemplateInfos'],
-    ))->toBe([
-        [
-            "object.textModulesData['card_primary']",
-        ],
-        ["object.textModulesData['card_secondary']"],
-    ]);
-    expect($template['cardBarcodeSectionDetails'])->toBe([
-        'firstBottomDetail' => null,
-        'firstTopDetail' => [
-            'fieldSelector' => [
-                'fields' => [
-                    ['fieldPath' => "object.textModulesData['barcode_top'].body"],
-                ],
-            ],
-        ],
-    ]);
-    expect(array_map(
-        fn (array $detail) => array_column($detail['item']['firstValue']['fields'], 'fieldPath'),
-        $template['detailsTemplateOverride']['detailsItemInfos'],
-    ))->toBe([
-        ["object.textModulesData['barcode_top']"],
-        ["object.textModulesData['details_code']"],
-        ["object.textModulesData['details_primary']", "object.textModulesData['card_primary']"],
-        ["object.textModulesData['details_primary_description']"],
-        ["object.textModulesData['details_primary_date']"],
-        ["object.textModulesData['details_context']"],
-        ["object.textModulesData['details_secondary']", "object.textModulesData['card_secondary']"],
-        ["object.textModulesData['details_secondary_description']"],
-        ["object.textModulesData['details_secondary_date']"],
-        ["object.textModulesData['details_history']"],
-    ]);
-});
-
 it('localizes credential labels through Laravel without changing their values', function () {
     app()->setLocale('en');
     app('translator')->addLines([
-        'wallet.labels.manual_code' => 'Manual lookup code',
+        'wallet.labels.personal_link' => 'View my promotion and progress',
         'wallet.labels.barcode_alternate' => 'Lookup code: :code',
     ], 'en');
     $this->http->respondWith(walletResponses($this->class, $this->object));
@@ -706,124 +569,10 @@ it('localizes credential labels through Laravel without changing their values', 
         'value' => $this->credentials->validationToken,
     ]);
     expect($object['accountId'])->toBe($this->credentials->manualCode);
-    expect(collect($object['textModulesData'])->firstWhere('id', 'details_code'))->toBe([
-        'body' => $this->credentials->manualCode,
-        'header' => 'Manual lookup code',
-        'id' => 'details_code',
-    ]);
+    expect($object['linksModuleData']['uris'][0]['description'])->toBe('View my promotion and progress');
     expect(app()->getLocale())->toBe('en');
     $this->assertDatabaseCount('customer_passes', 0);
 });
-
-it('keeps business overview and labelled manual digits without inventing progress or active sections', function () {
-    $this->http->respondWith(walletResponses($this->class, $this->object));
-
-    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'POST'
-        && $request->url() === $this->objectUrl);
-    expect($writes)->toHaveCount(1);
-    $object = $writes[0][0]->data();
-    expect($object)->not->toHaveKey('loyaltyPoints');
-    expect(array_column($object['textModulesData'], 'id'))->toBe(['card_primary', 'card_secondary', 'details_code']);
-    expect(collect($object['textModulesData'])->firstWhere('id', 'card_primary'))->toBe([
-        'body' => "¡Qué bueno tenerte por aquí!\nAún no hay promociones anteriores.",
-        'header' => 'NUESTRA ÚLTIMA PROMOCIÓN',
-        'id' => 'card_primary',
-    ]);
-    expect($object['barcode'])->toBe([
-        'alternateText' => 'Código manual: '.$this->credentials->manualCode,
-        'type' => 'QR_CODE',
-        'value' => $this->credentials->validationToken,
-    ]);
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'))->toBeEmpty();
-});
-
-it('patches a barcode-only template difference without changing any object progress', function (string $detail) {
-    $class = $this->class;
-    $class['classTemplateInfo']['cardBarcodeSectionDetails'][$detail]['fieldSelector']['fields'][0]['fieldPath'] = 'object.accountId';
-    $responses = walletResponses($class, $this->object);
-    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
-        GoogleWalletHttpFake::json($class),
-        GoogleWalletHttpFake::json($this->class),
-    ]);
-    $this->http->respondWith($responses);
-
-    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-    expect($patches)->toHaveCount(1);
-    expect($patches[0][0]->url())->toBe($this->classUrl.'/'.$this->classId);
-    expect($patches[0][0]['classTemplateInfo'])->toBe($this->class['classTemplateInfo']);
-    expect($patches[0][0]['reviewStatus'])->toBe('UNDER_REVIEW');
-    expect($patches[0][0]->data()['classTemplateInfo']['cardBarcodeSectionDetails'])
-        ->toHaveKey('firstBottomDetail', null);
-})->with(['firstTopDetail', 'firstBottomDetail']);
-
-it('repairs the current barcode progress reference without resetting existing nonzero object progress', function (string $layout) {
-    $class = $this->class;
-    $fields = &$class['classTemplateInfo']['cardBarcodeSectionDetails']['firstTopDetail']['fieldSelector']['fields'];
-    $fields = match ($layout) {
-        'missing reference' => [],
-        'wrong reference' => [['fieldPath' => 'object.accountId']],
-        'extra reference' => [...$fields, ['fieldPath' => 'object.accountId']],
-    };
-    unset($fields);
-
-    $object = $this->object;
-    $object['textModulesData'] = [
-        ['id' => 'barcode_top', 'body' => '5 / 7 puntos'],
-    ];
-    $responses = walletResponses($class, $object);
-    $responses[$this->objectUrl] = GoogleWalletHttpFake::json([], 409);
-    $responses[$this->objectUrl.'/'.$this->objectId] = GoogleWalletHttpFake::json($object);
-    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
-        GoogleWalletHttpFake::json($class),
-        GoogleWalletHttpFake::json($this->class),
-    ]);
-    $this->http->respondWith($responses);
-
-    $result = app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    expect($result['object_id'])->toBe($this->objectId);
-    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-    expect($patches)->toHaveCount(1);
-    expect($patches[0][0]->url())->toBe($this->classUrl.'/'.$this->classId);
-    expect($patches[0][0]['classTemplateInfo'])->toBe($this->class['classTemplateInfo']);
-    expect($patches[0][0]['reviewStatus'])->toBe('UNDER_REVIEW');
-    expect($patches[0][0]->data())
-        ->not->toHaveKey('loyaltyPoints')
-        ->not->toHaveKey('textModulesData');
-    $barcode = $patches[0][0]['classTemplateInfo']['cardBarcodeSectionDetails'];
-    expect($barcode['firstTopDetail']['fieldSelector']['fields'])
-        ->toBe([
-            ['fieldPath' => "object.textModulesData['barcode_top'].body"],
-        ]);
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'GET'
-        && $request->url() === $this->objectUrl.'/'.$this->objectId))->toHaveCount(1);
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'POST'
-        && $request->url() === $this->objectUrl))->toHaveCount(1);
-})->with(['missing reference', 'wrong reference', 'extra reference']);
-
-it('repairs an unexpected trailing barcode reference without updating objects', function (string $detail) {
-    $class = $this->class;
-    $class['classTemplateInfo']['cardBarcodeSectionDetails'][$detail]['fieldSelector']['fields'][]
-        = ['fieldPath' => 'object.accountId'];
-    $responses = walletResponses($class, $this->object);
-    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
-        GoogleWalletHttpFake::json($class),
-        GoogleWalletHttpFake::json($this->class),
-    ]);
-    $this->http->respondWith($responses);
-
-    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-    expect($patches)->toHaveCount(1);
-    expect($patches[0][0]->url())->toBe($this->classUrl.'/'.$this->classId);
-    expect($patches[0][0]['classTemplateInfo'])->toBe($this->class['classTemplateInfo']);
-    expect($patches[0][0]['reviewStatus'])->toBe('UNDER_REVIEW');
-})->with(['firstTopDetail', 'firstBottomDetail']);
 
 it('reuses a business class for different private objects and isolates another business', function () {
     $seenClasses = [];
@@ -1261,15 +1010,19 @@ it('sanitizes unusable service-account JSON before HTTP', function (string $case
     'empty key',
 ]);
 
-it('accepts only exact loopback app origins locally with an independent public logo', function (string $origin, string $expected) {
+it('accepts only exact loopback app origins locally with an independent public logo', function (string $applicationUrl, string $expectedOrigin) {
     app()->instance('env', 'local');
     config([
-        'app.url' => $origin,
+        'app.url' => $applicationUrl,
         'services.google_wallet.logo_url' => 'https://assets.example.test/platform.png',
     ]);
     $class = $this->class;
     $class['programLogo']['sourceUri']['uri'] = 'https://assets.example.test/platform.png';
     $this->http->respondWith(walletResponses($class, $this->object));
+    $sharedUrlBefore = URL::route('public.pass', [
+        'businessPublicId' => $this->business->public_id,
+        'passPublicId' => $this->credentials->publicPassId,
+    ]);
 
     $result = app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
 
@@ -1277,7 +1030,18 @@ it('accepts only exact loopback app origins locally with an independent public l
         substr($result['save_url'], strlen('https://pay.google.com/gp/v/save/')),
         $this->key,
     );
-    expect($claims['origins'])->toBe([$expected]);
+    expect($claims['origins'])->toBe([$expectedOrigin]);
+    $objectPayload = $this->http->requests(fn (Request $providerRequest) => $providerRequest->method() === 'POST'
+        && $providerRequest->url() === $this->objectUrl)->sole()[0]->data();
+    $personalLinkUrl = $objectPayload['linksModuleData']['uris'][0]['uri'];
+    $signedRequest = Illuminate\Http\Request::create($personalLinkUrl);
+    expect($signedRequest->getSchemeAndHttpHost())->toBe($expectedOrigin);
+    expect($personalLinkUrl)->toStartWith($expectedOrigin.'/personal/');
+    expect(URL::hasValidSignature($signedRequest, absolute: false))->toBeTrue();
+    expect(URL::route('public.pass', [
+        'businessPublicId' => $this->business->public_id,
+        'passPublicId' => $this->credentials->publicPassId,
+    ]))->toBe($sharedUrlBefore);
     expect($this->http->requests())->toHaveCount(3);
 })->with([
     ['http://localhost', 'http://localhost'],
@@ -1356,6 +1120,13 @@ it('preserves nondefault HTTPS production ports and the public logo fallback', f
         $this->key,
     );
     expect($claims['origins'])->toBe(['https://passes.example.test:8443']);
+    $objectPayload = $this->http->requests(fn (Request $providerRequest) => $providerRequest->method() === 'POST'
+        && $providerRequest->url() === $this->objectUrl)->sole()[0]->data();
+    $personalLinkUrl = $objectPayload['linksModuleData']['uris'][0]['uri'];
+    $signedRequest = Illuminate\Http\Request::create($personalLinkUrl);
+    expect($signedRequest->getSchemeAndHttpHost())->toBe('https://passes.example.test:8443');
+    expect($personalLinkUrl)->toStartWith('https://passes.example.test:8443/personal/');
+    expect(URL::hasValidSignature($signedRequest, absolute: false))->toBeTrue();
 });
 
 it('rejects malformed OAuth responses before any Wallet request', function (array $body) {
@@ -1761,14 +1532,6 @@ it('accepts owned appearance with documented image metadata and neutral template
         'defaultValue' => ['value' => 'Metadata'],
     ];
 
-    // Google may enrich the owned appearance with neutral response metadata
-    foreach ($class['classTemplateInfo']['cardTemplateOverride']['cardRowTemplateInfos'] as &$row) {
-        $row['oneItem']['item']['predefinedItem'] = 'PREDEFINED_ITEM_UNSPECIFIED';
-        $row['oneItem']['item']['secondValue'] = ['fields' => []];
-        $row['oneItem']['item']['firstValue']['fields'][0]['dateFormat'] = 'DATE_FORMAT_UNSPECIFIED';
-    }
-    unset($row);
-
     $responses = walletResponses($class, $this->object);
 
     if ($patch) {
@@ -1821,107 +1584,6 @@ it('submits owned appearance without requiring a complete visual echo in the PAT
         'reviewStatus' => 'UNDER_REVIEW',
     ]);
     expect($this->http->requests())->toHaveCount(4);
-});
-
-it('repairs missing or changed primary layout references with one owned PATCH', function (string $change) {
-    $class = $this->class;
-    $rows = &$class['classTemplateInfo']['cardTemplateOverride']['cardRowTemplateInfos'];
-
-    match ($change) {
-        'row order' => $rows = array_reverse($rows),
-        'missing row' => array_pop($rows),
-        'extra row' => $rows[] = $rows[0],
-        'missing reference' => $rows[0]['oneItem']['item']['firstValue']['fields'] = [],
-        'different reference' => $rows[0]['oneItem']['item']['firstValue']['fields'][0]['fieldPath'] = 'other-field',
-    };
-    unset($rows);
-
-    $responses = walletResponses($class, $this->object);
-    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
-        GoogleWalletHttpFake::json($class),
-        GoogleWalletHttpFake::json($this->class),
-    ]);
-    $this->http->respondWith($responses);
-
-    $result = app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    expect($result['object_id'])->toBe($this->objectId);
-    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-    expect($patches)->toHaveCount(1);
-    expect($patches[0][0]['classTemplateInfo'])->toBe($this->class['classTemplateInfo']);
-    expect($this->http->requests())->toHaveCount(4);
-})->with([
-    'row order',
-    'missing row',
-    'extra row',
-    'missing reference',
-    'different reference',
-]);
-
-it('repairs changed full-detail selectors without exposing the compact summary twice', function (string $change) {
-    $class = $this->class;
-    $details = &$class['classTemplateInfo']['detailsTemplateOverride']['detailsItemInfos'];
-
-    match ($change) {
-        'order' => $details = array_reverse($details),
-        'missing item' => array_pop($details),
-        'summary reference' => $details[2]['item']['firstValue']['fields'][0]['fieldPath'] = "object.textModulesData['card_primary']",
-        'state priority' => $details[2]['item']['firstValue']['fields'] = array_reverse($details[2]['item']['firstValue']['fields']),
-        'extra reference' => $details[2]['item']['firstValue']['fields'][] = ['fieldPath' => 'object.accountId'],
-    };
-    unset($details);
-
-    $responses = walletResponses($class, $this->object);
-    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
-        GoogleWalletHttpFake::json($class),
-        GoogleWalletHttpFake::json($this->class),
-    ]);
-    $this->http->respondWith($responses);
-
-    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-    expect($patches)->toHaveCount(1);
-    expect($patches[0][0]->url())->toBe($this->classUrl.'/'.$this->classId);
-    expect($patches[0][0]['classTemplateInfo'])->toBe($this->class['classTemplateInfo']);
-})->with(['order', 'missing item', 'summary reference', 'state priority', 'extra reference']);
-
-it('repairs reversed swipe-up detail order while preserving current object content and credentials', function () {
-    $class = $this->class;
-    $class['classTemplateInfo']['detailsTemplateOverride']['detailsItemInfos'] = array_reverse(
-        $class['classTemplateInfo']['detailsTemplateOverride']['detailsItemInfos'],
-    );
-    $object = [
-        ...$this->object,
-        'textModulesData' => [
-            ['id' => 'barcode_top', 'body' => '5 / 7 puntos'],
-            ['id' => 'details_primary', 'header' => 'TU PRÓXIMA RECOMPENSA', 'body' => "Una hogaza artesanal\nPan integral de masa madre."],
-        ],
-    ];
-    $responses = walletResponses($class, $object);
-    $responses[$this->classUrl.'/'.$this->classId] = new MockHandler([
-        GoogleWalletHttpFake::json($class),
-        GoogleWalletHttpFake::json($this->class),
-    ]);
-    $responses[$this->objectUrl] = GoogleWalletHttpFake::json([], 409);
-    $responses[$this->objectUrl.'/'.$this->objectId] = GoogleWalletHttpFake::json($object);
-    $this->http->respondWith($responses);
-
-    $result = app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
-
-    expect($result['object_id'])->toBe($this->objectId);
-    expect($result['confirmed_by_readback'])->toBeTrue();
-    $patches = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-    expect($patches)->toHaveCount(1);
-    expect($patches[0][0]->url())->toBe($this->classUrl.'/'.$this->classId);
-    expect($patches[0][0]['classTemplateInfo'])->toBe($this->class['classTemplateInfo']);
-    expect($patches[0][0]->data())->not->toHaveKeys(['loyaltyPoints', 'textModulesData', 'barcode', 'accountId']);
-    expect($this->http->requests(fn (Request $request) => in_array($request->method(), ['PATCH', 'PUT'], true)
-        && str_contains($request->url(), '/loyaltyObject/')))->toBeEmpty();
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'POST'
-        && $request->url() === $this->objectUrl))->toHaveCount(1);
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'GET'
-        && $request->url() === $this->objectUrl.'/'.$this->objectId))->toHaveCount(1);
 });
 
 it('applies bounded TLS transport settings to official OAuth and Wallet requests', function () {
@@ -2255,3 +1917,43 @@ it('classifies native status failures through the creation boundary without chan
         yield 'confirmation-'.$status => ['object', 'GET', $status, CustomerPassCreationFailure::ConfirmationUnavailable, FailureOutcome::Unknown];
     }
 });
+
+it('issues only permanent identification and a native signed private consultation link before local persistence', function () {
+    $this->http->respondWith(walletResponses($this->class, $this->object));
+
+    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
+
+    $objectPayload = $this->http->requests(fn (Request $providerRequest) => $providerRequest->method() === 'POST'
+        && $providerRequest->url() === $this->objectUrl)->sole()[0]->data();
+    expect($objectPayload)->not->toHaveKeys(['textModulesData', 'loyaltyPoints']);
+    $personalLink = $objectPayload['linksModuleData']['uris'][0];
+    expect($personalLink['description'])->toBe('Quiero ver el detalle de mi tarjeta');
+    $signedRequest = Illuminate\Http\Request::create($personalLink['uri']);
+    expect(URL::hasValidSignature($signedRequest, absolute: false))->toBeTrue();
+    expect($personalLink['uri'])->toStartWith('https://passes.example.test/personal/');
+    expect($personalLink['uri'])->toContain('/personal/'.$this->business->public_id.'/'.$this->credentials->publicPassId)
+        ->not->toContain($this->credentials->validationToken, $this->credentials->manualCode);
+    $this->assertDatabaseCount('customer_passes', 0);
+});
+
+it('clears retired variable Class slots while keeping permanent identity and unrelated provider fields', function (string $slot) {
+    $classPayload = $this->class;
+    if ($slot === 'barcode') {
+        $classPayload['classTemplateInfo']['cardBarcodeSectionDetails']['firstTopDetail'] = ['fieldSelector' => ['fields' => [['fieldPath' => "object.textModulesData['barcode_top']"]]]];
+    } elseif ($slot === 'card') {
+        $classPayload['classTemplateInfo']['cardTemplateOverride'] = ['cardRowTemplateInfos' => [['oneItem' => ['item' => ['firstValue' => ['fields' => [['fieldPath' => "object.textModulesData['card_primary']"]]]]]]]];
+    } else {
+        $classPayload['classTemplateInfo']['detailsTemplateOverride'] = ['detailsItemInfos' => [['item' => ['firstValue' => ['fields' => [['fieldPath' => "object.textModulesData['details_history']"]]]]]]];
+    }
+    $classPayload['classTemplateInfo']['futureTemplate'] = ['keep' => true];
+    $providerResponses = walletResponses($classPayload, $this->object);
+    $providerResponses[$this->classUrl.'/'.$this->classId] = new MockHandler([GoogleWalletHttpFake::json($classPayload), GoogleWalletHttpFake::json($this->class)]);
+    $this->http->respondWith($providerResponses);
+
+    app(GoogleWalletPassCreator::class)->create($this->business, $this->credentials);
+
+    $classPatch = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH')->sole()[0];
+    expect($classPatch['classTemplateInfo'])->toEqual([...$this->class['classTemplateInfo'], 'futureTemplate' => ['keep' => true]]);
+    expect($classPatch->url())->toBe($this->classUrl.'/'.$this->classId);
+    expect($classPatch->data())->not->toHaveKeys(['barcode', 'accountId', 'textModulesData']);
+})->with(['card', 'details', 'barcode']);

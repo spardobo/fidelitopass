@@ -9,10 +9,8 @@ use App\Enums\PassCreationStage;
 use App\Exceptions\CustomerPassCreationException;
 use App\Models\Business;
 use App\Support\CustomerPassCredentials;
-use App\Support\WalletPresentationBuilder;
-use Carbon\Exceptions\InvalidFormatException;
-use Carbon\Exceptions\InvalidTimeZoneException;
 use Firebase\JWT\JWT;
+use Google\Model;
 use Google\Model as GoogleModel;
 use Google\Service\Exception as GoogleServiceException;
 use Google\Service\Walletobjects;
@@ -20,9 +18,7 @@ use Google\Service\Walletobjects\ClassTemplateInfo;
 use Google\Service\Walletobjects\ListTemplateOverride;
 use Google\Service\Walletobjects\LoyaltyClass;
 use Google\Service\Walletobjects\LoyaltyObject;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
-use PDOException;
 use ReflectionMethod;
 use SensitiveParameter;
 use Throwable;
@@ -30,8 +26,8 @@ use Throwable;
 /**
  * Owns Google payloads, authentication and confirmation; never writes local pass records.
  *
- * WalletPresentationBuilder selects content; buildObject() adds each pass's credentials.
- * buildClass() defines the shared Business layout by referencing that Object's module IDs.
+ * buildObject() maps permanent credentials and a private informational link.
+ * buildClass() defines shared Business identity without variable commercial content.
  * create() confirms the provider Object; the calling Action owns local commit and URL release.
  *
  * @phpstan-import-type WalletConfiguration from GoogleWalletConfiguration
@@ -41,12 +37,10 @@ class GoogleWalletPassCreator
     /**
      * Receives content, configuration and the shared Google SDK client.
      *
-     * @param  WalletPresentationBuilder  $presentation  Builds initial content through the shared scenario selection.
      * @param  GoogleWalletConfiguration  $configuration  Loads fresh operation settings and credentials.
      * @param  GoogleWalletClient  $client  Authenticates fresh SDK resources for this operation.
      */
     public function __construct(
-        private WalletPresentationBuilder $presentation,
         private GoogleWalletConfiguration $configuration,
         #[SensitiveParameter] private GoogleWalletClient $client,
     ) {}
@@ -88,7 +82,7 @@ class GoogleWalletPassCreator
         $objectId = $settings['issuer_id'].'.pass_'.$credentials->publicPassId;
         $saveUrl = $this->signSaveUrl($settings, $classId, $objectId);
         $class = $this->buildClass($business, $classId, $settings['logo_url']);
-        $object = $this->buildObject($business, $credentials, $classId, $objectId);
+        $object = $this->buildObject($business, $credentials, $classId, $objectId, $settings['origin']);
 
         // authenticate, reconcile the business class, and confirm exactly one object
         $wallet = $this->client->authenticate($settings);
@@ -150,10 +144,9 @@ class GoogleWalletPassCreator
     }
 
     /**
-     * Maps Business appearance and ordered Object roles to the shared Class template.
+     * Maps Business appearance and permanent identity to the shared Class template.
      *
-     * Each card role occupies one centered row. Each detail position selects its first available
-     * role; barcode progress reads only the body. Google owns final geometry and truncation.
+     * Clears retired variable presentation slots. Google owns final geometry and truncation.
      *
      * @param  Business  $business  Source of customer-visible issuer identity and background color.
      * @param  string  $classId  Deterministic provider Class ID.
@@ -162,50 +155,6 @@ class GoogleWalletPassCreator
      */
     private function buildClass(Business $business, string $classId, string $logoUrl): LoyaltyClass
     {
-        // build the two compact rows in their reading order
-        $rows = [];
-
-        foreach (['card_primary', 'card_secondary'] as $id) {
-            $rows[] = [
-                'oneItem' => [
-                    'item' => [
-                        'firstValue' => [
-                            'fields' => [['fieldPath' => "object.textModulesData['{$id}']"]],
-                        ],
-                    ],
-                ],
-            ];
-        }
-
-        // list detail positions explicitly; alternatives share one position
-        $detailRoles = [
-            ['barcode_top'],
-            ['details_code'],
-            ['details_primary', 'card_primary'],
-            ['details_primary_description'],
-            ['details_primary_date'],
-            ['details_context'],
-            ['details_secondary', 'card_secondary'],
-            ['details_secondary_description'],
-            ['details_secondary_date'],
-            ['details_history'],
-        ];
-        $details = [];
-
-        foreach ($detailRoles as $roles) {
-            $fields = [];
-
-            foreach ($roles as $id) {
-                $fields[] = ['fieldPath' => "object.textModulesData['{$id}']"];
-            }
-
-            $details[] = [
-                'item' => [
-                    'firstValue' => ['fields' => $fields],
-                ],
-            ];
-        }
-
         // apply owned appearance without moving credentials into the Class
         $class = new LoyaltyClass([
             'id' => $classId,
@@ -216,17 +165,9 @@ class GoogleWalletPassCreator
             ],
             'hexBackgroundColor' => strtoupper($business->pass_background_color),
             'classTemplateInfo' => [
-                'cardTemplateOverride' => ['cardRowTemplateInfos' => $rows],
-                'cardBarcodeSectionDetails' => [
-                    'firstTopDetail' => [
-                        'fieldSelector' => [
-                            'fields' => [
-                                ['fieldPath' => "object.textModulesData['barcode_top'].body"],
-                            ],
-                        ],
-                    ],
-                ],
-                'detailsTemplateOverride' => ['detailsItemInfos' => $details],
+                'cardTemplateOverride' => Model::NULL_VALUE,
+                'detailsTemplateOverride' => Model::NULL_VALUE,
+                'cardBarcodeSectionDetails' => ['firstTopDetail' => Model::NULL_VALUE, 'firstBottomDetail' => Model::NULL_VALUE],
                 'listTemplateOverride' => [
                     'firstRowOption' => [
                         'fieldOption' => [
@@ -244,8 +185,9 @@ class GoogleWalletPassCreator
             ],
         ]);
 
-        // clear an old bottom field explicitly without removing the labelled manual code
-        $class->getClassTemplateInfo()->getCardBarcodeSectionDetails()['firstBottomDetail'] = GoogleModel::NULL_VALUE;
+        $barcodeDetails = $class->getClassTemplateInfo()->getCardBarcodeSectionDetails();
+        $barcodeDetails['firstTopDetail'] = GoogleModel::NULL_VALUE;
+        $barcodeDetails['firstBottomDetail'] = GoogleModel::NULL_VALUE;
 
         return $class;
     }
@@ -253,31 +195,28 @@ class GoogleWalletPassCreator
     /**
      * Builds initial content and private credentials without updating an existing Object.
      *
-     * The content builder receives an unsaved pass, so progress starts at zero and personal history is absent.
+     * The prepared UUID scopes the signed informational link before local persistence.
      * The Class selects the display order. Object state ACTIVE does not imply an active Promotion.
      *
      * @param  Business  $business  Promotion owner.
      * @param  CustomerPassCredentials  $credentials  Private barcode and separate manual code.
      * @param  string  $classId  Owning Google class.
      * @param  string  $objectId  Individual Google object.
+     * @param  string  $applicationOrigin  Validated deployment origin, including permitted local loopback schemes.
      * @return LoyaltyObject Initial Wallet presentation.
-     *
-     * @throws \IntlException If ICU cannot format a presentation date.
-     * @throws \InvalidArgumentException If the progress translation is not a string.
-     * @throws QueryException If the initial presentation database read fails.
-     * @throws PDOException If the database driver fails.
-     * @throws InvalidFormatException If a stored promotion timestamp cannot be parsed.
-     * @throws InvalidTimeZoneException If a stored promotion timezone cannot be used.
      */
     private function buildObject(
         Business $business,
         #[SensitiveParameter] CustomerPassCredentials $credentials,
         string $classId,
         string $objectId,
+        string $applicationOrigin,
     ): LoyaltyObject {
-        // map initial content without creating visits or participation
-        $pass = $business->customerPasses()->make(['manual_code' => $credentials->manualCode]);
-        $modules = $this->presentation->build($business, $pass);
+        // sign the complete scoped path and query; the validated origin remains deployment-owned
+        $personalPagePath = app('url')->signedRoute('public.pass', [
+            'businessPublicId' => $business->public_id,
+            'passPublicId' => $credentials->publicPassId,
+        ], absolute: false);
 
         // attach private credentials only at the provider boundary
         return new LoyaltyObject([
@@ -290,7 +229,11 @@ class GoogleWalletPassCreator
                 'alternateText' => __('wallet.labels.barcode_alternate', ['code' => $credentials->manualCode]),
             ],
             'accountId' => $credentials->manualCode,
-            'textModulesData' => $modules,
+            'linksModuleData' => ['uris' => [[
+                'id' => 'personal_information',
+                'uri' => $applicationOrigin.$personalPagePath,
+                'description' => __('wallet.labels.personal_link'),
+            ]]],
         ]);
     }
 
@@ -416,8 +359,8 @@ class GoogleWalletPassCreator
         $list->setFirstRowOption($ownedTemplate->getListTemplateOverride()->getFirstRowOption());
         $list->setSecondRowOption($ownedTemplate->getListTemplateOverride()->getSecondRowOption());
         $template->setListTemplateOverride($list);
-        $template->setCardTemplateOverride($ownedTemplate->getCardTemplateOverride());
-        $template->setDetailsTemplateOverride($ownedTemplate->getDetailsTemplateOverride());
+        $template['cardTemplateOverride'] = GoogleModel::NULL_VALUE;
+        $template['detailsTemplateOverride'] = GoogleModel::NULL_VALUE;
         $template->setCardBarcodeSectionDetails($ownedTemplate->getCardBarcodeSectionDetails());
         $update->setClassTemplateInfo($template);
 

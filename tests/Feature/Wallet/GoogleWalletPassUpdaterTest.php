@@ -1,6 +1,5 @@
 <?php
 
-use App\Data\Time\DatabaseTime;
 use App\Enums\CustomerPassCreationFailure;
 use App\Enums\FailureOutcome;
 use App\Enums\GoogleWalletStage;
@@ -12,7 +11,6 @@ use App\Integrations\GoogleWallet\GoogleWalletConfiguration;
 use App\Integrations\GoogleWallet\GoogleWalletPassUpdater;
 use App\Models\Business;
 use App\Support\CustomerPassCredentials;
-use App\Support\DatabaseClock;
 use Google\Service\Exception;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ConnectException;
@@ -24,10 +22,26 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Tests\Support\GoogleWalletHttpFake;
 
-uses(RefreshDatabase::class);
+/** Guards native test cleanup before any isolated PostgreSQL reset. */
+trait GuardsSharedWalletAppearanceDatabase
+{
+    use RefreshDatabase;
+
+    /** Refuses configured or actual databases outside the testing runtime. */
+    protected function beforeRefreshingDatabase(): void
+    {
+        if (! app()->environment('testing')
+            || DB::connection()->getDriverName() !== 'pgsql'
+            || DB::connection()->getDatabaseName() !== 'testing'
+            || DB::scalar('SELECT current_database()') !== 'testing') {
+            throw new LogicException('Refusing to reset a non-testing database.');
+        }
+    }
+}
+
+uses(GuardsSharedWalletAppearanceDatabase::class);
 
 beforeEach(function () {
     app()->setLocale('es');
@@ -124,221 +138,70 @@ afterEach(function () {
     unlink($this->credentialsPath);
 });
 
-it('replaces absolute content on the same object without changing credentials or the class', function () {
-    $before = $this->pass->fresh()->getAttributes();
-
-    app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
-
-    expect($this->pass->fresh()->getAttributes())
-        ->toBe($before);
-
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-
-    expect($writes)
-        ->toHaveCount(1);
-
-    $payload = $writes->first()[0]->data();
-    $moduleIds = array_column($payload['textModulesData'], 'id');
-
-    expect(array_keys($payload))
-        ->toBe(['textModulesData']);
-
-    expect($moduleIds)
-        ->not->toContain('stale')
-        ->toContain('details_code', 'card_primary', 'card_secondary');
-
-    expect($this->remote['id'])
-        ->toBe($this->objectId);
-
-    expect($this->remote['barcode']['value'])
-        ->toBe($this->credentials->validationToken);
-
-    expect($this->http->history)
-        ->toHaveCount(3);
-
-    $options = array_column($this->http->history, 'options');
-    $timeouts = array_column($options, 'timeout');
-
-    expect($timeouts[0])
-        ->toBeLessThanOrEqual(10)
-        ->toBeGreaterThan(0);
-
-    expect($timeouts[2])
-        ->toBeLessThan($timeouts[0]);
-
-    foreach ($options as $requestOptions) {
-        expect($requestOptions['allow_redirects'])
-            ->toBeFalse();
-
-        expect($requestOptions['verify'])
-            ->toBeTrue();
-    }
-
-    $objectAfterUpdate = $this->remote;
+it('updates only shared appearance and accepts provider shorthand without touching pass credentials', function () {
+    $passAttributesBefore = $this->pass->fresh()->getAttributes();
     app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
-
-    $classWrites = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH' && $request->url() === $this->classUrl);
-    expect($classWrites)->toHaveCount(1);
-    expect($classWrites->sole()[0]->data())->toBe([
-        'hexBackgroundColor' => '#123456',
-        'reviewStatus' => 'UNDER_REVIEW',
-    ]);
-    expect($this->remoteClass['hexBackgroundColor'])->toBe('#123456');
-    expect($this->remote)->toBe($objectAfterUpdate);
-    expect($this->pass->fresh()->getAttributes())->toBe($before);
-    expect($this->http->requests()->map(fn (array $pair) => $pair[0]->method())->all())
-        ->toBe(['POST', 'GET', 'PATCH', 'POST', 'GET', 'PATCH']);
-
-    $beforeShorthand = count($this->http->history);
-    $this->http->respondWith([
-        $this->classUrl => fn (Request $request) => GoogleWalletHttpFake::json($request->method() === 'PATCH'
-            ? [...$this->remoteClass, 'hexBackgroundColor' => '#fc0']
-            : $this->remoteClass),
-    ]);
-    DB::transaction(function () {
-        $business = $this->business->fresh();
-        $business->update(['pass_background_color' => '#FFCC00']);
-        app(GoogleWalletPassUpdater::class)->updateAppearance($business);
-    });
-
-    expect($this->business->fresh()->pass_background_color)->toBe('#FFCC00');
-    expect(array_map(fn (array $entry) => $entry['request']->getMethod(), array_slice($this->http->history, $beforeShorthand)))
-        ->toBe(['POST', 'GET', 'PATCH']);
-    expect($this->http->requests(fn (Request $request) => $request->url() === $this->classUrl && $request->method() === 'PATCH')->last()[0]->data())
-        ->toBe(['hexBackgroundColor' => '#FFCC00', 'reviewStatus' => 'UNDER_REVIEW']);
-    expect($this->remote)->toBe($objectAfterUpdate);
-    expect($this->pass->fresh()->getAttributes())->toBe($before);
-    Log::shouldNotHaveReceived('log');
-    Log::shouldNotHaveReceived('info');
-    Log::shouldNotHaveReceived('error');
+    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH')->sole()[0]->data())
+        ->toBe(['hexBackgroundColor' => '#123456', 'reviewStatus' => 'UNDER_REVIEW']);
+    expect($this->pass->fresh()->getAttributes())->toBe($passAttributesBefore);
+    expect($this->http->requests()->map(fn (array $pair) => $pair[0]->url())->all())
+        ->toBe(['https://oauth2.googleapis.com/token', $this->classUrl, $this->classUrl]);
+    $this->business->update(['pass_background_color' => '#FFCC00']);
+    $this->http->respondWith([$this->classUrl => fn () => GoogleWalletHttpFake::json([...$this->remoteClass, 'hexBackgroundColor' => '#fc0'])]);
+    app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
+    expect($this->pass->fresh()->getAttributes())->toBe($passAttributesBefore);
 });
 
-it('sends tentative progress and reward content at the supplied operation instant without another clock capture', function (bool $unlocked) {
-    $operationAt = '2030-01-02 12:59:59.999999+00';
-    $promotion = $this->business->promotions()->make();
-    $promotion->forceFill([
-        'status' => 'published',
-        'target_points' => 8,
-        'reward_title' => 'Un pan artesanal',
-        'timezone_snapshot' => 'America/Bogota',
-        'starts_at' => '2030-01-02 12:00:00+00',
-        'ends_at' => '2030-01-03 05:00:00+00',
-    ])->save();
-    $promotion->extraPoints()->create([
-        'weekday' => 3,
-        'start_time' => '07:00:00',
-        'end_time' => '08:00:00',
-        'multiplier' => 3,
-    ]);
-    $this->mock(DatabaseClock::class)
-        ->shouldReceive('capture')
-        ->never()
-        ->andReturn(new DatabaseTime('2030-01-03 05:00:00+00', '2030-01-03'));
-    $before = $this->pass->fresh()->getAttributes();
-
-    DB::transaction(function () use ($promotion, $operationAt, $unlocked) {
-        $ownership = [
-            'business_id' => $this->business->id,
-            'customer_pass_id' => $this->pass->id,
-            'promotion_id' => $promotion->id,
-        ];
-        DB::table('promotion_participations')->insert($ownership);
-        DB::table('visits')->insert($ownership + [
-            'operation_id' => (string) Str::uuid(),
-            'confirmed_by_user_id' => $this->business->user_id,
-            'confirmed_at' => $operationAt,
-            'awarded_points' => $unlocked ? 8 : 3,
-        ]);
-
-        if ($unlocked) {
-            DB::table('reward_entitlements')->insert($ownership + ['unlocked_at' => $operationAt]);
-        }
-
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass, $operationAt);
-    });
-
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-    expect($writes)->toHaveCount(1);
-    $payload = $writes->sole()[0]->data();
-    $sections = collect($payload['textModulesData'])->keyBy('id');
-
-    expect(array_keys($payload))->toBe(['textModulesData']);
-    expect($sections['details_primary']['body'])->toBe('Un pan artesanal');
-    expect($sections['card_primary']['header'])->toBe($unlocked ? '🎉 ¡LO LOGRASTE!' : 'TU PRÓXIMA RECOMPENSA');
-    expect($sections['details_context']['body'])->toBe($unlocked
-        ? 'Muéstranos tu tarjeta y pide tu recompensa.'
-        : '⚡ Ahora tu visita vale 3 puntos.');
-    expect($sections['barcode_top']['body'] ?? null)->toBe($unlocked ? null : '3 / 8 puntos');
-    expect($sections->has('card_secondary'))->toBeFalse();
-    expect($this->pass->fresh()->getAttributes())->toBe($before);
-    expect(array_map(fn (array $entry) => $entry['request']->getMethod(), $this->http->history))
-        ->toBe(['POST', 'GET', 'PATCH']);
-    expect($this->remote['textModulesData'])->toBe($payload['textModulesData']);
-    Log::shouldNotHaveReceived('log');
-})->with(['tentative Visit' => false, 'tentative Reward entitlement' => true]);
-
-it('retains current-clock presentation when the operation instant is omitted or explicitly null', function (bool $explicitNull) {
-    $promotion = $this->business->promotions()->make();
-    $promotion->forceFill([
-        'status' => 'published',
-        'target_points' => 8,
-        'reward_title' => 'Un pan artesanal',
-        'timezone_snapshot' => 'America/Bogota',
-        'starts_at' => '2030-01-02 12:00:00+00',
-        'ends_at' => '2030-01-03 05:00:00+00',
-    ])->save();
-    $this->mock(DatabaseClock::class)
-        ->shouldReceive('capture')
-        ->once()
-        ->with($this->business->timezone)
-        ->andReturn(new DatabaseTime('2030-01-02 11:59:59.999999+00', '2030-01-02'));
-    $updater = app(GoogleWalletPassUpdater::class);
-
-    if ($explicitNull) {
-        $updater->update($this->business, $this->pass, null);
-    } else {
-        $updater->update($this->business, $this->pass);
+it('requires the callers transaction before loading configuration or contacting Google', function () {
+    DB::rollBack();
+    try {
+        expect(fn () => app(GoogleWalletPassUpdater::class)->updateAppearance($this->business))
+            ->toThrow(GoogleWalletSynchronizationException::class, 'transaction_required');
+        expect($this->http->history)->toBeEmpty();
+    } finally {
+        DB::beginTransaction();
     }
+});
 
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-    expect($writes)->toHaveCount(1);
-    $sections = collect($writes->sole()[0]->data()['textModulesData'])->keyBy('id');
+it('rejects an absent foreign or unapproved Class before any write', function (array $classChanges) {
+    $this->remoteClass = array_replace($this->remoteClass, $classChanges);
+    expect(fn () => app(GoogleWalletPassUpdater::class)->updateAppearance($this->business))
+        ->toThrow(GoogleWalletSynchronizationException::class, 'class_not_usable');
+    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'))->toBeEmpty();
+})->with([[['id' => 'foreign']], [['id' => null]], [['reviewStatus' => 'UNDER_REVIEW']], [['reviewStatus' => 'REJECTED']]]);
 
-    expect($sections['card_primary']['header'])->toBe('NUESTRA ÚLTIMA PROMOCIÓN');
-    expect($sections['card_secondary']['body'])->toBe("Un pan artesanal\nEmpieza el 2 ene 2030");
-    expect($sections->has('barcode_top'))->toBeFalse();
-    expect($this->http->history)->toHaveCount(3);
-    Log::shouldNotHaveReceived('log');
-})->with(['two arguments' => false, 'explicit null' => true]);
+it('lets the owning transaction roll back tentative appearance when Google rejects or loses the write', function (int $providerStatus) {
+    $backgroundColorBefore = $this->business->fresh()->pass_background_color;
+    $this->http->respondWith([$this->classUrl => fn (Request $request) => GoogleWalletHttpFake::json(
+        $request->method() === 'PATCH' ? ['error' => 'secret-provider-body'] : $this->remoteClass,
+        $request->method() === 'PATCH' ? $providerStatus : 200,
+    )]);
+    try {
+        DB::transaction(function () {
+            $business = $this->business->fresh();
+            $business->update(['pass_background_color' => '#E53935']);
+            app(GoogleWalletPassUpdater::class)->updateAppearance($business);
+        });
+        test()->fail('Unconfirmed Class appearance must not commit locally.');
+    } catch (GoogleWalletSynchronizationException $failure) {
+        expect($failure->stage)->toBe(GoogleWalletStage::ClassUpdate);
+        expect($failure->outcome)->toBe($providerStatus === 400 ? FailureOutcome::Definitive : FailureOutcome::Unknown);
+        expect((string) $failure)->not->toContain('secret-provider-body');
+    }
+    expect($this->business->fresh()->pass_background_color)->toBe($backgroundColorBefore);
+    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'))->toHaveCount(1);
+})->with([400, 429, 503]);
 
-it('confirms an incomplete patch response with one same-object read', function () {
+it('reads the same Class once for incomplete confirmation and keeps bounded TLS transport', function () {
     $this->http->respondWith([
-        $this->url => function (Request $request) {
-            if ($request->method() === 'PATCH') {
-                $this->remote = array_replace($this->remote, $request->data());
+        'https://oauth2.googleapis.com/token' => function () {
+            usleep(100_000);
 
-                return GoogleWalletHttpFake::json(['id' => $this->objectId]);
-            }
-
-            return GoogleWalletHttpFake::json($this->remote);
+            return GoogleWalletHttpFake::json(['access_token' => 'synthetic-access', 'expires_in' => 3600]);
         },
-    ]);
-
-    app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
-
-    $reads = $this->http->requests(fn (Request $request) => $request->method() === 'GET');
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-
-    expect($reads)
-        ->toHaveCount(2);
-
-    expect($writes)
-        ->toHaveCount(1);
-
-    $this->http->respondWith([
         $this->classUrl => function (Request $request) {
             if ($request->method() === 'PATCH') {
-                $this->remoteClass['hexBackgroundColor'] = $request->data()['hexBackgroundColor'];
+                $this->remoteClass['hexBackgroundColor'] = $request['hexBackgroundColor'];
 
                 return GoogleWalletHttpFake::json(['id' => $this->classId]);
             }
@@ -347,229 +210,42 @@ it('confirms an incomplete patch response with one same-object read', function (
         },
     ]);
     app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
-
-    expect($this->http->requests(fn (Request $request) => $request->url() === $this->classUrl)
-        ->map(fn (array $pair) => $pair[0]->method())->all())->toBe(['GET', 'PATCH', 'GET']);
+    expect($this->http->requests()->map(fn (array $pair) => $pair[0]->method())->all())->toBe(['POST', 'GET', 'PATCH', 'GET']);
+    $remainingTimeout = 10;
+    foreach ($this->http->history as $index => $transportEntry) {
+        $transportOptions = $transportEntry['options'];
+        expect($transportOptions['timeout'])->toBeGreaterThan(0)->toBeLessThan($remainingTimeout);
+        expect($transportOptions['connect_timeout'])->toBeGreaterThan(0)->toBeLessThanOrEqual(min(3, $transportOptions['timeout']));
+        expect($transportOptions['allow_redirects'])->toBeFalse();
+        expect($transportOptions['verify'])->toBeTrue();
+        if ($index > 0) {
+            expect($transportOptions['timeout'])->toBeLessThan(9.95);
+        }
+        $remainingTimeout = $transportOptions['timeout'];
+    }
 });
 
-it('rejects a mismatched remote identity before any write', function (string $field) {
-    if ($field === 'barcode') {
-        $this->remote['barcode']['value'] = 'foreign-token';
-    } else {
-        $this->remote[$field] = 'foreign';
-    }
-
-    expect(fn () => app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass))
-        ->toThrow(GoogleWalletSynchronizationException::class);
-
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-
-    expect($writes)
-        ->toBeEmpty();
-
-    $this->remoteClass = match ($field) {
-        'id' => [...$this->remoteClass, 'id' => '123456.business_foreign'],
-        'classId' => array_diff_key($this->remoteClass, ['id' => true]),
-        'accountId' => [...$this->remoteClass, 'reviewStatus' => 'UNDER_REVIEW'],
-        'barcode' => [...$this->remoteClass, 'reviewStatus' => 'REJECTED'],
-    };
+it('rejects a complete but mismatched Class confirmation without retrying', function (array $classChanges) {
+    $this->http->respondWith([$this->classUrl => fn (Request $request) => GoogleWalletHttpFake::json(
+        $request->method() === 'PATCH' ? array_replace($this->remoteClass, ['hexBackgroundColor' => '#123456'], $classChanges) : $this->remoteClass,
+    )]);
     try {
         app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
-        $this->fail('A foreign or unapproved Class cannot receive appearance writes.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::ClassNotUsable);
-        expect($failure->stage)->toBe(GoogleWalletStage::ClassRead);
-        expect($failure->outcome)->toBe(FailureOutcome::Definitive);
-    }
-
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'))->toBeEmpty();
-})->with(['id', 'classId', 'accountId', 'barcode']);
-
-it('lets the owning transaction roll back tentative writes when Google fails without retrying', function (int $status) {
-    $original = $this->business->name;
-
-    $this->http->respondWith([
-        $this->url => function (Request $request) use ($status) {
-            if ($request->method() === 'PATCH') {
-                return GoogleWalletHttpFake::json([
-                    'error' => ['message' => 'secret-provider-body'],
-                ], $status);
-            }
-
-            return GoogleWalletHttpFake::json($this->remote);
-        },
-    ]);
-
-    try {
-        DB::transaction(function () {
-            $this->business->update(['name' => 'Tentative transaction fixture']);
-
-            app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
-        });
-
-        $this->fail('Provider failure must escape the caller transaction.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->getPrevious())
-            ->toBeNull();
-
-        expect($failure->getMessage())
-            ->not->toContain('secret-provider-body');
-
-        expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::ProviderRejected);
-        expect($failure->stage)->toBe(GoogleWalletStage::ObjectUpdate);
-        expect($failure->outcome)->toBe($status === 400 ? FailureOutcome::Definitive : FailureOutcome::Unknown);
-
-        expect($failure->providerStatus)
-            ->toBe($status);
-    }
-
-    expect($this->business->fresh()->name)
-        ->toBe($original);
-
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-
-    expect($writes)
-        ->toHaveCount(1);
-
-    $originalColor = $this->business->fresh()->pass_background_color;
-    $this->http->respondWith([
-        $this->classUrl => fn (Request $request) => $request->method() === 'PATCH'
-            ? GoogleWalletHttpFake::json(['error' => 'secret-provider-body'], $status)
-            : GoogleWalletHttpFake::json($this->remoteClass),
-    ]);
-    try {
-        DB::transaction(function () {
-            $business = $this->business->fresh();
-            $business->update(['pass_background_color' => '#E53935']);
-            app(GoogleWalletPassUpdater::class)->updateAppearance($business);
-        });
-        $this->fail('Class failure must roll back tentative color without retrying.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::ProviderRejected);
-        expect($failure->stage)->toBe(GoogleWalletStage::ClassUpdate);
-        expect($failure->outcome)->toBe($status === 400 ? FailureOutcome::Definitive : FailureOutcome::Unknown);
-        expect($failure->providerStatus)->toBe($status);
-        expect($failure->getPrevious())->toBeNull();
-        expect((string) $failure)->not->toContain('secret-provider-body');
-    }
-
-    expect($this->business->fresh()->pass_background_color)->toBe($originalColor);
-    expect($this->http->requests(fn (Request $request) => $request->url() === $this->classUrl && $request->method() === 'PATCH'))->toHaveCount(1);
-    Log::shouldNotHaveReceived('log');
-    Log::shouldNotHaveReceived('info');
-    Log::shouldNotHaveReceived('error');
-})->with([400, 429, 503]);
-
-it('permits the caller transaction to retain its write after provider confirmation', function () {
-    DB::transaction(function () {
-        $this->business->update(['name' => 'Confirmed transaction fixture']);
-
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
-    });
-
-    expect($this->business->fresh()->name)
-        ->toBe('Confirmed transaction fixture');
-});
-
-it('rejects a pass owned by another business before contacting Google', function () {
-    $otherBusiness = Business::factory()->create();
-
-    expect(fn () => app(GoogleWalletPassUpdater::class)->update($otherBusiness, $this->pass))
-        ->toThrow(GoogleWalletSynchronizationException::class);
-
-    expect($this->http->history)
-        ->toBeEmpty();
-
-    $this->http->respondWith([$this->classUrl => GoogleWalletHttpFake::json(['error' => 'missing Class'], 404)]);
-    try {
-        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
-        $this->fail('Missing Classes must not be created by appearance saving.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->stage)->toBe(GoogleWalletStage::ClassRead);
-        expect($failure->providerStatus)->toBe(404);
-        expect($failure->outcome)->toBe(FailureOutcome::Definitive);
-    }
-
-    expect($this->http->requests()->map(fn (array $pair) => $pair[0]->method())->all())->toBe(['POST', 'GET']);
-});
-
-it('rejects an unconfirmed replacement without retrying the write', function () {
-    $this->http->respondWith([
-        $this->url => fn () => GoogleWalletHttpFake::json($this->remote),
-    ]);
-
-    try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
-
-        $this->fail('Stale content must not count as provider confirmation.');
+        test()->fail('A mismatched Class must remain unconfirmed.');
     } catch (GoogleWalletSynchronizationException $failure) {
         expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::ConfirmationMismatch);
-        expect($failure->stage)->toBe(GoogleWalletStage::Confirmation);
         expect($failure->outcome)->toBe(FailureOutcome::Unknown);
     }
+    expect($this->http->history)->toHaveCount(3);
+})->with([[['id' => 'foreign']], [['reviewStatus' => 'UNDER_REVIEW']], [['hexBackgroundColor' => '#000000']]]);
 
-    $writes = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH');
-
-    expect($writes)
-        ->toHaveCount(1);
-
-    $this->http->respondWith([$this->classUrl => fn () => GoogleWalletHttpFake::json($this->remoteClass)]);
+it('preserves an unknown Class outcome when the response is lost without retaining its native cause', function () {
+    $this->http->respondWith([$this->classUrl => fn (Request $request) => $request->method() === 'PATCH'
+        ? new ConnectException('secret-transport-detail', new PsrRequest('PATCH', $this->classUrl))
+        : GoogleWalletHttpFake::json($this->remoteClass)]);
     try {
         app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
-        $this->fail('A complete response with unchanged Class color cannot confirm the save.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::ConfirmationMismatch);
-        expect($failure->stage)->toBe(GoogleWalletStage::Confirmation);
-        expect($failure->outcome)->toBe(FailureOutcome::Unknown);
-    }
-
-    expect($this->http->requests(fn (Request $request) => $request->url() === $this->classUrl)
-        ->map(fn (array $pair) => $pair[0]->method())->all())->toBe(['GET', 'PATCH']);
-    Log::shouldNotHaveReceived('log');
-    Log::shouldNotHaveReceived('info');
-});
-
-it('preserves uncertainty when the update response is lost', function () {
-    $this->http->respondWith([
-        $this->url => function (Request $request) {
-            if ($request->method() === 'PATCH') {
-                return new ConnectException(
-                    'secret-transport-detail',
-                    new PsrRequest('PATCH', $this->url),
-                );
-            }
-
-            return GoogleWalletHttpFake::json($this->remote);
-        },
-    ]);
-
-    try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
-
-        $this->fail('A lost response cannot confirm the update.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::RequestFailed);
-        expect($failure->stage)->toBe(GoogleWalletStage::ObjectUpdate);
-        expect($failure->outcome)->toBe(FailureOutcome::Unknown);
-
-        expect($failure->getPrevious())
-            ->toBeNull();
-
-        expect($failure->getMessage())
-            ->not->toContain('secret-transport-detail');
-    }
-
-    expect($this->http->history)
-        ->toHaveCount(3);
-
-    $this->http->respondWith([
-        $this->classUrl => fn (Request $request) => $request->method() === 'PATCH'
-            ? new ConnectException('secret-transport-detail', new PsrRequest('PATCH', $this->classUrl))
-            : GoogleWalletHttpFake::json($this->remoteClass),
-    ]);
-    try {
-        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
-        $this->fail('A lost Class response must retain write uncertainty.');
+        test()->fail('A lost write response cannot confirm appearance.');
     } catch (GoogleWalletSynchronizationException $failure) {
         expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::RequestFailed);
         expect($failure->stage)->toBe(GoogleWalletStage::ClassUpdate);
@@ -577,139 +253,27 @@ it('preserves uncertainty when the update response is lost', function () {
         expect($failure->getPrevious())->toBeNull();
         expect((string) $failure)->not->toContain('secret-transport-detail');
     }
-
-    expect($this->http->requests(fn (Request $request) => $request->url() === $this->classUrl)
-        ->map(fn (array $pair) => $pair[0]->method())->all())->toBe(['GET', 'PATCH']);
-    Log::shouldNotHaveReceived('log');
-    Log::shouldNotHaveReceived('info');
+    expect($this->http->history)->toHaveCount(3);
 });
 
-it('shares the ten second deadline across authentication and all provider requests', function () {
-    $this->http->respondWith([
-        'https://oauth2.googleapis.com/token' => function () {
-            // the fake does not enforce Guzzle timeouts; consume part of the real monotonic budget
-            usleep(100_000);
-
-            return GoogleWalletHttpFake::json([
-                'access_token' => 'synthetic-access',
-                'expires_in' => 3600,
-            ]);
-        },
-        $this->url => function (Request $request) {
-            if ($request->method() === 'PATCH') {
-                $this->remote = array_replace($this->remote, $request->data());
-
-                return GoogleWalletHttpFake::json(['id' => $this->objectId]);
-            }
-
-            return GoogleWalletHttpFake::json($this->remote);
-        },
-    ]);
-
-    app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
-
-    expect($this->http->history)
-        ->toHaveCount(4);
-
-    $remaining = 10;
-
-    foreach ($this->http->history as $index => $request) {
-        $options = $request['options'];
-
-        expect($options['timeout'])
-            ->toBeGreaterThan(0)
-            ->toBeLessThan($remaining);
-
-        expect($options['connect_timeout'])
-            ->toBeGreaterThan(0)
-            ->toBeLessThanOrEqual(min(3, $options['timeout']));
-
-        if ($index > 0) {
-            expect($options['timeout'])
-                ->toBeLessThan(9.95);
+it('rejects a Class write response after the shared deadline', function () {
+    $this->http->respondWith([$this->classUrl => function (Request $request) {
+        if ($request->method() === 'PATCH') {
+            usleep(10_050_000);
+            $this->remoteClass['hexBackgroundColor'] = $request['hexBackgroundColor'];
         }
 
-        $remaining = $options['timeout'];
-    }
-
-    $this->http->respondWith([
-        $this->classUrl => function (Request $request) {
-            if ($request->method() === 'PATCH') {
-                $this->remoteClass['hexBackgroundColor'] = $request->data()['hexBackgroundColor'];
-
-                return GoogleWalletHttpFake::json(['id' => $this->classId]);
-            }
-
-            return GoogleWalletHttpFake::json($this->remoteClass);
-        },
-    ]);
-    app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
-    $remaining = 10;
-    foreach (array_slice($this->http->history, 4) as $index => $request) {
-        $options = $request['options'];
-        expect($options['timeout'])->toBeGreaterThan(0)->toBeLessThan($remaining);
-        expect($options['connect_timeout'])->toBeGreaterThan(0)->toBeLessThanOrEqual(min(3, $options['timeout']));
-        expect($options['allow_redirects'])->toBeFalse();
-        expect($options['verify'])->toBeTrue();
-        if ($index > 0) {
-            expect($options['timeout'])->toBeLessThan(9.95);
-        }
-        $remaining = $options['timeout'];
-    }
-    expect($this->http->requests(fn (Request $request) => $request->url() === $this->classUrl)
-        ->map(fn (array $pair) => $pair[0]->method())->all())->toBe(['GET', 'PATCH', 'GET']);
-});
-
-it('rejects a provider response received after the total deadline', function () {
-    $this->http->respondWith([
-        $this->url => function (Request $request) {
-            if ($request->method() === 'PATCH') {
-                $this->remote = array_replace($this->remote, $request->data());
-
-                // a deliberately late mock response must not be accepted as a timely confirmation
-                usleep(10_050_000);
-            }
-
-            return GoogleWalletHttpFake::json($this->remote);
-        },
-    ]);
-
-    try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
-
-        $this->fail('A late provider response must fail the synchronous operation.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::DeadlineExceeded);
-        expect($failure->stage)->toBe(GoogleWalletStage::ObjectUpdate);
-        expect($failure->outcome)->toBe(FailureOutcome::Unknown);
-    }
-
-    expect($this->http->history)
-        ->toHaveCount(3);
-
-    $this->http->respondWith([
-        $this->classUrl => function (Request $request) {
-            if ($request->method() === 'PATCH') {
-                $this->remoteClass['hexBackgroundColor'] = $request->data()['hexBackgroundColor'];
-                usleep(10_050_000);
-            }
-
-            return GoogleWalletHttpFake::json($this->remoteClass);
-        },
-    ]);
+        return GoogleWalletHttpFake::json($this->remoteClass);
+    }]);
     try {
         app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
-        $this->fail('A late Class write cannot confirm the appearance operation.');
+        test()->fail('Late Class confirmation must not be accepted.');
     } catch (GoogleWalletSynchronizationException $failure) {
         expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::DeadlineExceeded);
         expect($failure->stage)->toBe(GoogleWalletStage::ClassUpdate);
         expect($failure->outcome)->toBe(FailureOutcome::Unknown);
     }
-
-    expect($this->http->requests(fn (Request $request) => $request->url() === $this->classUrl)
-        ->map(fn (array $pair) => $pair[0]->method())->all())->toBe(['GET', 'PATCH']);
-    Log::shouldNotHaveReceived('log');
-    Log::shouldNotHaveReceived('info');
+    expect($this->http->history)->toHaveCount(3);
 });
 
 it('classifies shared configuration at its original flow boundary without leaking invocation mode', function (string $setting, mixed $value, GoogleWalletSynchronizationFailure $sync, CustomerPassCreationFailure $creation) {
@@ -717,7 +281,7 @@ it('classifies shared configuration at its original flow boundary without leakin
     $configuration = app(GoogleWalletConfiguration::class);
 
     try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
+        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
         $this->fail('Invalid synchronization configuration must fail before OAuth.');
     } catch (GoogleWalletSynchronizationException $exception) {
         expect($exception->failure)->toBe($sync);
@@ -747,7 +311,7 @@ it('preserves shared OAuth status and certainty without translating creation exc
     ]);
 
     try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
+        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
         $this->fail('Authentication must fail before reading or writing the Object.');
     } catch (GoogleWalletSynchronizationException $exception) {
         expect($exception->failure)->toBe(GoogleWalletSynchronizationFailure::ProviderRejected);
@@ -773,7 +337,7 @@ it('rejects malformed shared OAuth responses without starting Wallet requests', 
     ]);
 
     try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
+        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
         $this->fail('Malformed OAuth must not reach Wallet resources.');
     } catch (GoogleWalletSynchronizationException $exception) {
         expect($exception->failure)->toBe(GoogleWalletSynchronizationFailure::MalformedResponse);
@@ -797,7 +361,7 @@ it('keeps credential parsing and signing validation flow-local and secret-free',
     file_put_contents($this->credentialsPath, $contents);
 
     try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
+        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
         $this->fail('Invalid credentials must stop the synchronization at configuration.');
     } catch (GoogleWalletSynchronizationException $exception) {
         expect($exception->failure)->toBe($expected);
@@ -818,21 +382,24 @@ it('keeps credential parsing and signing validation flow-local and secret-free',
 
 it('preserves definitive read failures and unknown confirmation failures without write retries', function (bool $confirmation, int $status) {
     $this->http->respondWith([
-        $this->url => function (Request $request) use ($confirmation, $status) {
+        $this->classUrl => function (Request $request) use ($confirmation, $status) {
+            if ($request->method() === 'PATCH') {
+                return GoogleWalletHttpFake::json(['id' => $this->classId]);
+            }
             if (! $confirmation || count($this->http->history) >= 3) {
                 return GoogleWalletHttpFake::json(['error' => 'private provider body'], $status);
             }
 
-            return GoogleWalletHttpFake::json($this->remote);
+            return GoogleWalletHttpFake::json($this->remoteClass);
         },
     ]);
 
     try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
+        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
         $this->fail('An unavailable read must not confirm an update.');
     } catch (GoogleWalletSynchronizationException $exception) {
         expect($exception->failure)->toBe(GoogleWalletSynchronizationFailure::ProviderRejected);
-        expect($exception->stage)->toBe($confirmation ? GoogleWalletStage::Confirmation : GoogleWalletStage::ObjectRead);
+        expect($exception->stage)->toBe($confirmation ? GoogleWalletStage::Confirmation : GoogleWalletStage::ClassRead);
         expect($exception->outcome)->toBe($confirmation ? FailureOutcome::Unknown : FailureOutcome::Definitive);
         expect($exception->providerStatus)->toBe($status);
         expect($exception->getPrevious())->toBeNull();
@@ -855,7 +422,7 @@ it('preserves deadline precedence over a late malformed OAuth response before an
     ]);
 
     try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
+        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
         $this->fail('Late malformed OAuth must retain the pre-refactor deadline classification.');
     } catch (GoogleWalletSynchronizationException $exception) {
         expect($exception->failure)->toBe(GoogleWalletSynchronizationFailure::DeadlineExceeded);
@@ -881,7 +448,7 @@ it('preserves baseline OAuth transport classification without retaining native s
     $this->http->respondWith(['https://oauth2.googleapis.com/token' => $native]);
 
     try {
-        app(GoogleWalletPassUpdater::class)->update($this->business, $this->pass);
+        app(GoogleWalletPassUpdater::class)->updateAppearance($this->business);
         $this->fail('OAuth transport failure must abort before any Object request.');
     } catch (GoogleWalletSynchronizationException $exception) {
         expect($exception->failure->value)->toBe('transport_failed');

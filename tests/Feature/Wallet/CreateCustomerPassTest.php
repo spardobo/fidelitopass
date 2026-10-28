@@ -23,7 +23,24 @@ use Illuminate\Support\Str;
 use Tests\Support\GoogleWalletHttpFake;
 use Tests\Support\PostgresDatabaseTruncation;
 
-uses(PostgresDatabaseTruncation::class);
+/** Guards native test cleanup before any isolated PostgreSQL reset. */
+trait GuardsPermanentWalletIssuanceDatabase
+{
+    use PostgresDatabaseTruncation;
+
+    /** Refuses configured or actual databases outside the testing runtime. */
+    protected function beforeTruncatingDatabase(): void
+    {
+        if (($_ENV['APP_ENV'] ?? null) !== 'testing'
+            || DB::connection()->getDriverName() !== 'pgsql'
+            || DB::connection()->getDatabaseName() !== 'testing'
+            || DB::scalar('SELECT current_database()') !== 'testing') {
+            throw new LogicException('Refusing to reset a non-testing database.');
+        }
+    }
+}
+
+uses(GuardsPermanentWalletIssuanceDatabase::class);
 
 beforeEach(function () {
     $this->http = new GoogleWalletHttpFake;
