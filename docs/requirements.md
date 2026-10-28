@@ -4,11 +4,13 @@ This document defines observable MVP behaviour, not implementation status. The s
 
 ## Summary
 
-- Total requirements: **38**.
-- Must: **38**.
+- Total requirements: **41**.
+- Must: **41**.
 - Should: **0**.
-- Functional: **27**.
-- Quality/technical: **11**.
+- Functional: **29**.
+- Quality/technical: **12**.
+
+The total includes superseded acceptance retained below.
 
 ## Requirement register
 
@@ -19,39 +21,42 @@ This document defines observable MVP behaviour, not implementation status. The s
 | 3 | REQ-PUB-001 | Must | Public | Functional | Present a product landing page. |
 | 4 | REQ-PUB-002 | Must | Public | Functional | Present the Business join page from the permanent QR. |
 | 5 | REQ-PUB-003 | Must | Public | Functional | Share one illustrative pass structure across public and owner previews. |
-| 6 | REQ-CHL-001 | Must | Promotion | Functional | Create editable draft points-based Promotions. |
-| 7 | REQ-CHL-002 | Must | Promotion | Functional | Configure Promotion-owned extra points. |
-| 8 | REQ-CHL-003 | Must | Promotion | Functional | Publish local dates and immutable Promotion terms. |
-| 9 | REQ-CHL-004 | Must | Promotion | Functional | Reject overlapping published Promotion windows. |
-| 10 | REQ-CHL-005 | Must | Promotion | Functional | Lock published Promotion terms and support cancellation. |
-| 11 | REQ-PAS-001 | Must | Pass | Functional | Provide one permanent acquisition QR per Business. |
-| 12 | REQ-PAS-002 | Must | Pass | Functional | Create an anonymous Customer pass without registration. |
-| 13 | REQ-PAS-003 | Must | Wallet | Functional | Reuse one persistent Google Wallet pass across Promotions. |
-| 14 | REQ-VIS-001 | Must | Validation | Functional | Identify a Customer pass by scanner or manual code. |
-| 15 | REQ-VIS-002 | Must | Validation | Functional | Restrict validation and redemption to the owning Business. |
-| 16 | REQ-VIS-003 | Must | Visit | Quality/technical | Timestamp accepted Visits from PostgreSQL time. |
-| 17 | REQ-VIS-004 | Must | Visit | Functional | Accept legitimate repeat Visits while remaining retry-safe. |
-| 18 | REQ-EVL-001 | Must | Evaluation | Functional | Award points for every accepted Visit. |
-| 19 | REQ-EVL-002 | Must | Evaluation | Functional | Apply recurring weekday multiplier windows. |
-| 20 | REQ-EVL-003 | Must | Evaluation | Functional | Evaluate Promotion completion from earned points. |
-| 21 | REQ-EVL-004 | Must | Evaluation | Quality/technical | Preserve awarded points as immutable Visit outcomes. |
-| 22 | REQ-REW-001 | Must | Reward | Functional | Unlock one Reward entitlement on completion. |
-| 23 | REQ-REW-002 | Must | Reward | Functional | Redeem one available Reward exactly once. |
-| 24 | REQ-REW-003 | Must | Reward | Functional | Reject Reward use after Promotion expiry or cancellation. |
-| 25 | REQ-WAL-001 | Must | Wallet | Functional | Present deterministic Wallet content for every customer state. |
-| 26 | REQ-WAL-002 | Must | Wallet | Quality/technical | Confirm Wallet synchronously before committing Visits and Redemptions. |
-| 27 | REQ-WAL-003 | Must | Wallet | Functional | Confirm initial Google Object creation before local Customer pass issuance. |
-| 28 | REQ-WAL-004 | Must | Wallet | Functional | Show Business activity while inactive and retain personal redemption history. |
-| 29 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
-| 30 | REQ-UX-002 | Must | UX | Functional | Keep the validation workflow fast and scanner-first. |
-| 31 | REQ-UX-003 | Must | UX | Quality/technical | Keep core flows responsive with basic keyboard and touch accessibility. |
-| 32 | REQ-UX-004 | Must | UX | Functional | Present explicit success, point-award, reward, expiry, and error states. |
-| 33 | REQ-SEC-001 | Must | Security | Quality/technical | Separate public acquisition identity from private validation authority. |
-| 34 | REQ-SEC-002 | Must | Security | Quality/technical | Enforce server-side authorization, validation, and abuse controls. |
-| 35 | REQ-SEC-003 | Must | Security | Quality/technical | Produce structured security-relevant logs without secrets. |
-| 36 | REQ-DAT-001 | Must | Data | Quality/technical | Enforce critical integrity in PostgreSQL. |
-| 37 | REQ-REL-001 | Must | Reliability | Quality/technical | Preserve committed domain facts when external synchronization fails. |
-| 38 | REQ-QLT-001 | Must | Quality | Quality/technical | Verify critical rules and complete journeys proportionately. |
+| 6 | REQ-PUB-004 | Must | Public | Functional | Read current personal Promotion facts through a private informational link. |
+| 7 | REQ-CHL-001 | Must | Promotion | Functional | Create editable draft points-based Promotions. |
+| 8 | REQ-CHL-002 | Must | Promotion | Functional | Configure Promotion-owned extra points. |
+| 9 | REQ-CHL-003 | Must | Promotion | Functional | Publish local dates and immutable Promotion terms. |
+| 10 | REQ-CHL-004 | Must | Promotion | Functional | Reject overlapping published Promotion windows. |
+| 11 | REQ-CHL-005 | Must | Promotion | Functional | Lock published Promotion terms and support cancellation. |
+| 12 | REQ-PAS-001 | Must | Pass | Functional | Provide one permanent acquisition QR per Business. |
+| 13 | REQ-PAS-002 | Must | Pass | Functional | Create an anonymous Customer pass without registration. |
+| 14 | REQ-PAS-003 | Must | Wallet | Functional | Reuse one persistent Google Wallet pass across Promotions. |
+| 15 | REQ-VIS-001 | Must | Validation | Functional | Identify a Customer pass by scanner or manual code. |
+| 16 | REQ-VIS-002 | Must | Validation | Functional | Restrict validation and redemption to the owning Business. |
+| 17 | REQ-VIS-003 | Must | Visit | Quality/technical | Timestamp accepted Visits from PostgreSQL time. |
+| 18 | REQ-VIS-004 | Must | Visit | Functional | Accept legitimate repeat Visits while remaining retry-safe. |
+| 19 | REQ-EVL-001 | Must | Evaluation | Functional | Award points for every accepted Visit. |
+| 20 | REQ-EVL-002 | Must | Evaluation | Functional | Apply recurring weekday multiplier windows. |
+| 21 | REQ-EVL-003 | Must | Evaluation | Functional | Evaluate Promotion completion from earned points. |
+| 22 | REQ-EVL-004 | Must | Evaluation | Quality/technical | Preserve awarded points as immutable Visit outcomes. |
+| 23 | REQ-REW-001 | Must | Reward | Functional | Unlock one Reward entitlement on completion. |
+| 24 | REQ-REW-002 | Must | Reward | Functional | Redeem one available Reward exactly once. |
+| 25 | REQ-REW-003 | Must | Reward | Functional | Reject Reward use after Promotion expiry or cancellation. |
+| 26 | REQ-WAL-001 | Must | Wallet | Functional | Present deterministic Wallet content for every customer state. |
+| 27 | REQ-WAL-002 | Must | Wallet | Quality/technical | Confirm Wallet synchronously before committing Visits and Redemptions. |
+| 28 | REQ-WAL-003 | Must | Wallet | Functional | Confirm initial Google Object creation before local Customer pass issuance. |
+| 29 | REQ-WAL-004 | Must | Wallet | Functional | Show Business activity while inactive and retain personal redemption history. |
+| 30 | REQ-WAL-005 | Must | Wallet | Functional | Keep Wallet as a permanent branded identification credential. |
+| 31 | REQ-UX-001 | Must | UX | Quality/technical | Use a dark-only Onest/lavender interface across public, auth, and app pages. |
+| 32 | REQ-UX-002 | Must | UX | Functional | Keep the validation workflow fast and scanner-first. |
+| 33 | REQ-UX-003 | Must | UX | Quality/technical | Keep core flows responsive with basic keyboard and touch accessibility. |
+| 34 | REQ-UX-004 | Must | UX | Functional | Present explicit success, point-award, reward, expiry, and error states. |
+| 35 | REQ-SEC-001 | Must | Security | Quality/technical | Separate public acquisition identity from private validation authority. |
+| 36 | REQ-SEC-002 | Must | Security | Quality/technical | Enforce server-side authorization, validation, and abuse controls. |
+| 37 | REQ-SEC-003 | Must | Security | Quality/technical | Produce structured security-relevant logs without secrets. |
+| 38 | REQ-DAT-001 | Must | Data | Quality/technical | Enforce critical integrity in PostgreSQL. |
+| 39 | REQ-REL-001 | Must | Reliability | Quality/technical | Preserve committed domain facts when external synchronization fails. |
+| 40 | REQ-REL-002 | Must | Reliability | Quality/technical | Commit commercial facts locally without Google calls. |
+| 41 | REQ-QLT-001 | Must | Quality | Quality/technical | Verify critical rules and complete journeys proportionately. |
 
 ## Detailed requirements
 
@@ -172,6 +177,34 @@ This requirement governs illustrative cards only. It does not change issued Wall
 - **And** landing, join and owner use three distinct fictional examples; overview and appearance editor share the owner example. Omit the extra-points row when its optional message is absent.
 
 **Verification:** Rendered structure/data feature tests, responsive browser review and owner appearance-reactivity checks.
+
+#### REQ-PUB-004 — Private informational personal landing
+
+**Priority:** Must
+**Type:** Functional
+**Module:** Public
+
+As a customer, I want to read my current offer and personal progress through my Wallet link so that I know my next step without creating an account.
+
+This adds private consultation to REQ-PUB-002 and replaces the live-information location in REQ-WAL-001/004. It does not add customer commercial authority or a second scannable pass.
+
+**Acceptance Criteria**
+
+**Scenario: Current personal facts**
+
+- **Given** a valid native signed link bound to one Customer pass and Business.
+- **When** the customer opens the informational page.
+- **Then** authorize that scope and read current PostgreSQL facts at one current database instant. Give the effectively Active Promotion primary precedence, with this pass's own progress, relevant Reward and next step; show truthful waiting/scheduled context when none is active.
+- **And** automatic eligibility needs no enrollment or precreated row for every pass. A successor inherits neither points nor expired Reward rights. Earlier redeemed, expired or cancelled facts appear only when needed to explain relevant personal state, not as a history catalog.
+- **And** preserve one predictable structure. GET makes no commercial write or Google call and starts no synchronization, spinner, refresh request or job. Customers cannot register Visits, redeem, enroll or display another scannable pass. Add no account or extra PII. Proactive notifications are outside MVP.
+
+**Scenario: Invalid, foreign or unavailable access**
+
+- **Given** an invalid signature, foreign scope or unavailable server read.
+- **When** consultation is requested.
+- **Then** show safe minimal feedback without disclosing foreign/private facts or fabricating an offer, progress or eligibility. Revalidate authorization on every private request. Public IDs and scan/manual credentials alone grant no personal access.
+
+**Verification:** Private-route authorization/isolation, live-clock state selection, no-provider/no-commercial-write tests and browser review of the owner-reviewed composition.
 
 ### Promotion
 
@@ -365,6 +398,8 @@ REQ-WAL-003 replaces this requirement's initial-issuance timing; its no-registra
 
 As a customer, I want one card that changes with the Business Promotions so that my Wallet does not fill with expired cards.
 
+**Partial supersession:** REQ-WAL-005 preserves one persistent Object but replaces updating its content when Promotions change. The original acceptance below is historical only for that update obligation.
+
 **Acceptance Criteria**
 
 **Scenario: New Promotion on existing pass**
@@ -553,13 +588,15 @@ As a system operator, I want each accepted Visit to preserve the points awarded 
 
 As a customer, I want the Reward to unlock immediately when I complete the Promotion so that the accomplishment feels clear.
 
+**Partial supersession:** REQ-WAL-005 and REQ-REL-002 replace only the former Wallet-update obligation: “its Reward-available Wallet update is requested; provider delay cannot reverse the entitlement.” That clause is historical; local entitlement creation and uniqueness remain unchanged.
+
 **Acceptance Criteria**
 
 **Scenario: First completion**
 
 - **Given** progress immediately below completion.
 - **When** the completing Visit commits.
-- **Then** one entitlement is created in committed domain state and its Reward-available Wallet update is requested; provider delay cannot reverse the entitlement.
+- **Then** one entitlement is created in committed domain state without a Google call or Wallet update. The informational personal page reads its current availability from PostgreSQL.
 
 **Verification:** Transaction and uniqueness tests.
 
@@ -615,6 +652,8 @@ As a Business owner, I want Reward validity to match the published Promotion dea
 
 As a customer, I want the card to explain itself every time I open it so that I never have to remember Promotion rules.
 
+**Superseded presentation:** REQ-WAL-005 replaces variable native Wallet state with a permanent credential; REQ-PUB-004 owns live personal information. Original acceptance below is retained as historical lineage, not current Wallet content.
+
 **Acceptance Criteria**
 
 **Scenario: Current Promotion state**
@@ -632,6 +671,8 @@ As a customer, I want the card to explain itself every time I open it so that I 
 **Module:** Wallet
 
 As a Business owner, I want Google Wallet confirmation before a new Visit or Redemption commits, so that the counter reports success only after both steps complete.
+
+**Superseded commercial timing:** REQ-REL-002 replaces the Google-before-commit Visit/Redemption gate. Original acceptance below is historical. REQ-WAL-003 initial issuance and the separate shared appearance provider contract remain unchanged.
 
 **Acceptance Criteria**
 
@@ -659,7 +700,7 @@ A lost response or failed local commit can leave Wallet ahead of PostgreSQL. Pos
 
 As a customer, I want an explicit saving result so that a failed Google creation does not leave a newly issued local Customer pass.
 
-This replaces only the initial-issuance timing in REQ-PAS-002 and the initial-issuance retry obligation in REQ-WAL-002. Anonymous access and persistent updates across Promotions remain unchanged. Existing-pass Visit/Redemption timing belongs to REQ-WAL-002.
+This replaces only the initial-issuance timing in REQ-PAS-002 and the initial-issuance retry obligation in REQ-WAL-002. Anonymous access and persistent identity remain unchanged. REQ-WAL-005 owns permanent credential content; REQ-REL-002 owns current Visit/Redemption timing.
 
 **Acceptance Criteria**
 
@@ -704,6 +745,8 @@ As a customer, I want to see the Business's recent and upcoming Promotions while
 
 This extends REQ-WAL-001's scenario-relevant presentation with contextual inactive content and independent personal history. It does not change Promotion eligibility, points or redemption finality.
 
+**Superseded display scope:** REQ-WAL-005 removes variable announcements/history from Wallet; REQ-PUB-004 provides minimal live information, not a requirement to reproduce these blocks on the web. Original acceptance below remains historical; stored history, truthful dates and tenant isolation remain intact.
+
 **Acceptance Criteria**
 
 **Scenario: Current or inactive pass**
@@ -717,6 +760,28 @@ This extends REQ-WAL-001's scenario-relevant presentation with contextual inacti
 - **And** presentation reads do not create participation, Visits or entitlements, and preserve the pass's QR, manual code and identity.
 
 **Verification:** PostgreSQL-backed mapping and isolation tests, native Wallet transport tests and real-device review.
+
+#### REQ-WAL-005 — Permanent Wallet identification credential
+
+**Priority:** Must
+**Type:** Functional
+**Module:** Wallet
+
+As a customer, I want one permanent Business card with identification and a private information link so that I can use future Promotions without another pass.
+
+This replaces REQ-WAL-001/004's variable Wallet content and only REQ-PAS-003's update-on-Promotion obligation. Keep their historical acceptance above and preserve credential continuity. REQ-WAL-003 issuance remains Google-first.
+
+**Acceptance Criteria**
+
+**Scenario: Same credential across loyalty states**
+
+- **Given** a newly issued pass for the fresh development format.
+- **When** a Promotion starts, ends, is cancelled or succeeds another, or the pass earns points or unlocks/redeems a Reward.
+- **Then** retain Business branding, the same Object/Class binding, QR/manual identification and separate private informational link. Include no variable Promotion, target, progress, current Visit value, Reward, redemption or Promotion date content, including details.
+- **And** these transitions and informational page reads make no individual Object update or refresh. Add no job, cron, sweep, automatic retry or synchronization registry. Shared appearance changes remain separate provider operations; provider acceptance does not promise immediate device rendering.
+- **And** add no compatibility, migration or repair for already issued development cards. This acceptance does not authorize provider or database operations.
+
+**Verification:** Issuance/mapping and credential-continuity tests, no-provider assertions on domain transitions and personal reads, plus real-device review when implemented.
 
 ### UX
 
@@ -906,6 +971,8 @@ As a system operator, I want invalid states rejected by PostgreSQL so that one m
 
 As a Business owner, I want counter operations to remain correct even when an external provider is unavailable.
 
+**Partial supersession:** Preserve committed facts. REQ-REL-002 replaces any implied Visit/Redemption provider effect or retry: these operations now make no Google request. The original acceptance below does not require background retries.
+
 **Acceptance Criteria**
 
 **Scenario: External failure**
@@ -915,6 +982,33 @@ As a Business owner, I want counter operations to remain correct even when an ex
 - **Then** local state remains committed and only the external effect is retried.
 
 **Verification:** Transaction/provider failure tests.
+
+#### REQ-REL-002 — Local commercial commits without Wallet synchronization
+
+**Priority:** Must
+**Type:** Quality/technical
+**Module:** Reliability
+
+As a Business owner, I want valid Visits and Redemptions to depend on authoritative local facts rather than Google availability so that permanent card presentation does not block counter operations.
+
+This replaces REQ-WAL-002's commercial provider-confirmation gate and the commercial-effect retry implication in REQ-REL-001. Initial issuance and shared appearance contracts remain provider-backed.
+
+**Acceptance Criteria**
+
+**Scenario: Authoritative commercial result**
+
+- **Given** an authorized Visit or Redemption for the owning Business and valid current eligibility.
+- **When** its transaction runs, including a combined Visit/unlock/redemption.
+- **Then** preserve existing locks, one post-lock PostgreSQL operation instant, immutable awarded points, entitlement uniqueness, expiry/cancellation rules and tenant isolation. Commit all new local facts atomically without a Google request. Confirm success only after local commit.
+- **And** authorized replay returns the original result without new commercial/provider effects; invalid credentials never gain authority from an operation identity. Legitimate repeated same-day Visits remain allowed, with no new daily cap, point carryover or Reward grace.
+
+**Scenario: Local failure or uncertainty**
+
+- **Given** a failed or uncertain local transaction result.
+- **When** the counter presents the outcome.
+- **Then** do not claim a confirmed success, infer rollback from a missing response or authorize a duplicate mutation. Reconcile the original operation through existing authorized read-only receipt handling. Do not add provider retry or compensation machinery.
+
+**Verification:** PostgreSQL transaction/concurrency, clock, idempotency, Reward and isolation tests with explicit no-Google assertions and counter browser checks.
 
 #### REQ-QLT-001 — Verify critical behaviour proportionately
 

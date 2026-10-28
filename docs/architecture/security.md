@@ -66,6 +66,8 @@ The server never trusts:
 
 Use Laravel Policies or explicit authorization at the owning boundary.
 
+Personal consultation uses a separate native signed link bound to one Customer pass and Business, not owner authentication. Validate its full signature and scope on every private request. Public UUIDs, QR/manual credentials and client-selected identifiers alone grant no personal read authority. Deny invalid or foreign access without private disclosure or provider work. The customer receives no Visit, redemption or enrollment action.
+
 ## Credential classes
 
 ### Acquisition QR
@@ -92,6 +94,12 @@ Storage:
 - Store only a hash/verifier when plaintext recovery is unnecessary.
 - Never log the raw token.
 - Do not expose it in shareable public URLs.
+
+### Personal informational link
+
+Use native Laravel signing and minimum pass/Business-scoped read authorization. Keep owner authentication unchanged. Do not add per-pass nonces, targeted revocation, custom authentication/session machinery, customer accounts or extra PII. The link is a sensitive bearer credential distinct from scan validation and manual lookup.
+
+Use HTTPS, private non-cacheable responses and no-referrer behavior. Keep signed links/signatures out of logs, public component snapshots, analytics and third-party referrers. Do not expose the QR validation secret or manual code on the personal page. GET performs no commercial writes or Google requests; native session/CSRF maintenance does not create loyalty facts.
 
 ### Manual code
 

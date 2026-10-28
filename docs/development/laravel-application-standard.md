@@ -18,13 +18,13 @@ Rule-relevant model dates remain immutable under [Application date handling](dat
 
 Each consequential operation has one complete authoritative transaction boundary. The [architecture transaction contracts](../architecture/overview.md#visit-validation-transaction) define locking, operation time, idempotency and finality for Visit validation and Redemption.
 
-Existing-pass Wallet updates execute inside that transaction under the synchronous MVP exception: provider confirmation gates commit, and failure escapes to roll back tentative writes. Do not retry a transaction that may already have written remotely. Authentication and all provider requests share ten seconds total with no automatic retries. A lost response or failed local commit can leave remote content ahead of PostgreSQL; no distributed rollback is guaranteed. Initial issuance instead uses the architecture's [initial issuance boundary](../architecture/overview.md#initial-issuance-boundary): confirmed Google creation precedes the local transaction; no cross-system rollback guarantee exists.
+Visits and Redemptions commit authoritative local facts without Google requests, including combined Visit/unlock/redemption. Preserve authorization, locks, one post-lock operation instant, idempotency, tenant isolation and finality. The informational personal GET also makes no provider request or commercial write. Initial issuance retains the architecture's [initial issuance boundary](../architecture/overview.md#initial-issuance-boundary): confirmed Google creation precedes the local transaction; no cross-system rollback guarantee exists. Shared appearance changes retain their separate bounded provider-confirmed transaction. Do not retry a transaction that may already have written remotely.
 
 ## Authorization
 
 Business ownership is explicit. The server verifies ownership at the protected operation boundary; a hydrated identifier or hidden input is not authority.
 
-Customer passes are not `User` accounts. Every protected pass operation is scoped through the authenticated Business before progress or Reward details are returned. Apply the [security authorization contract](../architecture/security.md#authorization) and [credential classes](../architecture/security.md#credential-classes); public acquisition and private validation are not interchangeable.
+Customer passes are not `User` accounts. Merchant operations are scoped through the authenticated Business. Personal consultation instead validates a separate native signed pass/Business scope on every request; it is read-only and grants no merchant rights. Do not add nonces, targeted revocation or custom session machinery. Apply the [security authorization contract](../architecture/security.md#authorization) and [credential classes](../architecture/security.md#credential-classes); public acquisition and private validation are not interchangeable.
 
 ## Validation
 
@@ -42,7 +42,7 @@ Saving shared pass appearance owns a separate non-retrying transaction under the
 
 Initial issuance distinguishes confirmed provider success, definitive failure and unknown outcome. Do not publish success after an unknown provider or commit result, infer rollback, or blindly repeat creation. Reuse the current operation identifier where available; do not add a durable attempt table or persistent browser identity. A confirmed local rollback may leave the accepted provider orphan, with no cleanup/recovery guarantee. A model event that cancels the local save is a failed issuance, not a confirmed commit. The private HTTP handoff selects only the Save-to-Wallet URL and manual code; internal operation metadata must not enter the response.
 
-It does not own Promotion eligibility, Visit acceptance, Reward completion or Redemption authorization. PostgreSQL remains domain truth. Synchronization reads the caller's tentative state and sends an absolute replacement of owned text modules to the same Object. Verify identity and credentials before writing, then confirm the returned content; one same-Object read may complete an incomplete write response. Preserve existing committed outcomes under the architecture's [synchronization boundary](../architecture/overview.md#existing-pass-synchronization-boundary). The owning caller logs the final operation outcome using classified provider failures, without credentials or raw provider errors. The integration itself does not log; its return confirms only the provider, not local commit or device display.
+The provider boundary does not own Promotion eligibility, Visit acceptance, Reward completion or Redemption authorization. PostgreSQL remains domain truth. The [permanent credential boundary](../architecture/overview.md#permanent-credential-and-live-information) requires no Object content synchronization on a Visit, Redemption, page read or Promotion transition. Preserve Object identity, Class binding and QR/manual credentials. Retained provider operations use the shared ten-second budget, no automatic retries and safe classified diagnostics; their confirmation does not prove local commit or device display. The owning caller logs the final operation outcome, not the integration.
 
 ## Structured logging
 
@@ -66,7 +66,7 @@ Use stable machine-readable names for acceptance, replay, rejection, unlock, red
 
 ### Secret hygiene
 
-Never log passwords, session/cookie values, authorization headers, raw validation tokens, manual fallback codes, Google Wallet private keys, full Save-to-Wallet JWTs or sensitive provider payloads. The security owner retains the broader sensitive-field policy.
+Never log passwords, session/cookie values, authorization headers, raw validation tokens, manual fallback codes, personal signed links/signatures, Google Wallet private keys, full Save-to-Wallet JWTs or sensitive provider payloads. The security owner retains the broader sensitive-field policy.
 
 ## Error handling
 

@@ -13,7 +13,7 @@ Quality work follows product risk. It must protect the loyalty loop without turn
 | Reward finality | Double redemption creates direct Business loss. | Transaction/idempotency tests. |
 | Authorization | One Business could alter another Business's passes. | Policy/feature abuse tests. |
 | Time correctness | UTC/local-day boundaries can change progress or expiry. | PostgreSQL timezone boundary tests. |
-| Wallet boundary | Provider failure can leave customer presentation stale. | Integration/job failure tests. |
+| Wallet boundary | Provider failure can block initial issuance or shared appearance changes. | Bounded provider fault tests; no-provider assertions for commercial operations and informational reads. |
 | Counter usability | Slow/unclear validation disrupts real service. | Focused browser and responsive evidence. |
 
 ## Test pyramid
@@ -104,7 +104,8 @@ Core rules:
 - One Redemption.
 - Promotion expiry/cancellation, including effective occupancy after cancellation and exclusive-end rejection.
 - Cross-Business authorization.
-- Wallet provider confirmation before commit, rollback on failure and explicit unknown remote outcomes.
+- Local Visit/Redemption transaction integrity without Google calls, including combined operations and authorized replay.
+- Google-first initial issuance and provider-confirmed shared appearance changes, rollback boundaries and explicit unknown remote outcomes.
 
 This list defines the CORE tier of the risk-based 100/80/0 guidance. Each identified rule requires direct automated evidence.
 
@@ -119,7 +120,8 @@ Use Laravel feature tests for:
 - Pass lookup.
 - Rate limiting.
 - Structured log context when custom logic exists.
-- Synchronous Wallet updates, total provider deadline, no retries, same-Object identity and sanitized failures.
+- Retained issuance/appearance provider operations: total deadline, no retries, immutable identity and sanitized failures.
+- Signed personal-read authorization/isolation, PostgreSQL-current state and no provider calls or commercial writes on GET; no enrollment or refresh action.
 
 Use database constraints directly in tests when the invariant should survive application bypass.
 

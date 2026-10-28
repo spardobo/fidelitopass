@@ -48,7 +48,7 @@ flowchart LR
     A --> G[Google Wallet API]
 ```
 
-FidelitoPass owns all business decisions. Google Wallet displays customer state and carries the validation token.
+FidelitoPass owns all business decisions. Google Wallet carries permanent identification and a private informational link; the personal page reads current customer state from PostgreSQL.
 
 ## Application responsibilities
 
@@ -62,7 +62,7 @@ FidelitoPass owns all business decisions. Google Wallet displays customer state 
 | Customer pass        | Anonymous persistent Business/customer relationship.                                                                                    |
 | Visit validation     | One scanner-first identification/confirmation/result dialog with visible manual fallback; point award resolution and idempotency.       |
 | Reward               | Unlock and one-time redemption.                                                                                                         |
-| Wallet integration   | Business class/object mapping, issuance, synchronization, retry.                                                                        |
+| Wallet integration   | Permanent credential Class/Object mapping, initial issuance and shared appearance changes.                                                                        |
 | Logging              | Request correlation and structured application/security events.                                                                         |
 
 ## Domain model
@@ -165,7 +165,7 @@ make it stale.
 
 One focused Visit-validation command owns the complete authoritative operation.
 
-For a new mutation, authorization, eligibility, the domain fact and its related state changes share one transaction. Confirm the resulting Wallet content synchronously before commit; propagate provider failure to roll back tentative writes.
+For a new mutation, authorization, eligibility, the domain fact and its related state changes share one local transaction. Do not call Google or require provider confirmation to commit. The effectively Active Promotion applies automatically; do not precreate participation rows for all passes or require customer enrollment.
 
 The public acquisition QR identifies a join page, never a validation credential. The Wallet barcode contains a private
 high-entropy validation token; a short Business-scoped manual code is a lookup fallback, not equivalent authority. Both
@@ -182,7 +182,7 @@ points or entitlement; database uniqueness remains the barrier against new dupli
 
 One focused redemption command owns the complete authoritative operation.
 
-A new redemption records its final instant and confirming owner atomically after current eligibility checks. Confirm the resulting Wallet content synchronously before commit; propagate provider failure to roll back tentative writes.
+A new redemption records its final instant and confirming owner atomically after current eligibility checks, without Google calls or a provider confirmation gate. Keep combined Visit/unlock/redemption under one local transaction owner.
 
 An authorized repeat for the same entitlement returns its final redeemed state without a second redemption. Expiry or
 cancellation prevents a new redemption, not replay of the committed result. Ownership and credential checks still apply
@@ -194,8 +194,8 @@ Use Google Wallet loyalty Class/Object semantics:
 
 - One Business-level Loyalty Class for shared Business presentation where practical.
 - One Loyalty Object per Customer pass.
-- Progress/barcode/text modules mapped deterministically.
-- The same Object is updated across Promotions.
+- Permanent Business branding, QR/manual credentials and private informational link.
+- No variable Promotion, progress, Reward or deadline fields; no updates on commercial or Promotion transitions.
 
 The application does not use Wallet state as a source of truth.
 
@@ -203,25 +203,27 @@ The application does not use Wallet state as a source of truth.
 
 Initial issuance follows [REQ-WAL-003](../requirements.md#req-wal-003--google-first-initial-customer-pass-issuance): explicit Save requests Google Object creation outside a database transaction, then confirmed provider success permits the local Customer pass transaction. Only confirmed local commit permits the private existing-Object save JWT and manual-code response. This is not an atomic transaction across Google and PostgreSQL and does not confirm the user's Wallet save.
 
-[ADR-006](decisions/006-google-first-initial-wallet-issuance.md) records the accepted orphan/anonymous-reacquisition tradeoffs and the absence of durable attempt or browser identity. PostgreSQL remains domain truth. Existing-pass Visit/Redemption synchronization follows the separate synchronous boundary below.
+[ADR-006](decisions/006-google-first-initial-wallet-issuance.md) records the accepted orphan/anonymous-reacquisition tradeoffs and the absence of durable attempt or browser identity. PostgreSQL remains domain truth. Visit and Redemption transactions are independent of Google; shared appearance changes retain their separate provider boundary.
 
-### Existing-pass synchronization boundary
+### Permanent credential and live information
 
-[ADR-007](decisions/007-synchronous-wallet-updates.md) establishes the MVP boundary: the domain caller owns authorization, locks and one non-retrying transaction. It writes tentative facts, updates the same Object with absolute content, then commits only after Google confirms. Authentication, reads, the write and any confirmation share ten seconds total, without automatic retries.
+[ADR-008](decisions/008-permanent-wallet-credential.md) replaces variable Wallet state and the Visit/Redemption synchronization gate. Keep one persistent Object, Class binding, QR and manual code. Initial issuance and shared appearance changes remain provider-backed; changing a Promotion or recording a commercial fact requires no Object update.
 
-The integration reads the caller's tentative state and preserves Object identity, Class binding and credentials. It does not accept Visits, redeem Rewards or commit database changes. Failure escapes to the transaction owner. That caller records the operation outcome after resolving commit or rollback; the integration does not emit operation logs. Provider confirmation alone is not a local commit.
+The private personal link uses native signing and pass/Business-scoped read authorization. Its GET reads current PostgreSQL facts, creates no participation, Visit, entitlement or redemption, and makes no Google request. No initial sync, spinner, auxiliary refresh, nonce/revocation system, customer account or custom session machinery is needed. It is not a second scannable pass and exposes no validation credential.
 
-A lost response or failed local commit can leave a remotely advanced Object. PostgreSQL remains authoritative; no distributed rollback or immediate device rendering is guaranteed. Initial issuance remains independent.
+Select the effectively Active Promotion first. Derive this pass's own progress and relevant Reward from existing facts; no enrollment or per-pass bulk row creation is required. A successor has its own progress and Reward lifecycle. Current authority and PostgreSQL time apply to every read; opening the page is not consent to a commercial mutation.
+
+This is a fresh development rollout. Do not add compatibility, migration or repair for previously issued cards. The decision does not authorize database resets, provider operations or deployment.
 
 ## Background work
 
-The MVP adds no Wallet job, worker, outbox or durable synchronization registry. Publication, cancellation and time-driven refresh remain separate integration work; the synchronous capability does not establish those triggers.
+The MVP adds no Wallet job, queue, cron, outbox, per-Object sweep or durable synchronization registry. Publication, cancellation and time passage require no Wallet update. Proactive customer notifications are outside MVP; customers must open the personal link to see current information.
 
 ## Public web surfaces
 
 MVP surfaces:
 
-Public product landing and Business acquisition; authenticated Summary, pass/Promotion management, invitation, Visit confirmation and settings. Route names and paths belong to source.
+Public product landing and Business acquisition; private signed informational customer landing; authenticated Summary, pass/Promotion management, invitation, Visit confirmation and settings. Route names and paths belong to source.
 
 No customer profile portal is required.
 
@@ -229,7 +231,7 @@ No customer profile portal is required.
 
 The production unit is the Laravel web application plus PostgreSQL.
 
-Synchronous Wallet updates do not require a queue worker.
+Initial issuance and shared appearance changes are request-bound provider operations; no Wallet queue worker is required.
 
 TLS, secret injection, database hosting, backups, and process supervision belong to the deployment environment.
 
@@ -237,7 +239,7 @@ TLS, secret injection, database hosting, backups, and process supervision belong
 
 - No customer account model.
 - No generic loyalty rule engine.
-- No second customer pass UI parallel to Google Wallet.
+- No second scannable customer pass or customer commercial actions on the informational page.
 - No stored progress as the primary truth.
 - No browser/app-server clock for domain validity.
 - No duplicated local-date Visit column in MVP.

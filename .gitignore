@@ -102,6 +102,7 @@ Thumbs.db
 /.git-local/
 /.pi/
 /odd/
+/design/
 /openspec/
 # Local Pi runtime state
 .atl/

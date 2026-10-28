@@ -36,7 +36,7 @@ This document defines the agreed product scope, not delivery status. Source code
 - Use Summary as the ordinary authenticated application home, without requiring it as a first stop after registration or sign-in; its setup action and navigation lead to the same pass route, without a forced wizard.
 - Create multiple editable drafts and future scheduled instances of one points-based Promotion mechanic, each with Business-local start and end dates, target points, one Reward and optional description.
 - Configure a fixed one-point regular Visit and Promotion-owned extra points: any number of nonoverlapping weekly local-weekday x2, x3 or x5 windows (whole-day or timed), never inherited from Business-global settings or another Promotion.
-- Preview deterministic customer Wallet copy before publication and reconfirm if the Business timezone changes after review.
+- Preview customer Promotion terms before publication and reconfirm if the Business timezone changes after review.
 - Publish non-overlapping effective Promotion windows, freezing goal, Reward title and description, dates, timezone, and entire multiplier schedule even when scheduled; cancel scheduled or active Promotions without erasing their original snapshot or history.
 - View draft, active, scheduled, ended and cancelled Promotions and minimal operational counters on the pass page and Summary.
 - Display/download the permanent acquisition QR.
@@ -47,9 +47,9 @@ This document defines the agreed product scope, not delivery status. Source code
 
 - Join without a FidelitoPass account.
 - Explicitly request a Business pass: confirm Google Object creation before local issuance, then receive the private save handoff and manual fallback code.
-- Understand the active Promotion directly from the pass.
-- Present the pass on each visit.
-- See numeric progress, next action, Reward, and deadline.
+- Present the permanent branded Wallet credential with QR/manual identification on each visit.
+- Open its private informational link to see the current Promotion, numeric progress, relevant Reward/deadline and next step from PostgreSQL.
+- Qualify automatically for the effectively Active Promotion; no manual enrollment or customer commercial action is required.
 - Keep the same pass for future Promotions.
 
 ### Platform
@@ -61,7 +61,7 @@ This document defines the agreed product scope, not delivery status. Source code
 - Unlock at most one Reward entitlement per Customer pass and Promotion.
 - Redeem exactly once before Promotion expiry or cancellation.
 - Keep PostgreSQL authoritative.
-- Confirm Google Wallet updates synchronously before committing new Visits and Redemptions, within a ten-second provider budget and without automatic retries.
+- Commit Visits and Redemptions through authoritative local transactions without Google calls; Google remains necessary for initial issuance and shared appearance changes.
 - Produce structured application/security logs without secrets.
 
 ## Points and Promotion model
@@ -106,13 +106,16 @@ MVP does not include:
 - Native mobile applications.
 - Customer discovery marketplace.
 - Geofencing.
-- Push-campaign management.
+- Push-campaign management or proactive Promotion notifications. Customers who do not open the personal page are not automatically informed.
+- Variable Promotion, progress or Reward content in Wallet; personal-page synchronization/spinners/refresh requests; periodic per-pass sweeps, jobs or cron.
+- Customer enrollment, account, extra PII, targeted link revocation or custom authentication/session machinery.
+- Compatibility, repair or migration of previously issued development cards. This is a fresh development rollout, not authorization to erase a database or mutate provider objects.
 
 ## Scope controls
 
 ### One-pass rule
 
-Promotion changes update the same issued Wallet pass instead of creating a new card. Acquisition has no customer account or persistent browser identity; a new visit can create another pair, including after an abandoned handoff. This accepted duplication does not require a durable attempt registry or orphan recovery.
+Promotion changes require neither another Wallet pass nor an update to its permanent credential. The linked personal page supplies current information. Acquisition has no customer account or persistent browser identity; a new visit can create another pair, including after an abandoned handoff. This accepted duplication does not require a durable attempt registry or orphan recovery.
 
 ### Database-clock rule
 
@@ -136,7 +139,7 @@ Known empty results for an active Promotion show zero; unavailable statistics sh
 
 ### Deterministic-UI rule
 
-The web application and Wallet use fixed layouts. Promotion state changes values and copy, not the structural UI.
+The personal page uses one predictable structure. Current facts change its values and relevant content, not the page skeleton. Wallet retains its permanent identification layout without Promotion-state content.
 
 ## MVP completion
 
