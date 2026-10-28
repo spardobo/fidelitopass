@@ -2,11 +2,10 @@
 
 namespace App\Actions\Rewards;
 
+use App\Enums\FailureOutcome;
 use App\Enums\PromotionStatus;
 use App\Enums\RewardRedemptionFailure;
-use App\Exceptions\GoogleWalletSynchronizationException;
 use App\Exceptions\RewardRedemptionException;
-use App\Integrations\GoogleWallet\GoogleWalletPassUpdater;
 use App\Models\Promotion;
 use App\Models\RewardEntitlement;
 use App\Models\User;
@@ -23,14 +22,12 @@ use Throwable;
 class RedeemReward
 {
     /**
-     * Receives the post-lock clock and operation-neutral Wallet integration.
+     * Receives the authoritative post-lock operation clock.
      *
      * @param  DatabaseClock  $clock  Authoritative PostgreSQL wall clock.
-     * @param  GoogleWalletPassUpdater  $wallet  Provider confirmation without transaction ownership.
      */
     public function __construct(
         private readonly DatabaseClock $clock,
-        private readonly GoogleWalletPassUpdater $wallet,
     ) {}
 
     /**
@@ -44,7 +41,6 @@ class RedeemReward
      * @return array{reward_entitlement_id: int, customer_pass_id: int, promotion_id: int, redeemed_at: string, redeemed_by_user_id: int} Committed final facts.
      *
      * @throws RewardRedemptionException When authorization, eligibility or persistence fails.
-     * @throws GoogleWalletSynchronizationException When Google confirmation fails.
      * @throws Throwable When native logging or a programmer contract fails.
      */
     public function handle(
@@ -56,7 +52,7 @@ class RedeemReward
     ): array {
         $businessId = null;
         $normalized = null;
-        $providerConfirmed = false;
+        $localOutcome = FailureOutcome::Definitive;
 
         try {
             if (
@@ -89,7 +85,7 @@ class RedeemReward
                 throw new RewardRedemptionException(RewardRedemptionFailure::InvalidCredential);
             }
 
-            // serialize the original target and confirm the absolute Wallet state before commit
+            // serialize the original target and persist final local facts before commit
             $result = DB::transaction(function () use (
                 $actor,
                 $method,
@@ -97,37 +93,26 @@ class RedeemReward
                 $entitlementId,
                 $promotionId,
                 &$businessId,
-                &$providerConfirmed,
+                &$localOutcome,
             ): array {
-                return $this->redeemReward(
+                $result = $this->redeemReward(
                     $actor,
                     $method,
                     $normalized,
                     $entitlementId,
                     $promotionId,
                     $businessId,
-                    $providerConfirmed,
                 );
-            }, attempts: 1);
-        } catch (GoogleWalletSynchronizationException $exception) {
-            $exception->log([
-                'actor_id' => $actor->id,
-                'business_id' => $businessId,
-                'reward_entitlement_id' => $entitlementId,
-                'promotion_id' => $promotionId,
-                'stage' => $exception->stage->value,
-                'remote_outcome' => $exception->outcome->value,
-                'provider_status' => $exception->providerStatus,
-                'provider_confirmed' => false,
-                'local_outcome' => 'not_redeemed',
-                'outcome' => 'not_redeemed',
-            ]);
 
-            throw $exception;
+                // callback completion reaches the native commit phase; failures cannot prove rollback
+                $localOutcome = FailureOutcome::Unknown;
+
+                return $result;
+            }, attempts: 1);
         } catch (LogicException|Error $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $failure = RewardRedemptionException::fromException($exception, $providerConfirmed);
+            $failure = RewardRedemptionException::fromException($exception, $localOutcome);
 
             if (
                 $failure->failure === RewardRedemptionFailure::InvalidCredential
@@ -176,14 +161,12 @@ class RedeemReward
      * @param  int  $entitlementId  Original entitlement identity.
      * @param  int  $promotionId  Original Promotion identity.
      * @param  int|null  $businessId  Owning Business ID for outer failure reporting.
-     * @param  bool  $providerConfirmed  Whether the remote update completed before any local failure.
      *
      * @param-out int $businessId Business ID resolved under its row lock.
      *
      * @return array{reward: RewardEntitlement, replayed: bool} Tentative redemption or committed replay.
      *
      * @throws RewardRedemptionException When ownership, eligibility or local persistence rejects redemption.
-     * @throws GoogleWalletSynchronizationException When remote confirmation fails.
      */
     private function redeemReward(
         User $actor,
@@ -192,7 +175,6 @@ class RedeemReward
         int $entitlementId,
         int $promotionId,
         ?int &$businessId,
-        bool &$providerConfirmed,
     ): array {
         // lock the owning Business and original customer identity
         $business = $actor->business()->lockForUpdate()->first();
@@ -237,7 +219,7 @@ class RedeemReward
 
         $this->requireRedeemablePromotion($promotion, $operationAt);
 
-        // persist final redemption and confirm the same Google Object before commit
+        // persist final redemption within the owning local transaction
         $reward->redeemedBy()->associate($actor);
         $reward->setAttribute('redeemed_at', $operationAt);
         $reward->setUpdatedAt($operationAt);
@@ -245,9 +227,6 @@ class RedeemReward
         if (! $reward->save()) {
             throw new RewardRedemptionException(RewardRedemptionFailure::SaveRejected);
         }
-
-        $this->wallet->update($business, $pass, $operationAt);
-        $providerConfirmed = true;
 
         return ['reward' => $reward, 'replayed' => false];
     }

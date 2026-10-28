@@ -13,7 +13,7 @@ use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
-/** Carries sanitized redemption failure evidence without promising remote rollback. */
+/** Carries sanitized redemption failure evidence without promising local rollback. */
 class RewardRedemptionException extends RuntimeException implements ShouldntReport
 {
     /**
@@ -22,7 +22,6 @@ class RewardRedemptionException extends RuntimeException implements ShouldntRepo
      * @param  RewardRedemptionFailure  $failure  Closed cause.
      * @param  Throwable|null  $previous  Optional safe cause.
      * @param  array<string, mixed>  $context  Selected nonsecret evidence.
-     * @param  bool  $providerConfirmed  Whether Google confirmed before completion failed.
      * @param  FailureOutcome  $localOutcome  Whether the local outcome is unresolved.
      * @param  int|null  $retryAfterSeconds  Existing invalid-attempt window delay.
      */
@@ -30,7 +29,6 @@ class RewardRedemptionException extends RuntimeException implements ShouldntRepo
         public readonly RewardRedemptionFailure $failure,
         ?Throwable $previous = null,
         public readonly array $context = [],
-        public readonly bool $providerConfirmed = false,
         public readonly FailureOutcome $localOutcome = FailureOutcome::Definitive,
         public readonly ?int $retryAfterSeconds = null,
     ) {
@@ -41,11 +39,13 @@ class RewardRedemptionException extends RuntimeException implements ShouldntRepo
      * Discards private native payloads while retaining safe source and commit evidence.
      *
      * @param  Throwable  $exception  Native or classified failure.
-     * @param  bool  $providerConfirmed  Whether the provider confirmed this invocation.
+     * @param  FailureOutcome  $localOutcome  Independent certainty from the owning local transaction boundary.
      * @return self Complete safe classification.
      */
-    public static function fromException(#[SensitiveParameter] Throwable $exception, bool $providerConfirmed = false): self
-    {
+    public static function fromException(
+        #[SensitiveParameter] Throwable $exception,
+        FailureOutcome $localOutcome = FailureOutcome::Definitive,
+    ): self {
         if ($exception instanceof self) {
             return $exception;
         }
@@ -64,8 +64,7 @@ class RewardRedemptionException extends RuntimeException implements ShouldntRepo
                 ),
                 'sqlstate' => $databaseFailure ? ($exception->errorInfo[0] ?? null) : null,
             ],
-            providerConfirmed: $providerConfirmed,
-            localOutcome: $providerConfirmed ? FailureOutcome::Unknown : FailureOutcome::Definitive,
+            localOutcome: $localOutcome,
         );
     }
 
@@ -85,7 +84,6 @@ class RewardRedemptionException extends RuntimeException implements ShouldntRepo
             ...$this->context,
             ...$context,
             'reason' => $this->failure->value,
-            'provider_confirmed' => $this->providerConfirmed,
             'local_outcome' => $this->localOutcome->value,
             'outcome' => $this->localOutcome === FailureOutcome::Unknown ? 'unresolved' : 'not_redeemed',
             'retry_after_seconds' => $this->retryAfterSeconds,

@@ -4,8 +4,6 @@ use App\Actions\Rewards\RedeemReward;
 use App\Actions\Visits\AcceptVisit;
 use App\Data\Time\DatabaseTime;
 use App\Enums\FailureOutcome;
-use App\Enums\GoogleWalletSynchronizationFailure;
-use App\Exceptions\GoogleWalletSynchronizationException;
 use App\Exceptions\RewardRedemptionException;
 use App\Exceptions\VisitAcceptanceException;
 use App\Integrations\GoogleWallet\GoogleWalletClient;
@@ -62,22 +60,7 @@ beforeEach(function () {
     $this->http = new GoogleWalletHttpFake;
     app()->instance(GoogleWalletClient::class, new GoogleWalletClient($this->http->client));
 
-    // keep synthetic signing material in memory rather than reading deployment credentials
-    $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
-    openssl_pkey_export($key, $pem);
-    $this->mock(GoogleWalletConfiguration::class)->shouldReceive('load')->with(true)->andReturn([
-        'issuer_id' => '123456',
-        'account' => [
-            'type' => 'service_account',
-            'client_id' => 'synthetic-client',
-            'client_email' => 'wallet@platform.iam.gserviceaccount.com',
-            'private_key' => $pem,
-        ],
-        'origin' => 'https://passes.example.test',
-        'logo_url' => 'https://passes.example.test/logo.png',
-        'connect_timeout' => 3,
-        'timeout' => 10,
-    ]);
+    $this->mock(GoogleWalletConfiguration::class)->shouldNotReceive('load');
     Log::spy();
 });
 
@@ -85,7 +68,7 @@ afterEach(function () {
     $this->truncateTablesForAllConnections();
 });
 
-it('commits immutable Visit facts and confirms tentative progress on the same Wallet object', function () {
+it('commits immutable Visit facts without contacting Google', function () {
     [$business, $pass, $promotion] = visitFixture();
     visitClock('2030-01-02 12:59:59.123456+00');
     $operationId = (string) Str::uuid();
@@ -108,16 +91,12 @@ it('commits immutable Visit facts and confirms tentative progress on the same Wa
     expect($visit->confirmed_at->toISOString())->toBe($result['confirmed_at']);
     expect($pass->fresh()->getAttributes())->toBe($before);
     $this->assertDatabaseCount('reward_entitlements', 0);
-    expect(array_map(fn ($entry) => $entry['request']->getMethod(), $this->http->history))
-        ->toBe(['POST', 'GET', 'PATCH']);
-    $write = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH')->sole()[0];
-    expect(array_keys($write->data()))->toBe(['textModulesData']);
-    expect(collect($write->data()['textModulesData'])->keyBy('id')['barcode_top']['body'])->toBe('1 / 8 puntos');
+    expect($this->http->history)->toBeEmpty();
     Log::shouldHaveReceived('info')->once()->with('visit.accepted', Mockery::on(fn ($context) => $context['operation_id'] === $operationId));
     Log::shouldNotHaveReceived('log');
 });
 
-it('atomically registers and redeems with one final absolute Wallet projection and read-only replays', function (string $laterState) {
+it('atomically registers and redeems locally with read-only replays', function (string $laterState) {
     [$business, $pass, $promotion] = visitFixture(['target_points' => 2]);
     $promotion->extraPoints()->create(['weekday' => 3, 'multiplier' => 3]);
     visitClock('2030-01-02 12:00:00.123456+00');
@@ -142,10 +121,7 @@ it('atomically registers and redeems with one final absolute Wallet projection a
     expect($reward->fresh()->getAttributes())->toBe($before);
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
-    expect($this->http->history)->toHaveCount(3);
-    $sections = collect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH')->sole()[0]->data()['textModulesData'])->keyBy('id');
-    expect($sections['card_primary']['header'])->toBe('✅ RECOMPENSA CANJEADA');
-    expect($sections->has('barcode_top'))->toBeFalse();
+    expect($this->http->history)->toBeEmpty();
     Log::shouldHaveReceived('info')->with('reward.redeemed', Mockery::on(fn ($context) => $context['operation_id'] === $id))->once();
 })->with(['expired', 'cancelled']);
 
@@ -174,7 +150,7 @@ it('never upgrades a prior Visit-only operation when the compound flag changes',
 
     expect($action->handle($business->user, 'manual', $pass->manual_code, $id))->toBe($original);
     expect(RewardEntitlement::query()->first()?->getAttributes())->toBe($before);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
 })->with(['available entitlement' => 1, 'no entitlement' => 8]);
 
@@ -194,7 +170,7 @@ it('returns a compound replay only from actual original redemption without infer
 
     expect($reward->fresh()->redeemed_at->toISOString())->not->toBe($visit['confirmed_at']);
     $this->assertDatabaseCount('visits', 1);
-    expect($this->http->history)->toHaveCount(6);
+    expect($this->http->history)->toBeEmpty();
     Log::shouldHaveReceived('info')->with('reward.redeemed', Mockery::type('array'))->once();
 });
 
@@ -216,52 +192,32 @@ it('rechecks compound validity and credentials before new effects or replay disc
         }
     }
     $before = RewardEntitlement::query()->get()->map->getAttributes()->all();
-    $providerCalls = count($this->http->history);
+    $visitCount = Visit::query()->count();
 
     expect(fn () => app(AcceptVisit::class)->handle($business->user, 'token', str_repeat('a', 64), $id, $promotion->id, true))
         ->toThrow(VisitAcceptanceException::class, in_array($case, ['expired', 'cancelled'], true) ? 'promotion_unavailable' : 'invalid_credential');
 
     expect(RewardEntitlement::query()->get()->map->getAttributes()->all())->toBe($before);
-    expect($this->http->history)->toHaveCount($providerCalls);
-    $this->assertDatabaseCount('visits', $providerCalls === 0 ? 0 : 1);
+    expect($this->http->history)->toBeEmpty();
+    $this->assertDatabaseCount('visits', $visitCount);
 })->with(['expired', 'cancelled', 'retired', 'foreign']);
 
-it('rolls back compound local facts when final SDK confirmation arrives after the shared deadline', function () {
+it('commits compound local facts without a Wallet binding or provider configuration', function () {
     [$business, $pass, $promotion] = visitFixture(['target_points' => 1]);
+    $pass->update(['wallet_object_id' => null]);
     visitClock('2030-01-02 12:00:00+00');
-    $remote = [
-        'id' => $pass->wallet_object_id,
-        'classId' => '123456.business_'.$business->public_id,
-        'accountId' => $pass->manual_code,
-        'barcode' => ['type' => 'QR_CODE', 'value' => str_repeat('a', 64)],
-    ];
-    $this->http->respondWith([
-        'https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/'.$pass->wallet_object_id => function (Request $request) use (&$remote) {
-            if ($request->method() === 'PATCH') {
-                expect(RewardEntitlement::query()->sole()->redeemed_at)->not->toBeNull();
-                $remote = array_replace($remote, $request->data());
 
-                // the native fake does not enforce Guzzle timeouts, so return a deliberately late confirmation
-                usleep(10_050_000);
-            }
+    $result = app(AcceptVisit::class)->handle($business->user, 'manual', '00007', (string) Str::uuid(), $promotion->id, true);
 
-            return GoogleWalletHttpFake::json($remote);
-        },
-    ]);
-
-    try {
-        app(AcceptVisit::class)->handle($business->user, 'manual', '00007', (string) Str::uuid(), $promotion->id, true);
-        test()->fail('Expected the shared provider deadline to abort local facts.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->failure)->toBe(GoogleWalletSynchronizationFailure::DeadlineExceeded);
-        expect($failure->outcome)->toBe(FailureOutcome::Unknown);
-    }
-
-    $this->assertDatabaseCount('visits', 0);
-    $this->assertDatabaseCount('reward_entitlements', 0);
-    expect($this->http->history)->toHaveCount(3);
-    expect(collect($remote['textModulesData'])->keyBy('id')['card_primary']['header'])->toBe('✅ RECOMPENSA CANJEADA');
-    Log::shouldNotHaveReceived('info');
+    $reward = RewardEntitlement::query()->sole();
+    expect($reward->unlocked_at->toISOString())->toBe($result['confirmed_at']);
+    expect($reward->redeemed_at?->toISOString())->toBe($result['confirmed_at']);
+    expect($reward->redeemed_by_user_id)->toBe($business->user_id);
+    expect($pass->fresh()->wallet_object_id)->toBeNull();
+    $this->assertDatabaseCount('visits', 1);
+    expect($this->http->history)->toBeEmpty();
+    Log::shouldHaveReceived('info')->with('reward.redeemed', Mockery::type('array'))->once();
+    Log::shouldNotHaveReceived('log');
 });
 
 it('correlates acceptance and replay events with the owning Business', function () {
@@ -286,8 +242,7 @@ it('correlates acceptance and replay events with the owning Business', function 
     expect(Visit::query()->sole()->getAttributes())->toBe($stored);
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 0);
-    expect($this->http->history)->toHaveCount(3);
-    expect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH'))->toHaveCount(1);
+    expect($this->http->history)->toBeEmpty();
     Log::shouldHaveReceived('info')
         ->with('visit.accepted', Mockery::on(fn ($context) => $context['business_id'] === $business->id
             && $context['operation_id'] === $operationId))
@@ -320,7 +275,7 @@ it('awards one nonstacking frozen local rule at weekday, touching, microsecond a
 
     expect($result['points_awarded'])->toBe($points);
     expect(Visit::query()->sole()->awarded_points)->toBe($points);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
 })->with([
     'x2 whole day' => ['2030-01-02 12:00:00+00', 'America/Bogota', 3, null, null, 2, 2],
     'x3 inclusive start' => ['2030-01-02 12:00:00+00', 'America/Bogota', 3, '07:00:00', '08:00:00', 3, 3],
@@ -349,9 +304,6 @@ it('unlocks exactly one entitlement at the Visit instant for exact or overshooti
     expect($reward->promotion_id)->toBe($promotion->id);
     expect($reward->redeemed_at)->toBeNull();
     expect(Visit::query()->sum('awarded_points'))->toBe($points);
-    $sections = collect($this->http->requests(fn (Request $request) => $request->method() === 'PATCH')->sole()[0]->data()['textModulesData'])->keyBy('id');
-    expect($sections['card_primary']['header'])->toBe('🎉 ¡LO LOGRASTE!');
-    expect($sections->has('barcode_top'))->toBeFalse();
     Log::shouldHaveReceived('info')->with('reward.unlocked', Mockery::type('array'))->once();
 })->with(['exact' => [3, 3], 'overshoot retains full points' => [4, 5]]);
 
@@ -375,7 +327,7 @@ it('allows intentional same-day Visits and replays the original facts after late
     expect($replay)->toBe($original);
     expect($later['visit_id'])->not->toBe($original['visit_id']);
     expect(Visit::query()->get()->map->getAttributes()->all())->toBe($before);
-    expect($this->http->history)->toHaveCount(6);
+    expect($this->http->history)->toBeEmpty();
     $this->assertDatabaseCount('reward_entitlements', 0);
     Log::shouldHaveReceived('info')->with('visit.replayed', Mockery::type('array'))->once();
 })->with(['cancelled', 'expired']);
@@ -396,7 +348,7 @@ it('accepts only the compared current offer while keeping the default caller unc
     }
 
     expect($pass->fresh()->getAttributes())->toBe($before);
-    expect($this->http->history)->toHaveCount($matches ? 3 : 0);
+    expect($this->http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', $matches ? 1 : 0);
     $this->assertDatabaseCount('reward_entitlements', 0);
     expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(0);
@@ -425,7 +377,7 @@ it('returns authorized original facts before comparing an expected replacement o
     expect($differentExpected)->toBe($original);
     expect(Visit::query()->sole()->getAttributes())->toBe($before);
     $this->assertDatabaseCount('reward_entitlements', 0);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
     expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(0);
 })->with(['cancelled', 'expired']);
 
@@ -449,7 +401,7 @@ it('accepts the existing twelve-character fallback without changing its bytes', 
 
     expect($result['customer_pass_id'])->toBe($pass->id);
     expect($pass->fresh()->manual_code)->toBe('ABCD01234567');
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
 });
 
 it('rejects malformed and nonmatching credentials without domain or provider effects', function (string $method, string $credential) {
@@ -563,7 +515,7 @@ it('accepts the inclusive promotion start without clipping immutable awarded poi
 
     expect($result['confirmed_at'])->toBe('2030-01-01T05:00:00.000000Z');
     expect(Visit::query()->count())->toBe(1);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
 });
 
 it('replays completion but prevents new progress after available or redeemed entitlements', function (bool $redeemed) {
@@ -584,7 +536,7 @@ it('replays completion but prevents new progress after available or redeemed ent
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
     expect(RewardEntitlement::query()->sole()->getAttributes())->toBe($before);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
 })->with([false, true]);
 
 it('does not disclose foreign operation facts or authorize a withdrawn credential on replay', function (string $conflict) {
@@ -609,7 +561,7 @@ it('does not disclose foreign operation facts or authorize a withdrawn credentia
 
     expect(Visit::query()->sole()->getAttributes())->toBe($before);
     $this->assertDatabaseCount('reward_entitlements', 0);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
     Log::shouldNotHaveReceived('info', ['visit.replayed', Mockery::any()]);
 })->with(['same business different pass', 'foreign business', 'retired token']);
 
@@ -625,44 +577,20 @@ it('rejects ambient transaction ownership before Wallet or mutation', function (
     expect($this->http->history)->toBeEmpty();
 });
 
-it('rolls back both tentative facts on definitive or uncertain provider failure without retries', function (int $status, string $remoteOutcome, bool $combined) {
-    [$business, $pass] = visitFixture(['target_points' => 1]);
+it('commits Visit and Reward facts without contacting a rejecting or unavailable provider', function (int $status, bool $combined) {
+    [$business, $pass, $promotion] = visitFixture(['target_points' => 1]);
     visitClock('2030-01-02 12:00:00+00');
-    $this->http->respondWith([
-        'https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/'.$pass->wallet_object_id => function (Request $request) use ($business, $pass, $status, $combined) {
-            if ($request->method() === 'PATCH') {
-                expect(Visit::query()->count())->toBe(1);
-                expect(RewardEntitlement::query()->count())->toBe(1);
-                expect(RewardEntitlement::query()->sole()->redeemed_at !== null)->toBe($combined);
+    $this->http->respondWith(fn () => GoogleWalletHttpFake::json(['error' => 'unavailable'], $status));
 
-                return GoogleWalletHttpFake::json(['error' => ['message' => 'private token '.str_repeat('a', 64)]], $status);
-            }
+    $result = app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, (string) Str::uuid(), $promotion->id, $combined);
 
-            return GoogleWalletHttpFake::json([
-                'id' => $pass->wallet_object_id, 'classId' => '123456.business_'.$business->public_id,
-                'accountId' => $pass->manual_code, 'barcode' => ['type' => 'QR_CODE', 'value' => str_repeat('a', 64)],
-            ]);
-        },
-    ]);
-
-    try {
-        app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, (string) Str::uuid(), null, $combined);
-        test()->fail('Expected synchronization failure.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure->outcome->value)->toBe($remoteOutcome);
-        expect($failure->providerStatus)->toBe($status);
-        expect($failure->getPrevious())->toBeNull();
-    }
-
-    $this->assertDatabaseCount('visits', 0);
-    $this->assertDatabaseCount('reward_entitlements', 0);
-    expect($this->http->history)->toHaveCount(3);
-    Log::shouldHaveReceived('log')->once()->with('error', 'google_wallet.synchronization_failed', Mockery::on(
-        fn ($context) => $context['remote_outcome'] === $remoteOutcome && $context['local_outcome'] === 'not_accepted'
-            && ! str_contains(json_encode($context), str_repeat('a', 64)) && ! str_contains(json_encode($context), '00007'),
-    ));
-    Log::shouldNotHaveReceived('info');
-})->with(['definitive rejection' => [400, 'definitive'], 'uncertain write' => [503, 'unknown']])->with([false, true]);
+    $this->assertDatabaseCount('visits', 1);
+    $reward = RewardEntitlement::query()->sole();
+    expect($reward->unlocked_at->toISOString())->toBe($result['confirmed_at']);
+    expect($reward->redeemed_at !== null)->toBe($combined);
+    expect($this->http->history)->toBeEmpty();
+    Log::shouldNotHaveReceived('log');
+})->with(['provider rejection' => 400, 'provider outage' => 503])->with([false, true]);
 
 it('rejects a model-cancelled Visit or entitlement save instead of reporting success', function (string $model, bool $combined) {
     [$business, $pass] = visitFixture(['target_points' => 1]);
@@ -703,7 +631,7 @@ it('sanitizes an actual PostgreSQL constraint rejection and rolls back without p
         expect($failure->context['previous_class'])->toBe(QueryException::class);
         expect($failure->context['sqlstate'])->toBe('23514');
         expect($failure->getPrevious())->toBeNull();
-        expect($failure->providerConfirmed)->toBeFalse();
+        expect($failure->localOutcome)->toBe(FailureOutcome::Definitive);
     } finally {
         Model::setEventDispatcher($dispatcher);
     }
@@ -715,7 +643,7 @@ it('sanitizes an actual PostgreSQL constraint rejection and rolls back without p
     Log::shouldNotHaveReceived('info');
 });
 
-it('does not publish success or retry when local commit completion fails after Google confirmation', function (bool $commitHappened, bool $combined) {
+it('does not publish success or retry when local commit completion is unresolved', function (bool $commitHappened, bool $combined) {
     [$business, $pass, $promotion] = visitFixture(['target_points' => 1]);
     visitClock('2030-01-02 12:00:00+00', 3);
     $connection = DB::connection();
@@ -732,7 +660,7 @@ it('does not publish success or retry when local commit completion fails after G
         test()->fail('Expected unresolved local completion.');
     } catch (VisitAcceptanceException $failure) {
         expect($failure->localOutcome)->toBe(FailureOutcome::Unknown);
-        expect($failure->providerConfirmed)->toBeTrue();
+
         expect($failure->getPrevious())->toBeNull();
     } finally {
         $connection->setEventDispatcher($dispatcher);
@@ -751,35 +679,30 @@ it('does not publish success or retry when local commit completion fails after G
     }
     $this->assertDatabaseCount('visits', $commitHappened ? 1 : 0);
     $this->assertDatabaseCount('reward_entitlements', $commitHappened ? 1 : 0);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
     Log::shouldHaveReceived('log')->once()->with('error', 'visit.acceptance_failed', Mockery::on(
-        fn ($context) => $context['provider_confirmed'] === true && $context['local_outcome'] === 'unknown'
+        fn ($context) => ! array_key_exists('provider_confirmed', $context) && $context['local_outcome'] === 'unknown'
             && ! str_contains(json_encode($context), 'private commit payload'),
     ));
     Log::shouldNotHaveReceived('info');
 })->with(['failed commit' => false, 'lost completion after real commit' => true])->with([false, true]);
 
-it('confirms Google while both facts are invisible to another connection and logs only after the outer commit', function () {
+it('keeps tentative facts invisible to another connection and logs only after the outer commit', function () {
     [$business, $pass] = visitFixture(['target_points' => 1]);
     visitClock('2030-01-02 12:00:00+00');
     config(['database.connections.visit_observer' => config('database.connections.pgsql')]);
     $observer = DB::connection('visit_observer');
-    $this->http->respondWith([
-        'https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/'.$pass->wallet_object_id => function (Request $request) use ($business, $pass, $observer) {
-            if ($request->method() === 'PATCH') {
-                expect(Visit::query()->count())->toBe(1);
-                expect(RewardEntitlement::query()->count())->toBe(1);
-                expect($observer->table('visits')->count())->toBe(0);
-                expect($observer->table('reward_entitlements')->count())->toBe(0);
-            }
-
-            return GoogleWalletHttpFake::json([
-                'id' => $pass->wallet_object_id, 'classId' => '123456.business_'.$business->public_id,
-                'accountId' => $pass->manual_code, 'barcode' => ['type' => 'QR_CODE', 'value' => str_repeat('a', 64)],
-                'textModulesData' => $request->data()['textModulesData'] ?? [],
-            ]);
-        },
-    ]);
+    $connection = DB::connection();
+    $dispatcher = $connection->getEventDispatcher();
+    $events = clone $dispatcher;
+    $events->listen(TransactionCommitting::class, function () use ($observer) {
+        expect(Visit::query()->count())->toBe(1);
+        expect(RewardEntitlement::query()->count())->toBe(1);
+        expect($observer->table('visits')->count())->toBe(0);
+        expect($observer->table('reward_entitlements')->count())->toBe(0);
+        Log::shouldNotHaveReceived('info');
+    });
+    $connection->setEventDispatcher($events);
     Log::shouldReceive('info')->with('visit.accepted', Mockery::on(function ($context) use ($observer) {
         expect(DB::transactionLevel())->toBe(0);
         expect($observer->table('visits')->count())->toBe(1);
@@ -791,9 +714,10 @@ it('confirms Google while both facts are invisible to another connection and log
     try {
         $result = app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, (string) Str::uuid());
         expect($result['points_awarded'])->toBe(1);
-        expect($this->http->history)->toHaveCount(3);
+        expect($this->http->history)->toBeEmpty();
         Log::shouldNotHaveReceived('log');
     } finally {
+        $connection->setEventDispatcher($dispatcher);
         DB::purge('visit_observer');
     }
 });
@@ -853,24 +777,18 @@ it('preserves programmer contract errors for the configured unexpected reporter 
     Log::shouldNotHaveReceived('info');
 });
 
-it('propagates an existing synchronization failure unchanged and emits its owner event just once', function () {
+it('accepts local facts when Google configuration cannot be loaded', function () {
     [$business, $pass] = visitFixture(['target_points' => 1]);
     visitClock('2030-01-02 12:00:00+00');
-    $native = new GoogleWalletSynchronizationException(GoogleWalletSynchronizationFailure::ConfigurationInvalid);
-    $this->mock(GoogleWalletConfiguration::class)->shouldReceive('load')->once()->with(true)->andThrow($native);
+    $this->mock(GoogleWalletConfiguration::class)->shouldReceive('load')->never()->andThrow(new RuntimeException('configuration unavailable'));
 
-    try {
-        app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, (string) Str::uuid());
-        test()->fail('Expected existing synchronization failure.');
-    } catch (GoogleWalletSynchronizationException $failure) {
-        expect($failure)->toBe($native);
-    }
+    app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, (string) Str::uuid());
 
-    $this->assertDatabaseCount('visits', 0);
-    $this->assertDatabaseCount('reward_entitlements', 0);
+    $this->assertDatabaseCount('visits', 1);
+    $this->assertDatabaseCount('reward_entitlements', 1);
     expect($this->http->history)->toBeEmpty();
-    Log::shouldHaveReceived('log')->with('error', 'google_wallet.synchronization_failed', Mockery::type('array'))->once();
-    Log::shouldNotHaveReceived('info');
+    Log::shouldHaveReceived('info')->with('visit.accepted', Mockery::type('array'))->once();
+    Log::shouldNotHaveReceived('log');
 });
 
 it('propagates a failed completion logger unchanged without misclassifying committed facts or repeating Google', function () {
@@ -888,7 +806,7 @@ it('propagates a failed completion logger unchanged without misclassifying commi
 
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
     Log::shouldNotHaveReceived('log');
 });
 
@@ -919,14 +837,10 @@ it('redeems the original Reward once and replays immutable facts after expiry or
     expect($reward->fresh()->getAttributes())->toBe($stored);
     expect($pass->fresh()->getAttributes())->toBe($passBefore);
     expect(Visit::query()->sole()->getAttributes())->toBe($visitsBefore);
-    expect($this->http->history)->toHaveCount(6);
+    expect($this->http->history)->toBeEmpty();
     $this->assertDatabaseCount('reward_entitlements', 1);
     Log::shouldHaveReceived('info')->with('reward.redeemed', Mockery::type('array'))->once();
     Log::shouldHaveReceived('info')->with('reward.redemption_replayed', Mockery::type('array'))->once();
-    $write = $this->http->requests(fn (Request $request) => $request->method() === 'PATCH')->last()[0];
-    $sections = collect($write->data()['textModulesData'])->keyBy('id');
-    expect($sections['card_primary']['header'])->toBe('✅ RECOMPENSA CANJEADA');
-    expect($sections->has('barcode_top'))->toBeFalse();
 })->with(['expired', 'cancelled']);
 
 it('rejects new Reward redemption at the exclusive end or after cancellation without changing facts or calling Google', function (string $state) {
@@ -943,7 +857,7 @@ it('rejects new Reward redemption at the exclusive end or after cancellation wit
         ->toThrow(RewardRedemptionException::class, $state);
 
     expect($reward->fresh()->getAttributes())->toBe($before);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
     Log::shouldHaveReceived('log')->once();
 })->with(['expired', 'cancelled']);
@@ -976,42 +890,28 @@ it('revalidates Reward credentials and original target before returning even red
         ->toThrow(RewardRedemptionException::class);
 
     expect($reward->fresh()->getAttributes())->toBe($before);
-    expect($this->http->history)->toHaveCount(6);
+    expect($this->http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
 })->with(['retired', 'foreign', 'original', 'guest']);
 
-it('rolls back tentative redemption and emits one sanitized provider failure without retry', function () {
+it('redeems locally without contacting an unavailable provider', function () {
     [$business, $pass, $promotion] = visitFixture(['target_points' => 1]);
     visitClock('2030-01-02 12:00:00+00', 2);
     app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, (string) Str::uuid());
     $reward = RewardEntitlement::query()->sole();
-    $before = $reward->getAttributes();
-    $this->http->respondWith([
-        'https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/'.$pass->wallet_object_id => function (Request $request) use ($business, $pass) {
-            if ($request->method() === 'PATCH') {
-                expect(RewardEntitlement::query()->sole()->redeemed_at)->not->toBeNull();
+    $pass->update(['wallet_object_id' => null]);
+    $this->http->respondWith(fn () => GoogleWalletHttpFake::json(['error' => 'unavailable'], 503));
 
-                return GoogleWalletHttpFake::json(['error' => 'private-provider-payload'], 503);
-            }
+    $result = app(RedeemReward::class)->handle($business->user, 'manual', $pass->manual_code, $reward->id, $promotion->id);
 
-            return GoogleWalletHttpFake::json([
-                'id' => $pass->wallet_object_id, 'classId' => '123456.business_'.$business->public_id,
-                'accountId' => $pass->manual_code, 'barcode' => ['type' => 'QR_CODE', 'value' => str_repeat('a', 64)],
-            ]);
-        },
-    ]);
-
-    expect(fn () => app(RedeemReward::class)->handle($business->user, 'manual', $pass->manual_code, $reward->id, $promotion->id))
-        ->toThrow(GoogleWalletSynchronizationException::class);
-
-    expect($reward->fresh()->getAttributes())->toBe($before);
-    expect($this->http->history)->toHaveCount(6);
-    Log::shouldHaveReceived('log')->once()->with('error', 'google_wallet.synchronization_failed', Mockery::on(
-        fn ($context) => ! str_contains(json_encode($context), 'private-provider-payload')
-            && ! str_contains(json_encode($context), '00007'),
-    ));
-    Log::shouldNotHaveReceived('info', ['reward.redeemed', Mockery::any()]);
+    expect($reward->fresh()->redeemed_at?->toISOString())->toBe($result['redeemed_at']);
+    expect($reward->fresh()->redeemed_by_user_id)->toBe($business->user_id);
+    expect($this->http->history)->toBeEmpty();
+    $this->assertDatabaseCount('visits', 1);
+    $this->assertDatabaseCount('reward_entitlements', 1);
+    Log::shouldHaveReceived('info')->with('reward.redeemed', Mockery::type('array'))->once();
+    Log::shouldNotHaveReceived('log');
 });
 
 it('sanitizes a real redemption constraint failure once and preserves every previously committed fact', function () {
@@ -1033,12 +933,13 @@ it('sanitizes a real redemption constraint failure once and preserves every prev
         expect($failure->failure->value)->toBe('database_failed');
         expect($failure->getPrevious())->toBeNull();
         expect($failure->context['sqlstate'])->toBe('23514');
+        expect($failure->localOutcome)->toBe(FailureOutcome::Definitive);
     } finally {
         Model::setEventDispatcher($dispatcher);
     }
 
     expect($reward->fresh()->getAttributes())->toBe($before);
-    expect($this->http->history)->toHaveCount(3);
+    expect($this->http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
     Log::shouldHaveReceived('log')->once()->with('error', 'reward.redemption_failed', Mockery::on(
         fn ($context) => $context['reason'] === 'database_failed'
@@ -1046,7 +947,7 @@ it('sanitizes a real redemption constraint failure once and preserves every prev
     ));
 });
 
-it('keeps redemption commit uncertainty separate from provider confirmation and reconciles read-only', function (bool $committed) {
+it('preserves local redemption commit uncertainty and reconciles read-only', function (bool $committed) {
     [$business, $pass, $promotion] = visitFixture(['target_points' => 1]);
     visitClock('2030-01-02 12:00:00+00', 3);
     app(AcceptVisit::class)->handle($business->user, 'manual', $pass->manual_code, (string) Str::uuid());
@@ -1062,7 +963,6 @@ it('keeps redemption commit uncertainty separate from provider confirmation and 
         app(RedeemReward::class)->handle($business->user, 'manual', $pass->manual_code, $reward->id, $promotion->id);
         test()->fail('Expected uncertain completion.');
     } catch (RewardRedemptionException $failure) {
-        expect($failure->providerConfirmed)->toBeTrue();
         expect($failure->localOutcome)->toBe(FailureOutcome::Unknown);
         expect($failure->getPrevious())->toBeNull();
     } finally {
@@ -1075,11 +975,11 @@ it('keeps redemption commit uncertainty separate from provider confirmation and 
     $receipt = app(RewardRedemptionReceipt::class)->find($business->user, 'manual', $pass->manual_code, $promotion->id, $reward->id);
     expect($receipt['redeemed_at'] !== null)->toBe($committed);
     expect($receipt['redeemed_by_user_id'])->toBe($committed ? $business->user_id : null);
-    expect($this->http->history)->toHaveCount(6);
+    expect($this->http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
     Log::shouldHaveReceived('log')->once()->with('error', 'reward.redemption_failed', Mockery::on(
-        fn ($context) => $context['local_outcome'] === 'unknown' && ! str_contains(json_encode($context), 'private redemption commit payload'),
+        fn ($context) => ! array_key_exists('provider_confirmed', $context) && $context['local_outcome'] === 'unknown' && ! str_contains(json_encode($context), 'private redemption commit payload'),
     ));
 })->with([false, true]);
 
@@ -1143,7 +1043,7 @@ it('serializes concurrent Reward replay and captures the clock only after a real
             $results[] = json_decode((string) end($lines), true, flags: JSON_THROW_ON_ERROR);
         }
 
-        expect(array_sum(array_column($results, 'provider_calls')))->toBe($expire ? 0 : 1);
+        expect(array_sum(array_column($results, 'provider_calls')))->toBe(0);
         if ($expire) {
             expect($results[0]['failure'])->toBe($combined ? 'promotion_unavailable' : 'expired');
             expect($results[0]['result'])->toBeNull();
@@ -1157,7 +1057,7 @@ it('serializes concurrent Reward replay and captures the clock only after a real
         }
         $this->assertDatabaseCount('visits', $combined && $expire ? 0 : 1);
         $this->assertDatabaseCount('reward_entitlements', $combined && $expire ? 0 : 1);
-        expect($this->http->history)->toHaveCount($combined ? 0 : 3);
+        expect($this->http->history)->toBeEmpty();
     } finally {
         if (DB::transactionLevel() > 0) {
             DB::rollBack();
@@ -1218,7 +1118,7 @@ function redemptionWorker(int $actorId, int $rewardId, int $promotionId, ?string
 }
 
 /**
- * Creates a pass, frozen Promotion and stateful native provider for one public command test.
+ * Creates a pass and frozen Promotion for one local commercial command test.
  *
  * @param  array<string, mixed>  $terms  Overrides for frozen Promotion terms.
  * @return array{Business, CustomerPass, Promotion} Persisted same-Business fixtures.
@@ -1241,25 +1141,6 @@ function visitFixture(array $terms = []): array
         'starts_at' => '2030-01-01 05:00:00+00',
         'ends_at' => '2030-02-01 05:00:00+00',
     ], $terms))->save();
-    $remote = [
-        'id' => $pass->wallet_object_id,
-        'classId' => '123456.business_'.$business->public_id,
-        'accountId' => $pass->manual_code,
-        'barcode' => ['type' => 'QR_CODE', 'value' => str_repeat('a', 64)],
-        'textModulesData' => [],
-    ];
-    test()->http->respondWith([
-        'https://oauth2.googleapis.com/token' => GoogleWalletHttpFake::json(['access_token' => 'synthetic', 'expires_in' => 3600]),
-        'https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/'.$pass->wallet_object_id => function (Request $request) use (&$remote) {
-            if ($request->method() === 'PATCH') {
-                expect(Visit::query()->count())->toBeGreaterThan(0);
-                expect(DB::transactionLevel())->toBe(1);
-                $remote = array_replace($remote, $request->data());
-            }
-
-            return GoogleWalletHttpFake::json($remote);
-        },
-    ]);
 
     return [$business, $pass, $promotion];
 }

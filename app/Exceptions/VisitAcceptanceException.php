@@ -14,7 +14,7 @@ use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
-/** Carries safe immutable Visit failure evidence without promising a local or remote rollback. */
+/** Carries safe immutable Visit failure evidence without promising a local rollback. */
 class VisitAcceptanceException extends RuntimeException implements ShouldntReport
 {
     /**
@@ -23,7 +23,6 @@ class VisitAcceptanceException extends RuntimeException implements ShouldntRepor
      * @param  VisitAcceptanceFailure  $failure  Application-owned cause.
      * @param  Throwable|null  $previous  Optional safe cause, never a native SQL or provider failure.
      * @param  array<string, mixed>  $context  Selected nonsecret context.
-     * @param  bool  $providerConfirmed  Whether this invocation confirmed Google before local completion failed.
      * @param  FailureOutcome  $localOutcome  Whether local nonacceptance is definite or commit is unresolved.
      * @param  int|null  $retryAfterSeconds  Existing invalid-lookup window delay, otherwise null.
      */
@@ -31,7 +30,6 @@ class VisitAcceptanceException extends RuntimeException implements ShouldntRepor
         public readonly VisitAcceptanceFailure $failure,
         ?Throwable $previous = null,
         public readonly array $context = [],
-        public readonly bool $providerConfirmed = false,
         public readonly FailureOutcome $localOutcome = FailureOutcome::Definitive,
         public readonly ?int $retryAfterSeconds = null,
     ) {
@@ -42,11 +40,13 @@ class VisitAcceptanceException extends RuntimeException implements ShouldntRepor
      * Discards secret-bearing native causes while retaining safe source and commit evidence.
      *
      * @param  Throwable  $exception  Native or already classified Visit failure.
-     * @param  bool  $providerConfirmed  Whether Google returned confirmation before the local failure.
+     * @param  FailureOutcome  $localOutcome  Independent certainty from the owning local transaction boundary.
      * @return self Complete classification; same-domain exceptions remain unchanged.
      */
-    public static function fromException(#[SensitiveParameter] Throwable $exception, bool $providerConfirmed = false): self
-    {
+    public static function fromException(
+        #[SensitiveParameter] Throwable $exception,
+        FailureOutcome $localOutcome = FailureOutcome::Definitive,
+    ): self {
         if ($exception instanceof self) {
             return $exception;
         }
@@ -69,13 +69,12 @@ class VisitAcceptanceException extends RuntimeException implements ShouldntRepor
                 ),
                 'sqlstate' => $databaseFailure ? ($exception->errorInfo[0] ?? null) : null,
             ],
-            providerConfirmed: $providerConfirmed,
-            localOutcome: $providerConfirmed ? FailureOutcome::Unknown : FailureOutcome::Definitive,
+            localOutcome: $localOutcome,
         );
     }
 
     /**
-     * Emits the outcome owner's safe event without inferring retry permission from remote certainty.
+     * Emits the outcome owner's safe event without inferring retry permission from local certainty.
      *
      * @param  array<string, mixed>  $context  Explicit nonsecret operation context overriding stored context.
      *
@@ -92,7 +91,6 @@ class VisitAcceptanceException extends RuntimeException implements ShouldntRepor
             ...$this->context,
             ...$context,
             'reason' => $this->failure->value,
-            'provider_confirmed' => $this->providerConfirmed,
             'local_outcome' => $this->localOutcome->value,
             'outcome' => $this->localOutcome === FailureOutcome::Unknown ? 'unresolved' : 'not_accepted',
             'retry_after_seconds' => $this->retryAfterSeconds,

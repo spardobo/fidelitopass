@@ -56,7 +56,7 @@ private function publish(...): Promotion
 }
 ```
 
-Rules: one owner, no competing transactions. NEVER put external effects inside an automatically retryable callback. Existing-pass Wallet updates follow accepted ADR-007: synchronous confirmation inside the caller-owned, non-retrying transaction, one shared ten-second budget and no automatic retries. Initial issuance remains Google-first before local persistence.
+Rules: one owner, no competing transactions. NEVER put external effects inside an automatically retryable callback. Consult [Transactions and external effects](../../docs/development/laravel-application-standard.md#transactions-and-external-effects) for the current local commercial and provider-backed issuance/appearance boundaries; do not infer provider timing from this generic transaction recipe.
 
 ### PHPDoc format (strict)
 ```php
