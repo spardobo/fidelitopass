@@ -266,6 +266,7 @@ test.describe("read-only personal presentation", () => {
                     await expect(progress).toHaveCSS("background-color", "rgb(46, 46, 46)");
                     await expect(progress).toHaveCSS("border-color", "rgb(82, 82, 82)");
                     await expect(progress).toHaveCSS("border-radius", "20px");
+                    await expect(progress).toHaveCSS("row-gap", "4px");
                     await expect(progress).toHaveCSS(
                         "padding-top",
                         viewportWidth < 640 ? "16px" : "24px",
