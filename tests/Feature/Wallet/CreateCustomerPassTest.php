@@ -933,7 +933,8 @@ it('keeps the issued Wallet credential permanent while private reads follow comm
     $this->postJson(route('public.join.save', $business->public_id))->assertCreated();
 
     $object = acquisitionObjectRequest();
-    $personalPageUrl = $object['linksModuleData']['uris'][0]['uri'];
+    $personalPageUrl = $object['appLinkData']['webAppLinkInfo']['appTarget']['targetUri']['uri'];
+    expect($personalPageUrl)->toBe($object['linksModuleData']['uris'][0]['uri']);
     $customerPass = CustomerPass::query()->sole();
     $credentialsBefore = $customerPass->getRawOriginal();
     $requestsAfterIssuance = $this->http->requests()->count();
@@ -978,7 +979,8 @@ it('keeps an issued private link current across scheduled active cancelled and e
     fakeAcquisitionProvider($business);
     $this->postJson(route('public.join.save', $business->public_id))->assertCreated();
     $object = acquisitionObjectRequest();
-    $personalPageUrl = $object['linksModuleData']['uris'][0]['uri'];
+    $personalPageUrl = $object['appLinkData']['webAppLinkInfo']['appTarget']['targetUri']['uri'];
+    expect($personalPageUrl)->toBe($object['linksModuleData']['uris'][0]['uri']);
     $customerPass = CustomerPass::query()->sole();
     $requestsAfterIssuance = $this->http->requests()->count();
     $this->http->respondWith(fn () => throw new LogicException('Google must not be called after issuance.'));

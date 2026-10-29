@@ -18,6 +18,7 @@ use Google\Service\Walletobjects\ClassTemplateInfo;
 use Google\Service\Walletobjects\ListTemplateOverride;
 use Google\Service\Walletobjects\LoyaltyClass;
 use Google\Service\Walletobjects\LoyaltyObject;
+use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Str;
 use ReflectionMethod;
 use SensitiveParameter;
@@ -164,9 +165,22 @@ class GoogleWalletPassCreator
                 'sourceUri' => ['uri' => $logoUrl],
             ],
             'hexBackgroundColor' => strtoupper($business->pass_background_color),
+            'textModulesData' => [[
+                'id' => 'personal_invitation',
+                'header' => __('wallet.labels.front_heading'),
+                'body' => __('wallet.labels.front_message'),
+            ]],
             'classTemplateInfo' => [
-                'cardTemplateOverride' => Model::NULL_VALUE,
-                'detailsTemplateOverride' => Model::NULL_VALUE,
+                'cardTemplateOverride' => ['cardRowTemplateInfos' => [['oneItem' => [
+                    'item' => ['firstValue' => ['fields' => [
+                        ['fieldPath' => "class.textModulesData['personal_invitation']"],
+                    ]]],
+                ]]]],
+                'detailsTemplateOverride' => ['detailsItemInfos' => [['item' => [
+                    'firstValue' => ['fields' => [
+                        ['fieldPath' => "object.linksModuleData.uris['personal_information']"],
+                    ]],
+                ]]]],
                 'cardBarcodeSectionDetails' => ['firstTopDetail' => Model::NULL_VALUE, 'firstBottomDetail' => Model::NULL_VALUE],
                 'listTemplateOverride' => [
                     'firstRowOption' => [
@@ -218,6 +232,11 @@ class GoogleWalletPassCreator
             'passPublicId' => $credentials->publicPassId,
         ], absolute: false);
 
+        $personalPageUrl = $applicationOrigin.$personalPagePath;
+        $buttonLocale = Lang::hasForLocale('wallet.labels.front_button')
+            ? app()->getLocale()
+            : Lang::getFallback();
+
         // attach private credentials only at the provider boundary
         return new LoyaltyObject([
             'id' => $objectId,
@@ -229,9 +248,19 @@ class GoogleWalletPassCreator
                 'alternateText' => __('wallet.labels.barcode_alternate', ['code' => $credentials->manualCode]),
             ],
             'accountId' => $credentials->manualCode,
+            'appLinkData' => [
+                'displayText' => ['defaultValue' => [
+                    'language' => str_replace('_', '-', $buttonLocale),
+                    'value' => __('wallet.labels.front_button'),
+                ]],
+                'webAppLinkInfo' => ['appTarget' => ['targetUri' => [
+                    'uri' => $personalPageUrl,
+                    'description' => __('wallet.labels.personal_link'),
+                ]]],
+            ],
             'linksModuleData' => ['uris' => [[
                 'id' => 'personal_information',
-                'uri' => $applicationOrigin.$personalPagePath,
+                'uri' => $personalPageUrl,
                 'description' => __('wallet.labels.personal_link'),
             ]]],
         ]);
@@ -359,10 +388,17 @@ class GoogleWalletPassCreator
         $list->setFirstRowOption($ownedTemplate->getListTemplateOverride()->getFirstRowOption());
         $list->setSecondRowOption($ownedTemplate->getListTemplateOverride()->getSecondRowOption());
         $template->setListTemplateOverride($list);
-        $template['cardTemplateOverride'] = GoogleModel::NULL_VALUE;
-        $template['detailsTemplateOverride'] = GoogleModel::NULL_VALUE;
+        $template->setCardTemplateOverride($ownedTemplate->getCardTemplateOverride());
+        $template->setDetailsTemplateOverride($ownedTemplate->getDetailsTemplateOverride());
         $template->setCardBarcodeSectionDetails($ownedTemplate->getCardBarcodeSectionDetails());
         $update->setClassTemplateInfo($template);
+        $update->setTextModulesData([
+            ...$expected->getTextModulesData(),
+            ...array_values(array_filter(
+                data_get($actual, 'textModulesData', []),
+                static fn ($module) => $module->getId() !== 'personal_invitation',
+            )),
+        ]);
 
         // constructors lose typed null sentinels; bypass Collection's extra writes
         $setModelField = new ReflectionMethod(GoogleModel::class, 'offsetSet');
@@ -445,7 +481,21 @@ class GoogleWalletPassCreator
             );
         }
 
+        $invitation = null;
+        foreach (data_get($appearance, 'textModulesData', []) as $module) {
+            if (data_get($module, 'id') === 'personal_invitation') {
+                $invitation = [
+                    'header' => data_get($module, 'header'),
+                    'body' => data_get($module, 'body'),
+                    'localizedHeader' => (array) data_get($module, 'localizedHeader', []) !== [],
+                    'localizedBody' => (array) data_get($module, 'localizedBody', []) !== [],
+                ];
+                break;
+            }
+        }
+
         return [
+            'invitation' => $invitation,
             'issuerName' => $class->getIssuerName(),
             'programName' => $class->getProgramName(),
             'localizedIssuerName' => (array) data_get($appearance, 'localizedIssuerName', []) !== [],
