@@ -50,7 +50,7 @@
                         {{ __('personal-pass.waiting') }}
                     </p>
                 @elseif (in_array($state, ['zero', 'earning'], true))
-                    <p data-personal-progress class="flex min-w-0 flex-col items-center gap-4 rounded-[20px] border border-app-border bg-app-surface p-4 sm:p-6">
+                    <p data-personal-progress class="flex min-w-0 flex-col items-center gap-1 rounded-[20px] border border-app-border bg-app-surface p-4 sm:p-6">
                         <span class="app-role-personal-count flex min-w-0 flex-wrap items-baseline justify-center gap-x-3">
                             <span class="max-w-full break-words text-app-accent">
                                 {{ $presentation['points'] }}
