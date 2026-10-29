@@ -23,19 +23,18 @@ it('keeps the cause and consumed commit facts immutable and emits nothing during
     expect($failure->getPrevious())->toBeNull();
     expect($failure->retryAfterSeconds)->toBe(15);
     expect(fn () => $failure->context['business_id'] = 9)->toThrow(Error::class);
-    expect(fn () => $failure->providerConfirmed = true)->toThrow(Error::class);
-    expect(VisitAcceptanceException::fromException($failure, true))->toBe($failure);
+    expect(fn () => $failure->localOutcome = FailureOutcome::Unknown)->toThrow(Error::class);
+    expect(VisitAcceptanceException::fromException($failure, FailureOutcome::Unknown))->toBe($failure);
     Log::shouldNotHaveReceived('log');
 });
 
-it('drops native SQL messages bindings and causes while preserving full filtered source diagnostics', function (bool $providerConfirmed) {
+it('drops native SQL messages bindings and causes while preserving full filtered source diagnostics', function (FailureOutcome $localOutcome) {
     Log::spy();
     $native = new QueryException('pgsql', 'SELECT private_token FROM private_table WHERE token = ?', ['private-binding'], new PDOException('private-native'));
-    $failure = VisitAcceptanceException::fromException($native, $providerConfirmed);
+    $failure = VisitAcceptanceException::fromException($native, $localOutcome);
 
     expect($failure->failure)->toBe(VisitAcceptanceFailure::DatabaseFailed);
-    expect($failure->providerConfirmed)->toBe($providerConfirmed);
-    expect($failure->localOutcome)->toBe($providerConfirmed ? FailureOutcome::Unknown : FailureOutcome::Definitive);
+    expect($failure->localOutcome)->toBe($localOutcome);
     expect($failure->getPrevious())->toBeNull();
     expect($failure->context['previous_class'])->toBe(QueryException::class);
     expect($failure->context['source_file'])->toBe($native->getFile());
@@ -46,7 +45,7 @@ it('drops native SQL messages bindings and causes while preserving full filtered
     }
     expect(json_encode($failure->context))->not->toContain('private_token', 'private_table', 'private-binding', 'private-native');
     Log::shouldNotHaveReceived('log');
-})->with([false, true]);
+})->with([FailureOutcome::Definitive, FailureOutcome::Unknown]);
 
 it('classifies a native global UUID collision without retaining SQL or exposing the other identity', function () {
     $native = new UniqueConstraintViolationException(

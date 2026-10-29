@@ -2,11 +2,10 @@
 
 namespace App\Actions\Visits;
 
+use App\Enums\FailureOutcome;
 use App\Enums\PromotionStatus;
 use App\Enums\VisitAcceptanceFailure;
-use App\Exceptions\GoogleWalletSynchronizationException;
 use App\Exceptions\VisitAcceptanceException;
-use App\Integrations\GoogleWallet\GoogleWalletPassUpdater;
 use App\Models\Business;
 use App\Models\CustomerPass;
 use App\Models\Promotion;
@@ -23,7 +22,7 @@ use LogicException;
 use SensitiveParameter;
 use Throwable;
 
-/** Owns one authorized Visit, atomic Reward unlock and optional redemption with synchronous Wallet confirmation. */
+/** Owns one authorized Visit, atomic Reward unlock and optional redemption with local transaction integrity. */
 class AcceptVisit
 {
     private const int MAX_CREDENTIAL_LENGTH = 256;
@@ -35,14 +34,12 @@ class AcceptVisit
     private const string RATE_LIMIT_PREFIX = 'pass-lookup:';
 
     /**
-     * Receives the authoritative clock and existing same-connection Wallet integration.
+     * Receives the authoritative operation clock.
      *
      * @param  DatabaseClock  $clock  PostgreSQL clock captured after required locks.
-     * @param  GoogleWalletPassUpdater  $wallet  Confirms tentative absolute content without committing or logging.
      */
     public function __construct(
         private readonly DatabaseClock $clock,
-        private readonly GoogleWalletPassUpdater $wallet,
     ) {}
 
     /**
@@ -57,7 +54,6 @@ class AcceptVisit
      * @return array{visit_id: int, operation_id: string, customer_pass_id: int, promotion_id: int, points_awarded: int, confirmed_at: string} Immutable committed Visit facts.
      *
      * @throws VisitAcceptanceException If authorization, input, eligibility or local persistence fails.
-     * @throws GoogleWalletSynchronizationException If provider confirmation fails; propagated unchanged after logging.
      * @throws Throwable If native logging fails, including after a known commit.
      */
     public function handle(
@@ -70,7 +66,7 @@ class AcceptVisit
     ): array {
         $businessId = null;
         $normalized = null;
-        $providerConfirmed = false;
+        $localOutcome = FailureOutcome::Definitive;
         $safeOperationId = Str::isUuid($operationId) ? strtolower($operationId) : null;
 
         try {
@@ -121,9 +117,9 @@ class AcceptVisit
                 $expectedPromotionId,
                 $redeemReward,
                 &$businessId,
-                &$providerConfirmed,
+                &$localOutcome,
             ): array {
-                return $this->processVisit(
+                $accepted = $this->processVisit(
                     $actor,
                     $method,
                     $normalized,
@@ -131,27 +127,17 @@ class AcceptVisit
                     $expectedPromotionId,
                     $redeemReward,
                     $businessId,
-                    $providerConfirmed,
                 );
-            }, 1);
-        } catch (GoogleWalletSynchronizationException $exception) {
-            $exception->log([
-                'actor_id' => $actor->id,
-                'business_id' => $businessId,
-                'operation_id' => $safeOperationId,
-                'stage' => $exception->stage->value,
-                'remote_outcome' => $exception->outcome->value,
-                'provider_status' => $exception->providerStatus,
-                'local_outcome' => 'not_accepted',
-                'outcome' => 'not_accepted',
-                'provider_confirmed' => false,
-            ]);
 
-            throw $exception;
+                // callback completion reaches the native commit phase; failures cannot prove rollback
+                $localOutcome = FailureOutcome::Unknown;
+
+                return $accepted;
+            }, 1);
         } catch (LogicException|Error $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $failure = VisitAcceptanceException::fromException($exception, $providerConfirmed);
+            $failure = VisitAcceptanceException::fromException($exception, $localOutcome);
 
             if (
                 $failure->failure === VisitAcceptanceFailure::InvalidCredential
@@ -185,14 +171,12 @@ class AcceptVisit
      * @param  int|null  $expectedPromotionId  Selected offer compared only for a new operation after authorized replay.
      * @param  bool  $redeemReward  Requires a redeemed original entitlement without upgrading an existing Visit.
      * @param  int|null  $businessId  Owning Business identity returned by reference for outcome correlation.
-     * @param  bool  $providerConfirmed  Provider confirmation returned by reference independently of local commit.
      *
      * @param-out int $businessId Owning Business identity established before a successful return.
      *
      * @return array{visit: Visit, replayed: bool, unlocked: bool, redeemed: bool} Tentative facts requiring commit.
      *
      * @throws VisitAcceptanceException If authorization or persistence fails.
-     * @throws GoogleWalletSynchronizationException If provider sync fails.
      */
     private function processVisit(
         User $actor,
@@ -202,7 +186,6 @@ class AcceptVisit
         ?int $expectedPromotionId,
         bool $redeemReward,
         ?int &$businessId,
-        bool &$providerConfirmed,
     ): array {
         // lock the business to serialize concurrent publications and visits
         $business = $actor->business()->lockForUpdate()->first();
@@ -239,10 +222,6 @@ class AcceptVisit
         if ($evaluation['unlocked']) {
             $this->unlockReward($business, $pass, $promotion, $actor, $operationAt, $redeemReward);
         }
-
-        // synchronize the presentation with Google before local commit
-        $this->wallet->update($business, $pass, $operationAt);
-        $providerConfirmed = true;
 
         return ['visit' => $visit, 'replayed' => false, 'unlocked' => $evaluation['unlocked'], 'redeemed' => $redeemReward];
     }

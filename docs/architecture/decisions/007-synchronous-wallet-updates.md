@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. Partially superseded by [ADR-008](008-permanent-wallet-credential.md) for Visit/Redemption provider updates and their Google-before-commit gate. Those operations now commit authoritative local facts without Google calls. Initial issuance, shared appearance updates, credential identity and applicable provider safeguards remain separate and unchanged. Original decision and rationale below are retained.
 
 Supersedes the Visit/Redemption post-commit assumption retained by [ADR-006](006-google-first-initial-wallet-issuance.md), not its initial-issuance decision or the persistent identity in [ADR-002](002-persistent-google-wallet-pass.md).
 

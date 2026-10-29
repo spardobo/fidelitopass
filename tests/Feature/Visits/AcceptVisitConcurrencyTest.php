@@ -42,7 +42,7 @@ it('serializes public commands for duplicate UUIDs and independent target-crossi
         }
 
         expect(array_column($results, 'failure'))->toBe([null, null]);
-        expect(array_sum(array_column($results, 'provider_requests')))->toBe($sameOperation ? 3 : 6);
+        expect(array_sum(array_column($results, 'provider_requests')))->toBe(0);
         if ($sameOperation) {
             expect($results[0]['result'])->toBe($results[1]['result']);
         } else {
@@ -70,7 +70,7 @@ it('serializes public commands for duplicate UUIDs and independent target-crossi
     }
 })->with(['same global operation UUID' => true, 'distinct intentional operations' => false]);
 
-it('rejects a simultaneous global operation collision across Businesses without a second provider write', function () {
+it('rejects a simultaneous global operation collision across Businesses without contacting Google', function () {
     [$firstBusiness] = concurrentVisitFixture(1);
     [$secondBusiness] = concurrentVisitFixture(1, 'b');
     $operationId = (string) Str::uuid();
@@ -95,7 +95,7 @@ it('rejects a simultaneous global operation collision across Businesses without 
 
         expect(collect($results)->where('failure', 'operation_conflict'))->toHaveCount(1);
         expect(collect($results)->whereNotNull('result'))->toHaveCount(1);
-        expect(array_sum(array_column($results, 'provider_requests')))->toBe(3);
+        expect(array_sum(array_column($results, 'provider_requests')))->toBe(0);
         $this->assertDatabaseCount('visits', 1);
         $this->assertDatabaseCount('reward_entitlements', 1);
     } finally {

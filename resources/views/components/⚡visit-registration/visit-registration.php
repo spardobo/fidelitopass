@@ -9,7 +9,6 @@ use App\Enums\VisitAcceptanceFailure;
 use App\Enums\VisitRegistrationFailure;
 use App\Enums\VisitRegistrationStage;
 use App\Exceptions\CustomerPassFindingException;
-use App\Exceptions\GoogleWalletSynchronizationException;
 use App\Exceptions\RewardRedemptionException;
 use App\Exceptions\VisitAcceptanceException;
 use App\Exceptions\VisitRegistrationException;
@@ -199,9 +198,6 @@ new class extends Component
             } else {
                 $failure = $this->feedbackForAcceptance($exception->failure);
             }
-        } catch (GoogleWalletSynchronizationException) {
-            // the action already owns the provider failure event
-            $failure = VisitRegistrationFailure::WalletUnavailable;
         } catch (Throwable $exception) {
             report($exception);
             $outcome = 'unknown';
@@ -339,8 +335,6 @@ new class extends Component
                     default => VisitRegistrationFailure::RewardUnavailable,
                 };
             }
-        } catch (GoogleWalletSynchronizationException) {
-            $failure = VisitRegistrationFailure::RewardUnavailable;
         } catch (Throwable $exception) {
             report($exception);
             $outcome = 'unknown';

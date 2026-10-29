@@ -4,6 +4,7 @@ use App\Http\Controllers\CreateCustomerPassController;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/', 'pages::landing')->name('home');
+Route::livewire('personal/{businessPublicId}/{passPublicId}', 'pages::personal-pass')->name('public.pass');
 Route::livewire('join/{public_id}', 'pages::join')->whereUuid('public_id')->name('public.join');
 Route::post('join/{public_id}/save', CreateCustomerPassController::class)
     ->whereUuid('public_id')

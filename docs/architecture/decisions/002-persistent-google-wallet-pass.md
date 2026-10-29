@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. Partially superseded by [ADR-008](008-permanent-wallet-credential.md): keep one persistent Google Wallet Object and credential per Customer pass/Business, but replace variable Promotion content and the exclusion of a separate informational customer page. The page is not another scannable pass. Original decision and rationale below are retained.
 
 ## Context
 

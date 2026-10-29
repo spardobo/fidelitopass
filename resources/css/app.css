@@ -210,6 +210,51 @@ select:focus[data-flux-control] {
 @utility app-role-metric {
     @apply text-4xl leading-10 font-semibold tabular-nums;
 }
+/* personal consultation roles do not resize other pages. */
+@utility app-role-personal-count {
+    @apply text-[2.5rem] leading-12 font-semibold tabular-nums;
+}
+
+/* personal status composition consumes the existing shared roles. */
+.app-personal-pass [data-personal-state] {
+    --personal-state-ink: var(--color-app-accent);
+    --personal-state-surface: var(--color-app-emphasis);
+    --personal-heading-ink: var(--color-app-accent);
+}
+.app-personal-pass [data-personal-state="scheduled"],
+.app-personal-pass [data-personal-state="unavailable"] {
+    --personal-state-ink: var(--color-app-warning-ink);
+    --personal-state-surface: var(--color-app-warning-surface);
+}
+.app-personal-pass [data-personal-state="zero"],
+.app-personal-pass [data-personal-state="earning"],
+.app-personal-pass [data-personal-state="available"],
+.app-personal-pass [data-personal-state="redeemed"] {
+    --personal-state-ink: var(--color-app-success-ink);
+    --personal-state-surface: var(--color-app-success-surface);
+}
+.app-personal-pass [data-personal-state="ended"],
+.app-personal-pass [data-personal-state="expired"],
+.app-personal-pass [data-personal-state="cancelled"],
+.app-personal-pass [data-personal-state="invalid"] {
+    --personal-state-ink: var(--color-app-danger-ink);
+    --personal-state-surface: var(--color-app-danger-surface);
+}
+.app-personal-pass [data-personal-state="ended"],
+.app-personal-pass [data-personal-state="expired"],
+.app-personal-pass [data-personal-state="cancelled"],
+.app-personal-pass [data-personal-state="invalid"],
+.app-personal-pass [data-personal-state="unavailable"] {
+    --personal-heading-ink: var(--color-app-ink);
+}
+.app-personal-pass .app-personal-icon {
+    color: var(--personal-state-ink);
+    background-color: var(--personal-state-surface);
+}
+.app-personal-pass #personal-status {
+    color: var(--personal-heading-ink);
+}
+
 @utility app-role-pass-preview-brand {
     @apply text-2xl! leading-[1.15]! font-bold!;
 }

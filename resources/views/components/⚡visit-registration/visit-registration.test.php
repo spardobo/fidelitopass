@@ -63,7 +63,7 @@ it('redeems only after an explicit command and reads the original final Reward w
     $visit = $component->get('facts');
     $reward = RewardEntitlement::query()->sole();
     $component->assertSet('stage', 'result')->assertSet('reward.can_redeem_reward', true);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
 
     $component->call('redeemReward', 'manual', '00007', $reward->id, $promotion->id);
 
@@ -73,7 +73,7 @@ it('redeems only after an explicit command and reads the original final Reward w
         ->assertSee('Recompensa canjeada');
     $component->call('findRewardReceipt', 'manual', '00007', $reward->id, $promotion->id);
     expect($component->effects['returns'][0])->toBeTrue();
-    expect($http->history)->toHaveCount(6);
+    expect($http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
     expect(json_encode($component->snapshot['data']))->not->toContain('00007', 'validation_token_hash');
@@ -143,7 +143,7 @@ it('distinguishes completed current and future steps through public identificati
         if ($stage === 'confirm') {
             expect(count(array_unique($styles)))->toBe(3);
         }
-        expect($http->history)->toHaveCount($stage === 'result' ? 3 : 0);
+        expect($http->history)->toBeEmpty();
         $this->assertDatabaseCount('visits', $stage === 'result' ? 1 : 0);
         $this->assertDatabaseCount('reward_entitlements', $stage === 'result' ? 1 : 0);
     }
@@ -272,7 +272,7 @@ it('confirms a real Visit and Reward once and reads the immutable original recei
     ]);
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     expect(json_encode($component->snapshot['data']))->not->toContain('00007', 'manual_code', 'validation_token_hash');
     expect(array_keys($component->snapshot['data']))->toBe(['stage', 'preview', 'facts', 'details', 'reward', 'redemption', 'combinedConfirmed', 'errorCode']);
 });
@@ -319,7 +319,7 @@ it('keeps receipt checks read-only and scoped to the current credential', functi
 
     expect($component->effects['returns'][0])->toBeFalse();
     $component->assertSet('stage', 'result')->assertSet('facts', $facts);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
 });
 
@@ -359,7 +359,7 @@ it('treats a native completion-log failure as unknown and recovers without anoth
 
     expect($component->effects['returns'][0])->toBeTrue();
     $component->assertSet('stage', 'result')->assertSet('facts.points_awarded', 1);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     expect(RateLimiter::attempts('pass-lookup:'.$business->user_id))->toBe(0);
     $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 1]);
     $this->assertDatabaseCount('visits', 1);
@@ -402,7 +402,7 @@ it('keeps known committed facts positive when a receipt is missing or its creden
     $pass->update(['manual_code' => '00008']);
     $component->call('findVisitReceipt', 'manual', '00007', $id);
     $component->assertSet('stage', 'result')->assertSet('facts', $facts);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
 });
 
@@ -444,7 +444,7 @@ it('renders a direct original Reward command without another Visit or provider c
     $component->assertSee('Canjear recompensa')->assertDontSee('Solo registrar')->assertDontSee('Sí, canjear');
     $this->assertDatabaseCount('visits', 1);
     expect(RewardEntitlement::query()->sole()->redeemed_at)->toBeNull();
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
 });
 
 it('offers no redemption command outside eligible confirmation or after identification reset', function () {
@@ -518,7 +518,7 @@ it('hides the Visit CTA for an available Reward and restores clean native identi
 
     $component->assertSet('stage', 'confirm')->assertSet('preview.can_redeem_reward', true)
         ->assertSee(__('visit-registration.available_reward'))->assertDontSee(__('visit-registration.confirm_visit'));
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
 });
@@ -584,7 +584,7 @@ it('keeps confirmed facts positive with a toast and no technical refresh button 
     @$document->loadHTML('<?xml encoding="UTF-8">'.$component->html());
     $error = (new DOMXPath($document))->query('//*[@id="visit-result-error" and @data-flux-error]')->item(0);
     expect($error?->textContent)->toContain(__('visit-registration.details_unavailable'));
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 1]);
     $this->assertDatabaseCount('visits', 1);
 });
@@ -640,7 +640,7 @@ it('renders authoritative progress and consistent point and reward roles before 
     expect($xpath->query('//*[@id="visit-points-gain"]')->item(0)->getAttribute('class'))->toContain('app-role-metric');
     expect($xpath->query('//*[@id="visit-reward"]//*[local-name()="svg"]')->item(0)?->C14N())->toBe($rewardIcon);
     expect($facts['points_awarded'])->toBe(1);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 1]);
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 0);
@@ -664,7 +664,7 @@ it('retains actual numeric progress when an authoritative award exceeds the targ
     expect($progress)->not->toBeNull();
     expect(trim($progress->textContent))->toBe('3 / 1 puntos');
     expect($xpath->query('//*[@data-flux-progress]')->length)->toBe(0);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     $this->assertDatabaseHas('visits', ['operation_id' => $id, 'awarded_points' => 3]);
     $this->assertDatabaseCount('visits', 1);
     $this->assertDatabaseCount('reward_entitlements', 1);
@@ -768,7 +768,7 @@ it('checks an original receipt without replacing fresh identification when prese
     $component->call('findVisitReceipt', 'manual', '00007', $id, false);
     expect($component->effects['returns'][0])->toBeTrue();
     $component->assertSet('stage', 'identify')->assertSet('facts', null)->assertSet('details', null)->assertSet('preview', null);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
     $this->assertDatabaseCount('visits', 1);
 });
 
@@ -819,7 +819,7 @@ it('confirms compound postconditions through public actions and retains known su
     $xpath = new DOMXPath($document);
     expect($xpath->query('//footer//button')->length)->toBe(1);
     expect($xpath->query('//*[@data-reward-arm or @data-reward-confirm]')->length)->toBe(0);
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
 });
 
 it('rechecks the actual multiplier after a completing preview instead of partially recording a compound Visit', function () {
@@ -858,7 +858,7 @@ it('does not reconcile an unredeemed Visit-only receipt as compound success', fu
     expect($component->effects['returns'][0])->toBeFalse();
     $component->assertSet('stage', 'confirm')->assertSet('facts', null)->assertSet('redemption', null)->assertSet('errorCode', 'unknown');
     expect(RewardEntitlement::query()->sole()->redeemed_at)->toBeNull();
-    expect($http->history)->toHaveCount(3);
+    expect($http->history)->toBeEmpty();
 });
 
 /**
