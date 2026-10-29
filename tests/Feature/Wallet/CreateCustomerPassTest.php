@@ -939,18 +939,18 @@ it('keeps the issued Wallet credential permanent while private reads follow comm
     $credentialsBefore = $customerPass->getRawOriginal();
     $requestsAfterIssuance = $this->http->requests()->count();
     $this->http->respondWith(fn () => throw new LogicException('Google must not be called after issuance.'));
-    $this->get($personalPageUrl)->assertOk()->assertSee('Llevas 0 de 2 puntos.')
+    $this->get($personalPageUrl)->assertOk()->assertSeeTextInOrder(['0', 'de 2', 'puntos'])
         ->assertHeader('Referrer-Policy', 'no-referrer');
 
     app(AcceptVisit::class)->handle($business->user, 'manual', $customerPass->manual_code, (string) Str::uuid(), $promotion->id);
-    $progressResponse = $this->get($personalPageUrl)->assertOk()->assertSee('Llevas 1 de 2 puntos.');
+    $progressResponse = $this->get($personalPageUrl)->assertOk()->assertSeeTextInOrder(['1', 'de 2', 'puntos']);
     expect($progressResponse->headers->get('Cache-Control'))->toContain('no-store', 'private');
     app(AcceptVisit::class)->handle($business->user, 'manual', $customerPass->manual_code, (string) Str::uuid(), $promotion->id);
-    $this->get($personalPageUrl)->assertOk()->assertSee('¡Tu recompensa te está esperando!');
+    $this->get($personalPageUrl)->assertOk()->assertSee('¡Lo lograste!');
     $reward = RewardEntitlement::query()->sole();
     app(RedeemReward::class)->handle($business->user, 'manual', $customerPass->manual_code, $reward->id, $promotion->id);
 
-    $response = $this->get($personalPageUrl)->assertOk()->assertSee('¡Ya canjeaste tu recompensa!')
+    $response = $this->get($personalPageUrl)->assertOk()->assertSee('¡Listo, recompensa canjeada!')
         ->assertDontSee($customerPass->manual_code)->assertDontSee($object['barcode']['value'])
         ->assertHeader('Referrer-Policy', 'no-referrer');
     expect($response->headers->get('Cache-Control'))->toContain('no-store', 'private');
@@ -985,13 +985,13 @@ it('keeps an issued private link current across scheduled active cancelled and e
     $requestsAfterIssuance = $this->http->requests()->count();
     $this->http->respondWith(fn () => throw new LogicException('Google must not be called after issuance.'));
 
-    $this->get($personalPageUrl)->assertOk()->assertSee('Tu promoción empieza el');
+    $this->get($personalPageUrl)->assertOk()->assertSee('Empiezas a sumar el');
     $capturedAt = '2030-01-03 04:00:00+00';
-    $this->get($personalPageUrl)->assertOk()->assertSee('Llevas 0 de 2 puntos.');
+    $this->get($personalPageUrl)->assertOk()->assertSeeTextInOrder(['0', 'de 2', 'puntos']);
     $capturedAt = '2030-01-04 04:00:00+00';
-    $this->get($personalPageUrl)->assertOk()->assertSee('Esta promoción ya terminó.');
+    $this->get($personalPageUrl)->assertOk()->assertSee('Esta promoción llegó a su fin.');
     $promotion->forceFill(['status' => 'cancelled', 'cancelled_at' => '2030-01-03 16:00:00+00'])->save();
-    $this->get($personalPageUrl)->assertOk()->assertSee('El negocio canceló esta promoción.');
+    $this->get($personalPageUrl)->assertOk()->assertSee('Esta promoción fue cancelada.');
     $this->get($personalPageUrl.'&unexpected=changed')->assertNotFound()->assertDontSee($business->name);
     $foreignBusiness = Business::factory()->create();
     $foreignPath = URL::signedRoute('public.pass', [

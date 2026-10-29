@@ -8,8 +8,8 @@ Use one stable identification layout across all Promotion and customer states:
 
 1. Business name and logo, using saved shared appearance.
 2. Private QR and labelled manual code.
-3. A brief, static invitation on the card front: **¿Cómo vas con tu tarjeta?** / **Mira tus puntos y premios aquí.**
-4. A native front action labelled **Ver el detalle**, opening the private informational page. The details view retains a relevant **Detalle de mi tarjeta** link without repeating the invitation.
+3. A brief, static invitation on the card front: **¡Qué bueno tenerte aquí!** / **Consulta los detalles de tu tarjeta cuando quieras.**
+4. A native front action labelled **Ver detalles**, opening the private informational page. The details view retains a relevant **Detalles de mi tarjeta** link without repeating the invitation.
 
 ```text
 CAFÉ CENTRAL
@@ -17,17 +17,17 @@ CAFÉ CENTRAL
 [private barcode]
 Código manual: 48273
 
-¿Cómo vas con tu tarjeta?
-Mira tus puntos y premios aquí.
+¡Qué bueno tenerte aquí!
+Consulta los detalles de tu tarjeta cuando quieras.
 
-[Ver el detalle → private informational page]
+[Ver detalles → private informational page]
 ```
 
 Do not show Promotion titles, terms, target, progress, current Visit value, Reward, redemption status or Promotion dates anywhere in Wallet, including details. Do not replace those fields with variable waiting, active, completed or expired messages. The static invitation and action ask the customer to consult the page. They do not claim a positive balance, an active offer, an available Reward or automatic synchronization.
 
 Use the native [front web action](https://developers.google.com/wallet/reference/rest/v1/AppLinkData) with concise localized button text of no more than 30 characters. It and the details link must open the same private destination. Use the supported [card and details templates](https://developers.google.com/wallet/retail/loyalty-cards/resources/template) to show the static invitation on the front and only the titled link in details. A link in details alone is not the front action. The invitation and action express the intended reading order; Google controls their exact position, separation, wrapping and device visibility. Provider payload acceptance is not proof of that composition on a device.
 
-Illustrative web examples remain explanatory, nonoperational samples under their own UI contract; they do not establish the content of an issued credential.
+Illustrative web examples remain explanatory, nonoperational samples under their own UI contract; they do not establish the content of an issued credential. The linked personal page reuses the shared application roles and Join-style icon surfaces, with restrained violet heading/progress emphasis and a regular-weight solid-star card for applicable extra points, reusing Join's existing emphasized card composition and the global body typography. The page orders progress, temporal information, applicable multiplier and meaningful next steps, omitting absent roles. All dates, including a prior canje shown after cancellation, are temporal facts rather than a further customer instruction. Scheduled offers show their start and next step without a redundant points-target sentence; available Rewards show a temporal redemption deadline followed by a separate next-step instruction without repeating the date. Positive headings, current progress, next-step and recovery accents use the existing `#A77BFF`, not the lighter accent-text role. The progress count and unit sit inside Join's neutral card composition with deliberate count/target separation. The multiplier uses Join's high-contrast priority ink on emphasis, not low-contrast accent text. Date-only temporal information, including actual historical canje dates, uses bold secondary ink. All next-step instructions use normal-weight accent body text, including the available Reward instruction; there is no mixed date/action styling exception. Those web accents do not recolor the saved native Wallet credential or add variable facts to it.
 
 ### Credential continuity
 

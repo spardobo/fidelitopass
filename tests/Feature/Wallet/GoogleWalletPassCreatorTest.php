@@ -93,8 +93,8 @@ beforeEach(function () {
         'hexBackgroundColor' => '#123456',
         'textModulesData' => [[
             'id' => 'personal_invitation',
-            'header' => '¿Cómo vas con tu tarjeta?',
-            'body' => 'Mira tus puntos y premios aquí.',
+            'header' => '¡Qué bueno tenerte aquí!',
+            'body' => 'Consulta los detalles de tu tarjeta cuando quieras.',
         ]],
         'classTemplateInfo' => [
             'cardTemplateOverride' => ['cardRowTemplateInfos' => [['oneItem' => ['item' => ['firstValue' => ['fields' => [['fieldPath' => "class.textModulesData['personal_invitation']"]]]]]]]],
@@ -1932,7 +1932,7 @@ it('issues only permanent identification and a native signed private consultatio
         && $providerRequest->url() === $this->objectUrl)->sole()[0]->data();
     expect($objectPayload)->not->toHaveKeys(['textModulesData', 'loyaltyPoints']);
     $personalLink = $objectPayload['linksModuleData']['uris'][0];
-    expect($personalLink['description'])->toBe('Detalle de mi tarjeta');
+    expect($personalLink['description'])->toBe('Detalles de mi tarjeta');
     $signedRequest = Illuminate\Http\Request::create($personalLink['uri']);
     expect(URL::hasValidSignature($signedRequest, absolute: false))->toBeTrue();
     expect($personalLink['uri'])->toStartWith('https://passes.example.test/personal/');
@@ -1978,12 +1978,12 @@ it('serializes a native front web action and a static invitation without repeati
     $object = json_decode($objectRequest->body(), true, flags: JSON_THROW_ON_ERROR);
     $detailsLink = $object['linksModuleData']['uris'][0];
     expect($object['appLinkData'])->toEqual([
-        'displayText' => ['defaultValue' => ['language' => 'es', 'value' => 'Ver el detalle']],
+        'displayText' => ['defaultValue' => ['language' => 'es', 'value' => 'Ver detalles']],
         'webAppLinkInfo' => ['appTarget' => ['targetUri' => [
-            'uri' => $detailsLink['uri'], 'description' => 'Detalle de mi tarjeta',
+            'uri' => $detailsLink['uri'], 'description' => 'Detalles de mi tarjeta',
         ]]],
     ]);
-    expect($detailsLink['description'])->toBe('Detalle de mi tarjeta');
+    expect($detailsLink['description'])->toBe('Detalles de mi tarjeta');
     expect(URL::hasValidSignature(Illuminate\Http\Request::create($detailsLink['uri']), absolute: false))->toBeTrue();
     $classRequest = $this->http->requests(fn (Request $request) => $request->url() === $this->classUrl)->sole()[0];
     $class = json_decode($classRequest->body(), true, flags: JSON_THROW_ON_ERROR);
@@ -2017,10 +2017,10 @@ it('uses active translations or Spanish fallback for a concise native front acti
     $button = $object['appLinkData']['displayText']['defaultValue'];
     expect($button)->toBe([
         'language' => $translated ? $locale : 'es',
-        'value' => $translated ? 'View card details' : 'Ver el detalle',
+        'value' => $translated ? 'View card details' : 'Ver detalles',
     ]);
     expect(mb_strlen($button['value']))->toBeLessThanOrEqual(30);
-    expect($object['linksModuleData']['uris'][0]['description'])->toBe($translated ? 'My card details' : 'Detalle de mi tarjeta');
+    expect($object['linksModuleData']['uris'][0]['description'])->toBe($translated ? 'My card details' : 'Detalles de mi tarjeta');
     expect(app()->getLocale())->toBe($locale);
 })->with(['Spanish' => ['es', false], 'active translation' => ['en', true], 'fallback' => ['fr', false]]);
 

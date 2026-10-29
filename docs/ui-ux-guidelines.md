@@ -395,38 +395,55 @@ Success uses only a short creation toast, not a large success banner or a claim 
 
 ## Private informational personal landing
 
-### Approved behavior
+### Approved behavior and hierarchy
 
-The permanent Wallet card links to one private read-only page. Adapt Join's centered composition into a fixed skeleton: **current-state icon → Business name → current status/Promotion → personal progress or relevant Reward → next step**. Keep the icon above the Business name and the information below it. Reuse the shared title, section, body and supporting-text roles, native Flux composition and the existing public-page rhythm; do not copy Join's download/issuance steps or add a design system. Preserve the established Material-informed spacing: an 8 CSS px base with 4 CSS px fine increments by semantic grouping. The page contains no QR/manual credential, account form, enrollment, Visit or redemption control.
+The permanent Wallet card links to one private read-only page. Use Join's centered composition without its download or issuance steps: **state icon → Business name → emotional state heading → Reward on its own line → optional merchant description → progress card → temporal information → separate multiplier card → meaningful next step**. Omit roles that do not apply; never render empty blocks. Progress belongs only to zero/earning; the multiplier card appears only for a current two-, three- or five-point Visit. Temporal information shows the applicable start, cutoff or actual canje date. All date-bearing copy belongs in that position, including a genuine canje before cancellation. Actual canje dates are facts, not next-step instructions; redeemed and cancelled states gain no invented customer action. A genuine canje remains visible independently of the other temporal facts. Show the available Reward deadline as temporal information followed by its separate next-step instruction; do not repeat the date in that instruction. Every selected offer, including zero points, shows its Reward separately from the heading. Preserve merchant-authored names and descriptions as entered and escaped; omit absent descriptions without replacement copy or a card wrapper.
 
-The top icon may reflect the current card/consultation state through an existing native outline icon and semantic surface. Do not convey status through color alone: keep an adjacent visible state description, with the icon's shape reinforcing it. When that text conveys the same meaning, hide the decorative icon from assistive technology. Keep header geometry stable across states; add no icon library, per-scenario component framework or icon-type enum layer. Invalid/foreign access must not expose a Business name or other private facts from unvalidated scope.
+Keep the icon circle at `64px`. Both the Business heading and the state heading use the shared title role: `24/32px` on mobile and `30/36px` from `48rem`, semibold `600`. Keep numeric progress at `40/48px` tabular. Put **puntos** on a separate line below the translated count **{points} de {target}**. Keep a deliberate `12px` gap between the actual count and its localized relation/target. Group the count and unit inside Join's existing neutral card composition: neutral surface and border, `20px` radius, `16px` padding (`24px` from the small breakpoint) and `16px` vertical spacing. Reuse the shared `16px` body and `14–16px` supporting roles. Both headings reuse the unchanged global title mapping; only the count needs a personal-page sizing role. Do not change global title or metric values for this page. Keep long names, descriptions and numbers readable without truncation or horizontal overflow. Use the established 8 CSS px spacing base and 4 CSS px fine increments by semantic grouping.
 
-Equal current facts must produce the same structure, icon, copy and next-step guidance, regardless of earlier Promotions. An active successor uses exactly the ordinary active zero, earning, available-Reward or redeemed presentation for its own facts, without a transition headline or narrative. Text explains what is available now, not a customer's return, journey or previous sequence. Genuine redeemed, expired or cancelled facts may explain current availability without turning the page into a timeline or requiring a history label.
+Use only the installed native outline icons below. The icon is decorative when adjacent state text conveys its meaning. Reuse existing shared foreground/background roles unchanged: waiting matches Join's emphasis/accent pair exactly, active and completed states use success, future or unavailable states use warning, and closed or invalid states use danger. Do not add a separate page palette, translucent approximation, blue information role or near-deadline threshold. These page-specific assignments do not recolor other screens or saved Business appearance.
 
-Read current PostgreSQL facts on GET without Google work, initial synchronization, a sync spinner, deferred refresh or jobs. Do not imply that opening Wallet alone updates or notifies the customer. The effectively Active Promotion takes primary precedence. Show earlier redeemed, expired or cancelled facts only when needed to explain relevant personal state, never to change equivalent current-state copy. Omit an extended history/catalog, empty history placeholders and tall introductions that displace the next step. Future offers are not current earning or redemption eligibility.
-
-Preserve original Promotion-local dates, awarded progress and actual redemption facts. A successor has its own zero or earned progress; never carry old points, revive an expired Reward or add a grace period. Customers present their permanent Wallet credential to the Business for authorized operations, not another web pass.
-
-### Scenario proposal for owner review
-
-The rules above are approved. The information grouping and Spanish sample copy below are a minimal proposal, not final visual/content approval. Use warm, positive and simple Join-like language rather than technical phase labels or continuation stories. The same template handles these states; the successor row checks equivalence, not a separate customer-facing scenario.
-
-| Current facts | Useful information in the fixed skeleton | Spanish sample and next step |
+| State | Native icon | Shared foreground / background roles |
 |---|---|---|
-| No published offer | Business and neutral current availability. No fabricated target, progress, Reward or dates; never expose drafts. | **Ahora no hay una promoción disponible.** |
-| Scheduled, not started; no active offer | Next published uncancelled offer, actual benefit, target and local start. Clearly not available yet. | **Esta promoción empieza el {start_date}.** / **Desde esa fecha podrás sumar para {reward_title}.** |
-| Active, zero points | Current benefit, target/deadline and real zero progress; no opt-in step. | **Suma puntos para {reward_title}.** / **Llevas 0 de {target} puntos. Muestra tu tarjeta en el negocio.** |
-| Active, earning | Same current terms, actual awarded progress and relevant earning/extra-point explanation. Do not cap overshoot or invent an award. | **Tu progreso en esta promoción** / **Llevas {points} de {target} puntos.** |
-| Reward available | Actual Reward and redemption deadline; prioritize how to request it over earning. | **¡Tu recompensa está lista!** / **Muestra tu tarjeta en el negocio y pide tu recompensa hasta el {end_date}.** |
-| Redeemed, same Promotion still active | Genuine current redeemed status, Reward and date; no new earning cycle or redeem action. | **¡Recompensa canjeada!** / **{reward_title} · {redemption_date}.** |
-| Ended without Reward; no active successor | Current unavailability and actual end when relevant; hide earning/redemption invitation. A scheduled offer may supply the primary next step. | **Esta promoción ya no está disponible.** / **Terminó el {end_date}.** |
-| Expired unredeemed Reward; no active successor | Current unavailability and actual redemption deadline when relevant, without presenting a canje or grace. | **Esta recompensa ya no está disponible.** / **El plazo de canje terminó el {end_date}.** |
-| Cancelled while active, or cancelled before scheduled start | Current cancellation is not normal completion. Hide earning/redemption invitations and do not advertise the cancelled scheduled offer. Do not erase stored Visits or genuine canjes. | **Esta promoción no está disponible.** / **El negocio canceló esta promoción.** |
-| Active successor with the same current facts as an ordinary active offer | Use the exact same icon, structure, copy and next step as the corresponding zero, earning, available-Reward or redeemed row. Earlier offers do not add a headline or narrative. | Same Spanish copy as the matching active row above; no additional UI text. |
-| Invalid or foreign link | Generic access feedback; no Business/pass details from unvalidated scope. No alternative credential-entry form. | **No pudimos abrir este enlace. Vuelve a intentarlo desde tu tarjeta de Google Wallet.** |
-| Server unavailable or authorized facts unreadable | Safe brief error in the same shell without fabricated/stale eligibility or private diagnostic details; no automatic polling or synchronization UI. | **Ahora no pudimos mostrar tu información. Inténtalo de nuevo más tarde.** |
+| Waiting | information-circle | Accent / emphasis, as Join |
+| Scheduled | clock | Warning ink / warning surface |
+| Zero | tag | Success ink / success surface |
+| Earning | tag | Success ink / success surface |
+| Available | gift | Success ink / success surface |
+| Redeemed | check-circle | Success ink / success surface, as Join's ready state |
+| Ended | clock | Danger ink / danger surface |
+| Expired | clock | Danger ink / danger surface |
+| Cancelled | x-circle | Danger ink / danger surface |
+| Invalid | exclamation-triangle | Danger ink / danger surface |
+| Unavailable | exclamation-triangle | Warning ink / warning surface |
 
-Normal consultation does not need success toasts or a sync-progress state. Use the existing native Flux error pattern for an actual failed request. A failed read must not look like zero progress, an absent offer or a confirmed redemption. Final responsive hierarchy and copy require owner review before UI implementation.
+Give positive headings the existing accent color (`#A77BFF`, not the lighter accent-text role) without rewriting words or adding ornament. Closed and failed headings keep primary reading ink. Highlight the actual accumulated count with the same accent, leaving **de {target}** in primary ink and **puntos** below. Keep the count as escaped numeric content and its relation/target as ordinary localized text; do not introduce rich-text translation machinery.
+
+Only an applicable multiplier adds an informational card with a native decorative **solid star** icon and the existing high-contrast priority ink (`#E4D6FA`), as in Join. Reuse Join's emphasized card composition unchanged: emphasis background, priority border, `20px` radius and `16px` padding (`24px` from the small breakpoint). Use the global body role (`16/24px`, regular `400`) and an `8px` icon/text gap, not a page-specific font or tint. It remains information, not a button. Preserve its exact sentence and omit it for one-point visits. Add no other card types, icon library, per-scenario components, icon-type enum, animation, progress bar or confetti. Status never relies on color alone.
+
+### Approved customer copy
+
+The table defines the current Spanish copy, not alternate marketing narratives. Reward and optional description follow each offer heading before its other facts. Date placeholders use original Promotion-local dates. Instructions remain plain text, not customer actions. All next-step instructions and error recovery bodies use the existing body role (`16/24px`, regular `400`) and accent (`#A77BFF`). Date-only temporal sentences, including starts, cutoffs and actual canje dates, use bold (`700`) secondary ink (`#C7C4CE`). The available Reward separates its temporal deadline from its next-step instruction, with the same styles as the other states and no exception. An actual canje date remains a historical fact, not a new validity deadline or next-step instruction. Descriptions and the waiting informational body keep ordinary secondary reading ink.
+
+| Current facts | Heading | Facts and next step after Reward/description |
+|---|---|---|
+| No published offer | **¡Qué gusto verte por aquí!** | **Por ahora no hay promociones disponibles.** No Reward, progress or dates. |
+| Scheduled offer, not started | **¡Se viene algo bueno!** | **Empiezas a sumar el {date}.** / **Cuando empiece, muestra tu tarjeta en el negocio para sumar.** |
+| Active, zero points, no Reward obtained | **¡Vamos por tu recompensa!** | **0 de {target}** with **puntos** below / **Tienes hasta el {date} para sumar.** / optional multiplier / **Muestra tu tarjeta en tu próxima visita y empieza a sumar.** |
+| Active, accumulated points, no Reward obtained | **¡Vas sumando!** | **{points} de {target}** with **puntos** below / **Tienes hasta el {date} para sumar.** / optional multiplier / **Muestra tu tarjeta en tu próxima visita y sigue sumando.** |
+| Reward available | **¡Lo lograste!** | **Puedes canjearla hasta el {date}.** / **Muestra tu tarjeta en el negocio para canjearla.** |
+| Redeemed, not cancelled | **¡Listo, recompensa canjeada!** | **La canjeaste el {date}.** No new earning cycle or canje action. |
+| Ended without Reward | **Esta promoción llegó a su fin.** | **Estuvo disponible hasta el {date}.** |
+| Expired unredeemed Reward | **Esta recompensa ya venció.** | **Podías canjearla hasta el {date}.** |
+| Cancelled | **Esta promoción fue cancelada.** | No redundant second cancellation sentence. Only a genuine prior redemption adds **Tu recompensa fue canjeada el {date}.** |
+| Invalid or foreign link | **No pudimos abrir este enlace.** | **Vuelve a entrar desde tu tarjeta en Google Wallet.** No Business, Reward or private facts. |
+| Authorized detail unavailable | **Por ahora no pudimos mostrar el detalle de tu tarjeta.** | **Inténtalo nuevamente más tarde.** No fabricated absent offer, zero progress or private diagnostics. |
+
+Only zero and earning show **¡Ahora cada visita suma {points} puntos!** when the current visit awards 2, 3 or 5 points. A one-point visit adds no multiplier sentence. Do not recompute or cap previously awarded progress.
+
+Equal current facts produce the same structure, icon, copy and next step regardless of earlier Promotions. A successor uses its own facts with no return/continuation headline, point carryover, revived Reward or grace. Actual prior redemption remains a fact after cancellation; it does not permit canje after cancellation. The page is not a history catalog.
+
+Read current PostgreSQL facts on GET without commercial writes, Google calls, synchronization, polling or deferred work. Keep no QR/manual credential, account form, enrollment, Visit/redemption control, refresh action or success toast for consultation. Invalid/foreign access exposes no Business identity. Render errors as a heading and separate native live-alert body, without a duplicate small warning icon. Keep the signed-read and private-response boundaries unchanged.
 
 ## Registrar visita dialog
 
