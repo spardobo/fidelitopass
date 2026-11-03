@@ -55,9 +55,9 @@ class TfmDemoSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
             $business = Business::factory()->for($owner)->createOne([
-                'name' => 'MoureDev Café',
+                'name' => 'Brais & Beans',
                 'timezone' => 'Europe/Madrid',
-                'pass_background_color' => '#6B4226',
+                'pass_background_color' => '#009beb',
             ]);
             Business::factory()->for($zeroOwner)->createOne([
                 'name' => 'MoureDev Café Zero',

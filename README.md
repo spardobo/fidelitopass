@@ -13,7 +13,7 @@ Muchos negocios de atención directa quieren incentivar el regreso de sus client
 FidelitoPass propone una experiencia sencilla para ambos lados:
 
 1. **El negocio** configura una promoción, comparte un código QR permanente, registra las visitas y confirma los canjes.
-2. **El cliente** accede sin registrarse en FidelitoPass, guarda la tarjeta en Google Wallet y la presenta cuando vuelve. La misma tarjeta le sirve para futuras promociones del negocio.
+2. **El cliente** accede sin registrarse en FidelitoPass, guarda su tarjeta de fidelidad en Google Wallet y la presenta cuando vuelve. La misma tarjeta le sirve para futuras promociones del negocio. Desde **Ver detalles**, abre una página privada que consulta en el servidor la promoción activa o, si no hay una, la información más relevante de sus promociones.
 
 El objetivo del MVP es **validar la viabilidad funcional y técnica del ciclo de fidelización**, desde la incorporación del cliente hasta el canje. La validación comercial requiere pilotos y mediciones posteriores, el presente MVP todavía no es una conclusión del producto como tal.
 
@@ -24,7 +24,9 @@ flowchart LR
     A[Negocio crea una promoción] --> B[Comparte su QR permanente]
     B --> C[Cliente guarda su tarjeta en Google Wallet]
     C --> D[Negocio registra visitas]
+    C -.-> I[Cliente consulta sus detalles en la web]
     D --> E[Se acumulan puntos]
+    E -.-> I
     E --> F[Se desbloquea una recompensa]
     F --> G[Negocio confirma el canje]
     G --> H[La tarjeta permanece para próximas promociones]
@@ -49,21 +51,29 @@ Estas capacidades demuestran el funcionamiento del producto, sin embargo, no rep
 | Registro, autenticación y configuración del negocio y su zona horaria. | Incorporación sin crear una cuenta en FidelitoPass. |
 | Personalización de la apariencia de la tarjeta. | Acceso desde un QR público permanente del negocio. |
 | Creación y edición de borradores de promociones. | Emisión de una tarjeta digital en Google Wallet. |
-| Programación, publicación y cancelación de promociones. | Consulta de puntos, vigencia y recompensa en su tarjeta. |
+| Programación, publicación y cancelación de promociones. | Consulta de puntos, vigencia y recompensa en una landing privada accesible desde la tarjeta. |
 | Configuración de metas, recompensas y horarios de puntos extra. | Conservación de la misma tarjeta entre promociones. |
 | Resumen operativo e historial de promociones. | Presentación de la tarjeta en cada visita. |
-| Identificación por escáner QR o código manual. | Consulta del resultado cuando el negocio valida una visita o un canje. |
+| Identificación por escáner QR o código manual. | Consulta de su progreso y del estado de su recompensa cuando abre la página de detalles. |
 | Confirmación de visitas, acumulación de puntos y canje único de recompensas. |  |
 
 La experiencia en mostrador del negocio se resolvió con un diálogo modal de **identificación → confirmación → resultado**, con alternativas claras si la cámara no está disponible. Consultar una tarjeta no registra automáticamente una visita sino que la operación requiere una confirmación explícita y se vuelve a validar en el servidor.
 
 **Requisito para el escaneo en mostrador:** se recomienda un teléfono móvil con cámara y navegador compatible, o una laptop con cámara externa u orientable para leer el QR que presenta el cliente. El navegador debe tener permiso para usar la cámara y acceder desde un contexto seguro (HTTPS o `localhost` en pruebas). Si no hay cámara disponible, puede utilizarse el código manual de la tarjeta.
 
+### Tarjeta permanente y consulta personal
+
+La tarjeta no contiene datos variables de promociones, puntos, recompensas o vencimientos. El botón **Ver detalles** y el enlace de detalle abren la misma página privada de solo lectura. Su URL está firmada y vinculada a una tarjeta y su negocio, y es distinta del QR y del código manual utilizados en mostrador. Quien tenga ese enlace puede consultar el detalle, por lo que debe tratarse como información privada.
+
+La landing obtiene los hechos personales en una consulta coherente de PostgreSQL, con un mismo instante de referencia. Prioriza la promoción activa, después la publicada futura más próxima y, si no existen, la información anterior relevante. Puede mostrar espera, inicio pendiente, cero puntos, progreso, recompensa disponible o canjeada, promoción finalizada o cancelada y recompensa vencida. Esos mensajes no son estados de la credencial de Google Wallet. Las nuevas promociones utilizan sus propios puntos y recompensas, sin trasladar el progreso anterior.
+
+Consultar la página no registra visitas, no canjea premios y no llama a Google. Las respuestas son privadas y no almacenables en caché, y evitan enviar la URL como referencia. La información se obtiene al abrir el enlace: no hay notificaciones proactivas ni progreso sin conexión dentro de Wallet. Esta separación evita sincronizar el contenido comercial de cada tarjeta, a cambio de necesitar conexión y disponibilidad de la aplicación para consultarlo. La decisión y sus alternativas están en [ADR-008](docs/architecture/decisions/008-permanent-wallet-credential.md).
+
 ### Qué diferencia la propuesta
 
 La diferenciación de FidelitoPass está en la combinación de decisiones de producto, no en afirmar que sus funcionalidades sean inéditas en el mercado:
 
-1. **Una tarjeta persistente por negocio.** El cliente no necesita una tarjeta nueva en cada campaña, la información de Google Wallet cambia con la promoción.
+1. **Una tarjeta reutilizable entre promociones.** Cada tarjeta emitida permanece vinculada al mismo negocio y no necesita reemplazarse en cada campaña. Google Wallet conserva la identidad del negocio, el QR privado, el código manual y el enlace de detalle. La promoción, los puntos y la recompensa se consultan en la web.
 2. **Una mecánica comprensible.** Visitas, puntos y una recompensa. Los puntos extra se utilizan como incentivo horario, sin reglas difíciles de explicar.
 3. **Poca fricción para participar.** El cliente no necesita una cuenta propia de FidelitoPass ni instalar una aplicación adicional.
 4. **Una operación de mostrador rápida.** Escaneo o código manual, verificación, confirmación y resultado en un mismo recorrido.
@@ -88,11 +98,11 @@ FidelitoPass es un **monolito Laravel organizado por responsabilidades**. Postgr
 
 ```mermaid
 flowchart LR
-    N[Negocio · navegador] --> UI[Laravel · Blade · Livewire]
-    C[Cliente · navegador / Wallet] --> UI
-    UI --> A[Actions y servicios especializados]
-    A --> DB[(PostgreSQL)]
-    A --> W[Google Wallet API]
+    N["Negocio · navegador"] --> UI["Laravel · Blade · Livewire"]
+C["Cliente · navegador / Wallet"] --> UI
+UI --> A[Actions y servicios especializados]
+A --> DB[(PostgreSQL)]
+A --> W[Google Wallet API]
 ```
 
 ### Framework-First y patrón Action
@@ -115,11 +125,11 @@ Esto no significa que Laravel sea incompatible con Clean Architecture o que el p
 
 4. **Integridad transaccional.** El registro de visitas, la asignación de puntos y la gestión de recompensas se coordinan mediante transacciones, evitando cambios parciales o inconsistencias en la base de datos.
 
-5. **Integración con Google Wallet.** La tarjeta de fidelización refleja el estado gestionado por PostgreSQL. La integración contempla fallos de comunicación y resultados inciertos, reconociendo que ambos sistemas no comparten una transacción atómica.
+5. **Integración con Google Wallet.** La tarjeta es una credencial permanente. Las visitas, los canjes y las lecturas de la landing no llaman a Google ni actualizan cada tarjeta. La emisión inicial sigue requiriendo confirmación de Google antes de persistir la tarjeta local, y los cambios de apariencia compartida conservan su propio contrato con el proveedor. Google y PostgreSQL no comparten una transacción atómica.
 
 6. **Seguridad.** Se separa el QR público de invitación de los mecanismos privados de identificación. Toda visita o canje requiere autorización del negocio, validaciones en el servidor y controles contra intentos indebidos.
 
-Las alternativas evaluadas, sus fundamentos y consecuencias se encuentran en la documentación de [Arquitectura](docs/architecture/overview.md), [Seguridad](docs/architecture/security.md) y los [registros de decisiones arquitectónicas (ADR)](docs/architecture/decisions/).
+Las alternativas evaluadas, sus fundamentos y consecuencias se encuentran en la documentación de [Arquitectura](docs/architecture/overview.md), [Seguridad](docs/architecture/security.md) y los [registros de decisiones arquitectónicas (ADR)](https://github.com/spardobo/fidelitopass/tree/main/docs/architecture/decisions).
 
 ## Stack tecnológico
 
@@ -151,12 +161,12 @@ La seguridad forma parte de esas mismas decisiones: autenticación y autorizaci�
 flowchart LR
     I[Issue y criterios de aceptación] --> B[Rama de trabajo]
     B --> D[Implementación y pruebas]
-    D --> C[Commit · pre-commit]
-    C --> P[Push · pre-push]
-    P --> R[Pull Request y revisión]
-    R --> CI[CI en GitHub Actions]
-    CI --> M[Merge aprobado]
-    M --> V[Verificación de CI en main]
+    D --> C["Commit · pre-commit"]
+C --> P["Push · pre-push"]
+P --> R[Pull Request y revisión]
+R --> CI[CI en GitHub Actions]
+CI --> M[Merge aprobado]
+M --> V[Verificación de CI en main]
 ```
 
 1. **Antes del commit**, los hooks verifican formato PHP/JavaScript, análisis estático, pruebas unitarias y consistencia documental.
@@ -164,7 +174,7 @@ flowchart LR
 3. **En GitHub Actions**, los PR hacia `main` y los pushes a `main` pasan por validación de dependencias, formato, análisis estático, tests, auditorías, escaneo de secretos, documentación y build, con PostgreSQL como servicio de pruebas.
 4. **La entrega de cambios** sigue issues, criterios de aceptación, revisión de PR y comprobación del resultado integrado en `main`, el detalle operativo está documentado en el repositorio.
 
-El repositorio tiene **integración continua (CI)**. El despliegue continuo (CD) no está configurado. La CI actúa como una verificación reproducible del código integrado y no sustituye la revisión técnica del cambio. Los objetivos de cobertura, los resultados de cada ejecución y las evidencias técnicas se consultan en la documentación y en los checks de GitHub, sin atribuir resultados que no se hayan verificado.
+El repositorio tiene **integración continua (CI)** y un [workflow de despliegue a Northflank](.github/workflows/deploy-northflank.yml). Tras una CI satisfactoria de un push a `main`, el flujo comprueba que el commit siga vigente, construye una imagen identificada por su SHA, prepara la base de datos en un job privado y despliega esa misma imagen. Si faltan los identificadores de servicio y job, solo prepara la imagen de arranque, sin desplegar. La confirmación del proveedor no sustituye la comprobación del acceso público y del funcionamiento de la aplicación. La CI verifica el código integrado y no sustituye la revisión técnica del cambio. Los objetivos de cobertura, los resultados de cada ejecución y las evidencias técnicas se consultan en la documentación y en los checks de GitHub, sin atribuir resultados que no se hayan verificado.
 
 Para profundizar: [Estrategia de calidad](docs/quality-strategy.md), [Flujo de desarrollo](docs/development/workflow.md), [CI](.github/workflows/ci.yml) y [Logging operativo](docs/development/operational-logging.md).
 
@@ -180,7 +190,7 @@ resources/              Vistas Blade/Livewire, JavaScript y estilos
 routes/                 Rutas públicas y autenticadas
 tests/                  Pruebas PHP, navegador y JavaScript
 scripts/quality/        Controles de calidad, seguridad y runners
-.github/workflows/       Integración continua
+.github/workflows/       Integración continua y despliegue a Northflank
 docker/                 Configuración del contenedor de producción
 skills/                 Convenciones de implementación del repositorio
 ```
@@ -235,7 +245,7 @@ El directorio [`docs/`](docs/README.md) es la referencia técnica detallada. Est
 
 7. Abrir **http://localhost:8000**. La primera cuenta de negocio puede crearse desde la interfaz de registro. Para completar la verificación por correo en el entorno local, revisar los mensajes en **http://localhost:8025** (Mailpit).
 
-Para utilizar la emisión y las actualizaciones reales de Google Wallet en visitas y canjes, se necesita un emisor existente y autorizado, credenciales de cuenta de servicio legibles desde el contenedor y una URL pública HTTPS para el logo, incluso si la aplicación se abre en `localhost`. El emisor y las credenciales se configuran mediante `GOOGLE_WALLET_ISSUER_ID` y `GOOGLE_WALLET_CREDENTIALS_PATH`. Configurar obligatoriamente `GOOGLE_WALLET_LOGO_URL` con la URL completa, pública y HTTPS del logo que aparecerá en la tarjeta. Los detalles técnicos y los límites de esa integración se describen en la [arquitectura de Wallet](docs/architecture/overview.md#google-wallet-model).
+Para emitir tarjetas reales y cambiar su apariencia compartida en Google Wallet, se necesita un emisor existente y autorizado y credenciales de cuenta de servicio legibles desde el contenedor. Se configuran mediante `GOOGLE_WALLET_ISSUER_ID` y `GOOGLE_WALLET_CREDENTIALS_PATH`. El logo debe tener una URL pública HTTPS. `GOOGLE_WALLET_LOGO_URL` permite indicarla expresamente; si está vacía, se utiliza `APP_URL` más `/icon-logo-wallet.png`, que también debe ser público y HTTPS. En desarrollo local hay que indicar una URL pública para el logo. Para que el botón de detalle funcione en el teléfono, `APP_URL` debe señalar una dirección accesible desde ese dispositivo; en el despliegue público debe usar HTTPS. Las visitas y los canjes de tarjetas existentes, así como la landing personal, no dependen de llamadas a Google. Los detalles técnicos y los límites de esa integración se describen en la [arquitectura de Wallet](docs/architecture/overview.md#google-wallet-model).
 
 ### Verificación local
 
