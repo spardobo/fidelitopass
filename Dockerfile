@@ -11,6 +11,7 @@ FROM ${PHP_IMAGE} AS php-base
 # compile the extensions used by Laravel and production dependencies once
 RUN apk add --no-cache \
         icu-libs \
+        icu-data-full \
         libpq \
         libzip \
         oniguruma \
