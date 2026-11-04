@@ -16,13 +16,13 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use RuntimeException;
 
-/** Creates a small fictional café history and an untouched reviewer Business without external effects. */
+/** Creates a fictional café history and consecutive review offers without external effects. */
 class TfmDemoSeeder extends Seeder
 {
     /**
      * Creates the complete demo atomically only when no existing owner or Business can be overwritten.
      *
-     * @param  DatabaseClock  $clock  PostgreSQL clock captured once after both new Businesses exist.
+     * @param  DatabaseClock  $clock  PostgreSQL clock captured once after the new Business exists.
      *
      * @throws RuntimeException When an empty target lacks the private review password.
      */
@@ -48,20 +48,10 @@ class TfmDemoSeeder extends Seeder
                 'password' => $password,
                 'email_verified_at' => now(),
             ]);
-            $zeroOwner = User::factory()->createOne([
-                'name' => 'MoureDev Zero',
-                'email' => 'mouredev-zero@fidelito.com',
-                'password' => $password,
-                'email_verified_at' => now(),
-            ]);
             $business = Business::factory()->for($owner)->createOne([
                 'name' => 'Brais & Beans',
                 'timezone' => 'Europe/Madrid',
                 'pass_background_color' => '#009beb',
-            ]);
-            Business::factory()->for($zeroOwner)->createOne([
-                'name' => 'MoureDev Café Zero',
-                'timezone' => 'Europe/Madrid',
             ]);
 
             $time = $clock->capture($business->timezone);
@@ -72,7 +62,7 @@ class TfmDemoSeeder extends Seeder
     }
 
     /**
-     * Creates eleven distinct café offers with disjoint effective published windows and weekly bonuses.
+     * Creates café history and disjoint offers through January 2027 or at least 43 local days ahead.
      *
      * @param  Business  $business  Newly created main Business.
      * @param  CarbonImmutable  $today  Midnight of the one captured Madrid-local date.
@@ -94,6 +84,19 @@ class TfmDemoSeeder extends Seeder
             'draft_3' => [PromotionStatus::Draft, 30, 45, null],
             'cancelled_future' => [PromotionStatus::Cancelled, 15, 29, -2],
         ];
+        $januaryEnd = CarbonImmutable::parse('2027-02-01', $business->timezone)->startOfDay();
+        $coverageDays = max(43, (int) $today->diffInDays($januaryEnd));
+        $scheduledIndex = 3;
+        for ($startOffset = 43; $startOffset < $coverageDays; $startOffset += 14) {
+            $periods['scheduled_'.$scheduledIndex] = [
+                PromotionStatus::Published,
+                $startOffset,
+                min($startOffset + 14, $coverageDays),
+                null,
+            ];
+            $scheduledIndex++;
+        }
+
         $rewards = fake()->shuffleArray(PromotionFactory::REWARDS);
         $targets = fake()->shuffleArray(PromotionFactory::TARGETS);
         $promotions = [];
@@ -118,11 +121,12 @@ class TfmDemoSeeder extends Seeder
                     'ends_at' => $end->utc(),
                 ];
             }
+            $reward = $rewards[$index % count($rewards)];
             $promotion = PromotionFactory::new()->for($business)->createOne([
                 ...$dates,
                 'target_points' => $targets[$index % count($targets)],
-                'reward_title' => $rewards[$index][0],
-                'reward_description' => $rewards[$index][1],
+                'reward_title' => $reward[0],
+                'reward_description' => $reward[1],
                 'status' => $status,
                 'cancelled_at' => $cancelOffset === null ? null : $today->addDays($cancelOffset)->setTime(12, 0)->utc(),
             ]);
